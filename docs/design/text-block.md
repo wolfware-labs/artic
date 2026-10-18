@@ -185,16 +185,16 @@ The engine already places each line by its free width, the paragraph's width min
 | `Left` | 0 | 0 |
 | `Right` | 1 | 1 |
 
-`Justify` places a line by `Start`, then stretches it to the paragraph's width by sharing its free width evenly among its space clusters (`parley`'s space or no-break space), as CSS's `text-justify: inter-word` does. The hanging whitespace at the line's end isn't counted. These lines aren't stretched:
+`Justify` places a line by `Start`, then stretches it to `max_width` by sharing what it lacks of that width evenly among its space clusters (`parley`'s space or no-break space), as CSS's `text-justify: inter-word` does. The hanging whitespace at the line's end isn't counted. These lines aren't stretched:
 
 - the last kept line, and a line that ends at a hard break;
 - a trimmed line;
 - a line with no spaces, such as CJK text or one long word;
-- a line wider than the paragraph.
+- a line wider than `max_width`.
 
 Spacing between characters in scripts without spaces waits for a use case: it needs a rule per script, and Arabic must never be spaced apart.
 
-A justified line has to reach the box's edge, but a paragraph's width is its widest line, which can be a word short of `max_width`. So a paragraph with at least one stretched line is as wide as `max_width` or its widest line, whichever is wider, and its `limited_width()` is true, so a box of another width shapes it again (section 6).
+A justified line has to reach the box's edge, but a paragraph's width is its widest line, which can be a word short of `max_width`. So a paragraph with at least one stretched line is as wide as `max_width` or its widest line, whichever is wider, and its `limited_width()` is true, so a box of another width shapes it again (section 6). Stretched lines stop at `max_width` even when a word that can't break under `WrapWithOverflow` makes the paragraph wider: only that word overflows, as in CSS, and the alignment's factor places the stretched lines in the wider paragraph, at its right edge when it runs right to left.
 
 ## 6. Measure, arrange, render
 

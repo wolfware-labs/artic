@@ -3,8 +3,8 @@
 //! The lines are placed here, not with `parley`'s `align`, which aligns against the break width
 //! rather than the widest kept line and measures trailing whitespace wrongly in right-to-left
 //! runs. Each line moves by its free width, the paragraph's width minus its own, times its
-//! alignment's factor; a justified line is stretched to the paragraph's width instead, sharing its
-//! free width among its spaces. A line is the visual span of its clusters, except the whitespace that ends its text: that
+//! alignment's factor; a justified line is first stretched to the width limit, sharing what it
+//! lacks of it among its spaces. A line is the visual span of its clusters, except the whitespace that ends its text: that
 //! whitespace hangs, taking no width and drawing nothing. In a left-to-right paragraph every line's
 //! span starts at 0, and in a right-to-left one every line's span ends at the paragraph's width,
 //! whatever direction the line's own text runs: the paragraph's direction is its first strong
@@ -47,10 +47,8 @@ pub(crate) fn paragraph(
     })
     .collect::<Vec<_>>();
   let widest = shaped.iter().map(ShapedLine::width).fold(0.0, f32::max);
-  let width = match max_width {
-    Some(max) if stretched.contains(&true) => max.max(widest),
-    _ => widest,
-  };
+  let stretch_to = max_width.filter(|_| stretched.contains(&true));
+  let width = stretch_to.map_or(widest, |max| max.max(widest));
   let right_to_left = layout.is_rtl();
   let limited_width = stretched.contains(&true) || shaped.iter().any(|line| line.soft_break);
   let factor = style.alignment.factor(right_to_left);
@@ -58,10 +56,9 @@ pub(crate) fn paragraph(
   let mut lines = Vec::with_capacity(shaped.len());
   let mut runs = Vec::new();
   for (line, stretch) in shaped.into_iter().zip(stretched) {
-    let (line_width, gap) = if stretch {
-      (width, (width - line.width()) / line.gaps as f32)
-    } else {
-      (line.width(), 0.0)
+    let (line_width, gap) = match stretch_to {
+      Some(max) if stretch => (max, (max - line.width()) / line.gaps as f32),
+      _ => (line.width(), 0.0),
     };
     let shift = (width - line_width) * factor - line.start;
     lines.push(Line {

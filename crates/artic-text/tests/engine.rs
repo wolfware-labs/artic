@@ -882,3 +882,20 @@ fn justify_without_a_width_limit_stretches_nothing() {
     laid_out(&mut engine, "The quick\nbrown fox", &overflowing(), TextLimits::NONE)
   );
 }
+
+// Beside a word wider than max_width, justified lines stretch to max_width, not to the word: only
+// the word overflows.
+#[test]
+fn justified_lines_stop_at_max_width() {
+  let text = "Supercalifragilisticexpialidociousness one two three four five six seven";
+  let paragraph = laid_out(&mut engine(), text, &aligned(TextAlignment::Justify), TextLimits::width(60.0));
+  let (word, rest) = paragraph.lines().split_first().unwrap();
+
+  assert!(word.width > 60.0);
+  assert_eq!(paragraph.size().width, word.width);
+  assert!(rest.iter().any(|line| line.width == 60.0), "{rest:?}");
+  for line in rest {
+    assert!(line.width <= 60.0, "{line:?}");
+    assert!(right_glyph(&paragraph, line) < 60.0, "{line:?}");
+  }
+}
