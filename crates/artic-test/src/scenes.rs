@@ -191,7 +191,7 @@ mod tests {
   // Every scene records at least one drawing command.
   #[test]
   fn every_scene_draws() {
-    let scenes: [fn() -> Scene; 10] = [
+    let scenes: [fn() -> Scene; 13] = [
       rounded_rect_fill,
       stroke,
       path,
@@ -202,6 +202,9 @@ mod tests {
       rounded_rect_clip,
       path_clip,
       nested_opacity,
+      text_solid,
+      text_gradient,
+      text_wrapped,
     ];
     for (index, scene) in scenes.into_iter().enumerate() {
       let draws = scene().items().iter().any(|item| match item {
