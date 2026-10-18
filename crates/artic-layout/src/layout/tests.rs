@@ -1137,9 +1137,16 @@ impl TextEngine for Recorder {
   }
 }
 
-/// A test leaf, 50 by 10, that shapes "measure" in its measure and "arrange" in its arrange.
+/// A test leaf, 50 by 10, that shapes "measure" in its measure and "arrange" in its arrange, keeps
+/// the results it's told to, and notes what its arrange read back.
 #[derive(Debug, Default)]
-struct Shaper;
+struct Shaper {
+  measured: Cell<Option<u32>>,
+  arranged: Cell<Option<u32>>,
+  read: Cell<Option<u32>>,
+  twice: Cell<bool>,
+  collapsed: Cell<bool>,
+}
 
 impl Object for Shaper {
   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
@@ -1149,12 +1156,26 @@ impl Layoutable for Shaper {
   fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {
     cx.text()
       .paragraph("measure", &TextStyle::new(FontFamily::default(), 16.0), TextLimits::NONE);
+    if let Some(result) = self.measured.get() {
+      if self.twice.get() {
+        cx.set_measured(9_u32);
+      }
+      cx.set_measured(result);
+    }
     Size::new(50.0, 10.0)
   }
 
   fn arrange(&self, cx: &mut ArrangeCx<'_>, _rect: Rect) {
     cx.text()
       .paragraph("arrange", &TextStyle::new(FontFamily::default(), 16.0), TextLimits::NONE);
+    self.read.set(cx.arranged::<u32>().copied());
+    if let Some(result) = self.arranged.get() {
+      cx.set_arranged(result);
+    }
+  }
+
+  fn collapsed(&self) -> bool {
+    self.collapsed.get()
   }
 }
 
@@ -1235,4 +1256,235 @@ fn arrange_reaches_the_text_engine() {
   layout.run(&mut tree, &WithShapers, holder, Size::new(300.0, 200.0), GRID, &mut text);
 
   assert_eq!(text.asked, ["arrange"]);
+}
+
+fn shaper(tree: &UiTree, id: NodeId) -> &Shaper {
+  tree.get_as::<Shaper>(id).expect("a shaper")
+}
+
+fn result(layout: &LayoutManager, node: NodeId) -> Option<u32> {
+  layout.result(node).and_then(|result| result.downcast_ref::<u32>()).copied()
+}
+
+fn lay_out(layout: &mut LayoutManager, tree: &mut UiTree, root: NodeId, available: Size) -> LayoutStats {
+  layout.run(tree, &WithShapers, root, available, GRID, &mut Recorder::default())
+}
+
+// What a measure set is kept, beside the size it returned.
+#[test]
+fn measured_result_is_kept_with_the_size() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  assert_eq!(result(&layout, node), Some(1));
+  assert_eq!(layout.desired(node), Some(Size::new(50.0, 10.0)));
+}
+
+// A measure answered from the cache doesn't run, so the result it set before stays.
+#[test]
+fn cached_measure_keeps_its_result() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+  shaper(&tree, node).measured.set(Some(2));
+
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  assert_eq!(result(&layout, node), Some(1));
+}
+
+// A measure that runs without setting a result drops the one before.
+#[test]
+fn measure_without_a_result_drops_the_old_one() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+  shaper(&tree, node).measured.set(None);
+  LayoutManager::invalidate_measure(&mut tree, node);
+
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  assert_eq!(result(&layout, node), None);
+}
+
+// When a measure sets its result twice, the last value is kept, and the node is reported once.
+#[test]
+fn second_set_measured_wins() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  shaper(&tree, node).twice.set(true);
+  let mut layout = LayoutManager::default();
+
+  let stats = lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  assert_eq!(result(&layout, node), Some(1));
+  assert_eq!(stats.results, [node]);
+}
+
+// The arranged result is read first: render draws what arrange made for the final size.
+#[test]
+fn arranged_result_replaces_the_measured_one() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  shaper(&tree, node).arranged.set(Some(2));
+  let mut layout = LayoutManager::default();
+
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  assert_eq!(result(&layout, node), Some(2));
+}
+
+// An arrange that only moves the node keeps its arranged result and can read it back.
+#[test]
+fn moving_keeps_the_arranged_result() {
+  let mut tree = UiTree::new();
+  let above = leaf(&mut tree, 50.0, 10.0);
+  let shaped = tree.alloc(Box::<Shaper>::default());
+  let root = stack(&mut tree, &[above, shaped]);
+  shaper(&tree, shaped).arranged.set(Some(2));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, root, WINDOW);
+  shaper(&tree, shaped).arranged.set(None);
+  node(&tree, above).size.set(Size::new(50.0, 30.0));
+  LayoutManager::invalidate_measure(&mut tree, above);
+
+  lay_out(&mut layout, &mut tree, root, WINDOW);
+
+  assert_eq!(layout.rect(shaped).map(|rect| rect.y), Some(30.0));
+  assert_eq!(shaper(&tree, shaped).read.get(), Some(2));
+  assert_eq!(result(&layout, shaped), Some(2));
+}
+
+// Arranged at another size, a node loses the arranged result made for the old one.
+#[test]
+fn resizing_drops_the_arranged_result() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).arranged.set(Some(2));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+  shaper(&tree, node).arranged.set(None);
+
+  lay_out(&mut layout, &mut tree, holder, Size::new(120.0, 80.0));
+
+  assert_eq!(shaper(&tree, node).read.get(), None);
+  assert_eq!(result(&layout, node), None);
+}
+
+// A new measure drops the arranged result, even when the node is then arranged at the same size.
+#[test]
+fn measuring_drops_the_arranged_result() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).arranged.set(Some(2));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+  shaper(&tree, node).arranged.set(None);
+  LayoutManager::invalidate_measure(&mut tree, node);
+
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  assert_eq!(result(&layout, node), None);
+}
+
+// A node taken out of the tree takes its results with it.
+#[test]
+fn dropped_node_drops_its_results() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+  tree.detach(TreeKind::Visual, node);
+  LayoutManager::invalidate_measure(&mut tree, holder);
+
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  assert!(layout.result(node).is_none());
+}
+
+// A node that collapses isn't measured by its parent any more, and loses its results.
+#[test]
+fn collapsed_node_drops_its_results() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+  shaper(&tree, node).collapsed.set(true);
+  LayoutManager::invalidate_measure(&mut tree, holder);
+
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  assert!(layout.result(node).is_none());
+}
+
+// A run reports each node whose result was set or dropped, once.
+#[test]
+fn set_and_dropped_results_are_reported() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+
+  assert_eq!(lay_out(&mut layout, &mut tree, holder, WINDOW).results, [node]);
+
+  shaper(&tree, node).measured.set(None);
+  LayoutManager::invalidate_measure(&mut tree, node);
+  assert_eq!(lay_out(&mut layout, &mut tree, holder, WINDOW).results, [node]);
+}
+
+// A result set by LayoutManager::measure is reported by the next run, which measures nothing.
+#[test]
+fn results_from_measure_reach_the_next_run() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  layout.measure(&mut tree, &WithShapers, holder, WINDOW, &mut Recorder::default());
+
+  let stats = lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  assert_eq!(stats.measured, 0);
+  assert_eq!(stats.results, [node]);
+}
+
+// A run that changes nothing reports no results.
+#[test]
+fn unchanged_layout_reports_no_results() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  assert_eq!(lay_out(&mut layout, &mut tree, holder, WINDOW).results, Vec::<NodeId>::new());
+}
+
+// An arranged result leaves the measured size alone, so the parent sees what the node asked for.
+#[test]
+fn parent_still_sees_the_measured_size() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).arranged.set(Some(2));
+  let mut layout = LayoutManager::default();
+
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  assert_eq!(layout.desired(node), Some(Size::new(50.0, 10.0)));
+  assert_eq!(layout.desired(holder), Some(Size::new(50.0, 10.0)));
+}
+
+// A result read back as another type is nothing, not a panic.
+#[test]
+fn wrong_type_reads_nothing() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  assert!(
+    layout
+      .result(node)
+      .and_then(|result| result.downcast_ref::<String>())
+      .is_none()
+  );
 }

@@ -5,12 +5,14 @@ use crate::geometry::{Rect, Size};
 use crate::text::TextEngine;
 use artic_core::property::Affects;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
+use std::any::Any;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Something layout can size and place: an element, seen by the layout pass.
 ///
 /// Both methods take `&self`: an element's inputs are its properties, readable through a shared
-/// reference, and what layout works out (sizes, rectangles, caches) is kept by the
+/// reference, and what layout works out (sizes, rectangles, caches, and the results a node sets
+/// with [`MeasureCx::set_measured`] and [`ArrangeCx::set_arranged`]) is kept by the
 /// [`LayoutManager`], not by the element.
 pub trait Layoutable {
   /// Returns the size the element wants within `available`, its margin included.
@@ -70,7 +72,43 @@ struct Slot {
 pub struct LayoutManager {
   slots: HashMap<NodeId, Slot>,
   sizes: HashMap<NodeId, Size>,
+  results: Results,
   grid: Option<PixelGrid>,
+}
+
+/// What nodes' measures and arranges produced beside their sizes, and the nodes whose result was
+/// set or dropped since a run last reported them.
+#[derive(Debug, Default)]
+struct Results {
+  /// What each node's last measure set.
+  measured: HashMap<NodeId, Box<dyn Any>>,
+  /// What each node's arrange set, with the size it was offered then.
+  arranged: HashMap<NodeId, (Size, Box<dyn Any>)>,
+  /// The nodes whose result was set or dropped, in the order they first changed.
+  changed: Vec<NodeId>,
+  /// The nodes in `changed`, to list each once.
+  listed: HashSet<NodeId>,
+}
+
+impl Results {
+  /// Notes that `node`'s result was set or dropped.
+  fn changed(&mut self, node: NodeId) {
+    if self.listed.insert(node) {
+      self.changed.push(node);
+    }
+  }
+
+  /// Drops `node`'s results, as its slot goes.
+  fn forget(&mut self, node: NodeId) {
+    self.measured.remove(&node);
+    self.arranged.remove(&node);
+  }
+
+  /// Hands over the nodes noted since the last call.
+  fn take_changed(&mut self) -> Vec<NodeId> {
+    self.listed.clear();
+    std::mem::take(&mut self.changed)
+  }
 }
 
 /// The device-pixel grid arranged rectangles land on: device pixels per logical pixel, and whether
@@ -95,6 +133,10 @@ pub struct LayoutStats {
   /// one that only moved; one shown again after its parent stopped laying it out is compared with
   /// its size from before.
   pub resized: Vec<NodeId>,
+  /// The nodes whose layout result was set or dropped since the last run, including by a
+  /// [`measure`](LayoutManager::measure) call, in the order they first changed. A node draws its
+  /// result, so these are recorded again.
+  pub results: Vec<NodeId>,
 }
 
 impl LayoutManager {
@@ -117,8 +159,9 @@ impl LayoutManager {
         slot.arrange_dirty = true;
       }
     }
-    let (cx, depths, desired) = self.measure_pass(tree, nodes, root, available, text);
+    let (mut cx, depths, desired) = self.measure_pass(tree, nodes, root, available, text);
     if cx.pass.collapsed(root) {
+      cx.pass.stats.results = cx.pass.results.take_changed();
       return cx.pass.stats;
     }
     let mut cx = ArrangeCx { pass: cx.pass, grid };
@@ -151,6 +194,7 @@ impl LayoutManager {
         cx.arrange(node, rect);
       }
     }
+    cx.pass.stats.results = cx.pass.results.take_changed();
     cx.pass.stats
   }
 
@@ -192,8 +236,12 @@ impl LayoutManager {
     }
     self.slots.retain(|node, _| depths.contains_key(node));
     self.sizes.retain(|node, _| depths.contains_key(node));
+    self.results.measured.retain(|node, _| depths.contains_key(node));
+    self.results.arranged.retain(|node, _| depths.contains_key(node));
     if collapsed(nodes, tree, root) {
       self.slots.clear();
+      self.results.measured.clear();
+      self.results.arranged.clear();
       dirty.clear();
     }
 
@@ -224,6 +272,7 @@ impl LayoutManager {
         nodes,
         slots: &mut self.slots,
         sizes: &mut self.sizes,
+        results: &mut self.results,
         text,
         current: None,
         stats: LayoutStats::default(),
@@ -283,6 +332,18 @@ impl LayoutManager {
       .map(|slot| slot.desired)
   }
 
+  /// What `node`'s layout produced for it to draw: its arranged result if it has one, and its
+  /// measured result otherwise.
+  #[must_use]
+  pub fn result(&self, node: NodeId) -> Option<&dyn Any> {
+    self
+      .results
+      .arranged
+      .get(&node)
+      .map(|(_, result)| &**result)
+      .or_else(|| self.results.measured.get(&node).map(|result| &**result))
+  }
+
   /// The bounds `node` was last arranged in, in its parent's coordinates.
   #[must_use]
   pub fn rect(&self, node: NodeId) -> Option<Rect> {
@@ -295,6 +356,7 @@ struct Pass<'a> {
   nodes: &'a dyn LayoutNodes,
   slots: &'a mut HashMap<NodeId, Slot>,
   sizes: &'a mut HashMap<NodeId, Size>,
+  results: &'a mut Results,
   text: &'a mut dyn TextEngine,
   current: Option<NodeId>,
   stats: LayoutStats,
@@ -351,6 +413,21 @@ impl<'a> Pass<'a> {
 /// impl Layoutable for Early {
 ///   fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {
 ///     cx.set_bounds(Rect::new(0.0, 0.0, 1.0, 1.0));
+///     Size::ZERO
+///   }
+///
+///   fn arrange(&self, _cx: &mut ArrangeCx<'_>, _rect: Rect) {}
+/// }
+/// ```
+///
+/// ```compile_fail
+/// # use artic_layout::geometry::{Rect, Size};
+/// # use artic_layout::{ArrangeCx, Layoutable, MeasureCx};
+/// struct Mixed;
+///
+/// impl Layoutable for Mixed {
+///   fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {
+///     cx.set_arranged(1_u32);
 ///     Size::ZERO
 ///   }
 ///
@@ -422,6 +499,8 @@ impl<'a> MeasureCx<'a> {
       return slot.desired;
     }
     self.pass.stats.measured += 1;
+    let had_measured = self.pass.results.measured.remove(&child).is_some();
+    let had_arranged = self.pass.results.arranged.remove(&child).is_some();
     let desired = match self.pass.nodes.layoutable(self.pass.tree, child) {
       Some(layoutable) => {
         let parent = self.pass.current.replace(child);
@@ -438,6 +517,9 @@ impl<'a> MeasureCx<'a> {
       }
     };
     let desired = checked_desired(child, desired, available);
+    if had_measured || had_arranged || self.pass.results.measured.contains_key(&child) {
+      self.pass.results.changed(child);
+    }
     self.dirty.remove(&child);
     let slot = self.pass.slots.entry(child).or_default();
     slot.available = Some(available);
@@ -456,6 +538,18 @@ impl<'a> MeasureCx<'a> {
     })
   }
 
+  /// Keeps `result` as what this measure produced, beside the size it returns, until the node's
+  /// next measure runs; the element reads it back when it draws. A measure answered from the cache
+  /// keeps it, and one that runs without calling this drops it.
+  ///
+  /// # Panics
+  ///
+  /// Panics outside a node's `measure`.
+  pub fn set_measured<T: Any>(&mut self, result: T) {
+    let node = self.pass.node();
+    self.pass.results.measured.insert(node, Box::new(result));
+  }
+
   /// Forgets what layout knew about `node`'s visual children that its measure didn't measure, and
   /// about their subtrees, so neither the upward nor the waiting pass lays them out.
   fn forget_unmeasured(&mut self, node: NodeId, measured: &HashSet<NodeId>) {
@@ -467,8 +561,10 @@ impl<'a> MeasureCx<'a> {
       .collect();
     for child in skipped {
       self.pass.slots.remove(&child);
+      self.pass.results.forget(child);
       for descendant in self.pass.tree.descendants(TreeKind::Visual, child) {
         self.pass.slots.remove(&descendant);
+        self.pass.results.forget(descendant);
       }
     }
   }
@@ -584,6 +680,16 @@ impl<'a> ArrangeCx<'a> {
     slot.rect = Some(rect);
     slot.arrange_dirty = false;
     self.pass.stats.arranged += 1;
+    if self
+      .pass
+      .results
+      .arranged
+      .get(&child)
+      .is_some_and(|(size, _)| *size != rect.size())
+    {
+      self.pass.results.arranged.remove(&child);
+      self.pass.results.changed(child);
+    }
     if let Some(layoutable) = self.pass.nodes.layoutable(self.pass.tree, child) {
       let parent = self.pass.current.replace(child);
       layoutable.arrange(self, rect);
@@ -602,6 +708,35 @@ impl<'a> ArrangeCx<'a> {
     for child in children {
       self.arrange(child, rect);
     }
+  }
+
+  /// Keeps `result` as what this arrange produced for the size the node was offered, in place of
+  /// its measured result, until the node is measured again or offered another size.
+  ///
+  /// # Panics
+  ///
+  /// Panics outside a node's `arrange`.
+  pub fn set_arranged<T: Any>(&mut self, result: T) {
+    let node = self.pass.node();
+    let size = self
+      .pass
+      .slots
+      .get(&node)
+      .and_then(|slot| slot.offered)
+      .map_or(Size::ZERO, Rect::size);
+    self.pass.results.arranged.insert(node, (size, Box::new(result)));
+    self.pass.results.changed(node);
+  }
+
+  /// The arranged result the node holds for the size it's offered now, if it set one of type `T`.
+  ///
+  /// # Panics
+  ///
+  /// Panics outside a node's `arrange`.
+  #[must_use]
+  pub fn arranged<T: Any>(&self) -> Option<&T> {
+    let (_, result) = self.pass.results.arranged.get(&self.pass.node())?;
+    result.downcast_ref()
   }
 
   /// Sets the bounds of the node being arranged, in its parent's coordinates, when they aren't the
