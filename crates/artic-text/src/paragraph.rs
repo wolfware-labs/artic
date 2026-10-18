@@ -3,8 +3,10 @@
 //! The lines are placed here, not with `parley`'s `align`, which aligns against the break width
 //! rather than the widest kept line and measures trailing whitespace wrongly in right-to-left
 //! runs. A line is the visual span of its clusters, except the whitespace that ends its text: that
-//! whitespace hangs, taking no width and drawing nothing. A left-to-right line's span starts at 0,
-//! and a right-to-left line's ends at the paragraph's width.
+//! whitespace hangs, taking no width and drawing nothing. In a left-to-right paragraph every line's
+//! span starts at 0, and in a right-to-left one every line's span ends at the paragraph's width,
+//! whatever direction the line's own text runs: the paragraph's direction is its first strong
+//! character's.
 
 use crate::faces::Faces;
 use artic_layout::geometry::Size;

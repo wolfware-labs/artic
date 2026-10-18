@@ -460,3 +460,21 @@ fn thai_text_wraps_between_words() {
 
   assert!(paragraph.lines().len() > 1);
 }
+
+// Every line is placed by the paragraph's direction, which its first strong character sets, not
+// by its own text: a Hebrew line in a left-to-right paragraph starts at 0, and a Latin line in a
+// right-to-left one ends at the paragraph's right edge.
+#[test]
+fn lines_follow_the_paragraph_direction() {
+  let mut engine = engine();
+  let left_to_right = shape(&mut engine, "Hello world\nשלום", &style());
+  let right_to_left = shape(&mut engine, "שלום עולם שלום\nabc", &style());
+
+  let hebrew = &left_to_right.lines()[1];
+  assert_close(glyph_xs(&left_to_right, hebrew).into_iter().fold(f32::MAX, f32::min), 0.0);
+  let latin = &right_to_left.lines()[1];
+  assert_close(
+    glyph_xs(&right_to_left, latin).into_iter().fold(f32::MAX, f32::min),
+    right_to_left.size().width - latin.width,
+  );
+}
