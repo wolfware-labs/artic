@@ -76,6 +76,14 @@ impl<T> PropertyKey<T> {
     }
   }
 
+  /// Returns this key: the property key a value is stored under.
+  /// [`AttachedKey::key`](super::AttachedKey::key) returns the one an attached property is stored
+  /// under, so code that takes either kind reads it the same way.
+  #[must_use]
+  pub const fn key(&self) -> &PropertyKey<T> {
+    self
+  }
+
   /// The property's name, as markup spells it.
   #[must_use]
   pub const fn name(&self) -> &'static str {

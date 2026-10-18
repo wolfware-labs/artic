@@ -36,8 +36,10 @@ use syn::{DeriveInput, parse_macro_input};
 /// - `Property<T>` is a XAML property. `T`, or `X` in `Option<X>`, must implement `FromStr` or
 ///   `XamlType`, or be a `NodeId` child slot. Its settings: `default = expr` for the `Default`
 ///   level (otherwise `T::default()`), `affects = layout | render | surface` and `inherits` for
-///   its generated key, `key = STATIC` to share a `PropertyKey` with other types instead
-///   (inheritance across types needs it), and `name = "..."` to rename it (the field name in
+///   its generated key, `key = KEY` to share a key with other types instead (inheritance across
+///   types needs it): a `static PropertyKey`, or an attached property's key such as
+///   `TextElement::FONT_SIZE`, which also gives the field its default, so `default` can't go
+///   beside it, and `name = "..."` to rename it (the field name in
 ///   PascalCase otherwise).
 ///   A bare `inherits` replaces what the property inherits with its own value; `inherits = f`
 ///   combines the two through `f(own, inherited)`, where a single name such as `and` is one of

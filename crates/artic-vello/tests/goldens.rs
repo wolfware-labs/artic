@@ -4,15 +4,17 @@
 
 mod common;
 
-use artic_controls::{Border, StackPanel};
+use artic_controls::{Border, StackPanel, TextBlock};
 use artic_core::tree::UiTree;
 use artic_element::{Child, Children, ElementTypes};
 use artic_layout::HorizontalAlignment;
 use artic_layout::geometry::{CornerRadius, Point, Thickness};
-use artic_render::{BoxShadow, Color, Scene};
+use artic_layout::text::{TextAlignment, TextTrimming, TextWrapping};
+use artic_render::{BoxShadow, Color, PhysicalSize, Scene};
 use artic_test::golden::{render, render_tree};
 use artic_test::{golden, scenes};
 use common::{is_warp, with_renderer};
+use std::num::NonZeroU32;
 use vello::wgpu::{Backend, DeviceType};
 
 fn check(name: &str, scene: fn() -> Scene) {
@@ -230,4 +232,114 @@ fn border_clips_child() {
     },
     Some(Color::rgb(220, 60, 60)),
   );
+}
+
+type Configure = Box<dyn Fn(&TextBlock)>;
+
+const TEXT_SIZE: PhysicalSize = PhysicalSize { width: 160, height: 160 };
+
+fn text_blocks_golden(name: &str, blocks: Vec<Configure>) {
+  with_renderer(|renderer| {
+    let mut tree = UiTree::new();
+    let root = tree.alloc(Box::new(StackPanel::default()));
+    let stack = tree.get_as::<StackPanel>(root).expect("a stack panel");
+    stack.panel.background.set(Some(Color::rgb(255, 255, 255).into()));
+    stack.spacing.set(4.0);
+    for configure in &blocks {
+      let child = tree.alloc(Box::new(TextBlock::default()));
+      let block = tree.get_as::<TextBlock>(child).expect("a text block");
+      block.font_size.set(11.0);
+      configure(block);
+      Children::add(&mut tree, root, child);
+    }
+    let image = render_tree(renderer, &mut tree, root, &ElementTypes::from_link_time(), TEXT_SIZE, 1.0).expect("renders");
+    golden!(name).assert(&image);
+  });
+}
+
+const PANGRAM: &str = "The quick brown fox jumps over the lazy dog";
+
+// The three wrapping modes in one 70 px column: NoWrap overflows, Wrap breaks inside the long
+// word, WrapWithOverflow lets it stick out.
+#[test]
+fn text_block_wrapping() {
+  let text = "Wrap a Supercalifragilistic word";
+  let modes = [TextWrapping::NoWrap, TextWrapping::Wrap, TextWrapping::WrapWithOverflow];
+  let blocks: Vec<Configure> = modes
+    .into_iter()
+    .map(|mode| {
+      Box::new(move |block: &TextBlock| {
+        block.text.set(text.to_owned());
+        block.text_wrapping.set(mode);
+        block.layout.width.set(Some(70.0));
+        block.layout.horizontal_alignment.set(HorizontalAlignment::Left);
+      }) as Configure
+    })
+    .collect();
+  text_blocks_golden("text_block_wrapping", blocks);
+}
+
+// The five trimming modes, one line each, 120 px wide.
+#[test]
+fn text_block_trimming() {
+  let modes = [
+    (TextTrimming::CharacterEllipsis, PANGRAM),
+    (TextTrimming::WordEllipsis, PANGRAM),
+    (TextTrimming::PrefixCharacterEllipsis, PANGRAM),
+    (TextTrimming::LeadingCharacterEllipsis, PANGRAM),
+    (TextTrimming::PathSegmentEllipsis, r"C:\Users\ada\projects\artic\docs\text.md"),
+  ];
+  let blocks: Vec<Configure> = modes
+    .into_iter()
+    .map(|(mode, text)| {
+      Box::new(move |block: &TextBlock| {
+        block.text.set(text.to_owned());
+        block.text_trimming.set(mode);
+        block.layout.width.set(Some(120.0));
+        block.layout.horizontal_alignment.set(HorizontalAlignment::Left);
+      }) as Configure
+    })
+    .collect();
+  text_blocks_golden("text_block_trimming", blocks);
+}
+
+// The same wrapped text at the font's spacing and at a 22 px line height.
+#[test]
+fn text_block_line_height() {
+  let blocks: Vec<Configure> = [None, Some(22.0)]
+    .into_iter()
+    .map(|line_height| {
+      Box::new(move |block: &TextBlock| {
+        block.text.set(PANGRAM.to_owned());
+        block.text_wrapping.set(TextWrapping::Wrap);
+        block.line_height.set(line_height);
+        block.max_lines.set(NonZeroU32::new(3));
+      }) as Configure
+    })
+    .collect();
+  text_blocks_golden("text_block_line_height", blocks);
+}
+
+// The six alignments; Justify over several wrapped lines.
+#[test]
+fn text_block_alignment() {
+  let alignments = [
+    (TextAlignment::Start, "Start"),
+    (TextAlignment::Center, "Center"),
+    (TextAlignment::End, "End"),
+    (TextAlignment::Left, "Left"),
+    (TextAlignment::Right, "Right"),
+    (TextAlignment::Justify, PANGRAM),
+  ];
+  let blocks: Vec<Configure> = alignments
+    .into_iter()
+    .map(|(alignment, text)| {
+      Box::new(move |block: &TextBlock| {
+        block.text.set(text.to_owned());
+        block.text_alignment.set(alignment);
+        block.text_wrapping.set(TextWrapping::Wrap);
+      }) as Configure
+    })
+    .collect();
+  text_blocks_golden("text_block_alignment", blocks);
 }

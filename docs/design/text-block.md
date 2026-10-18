@@ -43,12 +43,12 @@ pub struct TextElement;
 
 A node that doesn't hold a key costs nothing, and inheritance skips it, so a `Border` between a panel and its text neither carries a `Foreground` nor breaks the chain. That's why these aren't a property group flattened into every element: every `Border` and panel would hold five properties it never reads. `affects` belongs to the key, so a panel that holds `TextElement.FontSize` is itself marked for measure when it changes; that costs one measure of the panel, which its text's new size causes anyway.
 
-`TextBlock` also lets you write `FontSize="20"` on it directly, by declaring fields that share the attached keys, as WPF's `AddOwner` does. Today `#[xaml(key = STATIC)]` takes a `PropertyKey` static only. It's extended to also take an attached key's constant, such as `TextElement::FONT_SIZE`:
+`TextBlock` also lets you write `FontSize="20"` on it directly, by declaring fields that share the attached keys, as WPF's `AddOwner` does. `#[xaml(key = ...)]` takes a `PropertyKey` static or an attached key's constant, such as `TextElement::FONT_SIZE`:
 
 - the field is stored under the attached property's `PropertyKey`, so a value set as `FontSize` on a `TextBlock` and one set as `TextElement.FontSize` on a panel are the same property, and the `TextBlock`'s descendants inherit either;
 - the field's default is the attached key's, so the two can't disagree.
 
-The derive can't tell the two kinds of key apart by their path, so the generated code goes through a trait, `SharedKey<T>`, that `PropertyKey<T>` and `AttachedKey<T>` implement: it gives the `PropertyKey` to store under and, for an attached key, its default. `default = ...` beside a shared key requires a second trait that only `PropertyKey` implements, so writing it beside an attached key is a type error.
+The derive can't tell the two kinds of key apart by their path, so the generated code treats them alike. Both have a `const fn key()` that returns the `PropertyKey` to store under, which the registry's static property info can call. A trait, `SharedKey<T>`, that `PropertyKey<T>` and `AttachedKey<T>` implement, gives the field's starting value: the attached key's default, or the type's `Default`. `default = ...` beside a shared key requires a second trait, `TakesDefault`, that only `PropertyKey` implements, so writing it beside an attached key is a type error.
 
 ## 2. `TextBlock`
 

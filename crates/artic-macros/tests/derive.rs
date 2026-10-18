@@ -496,3 +496,50 @@ fn add_child_refuses_another_type() {
 
   assert_eq!(add_child(&mut tree, other, child), Err(ValueError::WrongNode));
 }
+
+#[derive(Debug, XamlType)]
+#[xaml(namespace = "https://artic.rs/ui")]
+#[xaml(attached(name = "Size", ty = f32, default = 14.0, affects = layout, target = any, inherits))]
+struct Text;
+
+#[derive(Debug, XamlType)]
+#[xaml(namespace = "https://artic.rs/ui")]
+struct Label {
+  #[xaml(key = Text::SIZE)]
+  size: Property<f32>,
+}
+
+// A field that shares an attached key starts at its default, and is the attached property: a value
+// set either way reads back both ways, and a parent's attached value reaches it.
+#[test]
+fn key_takes_an_attached_key() {
+  let mut tree = UiTree::new();
+  let parent = tree.alloc(Box::new(Text));
+  let label = tree.alloc(Box::new(Label::default()));
+  tree.add_child(TreeKind::Logical, parent, label);
+  let field = |tree: &UiTree| tree.get_as::<Label>(label).expect("a label").size.get();
+
+  assert_eq!(field(&tree), 14.0);
+  Text::set_size(&mut tree, parent, 20.0);
+  assert_eq!(field(&tree), 20.0);
+  Text::set_size(&mut tree, label, 30.0);
+  assert_eq!(field(&tree), 30.0);
+  assert_eq!(Text::size(&tree, label), 30.0);
+  assert_eq!(lookup("Label").properties[0].name, "Size");
+}
+
+static WIDTH: PropertyKey<f32> = PropertyKey::new("Width", Affects::LAYOUT, Inheritance::None);
+const WIDTH_KEY: &PropertyKey<f32> = &WIDTH;
+
+#[derive(Debug, XamlType)]
+#[xaml(namespace = "https://artic.rs/ui")]
+struct Sized {
+  #[xaml(key = WIDTH_KEY, default = 3.0)]
+  width: Property<f32>,
+}
+
+// A property key reached through a reference-typed constant still takes a `default`.
+#[test]
+fn key_through_a_reference_takes_a_default() {
+  assert_eq!(Sized::default().width.get(), 3.0);
+}

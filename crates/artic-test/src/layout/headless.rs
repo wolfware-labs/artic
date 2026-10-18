@@ -2,8 +2,10 @@ use super::TOLERANCE;
 use super::compare::{rects_match, sizes_match};
 use artic_core::Object;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
+use artic_element::{ElementTypes, RenderCx};
 use artic_layout::geometry::{Rect, Size};
 use artic_layout::{LayoutManager, LayoutNodes, LayoutStats, PixelGrid};
+use artic_render::{Command, Compositor, Layers, Nodes, SceneBuilder, SceneItem};
 use std::collections::HashMap;
 
 /// A tree laid out with no window and no GPU. Nodes get a label when they're added, and failures
@@ -73,6 +75,27 @@ impl<N: LayoutNodes> Headless<N> {
       .run(&mut self.tree, &self.nodes, root, available, grid, &mut self.text)
   }
 
+  /// Records `node`'s own drawing as the frame pipeline would: at the size layout gave it, with
+  /// the result its layout kept. Its children aren't drawn.
+  pub fn record(&mut self, node: NodeId, types: &ElementTypes) -> Vec<Command> {
+    let size = self.manager.rect(node).map_or(Size::ZERO, |rect| rect.size());
+    let mut one = OneNode {
+      types,
+      manager: &self.manager,
+      node,
+      size,
+    };
+    Compositor::default()
+      .compose(&mut self.tree, node, &mut one)
+      .items()
+      .iter()
+      .find_map(|item| match item {
+        SceneItem::Fragment(fragment) => Some(fragment.commands().to_vec()),
+        _ => None,
+      })
+      .unwrap_or_default()
+  }
+
   /// The label `node` was added with, or its id for a node made through [`tree`](Headless::tree).
   #[must_use]
   pub fn label(&self, node: NodeId) -> String {
@@ -138,6 +161,29 @@ impl<N: LayoutNodes> Headless<N> {
     match self.labels.get(&node) {
       Some(label) => format!("{label:?}"),
       None => format!("{node:?}"),
+    }
+  }
+}
+
+/// Draws one node of a laid-out tree with what its layout kept.
+struct OneNode<'a> {
+  types: &'a ElementTypes,
+  manager: &'a LayoutManager,
+  node: NodeId,
+  size: Size,
+}
+
+impl Nodes for OneNode<'_> {
+  fn layers(&self, _tree: &UiTree, _node: NodeId) -> Layers {
+    Layers::default()
+  }
+
+  fn record(&mut self, tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
+    if node != self.node {
+      return;
+    }
+    if let Some(element) = tree.get(node).and_then(|object| self.types.element(object)) {
+      element.render(&mut RenderCx::new(tree, node, self.size, self.manager.result(node)), builder);
     }
   }
 }

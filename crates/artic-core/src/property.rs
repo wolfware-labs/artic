@@ -60,6 +60,7 @@ pub mod inherit;
 mod key;
 mod levels;
 mod parse_enum_error;
+mod shared;
 mod state;
 
 use crate::reactive::{Change, Signal};
@@ -69,6 +70,7 @@ pub use attached::AttachedKey;
 pub use key::{Inheritance, PropertyKey};
 use levels::Levels;
 pub use parse_enum_error::ParseEnumError;
+pub use shared::SharedKey;
 use state::PropertyState;
 
 /// Who supplied a property's value, from lowest to highest priority.
