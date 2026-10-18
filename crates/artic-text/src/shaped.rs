@@ -1,14 +1,35 @@
-//! One `parley` line turned into glyph runs, before the paragraph sizes and places it.
+//! The kept `parley` lines turned into glyph runs, before the paragraph trims, sizes and places
+//! them. This is the one place a broken layout is read: what comes after works on these lines, so
+//! the layout is free to shape trimming's candidates.
 //!
 //! A line keeps the clusters that start from `from` up to the whitespace that ends its text,
 //! which hangs. Each glyph remembers how many kept spaces come before it in visual order, so
 //! justification can move it later without shaping again.
 
 use crate::faces::Faces;
+use crate::lines::Kept;
 use artic_layout::text::{FontData, Glyph, GlyphRun, Synthesis};
-use parley::BreakReason;
+use parley::{BreakReason, Layout};
 use std::ops::Range;
 use std::sync::Arc;
+
+pub(crate) struct Shaped {
+  pub(crate) lines: Vec<ShapedLine>,
+  pub(crate) right_to_left: bool,
+  pub(crate) limited_height: bool,
+}
+
+pub(crate) fn shape_kept(text: &str, layout: &Layout<()>, kept: Kept, faces: &mut Faces) -> Shaped {
+  Shaped {
+    lines: layout
+      .lines()
+      .take(kept.lines)
+      .map(|line| shape_line(text, &line, 0, faces))
+      .collect(),
+    right_to_left: layout.is_rtl(),
+    limited_height: kept.limited_height,
+  }
+}
 
 #[derive(Default)]
 pub(crate) struct ShapedLine {

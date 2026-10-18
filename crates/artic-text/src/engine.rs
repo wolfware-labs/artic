@@ -2,7 +2,7 @@
 
 use crate::faces::Faces;
 use crate::shaper::Shaper;
-use crate::{lines, paragraph, properties};
+use crate::{lines, paragraph, properties, shaped};
 use artic_layout::text::{FamilyName, GenericFamily, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
 use fontique::{Blob, Collection, CollectionOptions, SourceCache};
 use parley::{FontContext, Layout, LayoutContext};
@@ -18,7 +18,6 @@ pub struct Engine {
   fonts: FontContext,
   layouts: LayoutContext<()>,
   layout: Layout<()>,
-  candidates: Layout<()>,
   faces: Faces,
   default_family: FamilyName,
 }
@@ -72,7 +71,6 @@ impl Engine {
       fonts,
       layouts: LayoutContext::new(),
       layout: Layout::new(),
-      candidates: Layout::new(),
       faces: Faces::default(),
       default_family,
     }
@@ -88,23 +86,17 @@ impl TextEngine for Engine {
     properties::push(&mut builder, style, paragraph_style, &self.default_family);
     builder.build_into(&mut self.layout, text);
     let kept = lines::break_lines(&mut self.layout, paragraph_style, limits);
+    let shaped = shaped::shape_kept(text, &self.layout, kept, &mut self.faces);
     let mut shaper = Shaper {
       fonts: &mut self.fonts,
       layouts: &mut self.layouts,
-      layout: &mut self.candidates,
+      layout: &mut self.layout,
       faces: &mut self.faces,
       style,
       line_height: paragraph_style.line_height,
       default_family: &self.default_family,
     };
-    paragraph::paragraph(
-      text,
-      &self.layout,
-      kept,
-      paragraph_style,
-      lines::usable_width(limits),
-      &mut shaper,
-    )
+    paragraph::paragraph(text, shaped, paragraph_style, lines::usable_width(limits), &mut shaper)
   }
 }
 
@@ -140,7 +132,7 @@ mod tests {
     let mut shaper = Shaper {
       fonts: &mut engine.fonts,
       layouts: &mut engine.layouts,
-      layout: &mut engine.candidates,
+      layout: &mut engine.layout,
       faces: &mut engine.faces,
       style: &style,
       line_height: None,

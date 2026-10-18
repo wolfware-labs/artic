@@ -1,4 +1,4 @@
-//! A broken `parley` layout turned into a [`Paragraph`].
+//! Kept lines trimmed, sized and placed into a [`Paragraph`].
 //!
 //! The lines are placed here, not with `parley`'s `align`, which aligns against the break width
 //! rather than the widest kept line and measures trailing whitespace wrongly in right-to-left
@@ -11,32 +11,28 @@
 //! 0, and in a right-to-left one every line's span ends at the paragraph's width, whatever
 //! direction the line's own text runs: the paragraph's direction is its first strong character's.
 
-use crate::lines::Kept;
-use crate::shaped::{ShapedLine, shape_line};
+use crate::shaped::{Shaped, ShapedLine};
 use crate::shaper::Shaper;
 use crate::trim;
 use artic_layout::geometry::Size;
 use artic_layout::text::{Line, Paragraph, ParagraphStyle, TextAlignment, TextTrimming};
-use parley::Layout;
 
 pub(crate) fn paragraph(
   text: &str,
-  layout: &Layout<()>,
-  kept: Kept,
+  shaped: Shaped,
   style: &ParagraphStyle,
   max_width: Option<f32>,
   shaper: &mut Shaper<'_>,
 ) -> Paragraph {
-  let mut shaped = layout
-    .lines()
-    .take(kept.lines)
-    .map(|line| shape_line(text, &line, 0, shaper.faces))
-    .collect::<Vec<_>>();
+  let Shaped {
+    lines: mut shaped,
+    right_to_left,
+    limited_height,
+  } = shaped;
   let height = shaped.iter().map(|line| line.height).sum::<f32>();
   if height <= 0.0 {
     return Paragraph::default();
   }
-  let right_to_left = layout.is_rtl();
   let lost = trim(text, &mut shaped, style.trimming, max_width, right_to_left, shaper);
   let last = shaped.len() - 1;
   let stretched = shaped
@@ -76,7 +72,7 @@ pub(crate) fn paragraph(
   }
   Paragraph::new(Size::new(width, height), lines, runs)
     .with_right_to_left(right_to_left)
-    .with_limited(limited_width, kept.limited_height)
+    .with_limited(limited_width, limited_height)
 }
 
 fn trim(
