@@ -225,7 +225,7 @@ The test font is a font under the SIL Open Font License, picked in the plan by s
 | `artic-element` | `render_reads_the_arranged_result_first`, `render_reads_the_measured_result_without_one` |
 | `artic-render` | `text_records_one_command`, `empty_paragraph_records_nothing` |
 | `artic-platform` | the pipeline and runner tests pass the test engine; `one_engine_serves_every_surface`; `content_sized_window_measures_text` (through `Pipeline::measure`); `replaced_result_is_recorded_again` |
-| `artic-vello` | `font_id_becomes_the_blob_id`, `synthesized_bold_draws_heavier`; goldens `text_solid`, `text_gradient`, `text_wrapped`, each `per_os` as the [golden images design](golden-images.md) says for text; a text tile in `examples/primitives` |
+| `artic-vello` | `font_id_becomes_the_blob_id`, `synthesized_bold_draws_heavier`; goldens `text_solid`, `text_gradient`, `text_wrapped`, shared like the others, since the bundled test font draws the same on every system (`per_os` in the [golden images design](golden-images.md) is for system fonts); a text tile in `examples/primitives` |
 
 ## 8. Documents that change
 

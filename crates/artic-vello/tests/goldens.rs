@@ -66,6 +66,24 @@ fn box_shadow() {
   check("box_shadow", scenes::box_shadow);
 }
 
+// "Text" in solid blue.
+#[test]
+fn text_solid() {
+  check("text_solid", scenes::text_solid);
+}
+
+// Two lines painted with one gradient across the paragraph.
+#[test]
+fn text_gradient() {
+  check("text_gradient", scenes::text_gradient);
+}
+
+// A sentence wrapped to the width.
+#[test]
+fn text_wrapped() {
+  check("text_wrapped", scenes::text_wrapped);
+}
+
 // A gradient clipped by a rectangle.
 #[test]
 fn rect_clip() {

@@ -1,10 +1,12 @@
 //! One scene per drawing primitive, the same for every renderer, so each renderer keeps goldens
 //! of the same pictures.
 
+use crate::text::engine;
 use artic_core::Object;
 use artic_core::property::AnyProperty;
 use artic_core::tree::{NodeId, UiTree};
 use artic_layout::geometry::{CornerRadius, FillRule, Path, Point, Rect, RelativePoint, RelativeScalar, RoundedRect};
+use artic_layout::text::{FontFamily, TextEngine, TextLimits, TextStyle};
 use artic_render::{
   BoxShadow, Color, Compositor, GradientStop, Layers, LineJoin, LinearGradientBrush, Nodes, PhysicalSize, RadialGradientBrush,
   Scene, SceneBuilder, Stroke,
@@ -110,6 +112,29 @@ pub fn nested_opacity() -> Scene {
       builder.with_opacity(0.5, |builder| builder.fill(Rect::new(24.0, 24.0, 36.0, 36.0), PINK));
     });
   })
+}
+
+/// "Text" in the test font at 20 px, in solid blue.
+#[must_use]
+pub fn text_solid() -> Scene {
+  let paragraph = engine().paragraph("Text", &TextStyle::new(FontFamily::default(), 20.0), TextLimits::NONE);
+  scene(|builder| builder.text(&paragraph, Point::new(4.0, 4.0), BLUE))
+}
+
+/// Two lines of the test font at 16 px, painted with one diagonal gradient across both.
+#[must_use]
+pub fn text_gradient() -> Scene {
+  let style = TextStyle::new(FontFamily::default(), 16.0);
+  let paragraph = engine().paragraph("Grad ient", &style, TextLimits::wrap(56.0));
+  scene(|builder| builder.text(&paragraph, Point::new(4.0, 4.0), gradient()))
+}
+
+/// A sentence of the test font at 12 px, wrapped to 56 px, in slate.
+#[must_use]
+pub fn text_wrapped() -> Scene {
+  let style = TextStyle::new(FontFamily::default(), 12.0);
+  let paragraph = engine().paragraph("Wrapped to the width", &style, TextLimits::wrap(56.0));
+  scene(|builder| builder.text(&paragraph, Point::new(4.0, 4.0), Color::rgb(51, 65, 85)))
 }
 
 fn gradient() -> LinearGradientBrush {
