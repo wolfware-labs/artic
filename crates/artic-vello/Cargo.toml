@@ -12,6 +12,7 @@ repository.workspace = true
 artic-layout.workspace = true
 artic-render.workspace = true
 pollster.workspace = true
+skrifa.workspace = true
 thiserror.workspace = true
 vello.workspace = true
 
@@ -20,6 +21,8 @@ artic-controls.workspace = true
 artic-core.workspace = true
 artic-element.workspace = true
 artic-test.workspace = true
+artic-test-fonts.workspace = true
+artic-text.workspace = true
 pretty_assertions.workspace = true
 # winit's defaults, except Wayland decorations without title text: drawing it needs ttf-parser,
 # which is unmaintained (RUSTSEC-2026-0192). The example only; artic-winit (#39) decides for real.

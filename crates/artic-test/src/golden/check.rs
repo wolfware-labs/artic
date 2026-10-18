@@ -138,8 +138,9 @@ impl Golden {
     Golden { tolerance, ..self }
   }
 
-  /// The same golden, kept once per operating system: for tests that draw text, whose fonts
-  /// differ between systems.
+  /// The same golden, kept once per operating system: for tests that draw with the system's
+  /// fonts, which differ between systems. Text in the bundled test font draws the same everywhere
+  /// and needs no `per_os`.
   #[must_use]
   pub fn per_os(self) -> Golden {
     Golden { per_os: true, ..self }

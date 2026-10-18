@@ -206,7 +206,7 @@ A brush per span of text (inline `Run`s, #47) can extend this later with a brush
 
 What a renderer may rely on is the same for fonts as for images in the [backends design](backends.md): shared data with a stable identity. A `FontData`'s `id` is unique and stays the same for as long as its bytes live, so a renderer may cache whatever it derives from a font (a typeface, outlines, an atlas) keyed by `id` and `index`, and decides itself when to drop it. artic's types carry nothing for any one renderer.
 
-`artic-vello` draws each run with one `draw_glyphs` call: the run's size and `coords`, the brush, and the transform moved by `origin`. `synthesis` becomes vello's `font_embolden` and a skewing `glyph_transform`. Hinting is off, since it depends on the device-pixel grid, which text doesn't snap to yet.
+`artic-vello` draws each run with one `draw_glyphs` call: the run's size and `coords`, the brush, and the current transform, with the glyphs moved by `origin`, so the brush resolves against the paragraph's box as a fill's does against its shape's. `synthesis` becomes vello's `font_embolden` and a skewing `glyph_transform`. Hinting is off, since it depends on the device-pixel grid, which text doesn't snap to yet. A run whose bytes `skrifa` can't read as a face at its index, which a `TextEngine` outside artic could produce, is skipped rather than failing the frame, as a shape that draws nothing is.
 
 vello 0.11's renderer already caches glyph outlines between frames, keyed by the font blob's id, its index, the size and the variation coordinates, and drops entries left unused for 64 frames, checking every 64 frames or sooner once it holds more than 256 glyphs. So `artic-vello` keeps no cache and no map: it builds each run's blob with `Blob::from_raw_parts(bytes, id)` from the `FontData`, which clones an `Arc`, and the same id hits vello's cache in every frame. Every font vello draws carries an artic id, so ids can't collide in its cache.
 
@@ -225,7 +225,7 @@ The test font is a font under the SIL Open Font License, picked in the plan by s
 | `artic-element` | `render_reads_the_arranged_result_first`, `render_reads_the_measured_result_without_one` |
 | `artic-render` | `text_records_one_command`, `empty_paragraph_records_nothing` |
 | `artic-platform` | the pipeline and runner tests pass the test engine; `one_engine_serves_every_surface`; `content_sized_window_measures_text` (through `Pipeline::measure`); `replaced_result_is_recorded_again` |
-| `artic-vello` | `font_id_becomes_the_blob_id`, `synthesized_bold_draws_heavier`; goldens `text_solid`, `text_gradient`, `text_wrapped`, each `per_os` as the [golden images design](golden-images.md) says for text; a text tile in `examples/primitives` |
+| `artic-vello` | `font_id_becomes_the_blob_id`, `synthesized_bold_draws_heavier`; goldens `text_solid`, `text_gradient`, `text_wrapped`, shared like the others, since the bundled test font draws the same on every system (`per_os` in the [golden images design](golden-images.md) is for system fonts); a text tile in `examples/primitives` |
 
 ## 8. Documents that change
 

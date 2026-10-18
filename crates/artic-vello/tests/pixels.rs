@@ -7,6 +7,7 @@ use artic_core::Object;
 use artic_core::property::AnyProperty;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_layout::geometry::{CornerRadius, FillRule, Path, Point, Rect, RelativePoint, RoundedRect, Transform};
+use artic_layout::text::{FontFamily, FontStyle, FontWeight, Paragraph, TextEngine, TextLimits, TextStyle};
 use artic_render::Renderer as _;
 use artic_render::{
   BoxShadow, Color, Compositor, GradientStop, Layers, LinearGradientBrush, Nodes, PhysicalSize, PixelBuffer, PixelFormat,
@@ -16,6 +17,8 @@ use artic_vello::Renderer;
 use common::with_renderer;
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
+use std::ops::Range;
+use std::sync::Arc;
 
 const SIZE: u32 = 16;
 const RED: Color = Color::rgb(255, 0, 0);
@@ -541,5 +544,65 @@ fn accepts_handles_and_pixels() {
     };
     let error = renderer.render(&Default::default(), surface).expect_err("custom");
     assert!(matches!(error, RenderError::Unsupported(TargetKind::Custom)));
+  });
+}
+
+/// `text` shaped at 32 px with only the test font's regular face, in `weight` and `style`.
+fn shaped(text: &str, weight: FontWeight, style: FontStyle) -> Paragraph {
+  let fonts = [Arc::new(artic_test_fonts::REGULAR) as Arc<dyn AsRef<[u8]> + Send + Sync>];
+  let style = TextStyle {
+    weight,
+    style,
+    ..TextStyle::new(FontFamily::default(), 32.0)
+  };
+  artic_text::Engine::with_fonts(fonts).paragraph(text, &style, TextLimits::NONE)
+}
+
+/// The alpha of each pixel of `paragraph` drawn in black at (8, 8) on 64 by 64, row by row.
+fn coverage(renderer: &mut Renderer, paragraph: &Paragraph) -> Vec<u32> {
+  let scene = artic_test::scenes::scene(|builder| builder.text(paragraph, Point::new(8.0, 8.0), BLACK));
+  let image = artic_test::golden::render(renderer, &scene, PhysicalSize::new(64, 64), 1.0).expect("renders");
+  image.pixels().iter().map(|pixel| u32::from(pixel[3])).collect()
+}
+
+// Bold asked of a face without a bold one is drawn thicker: more of the image is covered.
+#[test]
+fn synthesized_bold_draws_heavier() {
+  with_renderer(|renderer| {
+    let regular: u32 = coverage(renderer, &shaped("Hi", FontWeight::NORMAL, FontStyle::Normal))
+      .iter()
+      .sum();
+    let bold: u32 = coverage(renderer, &shaped("Hi", FontWeight::BOLD, FontStyle::Normal))
+      .iter()
+      .sum();
+
+    assert!(bold > regular * 11 / 10, "bold covers {bold}, regular {regular}");
+  });
+}
+
+// Italic asked of a face without an italic one leans right: the ink of the top rows sits further
+// right than the ink of the bottom rows.
+#[test]
+fn synthesized_italic_leans_right() {
+  with_renderer(|renderer| {
+    let alpha = coverage(renderer, &shaped("l", FontWeight::NORMAL, FontStyle::Italic));
+    let center = |rows: Range<usize>| {
+      let (mut weighted, mut total) = (0.0, 0.0);
+      for row in rows {
+        for column in 0..64 {
+          let a = alpha[row * 64 + column] as f32;
+          weighted += a * column as f32;
+          total += a;
+        }
+      }
+      weighted / total
+    };
+
+    assert!(
+      center(10..22) > center(30..42) + 1.0,
+      "top {}, bottom {}",
+      center(10..22),
+      center(30..42)
+    );
   });
 }

@@ -78,7 +78,7 @@ pub enum GoldenError {
 }
 ```
 
-`golden!("box_shadow")` is `tests/goldens/box_shadow.png` under the directory of the crate whose tests call it. It's a macro so that `env!("CARGO_MANIFEST_DIR")` expands in the calling crate and names that crate's directory; in a function of `artic-test` it would name `artic-test`. `Golden::at` takes any path. `per_os` adds the operating system, as `std::env::consts::OS` names it, to the file name: `box_shadow.linux.png`, for tests that draw text, whose fonts differ between systems; no other test uses it.
+`golden!("box_shadow")` is `tests/goldens/box_shadow.png` under the directory of the crate whose tests call it. It's a macro so that `env!("CARGO_MANIFEST_DIR")` expands in the calling crate and names that crate's directory; in a function of `artic-test` it would name `artic-test`. `Golden::at` takes any path. `per_os` adds the operating system, as `std::env::consts::OS` names it, to the file name: `box_shadow.linux.png`, for tests that draw with the system's fonts, which differ between systems. Text in the bundled test font draws the same on every system, so its goldens are shared.
 
 `check` compares `actual` with the golden:
 
@@ -152,7 +152,7 @@ The exact pixel tests in `artic-vello/tests/pixels.rs` stay. They check rules a 
 | A CI job that runs the goldens on lavapipe, and uploads `.actual.png` and `.diff.png` | it sets `ARTIC_REQUIRE_GPU=1` and, from the workspace root, uploads `crates/*/tests/goldens/*.actual.png` and `crates/*/tests/goldens/*.diff.png`, since each crate keeps its own goldens. Wayland is covered by #53's separate smoke job, since goldens draw into memory, not on a window | #53 |
 | Control goldens | `render_tree` with the control's tree | #45, #46, #47 |
 | Theme state goldens | the same, once per state | #121 |
-| Text goldens | `per_os`, with the bundled test font | #37, #46 |
+| Text goldens | shared, since the bundled test font draws the same on every system; `per_os` waits for a golden drawn with system fonts | #37, #46 |
 
 ## 6. Testing
 

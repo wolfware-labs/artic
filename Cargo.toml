@@ -80,6 +80,9 @@ static_assertions = "1.1.0"
 syn = { version = "3.0.6", features = ["full"] }
 thiserror = "2.0.21"
 trybuild = "1.0.122"
+# skrifa is the font reader vello 0.11 draws glyphs with: pinned to vello's version, so artic-vello
+# checks a face with the same code that would otherwise panic on it.
+skrifa = { version = "=0.44.0", default-features = false, features = ["std"] }
 # vello is pre-1.0 (spec §13 risks): pinned exactly. Its wgpu is used through `vello::wgpu`.
 vello = "=0.11.0"
 winit = { version = "0.30.13", default-features = false }
