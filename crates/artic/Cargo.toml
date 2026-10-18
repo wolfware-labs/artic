@@ -10,8 +10,9 @@ repository.workspace = true
 
 [features]
 default = []
-hot-reload = ["dep:artic-xaml-runtime"]
-runtime-xaml = ["dep:artic-xaml-runtime"]
+xaml = ["dep:artic-xaml"]
+hot-reload = ["xaml", "dep:artic-xaml-runtime"]
+runtime-xaml = ["xaml", "dep:artic-xaml-runtime"]
 skia = []
 
 [dependencies]
@@ -25,6 +26,7 @@ artic-style.workspace = true
 artic-platform.workspace = true
 artic-controls.workspace = true
 artic-theme.workspace = true
+artic-xaml = { workspace = true, optional = true }
 artic-xaml-runtime = { workspace = true, optional = true }
 
 [lints]
