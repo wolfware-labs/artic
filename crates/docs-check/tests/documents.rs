@@ -47,12 +47,12 @@ fn every_fence_names_a_language() {
   assert!(untagged.is_empty(), "give these fences a language: {untagged:?}");
 }
 
-// Tildes, longer runs and quoted fences open blocks too, and only a run as long closes one.
+// Tildes, longer runs and quoted fences, nested quotes included, open blocks too, and only a run as long closes one.
 #[test]
 fn untagged_fences_follow_commonmark_runs() {
-  let text = "~~~~\n```\n~~~~\n> ```\n> x\n> ```\n````rust\n```\n````\n```text\n```\n";
+  let text = "~~~~\n```\n~~~~\n> ```\n> x\n> ```\n````rust\n```\n````\n```text\n```\n> > ```\n> > x\n> > ```\n";
 
-  assert_eq!(untagged_fences(text), [1, 4]);
+  assert_eq!(untagged_fences(text), [1, 4, 12]);
 }
 
 /// The 1-based lines of the opening fences that name no language.
@@ -60,7 +60,7 @@ fn untagged_fences(text: &str) -> Vec<usize> {
   let mut untagged = Vec::new();
   let mut open: Option<(char, usize)> = None;
   for (index, line) in text.lines().enumerate() {
-    let line = line.trim_start().trim_start_matches('>').trim_start();
+    let line = line.trim_start_matches(|character: char| character == '>' || character.is_whitespace());
     let Some(marker) = line.chars().next().filter(|marker| *marker == '`' || *marker == '~') else {
       continue;
     };

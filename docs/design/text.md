@@ -82,7 +82,7 @@ pub struct FontData { bytes: Arc<dyn AsRef<[u8]> + Send + Sync>, index: u32, id:
 
 Errors follow `ParseBoxShadowError`: the text and a problem enum.
 
-```rust
+```rust,ignore
 pub struct ParseFontFamilyError { pub text: String, pub problem: FamilyProblem }
 pub enum FamilyProblem { Empty, EmptyName, UnclosedQuote, PartlyQuoted(String) }
 

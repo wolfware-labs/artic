@@ -159,7 +159,7 @@ impl Child {
 
 The two trees can disagree, since a template gives a node different logical and visual parents, so a change to both is checked in both before either is made: otherwise the second link could fail after the first succeeded and leave the trees out of step. `UiTree` exposes the checks its link methods already make, as `check_link(tree_kind, parent, index, child) -> Result<(), LinkError>` (a node not in the tree, an index past the end, a cycle), and `Children` runs it for both trees first. `remove` takes the parent and checks that `child` is its child in both trees, so it can't detach a node from another panel.
 
-`Children::add`, `insert` and `remove` panic when a check fails, as the `UiTree` methods do: in code, those are bugs. The loader reaches them through `UiCollection`, which returns the failed check as an error instead, since markup is input.
+`Children::add`, `insert` and `remove` panic when a check fails, as the `UiTree` methods do: in code, those are bugs. The loader reaches them through `UiCollection`, which returns the failed check as an error instead, since a UI language's source is input.
 
 `UiCollection` changes so one trait serves both a collection that lives in the tree and one that lives in its field. The derive generates `add_child` for the content field, passing an accessor from the owner node to that field:
 
@@ -262,7 +262,7 @@ Elements return their own node; the tree of nodes is built by #54's walk, which 
 | `Grid`, `DockPanel`, `WrapPanel`, `UniformGrid`, `Canvas` | each flattens `Panel`, declares `Children` and writes measure and arrange | #67 to #70 |
 | Child order in the accesskit tree | the walk in section 6 | #54 |
 | `.children(…)` on the builder, through `WithChildren` | comes beside the other builder methods | #43 |
-| Filling `Children` from markup | the loader calls `UiCollection::push_child` | the XAML runtime and compiler |
+| Filling `Children` from a UI language | the loader calls `UiCollection::push_child` | the XAML runtime and compiler |
 | Virtualization | a different panel over the same `Children` | #131 |
 
 ## 9. Testing
