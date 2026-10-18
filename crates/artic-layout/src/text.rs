@@ -5,12 +5,14 @@
 
 mod font;
 mod paragraph;
+mod paragraph_style;
 
 pub use font::{
   FamilyName, FamilyProblem, FontFamily, FontStyle, FontWeight, GenericFamily, ParseFontFamilyError, ParseFontWeightError,
   WeightProblem,
 };
 pub use paragraph::{FontData, Glyph, GlyphRun, Line, Paragraph, Synthesis};
+pub use paragraph_style::{ParagraphStyle, TextAlignment, TextTrimming, TextWrapping};
 use std::num::NonZeroU32;
 
 /// What text is shaped in: its font and its line spacing.
