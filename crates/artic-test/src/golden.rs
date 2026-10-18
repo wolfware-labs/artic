@@ -27,7 +27,7 @@ pub use image::Image;
 
 use artic_core::tree::{NodeId, UiTree};
 use artic_element::ElementTypes;
-use artic_platform::{Axes, DisplayId, Pipeline, Services, SurfaceInfo};
+use artic_platform::{Axes, DisplayId, FrameServices, Pipeline, SurfaceInfo};
 use artic_render::{PhysicalSize, PixelBuffer, PixelFormat, RenderError, Renderer, Scene, SurfaceId, SurfaceView, Target};
 use std::fmt::Display;
 
@@ -90,7 +90,7 @@ pub fn render_tree(
   };
   let mut pipeline = Pipeline::new();
   let mut text = crate::text::engine();
-  let mut services = Services { types, text: &mut text };
+  let mut services = FrameServices { types, text: &mut text };
   let frame = pipeline.prepare(tree, root, SURFACE, &info, &mut services, Axes::NONE);
   pixels(size, |target| pipeline.present(renderer, frame, target).map(|_| ()))
 }

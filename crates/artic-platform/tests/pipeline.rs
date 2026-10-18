@@ -5,7 +5,7 @@ mod common;
 use artic_core::tree::{TreeKind, UiTree};
 use artic_element::{ElementTypes, SizeToContent};
 use artic_layout::geometry::{Size, Transform};
-use artic_platform::{Axes, Frame, FrameStats, Pipeline, Services};
+use artic_platform::{Axes, Frame, FrameServices, FrameStats, Pipeline};
 use artic_render::{Layer, SceneItem, SurfaceId};
 use common::{Counter, Label, Recorder, column, engine, info, label, leaf, pixels, target};
 use pretty_assertions::assert_eq;
@@ -29,7 +29,7 @@ fn layout_offset_applies_after_render_transform() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &mut Services {
+    &mut FrameServices {
       types: &ElementTypes::from_link_time(),
       text: &mut engine(),
     },
@@ -52,7 +52,7 @@ fn render_cx_has_the_arranged_size() {
     root,
     SURFACE,
     &info(128, 128, 2.0),
-    &mut Services {
+    &mut FrameServices {
       types: &ElementTypes::from_link_time(),
       text: &mut engine(),
     },
@@ -77,7 +77,7 @@ fn first_frame_does_all_the_work() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &mut Services {
+    &mut FrameServices {
       types: &ElementTypes::from_link_time(),
       text: &mut engine(),
     },
@@ -115,7 +115,7 @@ fn redraw_presents_the_last_scene() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &mut Services {
+    &mut FrameServices {
       types: &ElementTypes::from_link_time(),
       text: &mut engine(),
     },
@@ -152,7 +152,7 @@ fn failed_present_keeps_no_scene() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &mut Services {
+    &mut FrameServices {
       types: &ElementTypes::from_link_time(),
       text: &mut engine(),
     },
@@ -177,7 +177,7 @@ fn measure_before_open_serves_the_first_frame() {
   let (root, _) = column(&mut tree, &[child.id]);
   let types = ElementTypes::from_link_time();
   let mut text = engine();
-  let mut services = Services {
+  let mut services = FrameServices {
     types: &types,
     text: &mut text,
   };
@@ -221,7 +221,7 @@ fn nodes_not_laid_out_are_not_drawn() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &mut Services {
+    &mut FrameServices {
       types: &ElementTypes::from_link_time(),
       text: &mut engine(),
     },
@@ -249,7 +249,7 @@ fn replaced_result_is_recorded_again() {
     root,
     SURFACE,
     &info(256, 64, 1.0),
-    &mut Services {
+    &mut FrameServices {
       types: &types,
       text: &mut engine,
     },
@@ -264,7 +264,7 @@ fn replaced_result_is_recorded_again() {
       root,
       SURFACE,
       &info(256, 64, 1.0),
-      &mut Services {
+      &mut FrameServices {
         types: &types,
         text: &mut engine,
       },

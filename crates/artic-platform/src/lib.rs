@@ -28,7 +28,7 @@ pub use error::Error;
 pub use event::HostEvent;
 pub use hooks::Hooks;
 pub use host::{AppHandler, Host, HostContext, Windows};
-pub use pipeline::{Frame, FrameStats, Pipeline, Services};
+pub use pipeline::{Frame, FrameServices, FrameStats, Pipeline};
 pub use runner::{Runner, run};
 pub use surface::{DisplayId, SurfaceInfo, SurfaceLoss};
 pub use waker::Waker;

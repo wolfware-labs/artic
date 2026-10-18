@@ -82,8 +82,8 @@ pub struct LayoutManager {
 struct Results {
   /// What each node's last measure set.
   measured: HashMap<NodeId, Box<dyn Any>>,
-  /// What each node's arrange set, with the size it was offered then.
-  arranged: HashMap<NodeId, (Size, Box<dyn Any>)>,
+  /// What each node's arrange set, kept while the node only moves.
+  arranged: HashMap<NodeId, Box<dyn Any>>,
   /// The nodes whose result was set or dropped, in the order they first changed.
   changed: Vec<NodeId>,
   /// The nodes in `changed`, to list each once.
@@ -340,7 +340,7 @@ impl LayoutManager {
       .results
       .arranged
       .get(&node)
-      .map(|(_, result)| &**result)
+      .map(|result| &**result)
       .or_else(|| self.results.measured.get(&node).map(|result| &**result))
   }
 
@@ -676,18 +676,12 @@ impl<'a> ArrangeCx<'a> {
     if slot.offered == Some(rect) && !slot.arrange_dirty {
       return;
     }
+    let moved = !slot.arrange_dirty && slot.offered.map(Rect::size) == Some(rect.size());
     slot.offered = Some(rect);
     slot.rect = Some(rect);
     slot.arrange_dirty = false;
     self.pass.stats.arranged += 1;
-    if self
-      .pass
-      .results
-      .arranged
-      .get(&child)
-      .is_some_and(|(size, _)| *size != rect.size())
-    {
-      self.pass.results.arranged.remove(&child);
+    if !moved && self.pass.results.arranged.remove(&child).is_some() {
       self.pass.results.changed(child);
     }
     if let Some(layoutable) = self.pass.nodes.layoutable(self.pass.tree, child) {
@@ -710,33 +704,28 @@ impl<'a> ArrangeCx<'a> {
     }
   }
 
-  /// Keeps `result` as what this arrange produced for the size the node was offered, in place of
-  /// its measured result, until the node is measured again or offered another size.
+  /// Keeps `result` as what this arrange produced, in place of the node's measured result, for as
+  /// long as the node only moves: it's dropped when anything but the node's position changes, such
+  /// as a new measure, another offered size, a new [`PixelGrid`] or
+  /// [`invalidate_arrange`](LayoutManager::invalidate_arrange).
   ///
   /// # Panics
   ///
   /// Panics outside a node's `arrange`.
   pub fn set_arranged<T: Any>(&mut self, result: T) {
     let node = self.pass.node();
-    let size = self
-      .pass
-      .slots
-      .get(&node)
-      .and_then(|slot| slot.offered)
-      .map_or(Size::ZERO, Rect::size);
-    self.pass.results.arranged.insert(node, (size, Box::new(result)));
+    self.pass.results.arranged.insert(node, Box::new(result));
     self.pass.results.changed(node);
   }
 
-  /// The arranged result the node holds for the size it's offered now, if it set one of type `T`.
+  /// The arranged result the node kept from an arrange it has only moved since, if it's a `T`.
   ///
   /// # Panics
   ///
   /// Panics outside a node's `arrange`.
   #[must_use]
   pub fn arranged<T: Any>(&self) -> Option<&T> {
-    let (_, result) = self.pass.results.arranged.get(&self.pass.node())?;
-    result.downcast_ref()
+    self.pass.results.arranged.get(&self.pass.node())?.downcast_ref()
   }
 
   /// Sets the bounds of the node being arranged, in its parent's coordinates, when they aren't the

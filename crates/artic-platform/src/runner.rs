@@ -2,7 +2,7 @@
 //! draws, and what a frame runs.
 
 use crate::{
-  AppHandler, Axes, Error, FrameStats, Hooks, Host, HostContext, HostEvent, LogicalSize, Pipeline, Services, SurfaceInfo,
+  AppHandler, Axes, Error, FrameServices, FrameStats, Hooks, Host, HostContext, HostEvent, LogicalSize, Pipeline, SurfaceInfo,
   SurfaceLoss, Waker, WindowDesc,
 };
 use artic_core::dispatcher::Dispatcher;
@@ -223,7 +223,7 @@ impl<R: Renderer> Runner<R> {
     if let Some(windows) = cx.windows() {
       let mut pipeline = Pipeline::new();
       let desired = settings.available(None).map(|available| {
-        let mut services = Services {
+        let mut services = FrameServices {
           types: &self.types,
           text: &mut *self.text,
         };
@@ -273,7 +273,7 @@ impl<R: Renderer> Runner<R> {
       .info
       .map(|info| Size::new(info.size.width as f32 / info.scale, info.size.height as f32 / info.scale));
     let desired = settings.available(host).map(|available| {
-      let mut services = Services {
+      let mut services = FrameServices {
         types: &self.types,
         text: &mut *self.text,
       };
@@ -410,7 +410,7 @@ impl<R: Renderer> AppHandler for Runner<R> {
     let window = &mut self.bound[index];
     let result = if window.needs_frame {
       window.needs_frame = false;
-      let mut services = Services {
+      let mut services = FrameServices {
         types: &self.types,
         text: &mut *self.text,
       };

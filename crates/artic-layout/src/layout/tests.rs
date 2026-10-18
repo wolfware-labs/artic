@@ -1488,3 +1488,36 @@ fn wrong_type_reads_nothing() {
       .is_none()
   );
 }
+
+// A new pixel grid arranges every node again, so an arranged result made on the old grid is
+// dropped even at the same size.
+#[test]
+fn new_grid_drops_the_arranged_result() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).arranged.set(Some(2));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+  shaper(&tree, node).arranged.set(None);
+
+  let grid = PixelGrid { scale: 2.0, snap: false };
+  layout.run(&mut tree, &WithShapers, holder, WINDOW, grid, &mut Recorder::default());
+
+  assert_eq!(shaper(&tree, node).read.get(), None);
+  assert_eq!(result(&layout, node), None);
+}
+
+// A node marked to arrange again loses its arranged result, even at the same size.
+#[test]
+fn invalidated_arrange_drops_the_arranged_result() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).arranged.set(Some(2));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+  shaper(&tree, node).arranged.set(None);
+  layout.invalidate_arrange(node);
+
+  let stats = lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  assert_eq!(result(&layout, node), None);
+  assert_eq!(stats.results, [node]);
+}

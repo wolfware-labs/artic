@@ -52,22 +52,21 @@ impl Frame {
   }
 }
 
-/// What the runner lends every surface's pipeline: the table it finds a node's element in, and the
-/// text engine layout shapes with. Both are shared by all surfaces, so elements resolve the same
-/// way and a font keeps one identity in every window. (These aren't the OS services controls reach
-/// through [`HostContext`](crate::HostContext).)
-pub struct Services<'a> {
+/// What a frame's layout and composition borrow from the runner: the table it finds a node's
+/// element in, and the text engine layout shapes with. Every surface's pipeline borrows the same
+/// ones, so elements resolve the same way and a font keeps one identity in every window.
+pub struct FrameServices<'a> {
   /// The element table.
   pub types: &'a ElementTypes,
   /// The text engine.
   pub text: &'a mut dyn TextEngine,
 }
 
-impl Debug for Services<'_> {
+impl Debug for FrameServices<'_> {
   /// Shows the element table; the engine needn't implement `Debug`.
   fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
     formatter
-      .debug_struct("Services")
+      .debug_struct("FrameServices")
       .field("types", &self.types)
       .finish_non_exhaustive()
   }
@@ -106,7 +105,7 @@ impl Pipeline {
     root: NodeId,
     surface: SurfaceId,
     info: &SurfaceInfo,
-    services: &mut Services<'_>,
+    services: &mut FrameServices<'_>,
     content: Axes,
   ) -> Frame {
     let fit = |sizes: bool, device: u32| if sizes { f32::INFINITY } else { device as f32 / info.scale };
@@ -146,7 +145,7 @@ impl Pipeline {
   /// Measures `root`'s visual subtree in `available` without arranging it, as before its window
   /// opens, and returns the size it wants. The next [`prepare`](Pipeline::prepare) in the same
   /// available size answers from the cache.
-  pub fn measure(&mut self, tree: &mut UiTree, root: NodeId, available: Size, services: &mut Services<'_>) -> Size {
+  pub fn measure(&mut self, tree: &mut UiTree, root: NodeId, available: Size, services: &mut FrameServices<'_>) -> Size {
     self
       .layout
       .measure(tree, services.types, root, available, &mut *services.text)
