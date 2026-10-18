@@ -1,5 +1,6 @@
 use artic_layout::text::{
-  FontFamily, FontStyle, FontWeight, GenericFamily, Line, Paragraph, TextEngine, TextLimits, TextStyle,
+  FontFamily, FontStyle, FontWeight, GenericFamily, Line, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle,
+  TextWrapping,
 };
 use artic_test_fonts::{BOLD, REGULAR};
 use artic_text::Engine;
@@ -22,7 +23,18 @@ fn style() -> TextStyle {
 }
 
 fn shape(engine: &mut Engine, text: &str, style: &TextStyle) -> Paragraph {
-  engine.paragraph(text, style, TextLimits::NONE)
+  engine.paragraph(text, style, &ParagraphStyle::default(), TextLimits::NONE)
+}
+
+fn laid_out(engine: &mut Engine, text: &str, paragraph: &ParagraphStyle, limits: TextLimits) -> Paragraph {
+  engine.paragraph(text, &style(), paragraph, limits)
+}
+
+fn wrapping(wrapping: TextWrapping) -> ParagraphStyle {
+  ParagraphStyle {
+    wrapping,
+    ..ParagraphStyle::default()
+  }
 }
 
 fn assert_close(actual: f32, expected: f32) {
@@ -159,11 +171,11 @@ fn same_font_keeps_its_id() {
 // A line height puts each line that far below the previous one.
 #[test]
 fn line_height_sets_line_spacing() {
-  let style = TextStyle {
+  let style = ParagraphStyle {
     line_height: Some(30.0),
-    ..style()
+    ..ParagraphStyle::default()
   };
-  let paragraph = shape(&mut engine(), "a\nb", &style);
+  let paragraph = laid_out(&mut engine(), "a\nb", &style, TextLimits::NONE);
 
   assert_eq!(paragraph.lines().len(), 2);
   assert_close(paragraph.lines()[1].top, 30.0);
@@ -177,12 +189,16 @@ fn unusable_line_height_uses_the_font_spacing() {
   let expected = shape(&mut engine, "a\nb", &style());
 
   for line_height in [0.0, -1.0, f32::NAN, f32::INFINITY] {
-    let style = TextStyle {
+    let style = ParagraphStyle {
       line_height: Some(line_height),
-      ..style()
+      ..ParagraphStyle::default()
     };
 
-    assert_eq!(shape(&mut engine, "a\nb", &style), expected, "{line_height}");
+    assert_eq!(
+      laid_out(&mut engine, "a\nb", &style, TextLimits::NONE),
+      expected,
+      "{line_height}"
+    );
   }
 }
 
@@ -245,7 +261,12 @@ const FOX: &str = "The quick brown fox jumps over the lazy dog";
 const HEBREW: &str = "שלום עולם שלום עולם שלום";
 
 fn wrapped(engine: &mut Engine, text: &str, max_width: f32) -> Paragraph {
-  engine.paragraph(text, &style(), TextLimits::wrap(max_width))
+  laid_out(
+    engine,
+    text,
+    &wrapping(TextWrapping::WrapWithOverflow),
+    TextLimits::width(max_width),
+  )
 }
 
 fn glyph_xs(paragraph: &Paragraph, line: &Line) -> Vec<f32> {
@@ -276,11 +297,11 @@ fn line_breaking_respects_max_width() {
 // heights.
 #[test]
 fn max_lines_caps_the_paragraph() {
-  let limits = TextLimits {
-    max_width: Some(100.0),
+  let style = ParagraphStyle {
     max_lines: NonZeroU32::new(2),
+    ..wrapping(TextWrapping::WrapWithOverflow)
   };
-  let paragraph = engine().paragraph(FOX, &style(), limits);
+  let paragraph = laid_out(&mut engine(), FOX, &style, TextLimits::width(100.0));
 
   assert_eq!(paragraph.lines().len(), 2);
   assert_close(paragraph.size().width, 68.67);
@@ -291,19 +312,22 @@ fn max_lines_caps_the_paragraph() {
 #[test]
 fn max_lines_above_the_line_count_keeps_every_line() {
   let mut engine = engine();
-  let limits = TextLimits {
-    max_width: Some(100.0),
+  let style = ParagraphStyle {
     max_lines: NonZeroU32::new(10),
+    ..wrapping(TextWrapping::WrapWithOverflow)
   };
 
-  assert_eq!(engine.paragraph(FOX, &style(), limits), wrapped(&mut engine, FOX, 100.0));
+  assert_eq!(
+    laid_out(&mut engine, FOX, &style, TextLimits::width(100.0)),
+    wrapped(&mut engine, FOX, 100.0)
+  );
 }
 
 // A max_width that is NaN or infinite doesn't wrap.
 #[test]
 fn unusable_max_width_does_not_wrap() {
   let mut engine = engine();
-  let expected = engine.paragraph(FOX, &style(), TextLimits::NONE);
+  let expected = shape(&mut engine, FOX, &style());
 
   for max_width in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
     assert_eq!(wrapped(&mut engine, FOX, max_width), expected, "{max_width}");
@@ -435,11 +459,11 @@ fn empty_last_line_has_no_width() {
 // A line height below the font's own still stacks the lines from 0, each baseline inside its line.
 #[test]
 fn tight_line_height_stacks_lines_from_zero() {
-  let style = TextStyle {
+  let style = ParagraphStyle {
     line_height: Some(16.0),
-    ..style()
+    ..ParagraphStyle::default()
   };
-  let paragraph = shape(&mut engine(), "a\nb", &style);
+  let paragraph = laid_out(&mut engine(), "a\nb", &style, TextLimits::NONE);
   let lines = paragraph.lines();
 
   assert_eq!([lines[0].top, lines[1].top], [0.0, 16.0]);

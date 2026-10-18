@@ -7,7 +7,7 @@ use artic_core::Object;
 use artic_core::property::AnyProperty;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_layout::geometry::{CornerRadius, FillRule, Path, Point, Rect, RelativePoint, RoundedRect, Transform};
-use artic_layout::text::{FontFamily, FontStyle, FontWeight, Paragraph, TextEngine, TextLimits, TextStyle};
+use artic_layout::text::{FontFamily, FontStyle, FontWeight, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
 use artic_render::Renderer as _;
 use artic_render::{
   BoxShadow, Color, Compositor, GradientStop, Layers, LinearGradientBrush, Nodes, PhysicalSize, PixelBuffer, PixelFormat,
@@ -555,7 +555,7 @@ fn shaped(text: &str, weight: FontWeight, style: FontStyle) -> Paragraph {
     style,
     ..TextStyle::new(FontFamily::default(), 32.0)
   };
-  artic_text::Engine::with_fonts(fonts).paragraph(text, &style, TextLimits::NONE)
+  artic_text::Engine::with_fonts(fonts).paragraph(text, &style, &ParagraphStyle::default(), TextLimits::NONE)
 }
 
 /// The alpha of each pixel of `paragraph` drawn in black at (8, 8) on 64 by 64, row by row.

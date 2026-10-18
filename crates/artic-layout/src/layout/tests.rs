@@ -1122,7 +1122,7 @@ mod collapsed {
   }
 }
 
-use crate::text::{FontFamily, Paragraph, TextEngine, TextLimits, TextStyle};
+use crate::text::{FontFamily, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
 
 /// A text engine that records the text it's asked to shape and answers with an empty paragraph.
 #[derive(Debug, Default)]
@@ -1131,7 +1131,7 @@ struct Recorder {
 }
 
 impl TextEngine for Recorder {
-  fn paragraph(&mut self, text: &str, _style: &TextStyle, _limits: TextLimits) -> Paragraph {
+  fn paragraph(&mut self, text: &str, _style: &TextStyle, _paragraph: &ParagraphStyle, _limits: TextLimits) -> Paragraph {
     self.asked.push(text.to_owned());
     Paragraph::default()
   }
@@ -1155,8 +1155,12 @@ impl Object for Shaper {
 
 impl Layoutable for Shaper {
   fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {
-    cx.text()
-      .paragraph("measure", &TextStyle::new(FontFamily::default(), 16.0), TextLimits::NONE);
+    cx.text().paragraph(
+      "measure",
+      &TextStyle::new(FontFamily::default(), 16.0),
+      &ParagraphStyle::default(),
+      TextLimits::NONE,
+    );
     if let Some(result) = self.measured.get() {
       if self.twice.get() {
         cx.set_measured(9_u32);
@@ -1167,8 +1171,12 @@ impl Layoutable for Shaper {
   }
 
   fn arrange(&self, cx: &mut ArrangeCx<'_>, _rect: Rect) {
-    cx.text()
-      .paragraph("arrange", &TextStyle::new(FontFamily::default(), 16.0), TextLimits::NONE);
+    cx.text().paragraph(
+      "arrange",
+      &TextStyle::new(FontFamily::default(), 16.0),
+      &ParagraphStyle::default(),
+      TextLimits::NONE,
+    );
     self.read.set(cx.arranged::<u32>().copied());
     self.read_measured.set(cx.measured::<u32>().copied());
     if let Some(result) = self.arranged.get() {

@@ -1,15 +1,20 @@
-//! What a [`TextStyle`] becomes on a `parley` builder.
+//! What a [`TextStyle`] and a [`ParagraphStyle`] become on a `parley` builder.
 
-use artic_layout::text::{FamilyName, FontFamily, FontStyle, FontWeight, GenericFamily, TextStyle};
+use artic_layout::text::{FamilyName, FontFamily, FontStyle, FontWeight, GenericFamily, ParagraphStyle, TextStyle};
 use parley::{FontFamilyName, LineHeight, RangedBuilder, StyleProperty};
 use std::borrow::Cow;
 
-pub(crate) fn push(builder: &mut RangedBuilder<'_, ()>, style: &TextStyle, default_family: &FamilyName) {
+pub(crate) fn push(
+  builder: &mut RangedBuilder<'_, ()>,
+  style: &TextStyle,
+  paragraph: &ParagraphStyle,
+  default_family: &FamilyName,
+) {
   builder.push_default(StyleProperty::FontFamily(font_stack(&style.family, default_family)));
   builder.push_default(StyleProperty::FontSize(style.size));
   builder.push_default(StyleProperty::FontWeight(weight(style.weight)));
   builder.push_default(StyleProperty::FontStyle(font_style(style.style)));
-  builder.push_default(StyleProperty::LineHeight(line_height(style.line_height)));
+  builder.push_default(StyleProperty::LineHeight(line_height(paragraph.line_height)));
 }
 
 fn font_stack(family: &FontFamily, default_family: &FamilyName) -> parley::FontFamily<'static> {
