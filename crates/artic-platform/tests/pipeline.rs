@@ -7,7 +7,7 @@ use artic_element::{ElementTypes, SizeToContent};
 use artic_layout::geometry::{Size, Transform};
 use artic_platform::{Axes, Frame, FrameStats, Pipeline, Services};
 use artic_render::{Layer, SceneItem, SurfaceId};
-use common::{Counter, column, engine, info, leaf, pixels, target};
+use common::{Counter, Label, Recorder, column, engine, info, label, leaf, pixels, target};
 use pretty_assertions::assert_eq;
 use static_assertions::assert_impl_all;
 
@@ -233,4 +233,46 @@ fn nodes_not_laid_out_are_not_drawn() {
     (seen(shown.id), seen(hidden.id), seen(under.id)),
     (Some(Size::new(64.0, 20.0)), None, None)
   );
+}
+
+// A node whose layout result was replaced is recorded again, even when its size stays the same.
+#[test]
+fn replaced_result_is_recorded_again() {
+  let mut tree = UiTree::new();
+  let (node, text) = label(&mut tree, "short");
+  let (root, _) = column(&mut tree, &[node]);
+  let types = ElementTypes::from_link_time();
+  let mut engine = Recorder::default();
+  let mut pipeline = Pipeline::new();
+  pipeline.prepare(
+    &mut tree,
+    root,
+    SURFACE,
+    &info(256, 64, 1.0),
+    &mut Services {
+      types: &types,
+      text: &mut engine,
+    },
+    Axes::NONE,
+  );
+  tree.get_as::<Label>(node).unwrap().drawn.set(None);
+  text.set("words".to_owned());
+
+  let stats = pipeline
+    .prepare(
+      &mut tree,
+      root,
+      SURFACE,
+      &info(256, 64, 1.0),
+      &mut Services {
+        types: &types,
+        text: &mut engine,
+      },
+      Axes::NONE,
+    )
+    .stats();
+
+  assert!(stats.recorded >= 1);
+  let drawn = tree.get_as::<Label>(node).unwrap().drawn.get();
+  assert_eq!(drawn, Some(Size::new(8.0 * 5.0, 16.0)));
 }

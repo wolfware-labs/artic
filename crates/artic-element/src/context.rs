@@ -6,6 +6,7 @@
 
 use artic_core::tree::{NodeId, UiTree};
 use artic_layout::geometry::{Point, Rect, Size};
+use std::any::Any;
 use std::marker::PhantomData;
 
 /// Whether an element handled an input event, which stops it from going further.
@@ -32,13 +33,20 @@ pub struct RenderCx<'a> {
   tree: &'a UiTree,
   node: NodeId,
   size: Size,
+  result: Option<&'a dyn Any>,
 }
 
 impl<'a> RenderCx<'a> {
-  /// A context for drawing `node`, which layout gave `size`.
+  /// A context for drawing `node`, which layout gave `size` and, if its measure or arrange kept
+  /// one, `result`.
   #[must_use]
-  pub fn new(tree: &'a UiTree, node: NodeId, size: Size) -> Self {
-    Self { tree, node, size }
+  pub fn new(tree: &'a UiTree, node: NodeId, size: Size, result: Option<&'a dyn Any>) -> Self {
+    Self {
+      tree,
+      node,
+      size,
+      result,
+    }
   }
 
   /// The node being drawn.
@@ -57,6 +65,14 @@ impl<'a> RenderCx<'a> {
   #[must_use]
   pub fn size(&self) -> Size {
     self.size
+  }
+
+  /// What the node's layout kept for it to draw, if it's a `T`: its arranged result if it set one,
+  /// and its measured result otherwise. A control reads back the type it set, such as the
+  /// paragraph a text control shaped.
+  #[must_use]
+  pub fn layout_result<T: Any>(&self) -> Option<&'a T> {
+    self.result?.downcast_ref()
   }
 }
 

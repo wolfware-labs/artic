@@ -99,7 +99,7 @@ fn element_render_calls_hook() {
 
   Element::render(
     tile,
-    &mut RenderCx::new(&tree, node, Size::ZERO),
+    &mut RenderCx::new(&tree, node, Size::ZERO, None),
     &mut SceneBuilder::default(),
   );
 
@@ -385,7 +385,7 @@ fn render_cx_carries_its_size() {
   let mut tree = UiTree::new();
   let node = tree.alloc(Box::new(Tile::default()));
 
-  let cx = RenderCx::new(&tree, node, Size::new(40.0, 30.0));
+  let cx = RenderCx::new(&tree, node, Size::new(40.0, 30.0), None);
 
   assert_eq!(cx.size(), Size::new(40.0, 30.0));
 }

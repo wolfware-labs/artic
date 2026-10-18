@@ -95,8 +95,9 @@ impl Pipeline {
 
   /// Lays out `root`'s visual subtree in the surface's logical size and composes it.
   ///
-  /// Layout measures only what changed; composition records only render-dirty nodes and the
-  /// nodes layout resized since they were last recorded, including while hidden. On the `content`
+  /// Layout measures only what changed; composition records only render-dirty nodes, the nodes
+  /// layout resized since they were last recorded, including while hidden, and those whose layout
+  /// result was set or dropped. On the `content`
   /// axes, which the surface's content sizes, layout offers `∞`, so the root takes its desired
   /// size there. Layout shapes text with `services`' engine.
   pub fn prepare(
@@ -118,6 +119,7 @@ impl Pipeline {
       .layout
       .run(tree, services.types, root, available, grid, &mut *services.text);
     self.stale.extend(layout.resized);
+    self.stale.extend(layout.results);
     self
       .stale
       .retain(|node| tree.contains(*node) && (*node == root || tree.ancestors(TreeKind::Visual, *node).any(|a| a == root)));
@@ -242,7 +244,7 @@ impl Nodes for ElementNodes<'_> {
     self.stale.remove(&node);
     let size = self.layout.rect(node).map_or(Size::ZERO, Rect::size);
     if let Some(element) = tree.get(node).and_then(|object| self.types.element(object)) {
-      element.render(&mut RenderCx::new(tree, node, size), builder);
+      element.render(&mut RenderCx::new(tree, node, size, self.layout.result(node)), builder);
     }
   }
 

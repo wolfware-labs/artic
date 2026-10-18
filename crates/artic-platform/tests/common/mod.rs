@@ -21,6 +21,7 @@ static VISIBLE: PropertyKey<bool> = PropertyKey::new("Visible", Affects::RENDER,
 static HEIGHT: PropertyKey<f32> = PropertyKey::new("Height", Affects::LAYOUT, Inheritance::None);
 static COLOR: PropertyKey<u32> = PropertyKey::new("Color", Affects::RENDER, Inheritance::None);
 static TURN: PropertyKey<bool> = PropertyKey::new("Turn", Affects::RENDER, Inheritance::None);
+static TEXT: PropertyKey<String> = PropertyKey::new("Text", Affects::LAYOUT, Inheritance::None);
 
 /// Stacks its children from top to bottom, each as wide as itself; draws nothing.
 #[derive(Debug)]
@@ -334,28 +335,36 @@ impl TextEngine for Recorder {
   }
 }
 
-/// A line of text, as wide and tall as the paragraph the engine makes of it.
+/// A line of text, as wide and tall as the paragraph the engine makes of it, which it keeps as its
+/// layout result and notes the size of when it draws.
 #[derive(Debug)]
 pub struct Label {
-  pub text: &'static str,
+  text: Property<String>,
+  pub drawn: Cell<Option<Size>>,
 }
 
 impl Object for Label {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
+    visit(&self.text);
+  }
 }
 
 impl Layoutable for Label {
   fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {
-    cx.text()
-      .paragraph(self.text, &TextStyle::new(FontFamily::default(), 16.0), TextLimits::NONE)
-      .size()
+    let style = TextStyle::new(FontFamily::default(), 16.0);
+    let paragraph = cx.text().paragraph(&self.text.get(), &style, TextLimits::NONE);
+    let size = paragraph.size();
+    cx.set_measured(paragraph);
+    size
   }
 
   fn arrange(&self, _cx: &mut ArrangeCx<'_>, _rect: Rect) {}
 }
 
 impl Element for Label {
-  fn render(&self, _cx: &mut RenderCx<'_>, _scene: &mut SceneBuilder) {}
+  fn render(&self, cx: &mut RenderCx<'_>, _scene: &mut SceneBuilder) {
+    self.drawn.set(cx.layout_result::<Paragraph>().map(Paragraph::size));
+  }
 
   fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
     accesskit::Node::new(accesskit::Role::Label)
@@ -363,3 +372,13 @@ impl Element for Label {
 }
 
 artic_element::element_type!(Label);
+
+/// Allocates a label showing `text`, and returns it with its text.
+pub fn label(tree: &mut UiTree, text: &str) -> (NodeId, Property<String>) {
+  let text = Property::new(&TEXT, text.to_owned());
+  let id = tree.alloc(Box::new(Label {
+    text,
+    drawn: Cell::new(None),
+  }));
+  (id, text)
+}

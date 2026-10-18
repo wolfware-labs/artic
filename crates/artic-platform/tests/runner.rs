@@ -10,7 +10,7 @@ use artic_layout::geometry::Size;
 use artic_platform::{AppHandler, Axes, Chrome, FrameStats, LogicalSize, Runner, Waker, WindowDesc};
 use artic_render::SurfaceId;
 use common::{
-  Context, Counter, Label, Leaf, LeafHandles, Recorder, Wrap, application, column, engine, info, leaf, pixels, surface, target,
+  Context, Counter, Leaf, LeafHandles, Recorder, Wrap, application, column, engine, info, label, leaf, pixels, surface, target,
 };
 use pretty_assertions::assert_eq;
 use std::cell::Cell;
@@ -1023,8 +1023,8 @@ fn surface_closed_by_a_hook_isnt_drawn() {
 #[test]
 fn one_engine_serves_every_surface() {
   let mut tree = UiTree::new();
-  let first = tree.alloc(Box::new(Label { text: "first" }));
-  let second = tree.alloc(Box::new(Label { text: "second" }));
+  let (first, _) = label(&mut tree, "first");
+  let (second, _) = label(&mut tree, "second");
   let (application, _) = application(&mut tree, &[("one", first), ("two", second)]);
   let text = Recorder::default();
   let mut runner = Runner::new(tree, Counter::default(), Box::new(text.clone()), application);
@@ -1047,8 +1047,8 @@ fn one_engine_serves_every_surface() {
 #[test]
 fn content_sized_window_measures_text() {
   let mut tree = UiTree::new();
-  let label = tree.alloc(Box::new(Label { text: "twelve chars" }));
-  let (application, surfaces) = application(&mut tree, &[("main", label)]);
+  let (content, _) = label(&mut tree, "twelve chars");
+  let (application, surfaces) = application(&mut tree, &[("main", content)]);
   Desktop::set_size_to_content(&mut tree, surfaces[0], SizeToContent::WidthAndHeight);
   let mut runner = Runner::new(tree, Counter::default(), Box::new(Recorder::default()), application);
   let mut cx = Context::default();
