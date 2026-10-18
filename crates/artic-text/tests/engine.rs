@@ -1,6 +1,6 @@
 use artic_layout::text::{
-  FontFamily, FontStyle, FontWeight, GenericFamily, Line, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle,
-  TextWrapping,
+  FontFamily, FontStyle, FontWeight, GenericFamily, Line, Paragraph, ParagraphStyle, TextAlignment, TextEngine, TextLimits,
+  TextStyle, TextWrapping,
 };
 use artic_test_fonts::{BOLD, REGULAR};
 use artic_text::Engine;
@@ -705,4 +705,180 @@ fn clamped_line_that_fits_is_not_limited_by_width() {
   };
 
   assert!(!laid_out(&mut engine(), "a\nb\nc", &style, TextLimits::width(100.0)).limited_width());
+}
+
+fn aligned(alignment: TextAlignment) -> ParagraphStyle {
+  ParagraphStyle {
+    alignment,
+    ..overflowing()
+  }
+}
+
+fn left_edge(paragraph: &Paragraph, line: &Line) -> f32 {
+  glyph_xs(paragraph, line).into_iter().fold(f32::MAX, f32::min)
+}
+
+fn right_glyph(paragraph: &Paragraph, line: &Line) -> f32 {
+  glyph_xs(paragraph, line).into_iter().fold(f32::MIN, f32::max)
+}
+
+// Center puts each line's free width half before it, End all of it, and in right-to-left text
+// End is the left edge.
+#[test]
+fn center_and_end_place_lines() {
+  let mut engine = engine();
+  let center = laid_out(&mut engine, FOX, &aligned(TextAlignment::Center), TextLimits::width(100.0));
+  let end = laid_out(&mut engine, FOX, &aligned(TextAlignment::End), TextLimits::width(100.0));
+  let hebrew_end = laid_out(&mut engine, HEBREW, &aligned(TextAlignment::End), TextLimits::width(100.0));
+
+  for line in center.lines() {
+    assert_close(left_edge(&center, line), (center.size().width - line.width) / 2.0);
+  }
+  for line in end.lines() {
+    assert_close(left_edge(&end, line), end.size().width - line.width);
+  }
+  for line in hebrew_end.lines() {
+    assert_close(left_edge(&hebrew_end, line), 0.0);
+  }
+}
+
+// Left and Right ignore the direction: Left starts Hebrew lines at 0, Right ends Latin lines at
+// the paragraph's right edge.
+#[test]
+fn left_and_right_ignore_direction() {
+  let mut engine = engine();
+  let left = laid_out(&mut engine, HEBREW, &aligned(TextAlignment::Left), TextLimits::width(100.0));
+  let right = laid_out(&mut engine, FOX, &aligned(TextAlignment::Right), TextLimits::width(100.0));
+
+  for line in left.lines() {
+    assert_close(left_edge(&left, line), 0.0);
+  }
+  for line in right.lines() {
+    assert_close(left_edge(&right, line), right.size().width - line.width);
+  }
+}
+
+// Justify stretches every line but the last to the paragraph's width, and leaves the last at the
+// start.
+#[test]
+fn justify_fills_every_line_but_the_last() {
+  let paragraph = laid_out(&mut engine(), FOX, &aligned(TextAlignment::Justify), TextLimits::width(100.0));
+  let (last, rest) = paragraph.lines().split_last().unwrap();
+
+  for line in rest {
+    assert_eq!(line.width, paragraph.size().width);
+    assert_close(left_edge(&paragraph, line), 0.0);
+  }
+  assert!(last.width < paragraph.size().width);
+  assert_close(left_edge(&paragraph, last), 0.0);
+}
+
+// A line that ends at a hard break isn't stretched.
+#[test]
+fn justify_skips_hard_breaks_and_trimmed_lines() {
+  let text = "The quick\nbrown fox jumps over the lazy dog";
+  let mut engine = engine();
+  let justified = laid_out(&mut engine, text, &aligned(TextAlignment::Justify), TextLimits::width(100.0));
+  let start = laid_out(&mut engine, text, &overflowing(), TextLimits::width(100.0));
+
+  assert_eq!(justified.lines()[0].width, start.lines()[0].width);
+  assert!(justified.lines()[0].width < justified.size().width);
+  assert!(justified.lines()[1].width == justified.size().width);
+}
+
+// A line without spaces, such as a piece of a word broken by Wrap, isn't stretched.
+#[test]
+fn justify_skips_a_line_without_spaces() {
+  let text = "Supercalifragilisticexpialidocious and a few more words here";
+  let justify = ParagraphStyle {
+    alignment: TextAlignment::Justify,
+    ..wrapping(TextWrapping::Wrap)
+  };
+  let mut engine = engine();
+  let justified = laid_out(&mut engine, text, &justify, TextLimits::width(100.0));
+  let start = laid_out(&mut engine, text, &wrapping(TextWrapping::Wrap), TextLimits::width(100.0));
+
+  assert_eq!(justified.size().width, 100.0);
+  assert_eq!(justified.lines()[0].width, start.lines()[0].width);
+  assert_eq!(
+    glyph_xs(&justified, &justified.lines()[0]),
+    glyph_xs(&start, &start.lines()[0])
+  );
+}
+
+// The space hanging at a stretched line's end takes no share: the line's last glyph moves by the
+// whole free width, so the line ends at the paragraph's edge.
+#[test]
+fn justify_ignores_hanging_whitespace() {
+  let mut engine = engine();
+  let justified = laid_out(&mut engine, FOX, &aligned(TextAlignment::Justify), TextLimits::width(100.0));
+  let start = laid_out(&mut engine, FOX, &overflowing(), TextLimits::width(100.0));
+  let (natural, stretched) = (start.lines()[0], justified.lines()[0]);
+
+  assert_close(
+    right_glyph(&justified, &stretched),
+    right_glyph(&start, &natural) + (justified.size().width - natural.width),
+  );
+}
+
+// A paragraph with a stretched line is as wide as max_width, and limited by it.
+#[test]
+fn justified_paragraph_takes_max_width() {
+  let paragraph = laid_out(&mut engine(), FOX, &aligned(TextAlignment::Justify), TextLimits::width(100.0));
+
+  assert_eq!(paragraph.size().width, 100.0);
+  assert!(paragraph.limited_width());
+}
+
+// A line wider than max_width isn't stretched, even when another line makes the paragraph wider
+// still. No-break spaces keep the first line's words together.
+#[test]
+fn overflowing_line_is_not_justified() {
+  let text = "Super\u{a0}cali\u{a0}fragi Supercalifragilisticexpialidociousness end";
+  let mut engine = engine();
+  let justified = laid_out(&mut engine, text, &aligned(TextAlignment::Justify), TextLimits::width(60.0));
+  let start = laid_out(&mut engine, text, &overflowing(), TextLimits::width(60.0));
+
+  assert!(start.lines()[0].width > 60.0);
+  assert!(start.lines()[0].width < start.size().width);
+  assert_eq!(
+    glyph_xs(&justified, &justified.lines()[0]),
+    glyph_xs(&start, &start.lines()[0])
+  );
+}
+
+// Right-to-left justified lines span the paragraph from 0 to its width.
+#[test]
+fn justify_fills_right_to_left_lines() {
+  let paragraph = laid_out(
+    &mut engine(),
+    HEBREW,
+    &aligned(TextAlignment::Justify),
+    TextLimits::width(100.0),
+  );
+  let (_, rest) = paragraph.lines().split_last().unwrap();
+
+  assert_eq!(paragraph.size().width, 100.0);
+  for line in rest {
+    assert_close(left_edge(&paragraph, line), 0.0);
+    assert!(right_glyph(&paragraph, line) <= paragraph.size().width);
+  }
+  assert_inside(&paragraph);
+}
+
+// With no width limit there's nothing to stretch to: the paragraph keeps its widest line's width.
+#[test]
+fn justify_without_a_width_limit_stretches_nothing() {
+  let mut engine = engine();
+  let justified = laid_out(
+    &mut engine,
+    "The quick\nbrown fox",
+    &aligned(TextAlignment::Justify),
+    TextLimits::NONE,
+  );
+
+  assert_eq!(
+    justified,
+    laid_out(&mut engine, "The quick\nbrown fox", &overflowing(), TextLimits::NONE)
+  );
 }

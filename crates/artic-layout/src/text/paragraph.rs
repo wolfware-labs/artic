@@ -54,7 +54,8 @@ impl Paragraph {
     self
   }
 
-  /// The widest line's width by the sum of the lines' heights.
+  /// The widest line's width by the sum of the lines' heights. A paragraph with a justified line is
+  /// as wide as the width it was justified to, which can be more than its widest natural line.
   #[must_use]
   pub fn size(&self) -> Size {
     self.size
