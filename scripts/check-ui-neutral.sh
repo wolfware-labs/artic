@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 hits=$(git grep -n -i 'xaml' -- 'crates/' \
   ':!crates/artic-xaml/' ':!crates/artic-xaml-compiler/' ':!crates/artic-xaml-runtime/' \
   ':!crates/artic-lsp/' ':!crates/artic-cli/' ':!crates/artic/src/xaml.rs' ':!crates/artic/Cargo.toml' \
-  ':!crates/artic/src/lib.rs')
+  ':!crates/artic/src/lib.rs' ':!crates/artic/tests/xaml.rs')
 status=$?
 if [ "$status" -gt 1 ]; then
   echo "git grep failed with status $status"
