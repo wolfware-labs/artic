@@ -92,7 +92,7 @@ fn remove_leaves_another_parents_child_alone() {
   Children::remove(&mut tree, panel, child);
 }
 
-// Markup that names a node not in the tree is refused with the link problem, not a panic.
+// A view that names a node not in the tree is refused with the link problem, not a panic.
 #[test]
 fn push_child_refuses_nodes_not_in_the_tree() {
   let mut tree = UiTree::new();
@@ -131,7 +131,7 @@ fn child_set_leaves_a_mislinked_child_alone() {
   Child::set(&mut tree, border, Some(second));
 }
 
-// Markup that gives a single-child element a second child is refused.
+// A view that gives a single-child element a second child is refused.
 #[test]
 fn second_child_is_refused() {
   let mut tree = UiTree::new();

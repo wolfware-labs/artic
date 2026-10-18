@@ -84,7 +84,7 @@ impl<T> PropertyKey<T> {
     self
   }
 
-  /// The property's name, as markup spells it.
+  /// The property's name, as UI languages spell it.
   #[must_use]
   pub const fn name(&self) -> &'static str {
     self.name

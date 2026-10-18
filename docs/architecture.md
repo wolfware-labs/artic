@@ -2,6 +2,18 @@
 
 artic is a Cargo workspace of layered crates. This document is the reference for which crate may depend on which. The design behind each crate is in the [technical spec](spec/technical_spec.md).
 
+## Seams
+
+An app picks three things. Each sits behind an interface no layer below it knows the other side of.
+
+| Seam | Interface | v1 |
+| --- | --- | --- |
+| Host | `Host` in `artic-platform` | `artic-winit` |
+| Renderer | `Renderer` in `artic-render` | `artic-vello` |
+| UI language | the registry and the tree, as [the contract](spec/dsl.md) states | XAML: `artic-xaml`, `artic-xaml-compiler`, `artic-xaml-runtime` |
+
+No crate below a UI language depends on it or names it. Only the XAML crates, `artic-lsp`, `artic-cli` and the facade's `xaml` module say XAML; `scripts/check-ui-neutral.sh` checks this in CI.
+
 ## Layers
 
 A crate depends only on crates in lower layers. Crates in the same layer never depend on each other.
@@ -18,15 +30,16 @@ A crate depends only on crates in lower layers. Crates in the same layer never d
 
 ## Dependency graph
 
-Arrows point from a crate to its dependency.
+Arrows point from a crate to its dependency. A dotted arrow is optional (named by its feature) or planned.
 
 ```mermaid
 flowchart TD
   artic --> theme[artic-theme]
   artic --> controls[artic-controls]
   artic --> platform[artic-platform]
-  artic --> text[artic-text]
+  artic -. planned .-> text[artic-text]
   artic -. hot-reload / runtime-xaml .-> runtime[artic-xaml-runtime]
+  artic -. xaml .-> xaml
 
   theme --> controls
   theme --> style[artic-style]
@@ -41,20 +54,19 @@ flowchart TD
   element --> macros[artic-macros]
 
   test[artic-test] --> platform
-  test --> style
+  test -. planned .-> style
   test --> text
   test --> fonts[artic-test-fonts]
 
   winit[artic-winit] --> platform
   vello[artic-vello] --> render
 
-  cli[artic-cli] --> lsp[artic-lsp]
+  cli[artic-cli] -. planned .-> lsp[artic-lsp]
   lsp --> compiler[artic-xaml-compiler]
 
   render --> layout[artic-layout]
   text --> layout
   style --> registry
-  style --> xaml
   compiler --> registry
   compiler --> xaml[artic-xaml]
   runtime --> registry
@@ -71,7 +83,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | Crate | Depends on |
 | --- | --- |
 | `artic-core` | none |
-| `artic-macros` | none (proc-macro; generated code names `artic::__private`, `artic_registry::__private` or, for `XamlEnum`, `artic_core::__private`, whichever the calling crate depends on) |
+| `artic-macros` | none (proc-macro; generated code names `artic::__private`, `artic_registry::__private` or, for `UiEnum`, `artic_core::__private`, whichever the calling crate depends on) |
 | `artic-xaml` | none |
 | `artic-test-fonts` | none (data only: the test font's bytes) |
 | `artic-registry` | `artic-core` |
@@ -79,19 +91,19 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-i18n` | `artic-core` |
 | `artic-render` | `artic-core`, `artic-layout` |
 | `artic-text` | `artic-layout` |
-| `artic-style` | `artic-core`, `artic-registry`, `artic-xaml` (for `Span`/`Diagnostic` in selector errors) |
+| `artic-style` | `artic-core`, `artic-registry` |
 | `artic-xaml-compiler` | `artic-xaml`, `artic-registry` |
 | `artic-xaml-runtime` | `artic-xaml`, `artic-registry`, `artic-core` |
 | `artic-element` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-macros` |
 | `artic-controls` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-element`, `artic-style`, `artic-macros` |
 | `artic-platform` | `artic-core`, `artic-layout`, `artic-render`, `artic-element` |
-| `artic-cli` | `artic-xaml`, `artic-xaml-compiler`, `artic-lsp` (shared source index for `check` and `lsp`) |
+| `artic-cli` | `artic-xaml`, `artic-xaml-compiler`; planned: `artic-lsp` (shared source index for `check` and `lsp`) |
 | `artic-lsp` | `artic-xaml`, `artic-xaml-compiler` |
 | `artic-theme` | `artic-controls`, `artic-style` |
-| `artic-test` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-text`, `artic-test-fonts`, `artic-element`, `artic-style`, `artic-platform` |
+| `artic-test` | `artic-core`, `artic-layout`, `artic-render`, `artic-text`, `artic-test-fonts`, `artic-element`, `artic-platform`; planned: `artic-registry`, `artic-style` |
 | `artic-winit` | `artic-core`, `artic-render`, `artic-platform` |
 | `artic-vello` | `artic-layout`, `artic-render` |
-| `artic` | every app-facing crate; `artic-xaml-runtime` only with the `hot-reload` or `runtime-xaml` feature |
+| `artic` | every app-facing crate; `artic-xaml` with the `xaml` feature, which `hot-reload` and `runtime-xaml` turn on; `artic-xaml-runtime` only with `hot-reload` or `runtime-xaml` |
 
 ## Rules
 
@@ -104,8 +116,10 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 - Code that needs concrete controls but serves the runtime or tooling (hot-reload overlay and state restore, debug overlay) lives in the facade.
 - Dev-dependencies may point from any crate to `artic-test`, as long as `artic-test` does not depend back on that crate. Control, theme and language-server tests use `TestHost` this way.
 - Test data that a crate below `artic-test` needs too, such as the test font, lives in a data-only crate with no dependencies (`artic-test-fonts`), not in `artic-test`, so the crate's tests can use it without a cycle.
-- The crates under `crates/artic-registry/fixtures/` are test-only (`publish = false`) and sit outside the layers. Two register one XAML type each; `artic-registry-linking` holds the tests that check which of them reach the registry.
+- The crates under `crates/artic-registry/fixtures/` are test-only (`publish = false`) and sit outside the layers. Two register two UI types each (`Alpha` or `Beta`, and `Twin`); `artic-registry-linking` holds the tests that check which of them reach the registry.
 - `artic-macros`' own tests dev-depend on crates that use the macros, such as `artic-core`, `artic-registry` and `artic-element`. Cargo allows these dev-only loops: `artic-macros` itself depends on no artic crate, so its build has no cycle.
+- When `artic-style` needs source spans for selector errors, the span and diagnostic types move to a crate below every UI language, so `artic-style` names none.
+- `crates/docs-check` is test-only (`publish = false`) and sits outside the layers, like the registry fixtures. It compiles the Rust code in the documents.
 - `artic-xaml` does not depend on the registry. Type references stay unresolved in the infoset, so parser tests need no registry.
 - Release builds link `artic-xaml-runtime` only when the app enables `runtime-xaml`. Compiled views never touch the loader.
 - App-facing crates stay free of native-only dependencies, so a web target can be added later without app changes (D24 in the spec).

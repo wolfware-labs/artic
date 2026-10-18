@@ -1,6 +1,6 @@
 # Design: backend seams
 
-Issue: #240. Implemented by: #33 (renderer and scene), #39 (desktop host), #40 (frame pipeline), #34 (`vello` renderer). Related: #241 (the XAML registry on targets without `linkme`), D24 (web without app changes).
+Issue: #240. Implemented by: #33 (renderer and scene), #39 (desktop host), #40 (frame pipeline), #34 (`vello` renderer). Related: #241 (the type registry on targets without `linkme`), D24 (web without app changes).
 
 artic must run on targets nobody has listed yet. Anyone can write an **adapter** for a new backend without changing app code or artic code: a browser, a Raspberry Pi framebuffer, a VideoCore VI GPU with no window system, skia, SDL, GLFW, a handheld like the ROG Ally. This document fixes the seams adapters implement, keeping them as small as the targets allow.
 
@@ -37,7 +37,7 @@ Every target provides four things:
 3. **Frames, per surface.** artic asks for a frame on a surface; the host calls back when that surface should draw (vsync, a browser animation frame, a timer). A 144 Hz display and a 60 Hz display each get their own frames.
 4. **Waking.** Another thread posts work to the `Dispatcher` (#16), and the host wakes its loop.
 
-```rust
+```rust,ignore
 pub trait Host {
   /// What kind of target the host offers, checked against the renderer before the loop starts.
   fn targets(&self) -> TargetKind;
@@ -82,7 +82,7 @@ The app declares its `Surface`s the same way for both ([surface design](surface.
 
 A host offers each surface as a `Target`, split by how a renderer gets pixels onto it:
 
-```rust
+```rust,ignore
 pub enum Target<'a> {
   /// Native handles (`raw-window-handle`): OS windows, DRM/GBM screens, browser canvases. The
   /// renderer creates its swapchain from them and presents. They stay valid until the host reports
@@ -104,7 +104,7 @@ pub enum Target<'a> {
 
 ## 4. The renderer and the scene
 
-```rust
+```rust,ignore
 pub trait Renderer {
   /// Whether it can draw on targets of `kind`; `artic::run` asks before the host starts.
   fn accepts(&self, kind: TargetKind) -> bool;
@@ -166,7 +166,7 @@ artic maps raw events to **actions**, so every adapter gets them:
 
 The app is a library; each target has a **launcher**, a few lines that name a host, a renderer and the app:
 
-```rust
+```rust,ignore
 // The app crate (a library), the same for every target.
 pub fn app() -> artic::App { … }
 
@@ -186,7 +186,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 - **Entry points differ per platform anyway:** `main` on desktop, `android_main` on Android, a `wasm_bindgen` start function in a browser. The launcher is the one place that's platform-specific; the app crate and artic never change. `cargo artic new` generates the common launchers.
 - **`artic::run` is generic** over `H: Host` and `R: Renderer`, so the common case uses no trait objects. It checks that the renderer accepts what the host offers (section 3) before starting the host.
 - **The loop is the host's.** A desktop host blocks inside `run` until the app quits. A browser host installs its callbacks and returns, and the callbacks keep driving the `App`. App code can't tell the difference (D24).
-- **No link-time registration of backends.** `linkme` doesn't support wasm, and it couldn't produce `android_main` either. The XAML registry has the same `linkme` gap on wasm; that is #241.
+- **No link-time registration of backends.** `linkme` doesn't support wasm, and it couldn't produce `android_main` either. The type registry has the same `linkme` gap on wasm; that is #241.
 
 ## Crates (new in this document)
 
@@ -224,4 +224,4 @@ Compared with today's §2 and `docs/architecture.md`:
 ## Left open
 
 - **Damage regions.** Redrawing only changed areas of a surface is an optimization a `Pixels` renderer may want; it can be added to `render` later without changing adapters that ignore it.
-- **The XAML registry without `linkme`** (#241).
+- **The type registry without `linkme`** (#241).

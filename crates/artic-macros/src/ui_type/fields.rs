@@ -149,7 +149,7 @@ fn check_positional(owner: &Ident, attributes: &TypeAttributes, ui_fields: &[UiF
   Ok(())
 }
 
-/// The field's name in markup: its `name` override, or the field name in PascalCase.
+/// The field's name in UI languages: its `name` override, or the field name in PascalCase.
 pub fn ui_name(field: &UiField) -> String {
   match &field.attributes.name {
     Some(name) => name.value(),
@@ -305,7 +305,7 @@ mod tests {
     assert!(matches!(analysis.ui_fields[0].role, Role::Group));
   }
 
-  // A field's markup name is its name in PascalCase unless `name` overrides it.
+  // A field's name in UI languages is its name in PascalCase unless `name` overrides it.
   #[test]
   fn ui_names() {
     let input: DeriveInput = parse_quote! {

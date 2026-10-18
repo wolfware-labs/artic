@@ -44,7 +44,7 @@ fn unit_variants(input: &DeriveInput) -> syn::Result<Vec<&Ident>> {
     if !matches!(variant.fields, Fields::Unit) {
       return Err(Error::new_spanned(
         &variant.fields,
-        "`UiEnum` variants can't have fields: each one is a name written in markup",
+        "`UiEnum` variants can't have fields: each one is a name written as text",
       ));
     }
     let name = variant.ident.to_string();

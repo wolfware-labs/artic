@@ -18,7 +18,7 @@ A **host** drives the screen: it owns the event loop, reports surfaces and event
 
 All in `artic-platform`, which has no backend dependencies.
 
-```rust
+```rust,ignore
 pub trait Host {
   /// What kind of target the host offers, so `artic::run` can reject a renderer that can't draw
   /// on it before the loop starts.

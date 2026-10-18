@@ -36,7 +36,7 @@ struct Other {
   interaction: Interaction,
 }
 
-/// The markup name of each property, and the field of the group that holds it.
+/// The name UI languages use for each property, and the field of the group that holds it.
 const NAMES: [(&str, &str); 20] = [
   ("Width", "layout"),
   ("Height", "layout"),

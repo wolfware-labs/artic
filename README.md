@@ -11,6 +11,7 @@ A cross-platform UI framework for Rust. Views are written in XAML, all logic is 
 - Signals propagate every change. View-models and `{Binding}` are built on them.
 - `vello` on `wgpu` draws every platform. Layouts adapt to screen size and input mode, not to the OS.
 - Every control exposes an `accesskit` node.
+- Host, renderer and UI language are each pluggable. XAML is the first language; [the contract](docs/spec/dsl.md) says what another one follows.
 
 ## A view
 
@@ -26,7 +27,7 @@ A cross-platform UI framework for Rust. Views are written in XAML, all logic is 
 </UserControl>
 ```
 
-```rust
+```rust,ignore
 #[derive(ViewModel, Default)]
 pub struct LoginVm {
     email: Signal<String>,
@@ -42,7 +43,7 @@ impl LoginVm {
 
 ## Project structure
 
-```
+```text
 .
 ├── Cargo.toml            Workspace manifest, shared package metadata and lints
 ├── rust-toolchain.toml   Pinned Rust toolchain
@@ -61,10 +62,10 @@ The workspace is layered. A crate depends only on crates in lower layers, so the
 | Layer | Crate | Responsibility |
 | --- | --- | --- |
 | 0 | `artic-core` | Signals, effects, `Property<T>`, the node tree and trees, the UI dispatcher |
-| 0 | `artic-macros` | The derive and attribute macros, such as `#[element]`, `#[derive(XamlType)]` and `#[derive(ViewModel)]` |
+| 0 | `artic-macros` | The derive and attribute macros, such as `#[element]`, `#[derive(UiType)]` and `#[derive(UiEnum)]` |
 | 0 | `artic-xaml` | XAML parser, markup extension grammar and spanned diagnostics |
 | 0 | `artic-test-fonts` | The font artic's tests shape text with, as byte constants |
-| 1 | `artic-registry` | Type metadata that maps XAML names to Rust types and properties |
+| 1 | `artic-registry` | Type metadata that lets UI languages name Rust types and properties |
 | 1 | `artic-layout` | Measure and arrange protocol, geometry and text types, panels |
 | 1 | `artic-i18n` | Optional localizer backed by Fluent `.ftl` files |
 | 2 | `artic-render` | `Renderer` trait and retained scene (backends are adapter crates) |

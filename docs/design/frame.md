@@ -27,9 +27,9 @@ All in `artic-platform`, which depends on `artic-element` to drive the tree as `
 | `run(host, runner) -> Result<(), Error>` | Checks `renderer.accepts(host.targets())`, then `host.run(runner)`; returns the error a frame failed with, if any, when the host's `run` returns after the loop ends |
 | `Error` | `Unsupported(TargetKind)`: the renderer can't draw on what the host offers; `Render(RenderError)`: a frame failed |
 
-```rust
+```rust,ignore
 impl<R: Renderer> Runner<R> {
-  pub fn new(tree: UiTree, renderer: R, application: NodeId) -> Self;
+  pub fn new(tree: UiTree, renderer: R, text: Box<dyn TextEngine>, application: NodeId) -> Self;
   pub fn hooks(&mut self) -> &mut Hooks;
   pub fn stats(&self, surface: SurfaceId) -> Option<FrameStats>;
 }
@@ -122,11 +122,11 @@ Each stage counts what it did: `LayoutManager::run` returns `LayoutStats { measu
 
 | Crate | Tests |
 | --- | --- |
-| `artic-core` | `property_write_sets_pending`, `mark_dirty_sets_pending`, `child_change_sets_pending`, `take_pending_resets` |
+| `artic-core` | `property_write_sets_pending`, `mark_dirty_sets_pending`, `child_change_sets_pending` (taking the pending set resets it, checked in `property_write_sets_pending`) |
 | `artic-layout` | `run_reports_measured_and_arranged`: a second run with nothing dirty reports zero; `run_reports_resized`: a node whose size changed is listed, one that only moved isn't; the `results` tests are in the [text design](text.md) |
 | `artic-render` | `compose_reports_recorded`: only render-dirty nodes count; `stale_node_is_recorded_again`; `write_during_record_stays_dirty` |
-| `artic-platform` | `layout_offset_applies_after_render_transform`, `render_cx_has_the_arranged_size`, `frame_is_send` |
-| `artic-platform`, through `Runner`, a fake `HostContext` and a counting renderer on a `Pixels` target | `clean_frame_is_skipped` (an unasked-for frame measures and records nothing, presents the last scene, and requests no frame, so the loop sleeps), `os_redraw_presents_the_last_scene`, `render_only_change_skips_layout`, `layout_change_remeasures_subtree`, `resize_invalidates_root`, `resized_node_is_recorded_again`, `replaced_result_is_recorded_again`, `node_resized_while_hidden_is_recorded_when_shown`, `windows_keep_their_own_caches`, `write_after_present_requests_one_frame`, `surface_lost_render_error_resets_the_renderer`, `style_write_lands_in_same_frame`, `hook_write_effects_land_in_same_frame`, `wants_frame_requests_another`, `closing_last_window_exits`, `closed_window_is_released_from_the_renderer`, `render_error_is_returned_from_run`, `render_error_reaches_on_error`, `mismatched_renderer_is_rejected` |
+| `artic-platform` | `layout_offset_applies_after_render_transform`, `render_cx_has_the_arranged_size`, and `Frame: Send` as a static assertion |
+| `artic-platform`, through `Runner`, a fake `HostContext` and a counting renderer on a `Pixels` target | `clean_frame_is_skipped` (an unasked-for frame measures and records nothing, presents the last scene, and requests no frame, so the loop sleeps), `os_redraw_presents_the_last_scene`, `render_only_change_skips_layout`, `layout_change_remeasures_subtree`, `resize_invalidates_root`, `resized_node_is_recorded_again`, `replaced_result_is_recorded_again`, `node_resized_while_hidden_is_recorded_when_shown`, `windows_keep_their_own_caches`, `write_after_present_requests_one_frame`, `surface_lost_render_error_resets_the_renderer`, `style_write_lands_in_same_frame`, `hook_write_effects_land_in_same_frame`, `wants_frame_requests_another`, `last_surface_closing_exits`, `closed_window_is_released_from_the_renderer`, `render_error_is_returned_from_run`, `render_error_reaches_on_error`, `mismatched_renderer_is_rejected` |
 
 An `artic-winit` example, `frames`, opens a window with one element through `Runner` and `artic_vello::Renderer`, changes a property once, and exits with an error if any frame runs in the last 500 ms of a 1.5 s run. The Windows and macOS CI jobs run it next to `smoke`. A quiet window, not a frame count, is what it asserts, so a transient resize at startup can't fail it.
 

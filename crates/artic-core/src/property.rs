@@ -97,7 +97,7 @@ pub enum Precedence {
   StyleSetter,
   /// A value written by a data binding.
   Binding,
-  /// A value set directly: in markup, or with `set` in code.
+  /// A value set directly: by a UI language, or with `set` in code.
   Local,
   /// A value written by a running animation.
   Animation,
@@ -214,7 +214,7 @@ where
     self.0.with(|state| state.levels.effective_source())
   }
 
-  /// Sets the `Local` level, the level for values set in code or in markup.
+  /// Sets the `Local` level, the level for values set in code or by a UI language.
   pub fn set(&self, value: T) {
     self.set_at(Precedence::Local, value);
   }

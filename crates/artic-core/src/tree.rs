@@ -5,7 +5,7 @@
 //! pointing at whatever node reuses its slot.
 //!
 //! Every node belongs to two trees at once, each with its own parent and ordered children: the logical tree
-//! the markup declares, and the visual tree that is laid out and drawn. Methods that work on links take a
+//! the view declares, and the visual tree that is laid out and drawn. Methods that work on links take a
 //! [`TreeKind`] to say which one, such as [`add_child`](UiTree::add_child) and
 //! [`descendants`](UiTree::descendants).
 //!
@@ -108,12 +108,12 @@ pub struct NodeId(SlotId);
 /// Which of a node's two trees an operation works on.
 ///
 /// Every node in a [`UiTree`] belongs to two trees at once, with independent parent and child
-/// links. The *logical* tree is the structure the markup declares; names, resources and inherited
+/// links. The *logical* tree is the structure the view declares; names, resources and inherited
 /// values follow it. The *visual* tree is what gets measured and drawn, including the nodes a
 /// control's template adds around its content.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum TreeKind {
-  /// The tree the markup declares.
+  /// The tree the view declares.
   Logical,
   /// The tree that is laid out and drawn.
   Visual,

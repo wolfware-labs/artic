@@ -6,12 +6,12 @@ This revision applies the v1 planning decisions D1 to D28 recorded in issue #1. 
 
 ## 1. Overview and locked decisions
 
-A cross-platform desktop and mobile UI framework where views are written in XAML (a defined subset of [MS-XAML 2012](https://learn.microsoft.com/en-us/openspecs/microsoft_domain_specific_languages/MS-MSDLLP/69a08c4f-e943-4729-be0d-1b33d4ad967e) with an Avalonia-style vocabulary) and all logic is Rust. **The framework is named artic (artic.rs); crates are prefixed artic-**.
+A cross-platform desktop and mobile UI framework where views are written in XAML (a defined subset of [MS-XAML 2012](https://learn.microsoft.com/en-us/openspecs/microsoft_domain_specific_languages/MS-MSDLLP/69a08c4f-e943-4729-be0d-1b33d4ad967e) with an Avalonia-style vocabulary) and all logic is Rust. **The framework is named artic (artic.rs); crates are prefixed artic-**. XAML is artic's first UI language. The layers below it don't depend on it or name it, and [the UI language contract](dsl.md) states what any other language follows.
 
 ### Goals
 
 - XAML that a WPF/Avalonia developer can read and mostly write without retraining.
-- Rust-native, not .NET-on-Rust: composition and traits instead of class hierarchies, generics and concrete enums instead of \`dyn Any\`, std traits (\`FromStr\`, \`TryFrom\`, \`Result\`) instead of framework-specific converter and exception APIs, tree ids instead of shared mutable references. String-keyed lookup exists only where XAML markup needs it and only in the hot-reload loader.
+- Rust-native, not .NET-on-Rust: composition and traits instead of class hierarchies, generics and concrete enums instead of \`dyn Any\`, std traits (\`FromStr\`, \`TryFrom\`, \`Result\`) instead of framework-specific converter and exception APIs, tree ids instead of shared mutable references. String-keyed lookup exists only where a UI language needs it and only in the hot-reload loader.
 - Same pixels on Windows, macOS, Linux, iOS, and Android via one GPU renderer; layouts adapt to screen class and input mode, not to OS.
 - Compiled XAML for release (type-checked, zero parse cost at startup) and interpreted XAML in development (hot reload).
 - Fine-grained reactivity underneath; MVVM ergonomics (observable view-models, `{Binding}`) on top.
@@ -31,6 +31,7 @@ A cross-platform desktop and mobile UI framework where views are written in XAML
 | XAML dialect | MS-XAML 2012 syntax; Avalonia-style vocabulary and CSS-like selectors |
 | Rendering | Behind a `Renderer` trait any adapter crate can implement; v1 ships `artic-vello` (`vello` on `wgpu`) |
 | Windowing | Behind a `Host` trait any adapter crate can implement; v1 ships `artic-winit` on all five targets; mobile lifecycle (suspend/resume, surface loss, safe areas) is part of that trait |
+| UI language | Pluggable, like the host and the renderer: a language builds the tree through the registry, following [the contract](dsl.md); v1 ships XAML. No crate below a language names it (#305) |
 | Platforms v1 | Windows 10+, macOS 12+, Linux (X11 + Wayland), iOS 15+, Android 8+ (API 26) with Vulkan 1.1; one app crate, one binary per target |
 | XAML loading | Both: build-time compiler (`build.rs`) and runtime loader, both driven by one generated type registry. The loader ships in release only with the opt-in `runtime-xaml` feature (D23) |
 | Reactivity | Signals (fine-grained, synchronous, glitch-free) as the primitive and public API; `#[derive(ViewModel)]` and typed `{Binding}` on top, with no reflection in any build (D1, D6) |
@@ -65,8 +66,8 @@ Each layer builds on the ones below it. The exact dependency edges and the rules
 | Crate | Responsibility | Key public types |
 | --- | --- | --- |
 | `artic-core` | Signals, effects, `Property<T>`, styled-property metadata, visual/logical tree, `Object` trait, resources, dispatcher | `Signal`, `effect`, `Property`, `Node`, `UiTree`, `Dispatcher` |
-| `artic-registry` | Generated type descriptors used by both XAML paths: type name → constructor, property name → setter/getter/type converter, content property, attached properties, events | `TypeInfo`, `PropertyInfo`, `TypeConverter`, `Registry` |
-| `artic-macros` | `#[derive(XamlType)]`, `#[element]`, `#[derive(XamlProperties)]`, `#[derive(ViewModel)]`, `#[xaml_class]`, `xaml!` (inline) | proc macros |
+| `artic-registry` | Type descriptors any UI language uses: type name → constructor, properties, content, attached properties, events, value providers; a type's namespace is its crate | `TypeInfo`, `PropertyInfo`, `Registry`, `Lookup` |
+| `artic-macros` | `#[derive(UiType)]`, `#[element]`, `#[derive(UiProperties)]`, `#[derive(UiEnum)]`, `#[derive(ViewModel)]`, `#[ui_class]`, `xaml!` (inline) | proc macros |
 | `artic-xaml` | Parser: XML → XAML Infoset (MS-XAML §5), markup-extension grammar, diagnostics with spans | `XamlDocument`, `XamlNode`, `MarkupExtensionAst`, `Diagnostic` |
 | `artic-xaml-compiler` | Infoset → Rust source (`build.rs` API and `cargo artic` CLI) | `compile_dir()`, `CompileOptions` |
 | `artic-xaml-runtime` | Infoset → live object tree using the registry; file watcher and hot-swap | `XamlLoader`, `HotReload` |
@@ -79,13 +80,23 @@ Each layer builds on the ones below it. The exact dependency edges and the rules
 | `artic-platform` | `Host`, `AppHandler` and `HostContext` with its capabilities, `artic::run`, frame pipeline (with facade-registered hooks). No backend dependencies | `Host`, `AppHandler`, `HostContext`, `SurfaceInfo` |
 | `artic-winit` | Adapter: the desktop and mobile `Host` on `winit`, with `muda`, `rfd`, `arboard`, `accesskit_winit` | `Host` |
 | `artic-vello` | Adapter: the default `Renderer`, `vello` on `wgpu` | `Renderer` |
-| `artic` | Facade re-exporting the public API with feature flags (`hot-reload`, `runtime-xaml`) | `App`, `prelude`, `run` |
+| `artic` | Facade re-exporting the public API with feature flags (`xaml`, `hot-reload`, `runtime-xaml`) | `App`, `prelude`, `run`, `xaml::namespaces` |
 | `artic-theme` | Default theme: token dictionaries (light, dark, touch density) and the default `ControlTemplate` for every v1 control (D18) | `ArticTheme` |
 | `artic-i18n` | Optional fluent-rs implementation of the `Localizer` trait (D6) | `FluentLocalizer` |
 | `artic-test` | Dev-dependency test utilities: `TestHost`, headless tree helpers, tree serializer (D14) | `TestHost` |
 | `artic-test-fonts` | The test font's files and licence as byte constants, with no dependencies, so `artic-text`'s tests and `artic-test` share one copy | `REGULAR`, `BOLD` |
 | `artic-cli` | `cargo-artic` binary: `check`, `new`, `schema`, `inspect`, `ios`, `android`, `lsp` (D15) | CLI |
 | `artic-lsp` | Language server: source-based type index, diagnostics, completion, hover, navigation, formatting, rename (D21, D22) | `Server` |
+
+### Seams
+
+An app picks three things. Each sits behind an interface no layer below it knows the other side of.
+
+| Seam | Interface | v1 |
+| --- | --- | --- |
+| Host | `Host` in `artic-platform` | `artic-winit` |
+| Renderer | `Renderer` in `artic-render` | `artic-vello` |
+| UI language | the registry and the tree, as [the contract](dsl.md) states | XAML: `artic-xaml`, `artic-xaml-compiler`, `artic-xaml-runtime` |
 
 ### Object model in one paragraph
 
@@ -107,59 +118,50 @@ Each stage runs only on nodes marked dirty by the previous one; a frame with no 
 
 ## 3. Type system and registry
 
-XAML needs to name types and properties by string; Rust does not. The registry exists only to serve the markup side, is generated entirely by derive macros, and is consumed at build time by the compiler, where every lookup turns into a direct, typed Rust call. The runtime loader (hot reload) is the only consumer that keeps string keys alive at runtime.
+UI languages name types and properties by string; Rust doesn't. The registry exists to serve them, is generated entirely by derive macros, and is read at build time by a compiler, where every lookup turns into a direct, typed Rust call. Only a language's runtime loader keeps string keys alive when the app runs. [The UI language contract](dsl.md) states how a language uses it.
 
-### Declaring a XAML type
+### Declaring a UI type
 
-```rust
-#[element]                                       // adds the four property groups, flattened, and derive(XamlType)
+```rust,ignore
+#[element]                                       // adds the four property groups, flattened, and derive(UiType)
 #[derive(Debug)]
-#[xaml(namespace = "https://artic.rs/ui")]
 pub struct Border {
-    #[xaml(content)] pub child: Child,                 // the tree holds the child; the field marks it
-    #[xaml(affects = layout)] pub padding: Property<Thickness>,
-    #[xaml(affects = layout | render)] pub border_thickness: Property<Thickness>,
-    #[xaml(affects = render)] pub background: Property<Option<Brush>>,
-    #[xaml(affects = render)] pub border_brush: Property<Option<Brush>>,
-    #[xaml(affects = render)] pub corner_radius: Property<CornerRadius>,
-    #[xaml(affects = render)] pub box_shadow: Property<Option<BoxShadow>>,
+    #[ui(content)] pub child: Child,                 // the tree holds the child; the field marks it
+    #[ui(affects = layout)] pub padding: Property<Thickness>,
+    #[ui(affects = layout | render)] pub border_thickness: Property<Thickness>,
+    #[ui(affects = render)] pub background: Property<Option<Brush>>,
+    #[ui(affects = render)] pub border_brush: Property<Option<Brush>>,
+    #[ui(affects = render)] pub corner_radius: Property<CornerRadius>,
+    #[ui(affects = render)] pub box_shadow: Property<Option<BoxShadow>>,
 }
 ```
 
-The derive emits a `TypeInfo` static and registers it with `linkme` (distributed slice) so the registry is assembled at link time. It also writes the type's `Default` (each property created with its key and default) and `Object` impls, so the struct derives `Debug` but not `Default`. Field types decide everything: a `Property<T>` is a settable XAML property if `T: FromStr` or `T: XamlType` (looking through `Option`, and `NodeId` marks a child slot); an `Event<A>` is a XAML event; a `#[xaml(flatten)]` field is a property group (`#[derive(XamlProperties)]`, such as `Layout`) whose properties are listed as the type's; any other `#[xaml]` field must implement `XamlCollection` and accepts child elements. `#[xaml(content)]` marks the one property or collection field that receives content written inside the element (a flattened group may mark one of its properties instead), and `#[xaml(override_defaults)]` on the struct makes `Default` call the type's `OverrideDefaults` impl after building the fields.
+The derive emits a `TypeInfo` static and registers it with `linkme` (distributed slice) so the registry is assembled at link time. It also writes the type's `Default` (each property created with its key and default) and `Object` impls, so the struct derives `Debug` but not `Default`. Field types decide everything: a `Property<T>` is a settable property if `T: FromStr` or `T: UiType` (looking through `Option`, and `NodeId` marks a child slot); an `Event<A>` is an event; a `#[ui(flatten)]` field is a property group (`#[derive(UiProperties)]`, such as `Layout`) whose properties are listed as the type's; any other `#[ui]` field must implement `UiCollection` and accepts child elements. `#[ui(content)]` marks the one property or collection field that receives content written inside the element (a flattened group may mark one of its properties instead), and `#[ui(override_defaults)]` on the struct makes `Default` call the type's `OverrideDefaults` impl after building the fields.
 
-Each property gets its own `PropertyKey` unless `#[xaml(key = FONT_SIZE)]` names a shared one; properties that inherit across types share their key. `affects = layout | render` and `inherits` set the metadata of a generated key.
+Each property gets its own `PropertyKey` unless `#[ui(key = FONT_SIZE)]` names a shared one; properties that inherit across types share their key. `affects = layout | render` and `inherits` set the metadata of a generated key.
 
 ### What the registry records
 
 | Item | Fields | Consumer |
 | --- | --- | --- |
-| `TypeInfo` | XAML name, namespace, Rust path, `new: fn(&mut UiTree) -> NodeId`, content (`ContentInfo`: a property or a collection field), `is_collection`, properties, events, attached properties, `markup_extension: Option<&MarkupExtensionInfo>`, whitespace, `kind` (node or value, from the value objects design), `groups` (flattened property groups such as `Layout`) | compiler, loader |
-| `PropertyInfo` | name, Rust field path, value type path, `affects: Layout \| Render`, `inherits`, `access: &PropertyAccess` (typed thunks, see below) | compiler emits `node.field.set(v)` directly; loader calls the `access` thunks |
+| `TypeInfo` | name, Rust path (its first segment is the namespace, `TypeInfo::namespace()`), `new: fn(&mut UiTree) -> NodeId`, content (`ContentInfo`: a property or a collection field), `is_collection`, properties, `groups` (flattened property groups such as `Layout`), events, attached properties, `value_provider: Option<&ValueProviderInfo>`, whitespace; planned: `kind` (node or value, from the value objects design) | compiler, loader |
+| `PropertyInfo` | name, Rust field path, value type path, `affects: Layout \| Render`, `inherits`, planned (#57): `access: &PropertyAccess` (typed thunks, see below) | compiler emits `node.field.set(v)` directly; loader calls the `access` thunks |
 | `AttachedPropertyInfo` | owner, name, value type, target (`AttachedTarget::ChildrenOfOwner` for `Grid.Row`, `Any` for `Accessibility.Name`) | both |
-| `EventInfo` | name, args type path, `subscribe: fn(&mut UiTree, NodeId, HandlerId)` | both |
-| `MarkupExtensionInfo` | positional/named argument schema (the extension's properties); `expand` comes with the loader (M2) | both |
+| `EventInfo` | name, args type path; planned with event routing: `subscribe: fn(&mut UiTree, NodeId, HandlerId)` | both |
+| `ValueProviderInfo` | positional and named argument schema (the value provider's properties); resolving comes with the loader (M2) | both |
 
-The loader path needs a way to turn markup into typed property values. The original `Value` enum with a `Parsed(TypeId, Box<dyn Any>)` variant is rejected (D9). Instead, the derive emits typed thunks per property (`PropertyInfo.access`), whose signatures are type-free and whose bodies call `FromStr` and `Property::set_at`; see [the loader values design](../design/loader-values.md) (M0-19), implemented in M2-01. Values written as object elements (brushes, `RowDefinition`, `KeyBinding`) are value types (`TypeInfo.kind` is `Value`): staged through `TypeInfo::new`, converted into the property's type with `FromXamlObject` in the loader and `Into` in compiled code; see [the value objects design](../design/value-objects.md) (M0-31). The compiled path never calls these thunks.
+The loader path needs a way to turn a language's text and objects into typed property values. The original `Value` enum with a `Parsed(TypeId, Box<dyn Any>)` variant is rejected (D9). Instead, the derive emits typed thunks per property (`PropertyInfo.access`), whose signatures are type-free and whose bodies call `FromStr` and `Property::set_at`; see [the loader values design](../design/loader-values.md) (M0-19), implemented in M2-01. Values written as object elements (brushes, `RowDefinition`, `KeyBinding`) will be value types (planned `TypeInfo.kind` of `Value`): staged through `TypeInfo::new`, converted into the property's type with `FromUiObject` in the loader and `Into` in compiled code; see [the value objects design](../design/value-objects.md) (M0-31). The compiled path never calls these thunks.
 
 ### Rules
 
-1. XAML type names map 1:1 to Rust types; lookup is exact and case-sensitive (MS-XAML).
-2. Value types use std traits, not a custom converter API: `FromStr` for text (`Thickness`, `Brush`, `Color`, `GridLength`, `Duration`), `TryFrom` for typed conversions; `#[derive(XamlEnum)]` generates case-insensitive `FromStr` for enums.
+1. Type names map 1:1 to Rust types, and lookup is exact and case-sensitive. A type is found by namespace, the crate it's defined in, and name, or by its Rust path; two types of one crate with the same name are ambiguous by name ([contract §2](dsl.md#2-finding-types)).
+2. Value types use std traits, not a custom converter API: `FromStr` for text (`Thickness`, `Brush`, `Color`, `GridLength`, `Duration`), `TryFrom` for typed conversions; `#[derive(UiEnum)]` generates case-insensitive `FromStr` for enums.
 3. Property defaults live in `PropertyInfo` and in `Property::<T>::default()`, so a removed style setter reverts correctly.
 4. `inherits` marks properties (`FontSize`, `Foreground`, `DataContext`) that flow down the logical tree when unset. `inherits = f` combines instead: the effective value is `f(own, inherited)`, so `IsEnabled` (`inherits = and`) is false under any disabled ancestor, whatever the element sets.
 5. Adding a type from any crate needs only the derive; no registration call.
-6. Nothing in the registry is required for a Rust-only view API (v2): the same structs and `Property<T>` fields are the API; XAML is one front end to them.
-7. Attached properties and markup extensions are declared with the same derive on their owner type (M0-30): `#[xaml(attached(name = "Row", ty = usize, target = children))]` on `Grid`, and `#[xaml(markup_extension(positional(key)))]` on an extension whose properties are its arguments. An attached value is a `Property<T>` the target node creates on first use, keyed by an `AttachedKey<T>` (`Grid::ROW`), so styles and local values compete as for any property. `const` and `static` items become visible to `x:Static` with `#[xaml_static]` (D23).
+6. Nothing in the registry is required for a Rust-only view API (v2): the same structs and `Property<T>` fields are the API; a UI language is one front end to them.
+7. Attached properties and value providers are declared with the same derive on their owner type (M0-30): `#[ui(attached(name = "Row", ty = usize, target = children))]` on `Grid`, and `#[ui(value_provider(positional(key)))]` on a value provider whose properties are its arguments. An attached value is a `Property<T>` the target node creates on first use, keyed by an `AttachedKey<T>` (`Grid::ROW`), so styles and local values compete as for any property. `const` and `static` items become visible to value providers, such as XAML's `x:Static`, with `#[ui_static]` (D23).
 8. The registry is assembled with `linkme` distributed slices; M0-05 verifies them on iOS, Android and with LTO (D11).
-
-### Namespaces
-
-- `https://artic.rs/ui` — default vocabulary (`xmlns="…"`).
-- `https://artic.rs/markup`: the `x:` language namespace (D19). The directives follow MS-XAML, but the URI is artic's own. The Microsoft URI (`http://schemas.microsoft.com/winfx/2006/xaml`) is rejected with a hint showing the replacement. Editor support comes from the generated XSD and the language server.
-- `using:my_crate::views` — maps a Rust module path to a prefix; resolved through the registry's recorded Rust paths. The path starts with the crate name (never `crate::`) and is checked as Rust path syntax by the parser.
-- Any other URI names a vocabulary that registered types declare with `#[xaml(namespace = "…")]`, such as a control library's own URI. The parser accepts it; a back end reports a URI no registered type declares.
-- Prefixes follow XML scoping: a declaration applies to its whole element (even names written before it) and its descendants, and an inner declaration shadows an outer one. The `xml` prefix is always bound. The WPF presentation URI and `clr-namespace:` are rejected with the artic form as a hint.
 
 ### Open question
 
@@ -176,16 +178,16 @@ The parser implements MS-XAML 2012 §5 (XML → XAML Infoset) for the constructs
 | Object element | `<Button/>` | Type from registry via namespace + local name |
 | Attribute property | `Width="100"` | Converted with the property type's `FromStr` (D9) |
 | Property element | `<Button.Content>…</Button.Content>` | Any object as value |
-| Content property | `<Button>Click</Button>` | From `#[xaml(content)]` |
-| Collection content | `<StackPanel><A/><B/></StackPanel>` | Property type implements `XamlCollection` |
+| Content property | `<Button>Click</Button>` | From `#[ui(content)]` |
+| Collection content | `<StackPanel><A/><B/></StackPanel>` | Property type implements `UiCollection` |
 | Attached property | `Grid.Row="1"`, `<Grid.Row>1</Grid.Row>` | Owner type must declare it; target constraint checked |
 | Type-converted text | `Margin="4,8"` | Whitespace/comma grammar per converter |
 | Markup extension | `{Binding Path=Name, Mode=TwoWay}` | Grammar from MS-XAML §5.3 incl. escapes `{}` and nesting |
 | `x:Name` | `x:Name="submit"` | Generates a typed field in code-behind (§9) |
 | `x:Key` | on resource children | Required in `ResourceDictionary` unless `x:Type`-keyed styles |
-| `x:Class` | root only | Binds to `#[xaml_class]` struct |
+| `x:Class` | root only | Binds to `#[ui_class]` struct |
 | `x:Type` | `{x:Type Button}` | Yields a `TypeInfo` reference |
-| `x:Static` | `{x:Static local::CONSTANTS::MAX}` | Rust path to a `const`/`static` registered with `#[xaml_static]`; resolves in both paths (D23) |
+| `x:Static` | `{x:Static local::CONSTANTS::MAX}` | Rust path to a `const`/`static` registered with `#[ui_static]`; resolves in both paths (D23) |
 | `x:Null` | `{x:Null}` |  |
 | `x:Uid`, `x:FieldModifier` |  | Accepted, no v1 semantics beyond `pub`/`pub(crate)` on generated fields |
 | Primitives | `<x:String>`, `<x:Int32>`, `<x:Double>`, `<x:Boolean>` | XAML 2009 primitives |
@@ -201,11 +203,19 @@ The parser's rejection table (`UNSUPPORTED` in `artic-xaml`) holds each construc
 - WPF `Trigger`, `MultiTrigger`, `DataTrigger`, `MultiDataTrigger`, `EventTrigger` in the artic UI vocabulary (selectors + pseudo-classes replace them); an app's own type of the same name under another namespace is fine.
 - `clr-namespace:` prefixes (use `using:`), the Microsoft `x:` namespace URI (use `https://artic.rs/markup`, D19) and the WPF presentation URI (use `https://artic.rs/ui`).
 - Any other name in the markup namespace than the supported directives and `x:Type`, `x:Static`, `x:Null` and the primitives.
-- Loose-XAML loading of arbitrary Rust types not marked `XamlType`.
+- Loose-XAML loading of arbitrary Rust types not marked `UiType`.
+
+### Namespaces
+
+- `https://artic.rs/ui`: the default vocabulary (`xmlns="…"`), the crates `artic_element` and `artic_controls`, mapped by `artic::xaml::namespaces()`.
+- `https://artic.rs/markup`: the `x:` language namespace (D19). The directives follow MS-XAML, but the URI is artic's own. The Microsoft URI (`http://schemas.microsoft.com/winfx/2006/xaml`) is rejected with a hint showing the replacement. Editor support comes from the generated XSD and the language server.
+- `using:my_crate::views`: maps a Rust module path to a prefix; resolved through the registry's recorded Rust paths. The path starts with the crate name (never `crate::`) and is checked as Rust path syntax by the parser. The back end joins the module and the name into a Rust path and calls `Registry::type_by_rust_path`.
+- Any other URI names crates an app or library maps with `NamespaceMap::alias`, such as a control library's own URI. The parser accepts it; a back end reports a URI the namespace map doesn't know.
+- Prefixes follow XML scoping: a declaration applies to its whole element (even names written before it) and its descendants, and an inner declaration shadows an outer one. The `xml` prefix is always bound. The WPF presentation URI and `clr-namespace:` are rejected with the artic form as a hint.
 
 ### Infoset shape
 
-```rust
+```rust,ignore
 pub struct XamlDocument { source: SourceId, root: XamlNode }          // root is always an Object
 pub enum XamlNode {
     Object { ty: TypeRef, members: Vec<Member>, namespaces: Vec<NamespaceDecl>, span: Span },
@@ -227,7 +237,7 @@ The parser resolves each type reference's prefix to its `XamlNamespace` (element
 
 MS-XAML default, applied by the parser to text inside elements: whitespace is XML's (space, tab, CR, LF; a non-breaking space is content), runs collapse to one space, an element's content is trimmed at its start and end tags only (so text beside a child element keeps that space), and whitespace-only text between elements adds nothing. `xml:space="preserve"` keeps text as written in its subtree and `xml:space="default"` restores the rules; the parser consumes the attribute.
 
-Each text `Value` keeps both forms: `text` after these rules (empty for whitespace-only text, which is kept rather than dropped) and `raw` as written. Types marked `#[xaml(whitespace = "significant")]` (e.g. `TextBlock` inline collection) read `raw`; the back ends decide, since the parser has no registry. Attribute values only get XML's attribute normalization; trimming is up to each type's `FromStr`. Line breaks between East Asian characters are not removed (unlike MS-XAML); they become a space like any other.
+Each text `Value` keeps both forms: `text` after these rules (empty for whitespace-only text, which is kept rather than dropped) and `raw` as written. Types marked `#[ui(whitespace = "significant")]` (e.g. `TextBlock` inline collection) read `raw`; the back ends decide, since the parser has no registry. Attribute values only get XML's attribute normalization; trimming is up to each type's `FromStr`. Line breaks between East Asian characters are not removed (unlike MS-XAML); they become a space like any other.
 
 ### Example view
 
@@ -264,7 +274,7 @@ flowchart LR
 
 ### Build-time compiler (release path)
 
-1. `build.rs` calls `artic_xaml_compiler::compile_dir("src/views")`; every `.xaml` becomes `$OUT_DIR/views/<name>.rs`, included via `include!` by the `#[xaml_class]` macro.
+1. `build.rs` calls `artic_xaml_compiler::compile_dir("src/views", &namespaces)`, with the namespace map from `artic::xaml::namespaces()` and the app's own aliases; every `.xaml` becomes `$OUT_DIR/views/<name>.rs`, included via `include!` by the `#[ui_class]` macro.
 2. Type and property names resolve against the registry of all dependency crates. Because the registry is link-time, the compiler runs in a build script that links `artic-controls` and the app's own control crates as build-dependencies.
 3. Output is plain Rust in the [builder shape](../design/builder-api.md): `let sign_in = Button::new().content("Sign in").build(tree);`, one statement per element, children before their parents. No string lookups survive to runtime.
 4. Bindings compile to typed closures (`|vm: &LoginVm| vm.email.get()`) over the `x:DataType` in scope, whether declared, inherited or inferred (§6, D2). A binding with no resolvable `x:DataType` is a compile error that names the attribute to add and where. Unknown property on a known `x:DataType` is a compile error. There is no reflective fallback (D1).
@@ -272,9 +282,9 @@ flowchart LR
 
 ### Runtime loader (dev path)
 
-1. `XamlLoader::load(&registry, source) -> Result<NodeId, Diagnostics>` walks the infoset, constructs each object via `TypeInfo::new`, and sets each property through the typed thunks the registry records for it, which convert text with the value type's `FromStr`/`TryFrom` (D9; [loader values design](../design/loader-values.md)).
+1. `XamlLoader::load(&registry, &namespaces, source) -> Result<NodeId, Diagnostics>` walks the infoset, constructs each object via `TypeInfo::new`, and sets each property through the typed thunks the registry records for it, which convert text with the value type's `FromStr`/`TryFrom` (D9; [loader values design](../design/loader-values.md)).
 2. Bindings resolve at bind time through the accessor tables generated by `#[derive(ViewModel)]` (§6). Same semantics and the same `x:DataType` rules as the compiled path, slower (D1).
-3. Event handlers named in XAML (`Click="on_click"`) resolve through a handler table the `#[xaml_class]` macro generates (`fn __handler(name: &str) -> Option<HandlerFn>`), so code-behind still works in interpreted mode.
+3. Event handlers named in XAML (`Click="on_click"`) resolve through a handler table the `#[ui_class]` macro generates (`fn __handler(name: &str) -> Option<HandlerFn>`), so code-behind still works in interpreted mode.
 4. Also the path for XAML that did not exist at build time (user skins, server-driven screens, data-only plugin UIs) when the opt-in `runtime-xaml` feature is on (D23). Apps without the feature pay nothing. Loaded files are untrusted input: the parser is fuzzed and enforces size and depth limits (M2-17). Bindings in loaded files reach only view-models marked `#[view_model(expose)]` and their `pub` members (M3-33).
 
 ### Hot reload
@@ -314,7 +324,7 @@ Signals are the only change-propagation mechanism; `Property<T>`, bindings, styl
 - `effect`: a function that registers a closure re-run when its dependencies change. `set()` never runs effects directly; it marks dependents dirty and queues effects. Queued effects run in topological order (glitch-free) at a flush point: the end of the current dispatcher task, the end of the outermost `batch`, or an explicit `flush_effects()`. Memos are pull-based, so a read always sees current values.
 - `batch(|| …)` makes its closure one flush point: several `set`s inside it produce one flush when the outermost `batch` returns. Inside a dispatcher task every task is already a flush point (D26).
 - Ownership: signals and effects belong to a `Scope`; disposing a scope (a view subtree) disposes everything created in it. No leaks when a view is unloaded, no manual unsubscribe.
-- `set()` skips propagation when `T: PartialEq` and the value is unchanged.
+- `set()` always marks dependents dirty; `set_if_changed()`, for `T: PartialEq`, skips propagation when the value is unchanged.
 
 ### `Property<T>`
 
@@ -335,7 +345,7 @@ The stack lives in one signal, and each write decides whether readers can see it
 
 `{Binding Path, Mode, Converter, FallbackValue, ElementName, Source, RelativeSource}` — Avalonia's surface minus `StringFormat`. Every binding compiles to a typed closure over the declared `x:DataType`:
 
-```rust
+```rust,ignore
 // generated for Text="{Binding Email, Mode=TwoWay}" with x:DataType="LoginVm"
 bind_two_way(&mut tree, tb, |vm: &LoginVm| vm.email, |tb| &tb.text);
 ```
@@ -359,7 +369,7 @@ The runtime loader cannot compile a closure, so `#[derive(ViewModel)]` also emit
 
 ### MVVM layer
 
-```rust
+```rust,ignore
 #[derive(ViewModel, Default)]
 pub struct LoginVm {
     email: Signal<String>,
@@ -391,7 +401,7 @@ Two trees, as in WPF/Avalonia: the **logical tree** (what the XAML declared; sco
 
 There is no control class hierarchy. A control is a struct that embeds the state it needs and implements the traits for the behavior it has; `#[element]` gives it the four property groups every control has and delegates the shared parts to them.
 
-```rust
+```rust,ignore
 pub trait Element: Object + Layoutable {          // Layoutable (§7 Layout protocol) brings measure/arrange
     fn render(&self, cx: &mut RenderCx, scene: &mut SceneBuilder);
     fn hit_test(&self, cx: &HitTestCx, point: Point) -> HitTestResult { cx.bounds_test(point) }
@@ -415,18 +425,18 @@ pub trait HasContent: Element + HasState<ContentState> { fn content(&self) -> &P
 pub trait Selecting: Element + HasState<SelectionState> { fn selection(&self) -> &Selection { … } }
 impl<T: Element + HasState<ContentState>> HasContent for T {}   // and likewise for the others
 
-#[element]                                        // adds the groups and derive(XamlType), which writes Default
+#[element]                                        // adds the groups and derive(UiType), which writes Default
 #[derive(Debug)]
 pub struct Button {
-    #[element(state)] #[xaml(flatten)] pub content: ContentState,    // HasState<ContentState>, so HasContent
-    #[element(state)] #[xaml(flatten)] pub template: TemplateState,  // HasState<TemplateState>, so Templated
-    #[xaml] pub click: Event<ClickEvent>,
-    #[xaml] pub command: Property<Option<Command>>,
+    #[element(state)] #[ui(flatten)] pub content: ContentState,    // HasState<ContentState>, so HasContent
+    #[element(state)] #[ui(flatten)] pub template: TemplateState,  // HasState<TemplateState>, so Templated
+    #[ui] pub click: Event<ClickEvent>,
+    #[ui] pub command: Property<Option<Command>>,
 }
 impl ElementImpl for Button { /* measure_override, render, on_event, … */ }
 ```
 
-- Four property groups hold the universal state, each in a field `#[element]` adds: `layout` (`Width/Height/Min*/Max*`, `Margin`, `HorizontalAlignment/VerticalAlignment`), `appearance` (`Visibility`: `Visible`, `Hidden` keeps its space, `Collapsed` takes none, and there is no `IsVisible`, see [the elements design](../design/element.md#visibility); `Opacity`, `ZIndex`, `RenderTransform` as CSS transform functions: `translate(10, 0) rotate(45)`), `interaction` (`IsEnabled`, `IsHitTestVisible`, `Focusable`, `Cursor`, `ToolTip`, v1: text) and `identity` (`Name`, `Classes`). `DataContext` joins them with data binding. A control changes a group's default with `#[xaml(override_defaults)]` and an `OverrideDefaults` impl that calls `Property::set_default`.
+- Four property groups hold the universal state, each in a field `#[element]` adds: `layout` (`Width/Height/Min*/Max*`, `Margin`, `HorizontalAlignment/VerticalAlignment`), `appearance` (`Visibility`: `Visible`, `Hidden` keeps its space, `Collapsed` takes none, and there is no `IsVisible`, see [the elements design](../design/element.md#visibility); `Opacity`, `ZIndex`, `RenderTransform` as CSS transform functions: `translate(10, 0) rotate(45)`), `interaction` (`IsEnabled`, `IsHitTestVisible`, `Focusable`, `Cursor`, `ToolTip`, v1: text) and `identity` (`Name`, `Classes`). `DataContext` joins them with data binding. A control changes a group's default with `#[ui(override_defaults)]` and an `OverrideDefaults` impl that calls `Property::set_default`.
 - Reusable state structs (`ContentState`, `TemplateState`, `SelectionState`, `RangeState`) replace the WPF base classes `ContentControl`, `TemplatedControl`, `SelectingItemsControl`, `RangeBase`. For each `#[element(state)]` field of type `S`, `#[element]` implements `HasState<S>` for the struct, and each trait is implemented for every `HasState` of its state by a blanket impl. See [the elements design](../design/element.md).
 - Style selectors match on the Rust type name; "derived type" matching (`Button` matching a `ToggleButton`) does not exist. A style meant for several controls lists them or uses a class.
 - App-defined controls use the same `#[element]` on the same traits; nothing in the framework is special-cased.
@@ -436,11 +446,11 @@ impl ElementImpl for Button { /* measure_override, render, on_event, … */ }
 
 WPF two-pass measure/arrange with these rules:
 
-1. `measure(available)` returns the desired size, already including `Margin`. Results are cached per `available`; a node re-measures only when it or a descendant is `InvalidateMeasure`d, or `available` changes.
+1. `measure(available)` returns the desired size, already including `Margin`. Results are cached per `available`; a node re-measures only when it or a descendant is invalidated (`LayoutManager::invalidate_measure`, or a change to an `Affects::LAYOUT` property), or `available` changes.
 2. `arrange(rect)` positions children; alignment and `Margin` are applied by `Layout` before the element's own `arrange_override`, so control authors only place children.
 3. Infinite constraints are legal (`ScrollViewer`, `StackPanel` on its axis). An element that returns an infinite desired size is a bug and panics in debug.
-4. Layout runs top-down from the highest dirty node; a dirty leaf whose desired size does not change stops propagation (`MeasureCx::desired_size_changed`).
-5. Units are logical pixels (`f32`); the platform layer supplies the scale factor; rounding to device pixels happens in `arrange` (`SnapToPixels` on by default), edge by edge so neighbors never leave a pixel's gap. Measure never sees the scale: `MeasureCx` has none, so a desired size can be known before a surface exists, and a scale change arranges again without measuring ([surface design](../design/surface.md)).
+4. Layout runs top-down from the highest dirty node; a dirty leaf whose desired size does not change stops propagation, which `LayoutManager` checks itself.
+5. Units are logical pixels (`f32`); the platform layer supplies the scale factor; rounding to device pixels happens in `arrange` (`PixelGrid::snap`), edge by edge so neighbors never leave a pixel's gap. Measure never sees the scale: `MeasureCx` has none, so a desired size can be known before a surface exists, and a scale change arranges again without measuring ([surface design](../design/surface.md)).
 6. Layout is synchronous and single-threaded; a `LayoutManager` runs it once per frame after effects.
 
 `measure` and `arrange` take `&self`: an element's inputs are its properties, and what layout works out (each node's last available size, desired size and rectangle) lives in the `LayoutManager`, so a parent measures its children through `MeasureCx` while the tree is only shared. `LayoutManager` finds a node's `Layoutable` through a `LayoutNodes` lookup the frame pipeline provides, so `artic-layout` never names `Element`. A node is laid out again when it's marked `Affects::LAYOUT` (a layout property changed, or its visual children did) or offered a different size; rectangles are relative to the parent. In release builds, an invalid size or rectangle counts as zero instead of panicking.
@@ -476,9 +486,9 @@ WPF two-pass measure/arrange with these rules:
 | `ComboBox` | as ListBox + `PopupState` | `PART_Popup`, `PART_Toggle` | popup rendered in the window's overlay layer |
 | `TabControl` | ItemsControl's parts + `SelectionState` | `PART_TabStrip`, `PART_Content` | `TabItem` header/content |
 | `Popup` | groups | — | overlay-layer primitive used by ComboBox, ToolTip |
-| `UserControl` | groups + content | — | root for app views |
+| `UserControl` | groups + children | — | root for app views |
 | `Application` | groups + surfaces | — | root of the tree; `Resources` and `Styles` (#122) |
-| `Surface` | groups + content | — | a root the host presents: `Title`, `IsOpen`; platform settings are attached (`Desktop.Width`, `.Height`, `.SizeToContent`, `.Chrome`), see the [surface design](../design/surface.md) |
+| `Surface` | groups + children | — | a root the host presents: `Title`, `IsOpen`; platform settings are attached (`Desktop.Width`, `.Height`, `.SizeToContent`, `.Chrome`), see the [surface design](../design/surface.md) |
 
 Every `TemplatedControl` ships a default `ControlTemplate` in the theme dictionary (§8) and looks up `PART_*` names after the template is applied (`on_apply_template`). Missing required parts are an error in debug.
 
@@ -555,7 +565,7 @@ Templates are instantiated per use from their infoset (runtime) or from a genera
 
 - [x] Style inline in code-behind (`Style::new("Button.primary").setter(…)`) as a supported builder API in v1? Decided: yes; it is what the compiler emits anyway (D6).
 - [x] Media-style queries (`:screen(compact)` pseudo-class from window width) for adaptive layouts across desktop and phone? Decided: yes, as pseudo-classes on the root set by the platform layer (D6, M4-14).
-- [x] A CSS-syntax stylesheet format instead of, or next to, `<Style>`/`<Setter>` markup? Decided: next to it, in v2. The semantics stay as defined here (selectors, specificity, typed setters, precedence 4); only the syntax is new, and it compiles to the same builder calls as XAML styles. v1 keeps the public `Style`, `Selector` and `Setter` API free of XAML-specific types so the v2 parser can target it directly; the `Span`/`Diagnostic` types `artic-style` takes from `artic-xaml` are syntax-neutral and serve both parsers. The resource-reference syntax (`{DynamicResource}` equivalent) is decided with the v2 design (D28).
+- [x] A CSS-syntax stylesheet format instead of, or next to, `<Style>`/`<Setter>` markup? Decided: next to it, in v2. The semantics stay as defined here (selectors, specificity, typed setters, precedence 4); only the syntax is new, and it compiles to the same builder calls as XAML styles. v1 keeps the public `Style`, `Selector` and `Setter` API free of XAML-specific types so the v2 parser can target it directly; when selector errors need source spans, the span and diagnostic types move to a crate below every UI language, so they serve both parsers ([architecture](../architecture.md)). The resource-reference syntax (`{DynamicResource}` equivalent) is decided with the v2 design (D28).
 
 ## 9. Events, routing, commands, code-behind
 
@@ -572,8 +582,8 @@ Input becomes routed events (tunnel then bubble through the visual tree, as in W
 
 ### Code-behind (`x:Class`)
 
-```rust
-#[xaml_class("views/login.xaml")]   // includes the generated file
+```rust,ignore
+#[ui_class("views/login.xaml")]   // includes the generated file
 pub struct LoginView {
     // generated: pub email: Handle<TextBox>, plus every x:Name
     attempts: u32,                     // user fields
@@ -611,7 +621,7 @@ impl LoginView {
 
 Backends are adapters. A **`Host`** drives the screen (surfaces, input, the event loop) and a **`Renderer`** turns the `Scene` into pixels; an adapter crate implements one or both, and anyone can add one without changing app or artic code. The [backend design](../design/backends.md) (#240) fixes the seams. v1 ships two adapters, `artic-winit` (the host on all five targets) and `artic-vello` (the renderer). Each target has a launcher of a few lines naming a host, a renderer and the app:
 
-```rust
+```rust,ignore
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     artic::run(artic_winit::Host::new()?, artic_vello::Renderer::new()?, my_app::app());
     Ok(())
@@ -629,7 +639,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### `Host` trait
 
-```rust
+```rust,ignore
 pub trait Host {
     fn targets(&self) -> TargetKind;                                  // checked against the renderer before run
     fn run(self, app: impl AppHandler + 'static);                     // may return at once (browser)
@@ -662,7 +672,7 @@ Implementation of `artic-winit`: `winit` provides windows, input, DPI and lifecy
 
 | Event | Desktop | Mobile |
 | --- | --- | --- |
-| `Resumed` | after window creation | app foregrounded; GPU surface must be (re)created here |
+| `Resumed` | after `Suspended` (the first start is `AppHandler::started`) | app foregrounded; GPU surface must be (re)created here |
 | `Suspended` | — | backgrounded; surface destroyed, rendering stops, timers pause |
 | `MemoryWarning` | — | drop glyph/image caches |
 | `SafeAreaChanged`, `KeyboardInsetChanged` | — | root re-layout with new insets |

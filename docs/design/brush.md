@@ -8,7 +8,7 @@ A brush is the paint behind `Background="#3B82F6"`, `BorderBrush="Red"` or a gra
 <Border Background="#3B82F6" BorderBrush="SteelBlue"/>
 ```
 
-```rust
+```rust,ignore
 builder.fill(bounds, Color::STEEL_BLUE);
 builder.fill(bounds, LinearGradientBrush::new(
   RelativePoint::relative(0.0, 0.0),
@@ -44,7 +44,7 @@ invalid Color 'redd': 'redd' is not a color name; expected "#RGB", "#ARGB", "#RR
 
 One type per markup element, and `Brush` as the family a property holds:
 
-```rust
+```rust,ignore
 pub enum Brush {
   Solid(SolidColorBrush),
   Linear(LinearGradientBrush),
@@ -79,7 +79,7 @@ The structs have the shape the [value objects](value-objects.md) design gives va
 
 Gradient points and radii are resolved against the box being filled, so one brush fits any size. The types are geometry, so they live in `artic_layout::geometry` beside `Point`, where the number parser and `ParseGeometryError` they reuse already are:
 
-```rust
+```rust,ignore
 pub enum Scaling { Relative, Fixed }
 pub struct RelativePoint { pub point: Point, pub scaling: Scaling }
 pub struct RelativeScalar { pub value: f32, pub scaling: Scaling }
@@ -106,7 +106,7 @@ Fill commands carry a brush instead of a color: `Command::Fill { shape, brush }`
 
 ## 5. What waits
 
-`<SolidColorBrush Color="#3B82F6"/>`, `<LinearGradientBrush>` with its `GradientStop`s, and `<Border.Background>` property elements need the value-object machinery (`#[xaml(value)]`, `TypeKind`, `FromXamlObject`), which #57 implements with #43. Until then, markup sets brushes as color text, and Rust code builds gradients directly. A gradient spread mode (pad, reflect, repeat) and a gradient origin apart from the center are additive and wait for a need.
+`<SolidColorBrush Color="#3B82F6"/>`, `<LinearGradientBrush>` with its `GradientStop`s, and `<Border.Background>` property elements need the value-object machinery (`#[ui(value)]`, `TypeKind`, `FromUiObject`), which #57 implements with #43. Until then, a UI language sets brushes as color text, and Rust code builds gradients directly. A gradient spread mode (pad, reflect, repeat) and a gradient origin apart from the center are additive and wait for a need.
 
 ## 6. Testing
 

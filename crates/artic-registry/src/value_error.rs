@@ -1,10 +1,10 @@
-//! Why markup's value or child was refused: the errors of the runtime loader
+//! Why a UI language's value or child was refused: the errors of the runtime loader
 //! ([loader design](https://github.com/wolfware-labs/artic/blob/main/docs/design/loader-values.md)),
 //! which the content route already returns.
 
 use artic_core::tree::LinkError;
 
-/// Why a value or a child element from markup was refused. Positions are added by the loader.
+/// Why a value or a child element from a UI language was refused. Positions are added by the loader.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum ValueError {
@@ -16,8 +16,8 @@ pub enum ValueError {
     /// The parser's message.
     message: String,
   },
-  /// `x:Null` on a property whose type isn't `Option<T>`.
-  #[error("{property} can't be x:Null")]
+  /// A null value for a property whose type isn't `Option<T>`.
+  #[error("{property} can't be null")]
   NotNullable {
     /// The property's name.
     property: &'static str,
@@ -39,4 +39,17 @@ pub enum ValueError {
   /// A second child for an element that takes one.
   #[error("this element takes a single child")]
   OneChildOnly,
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  // Null is refused in the registry's words, which no UI language owns.
+  #[test]
+  fn not_nullable_names_no_language() {
+    let error = ValueError::NotNullable { property: "Background" };
+
+    assert_eq!(error.to_string(), "Background can't be null");
+  }
 }

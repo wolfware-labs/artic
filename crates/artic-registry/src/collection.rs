@@ -1,8 +1,7 @@
 //! The fields that receive an element's child elements.
 //!
-//! A `#[ui]` field that is neither a `Property` nor an `Event` is a collection: when markup writes
-//! elements inside the type's element, each child is added to it, in order, through
-//! [`UiCollection`].
+//! A `#[ui]` field that is neither a `Property` nor an `Event` is a collection: when a UI language
+//! gives the type child elements, each child is added to it, in order, through [`UiCollection`].
 
 use crate::ValueError;
 use artic_core::tree::{NodeId, UiTree};

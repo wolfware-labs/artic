@@ -26,16 +26,15 @@ Section 8 lists the acceptance criteria that change.
 
 The font and the brush are attached properties of `TextElement`, as in WPF and Avalonia, so any node can hold them and every `TextBlock` below follows the nearest one:
 
-```rust
+```rust,ignore
 /// The font and brush text is drawn with, as attached properties any node can hold. Each
 /// inherits, so text follows the nearest ancestor that sets them.
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui")]
-#[xaml(attached(name = "FontFamily", ty = FontFamily, affects = layout, target = any, inherits))]
-#[xaml(attached(name = "FontSize", ty = f32, default = 14.0, affects = layout, target = any, inherits))]
-#[xaml(attached(name = "FontWeight", ty = FontWeight, affects = layout, target = any, inherits))]
-#[xaml(attached(name = "FontStyle", ty = FontStyle, affects = layout, target = any, inherits))]
-#[xaml(attached(name = "Foreground", ty = Brush, default = Brush::from(Color::rgb(0, 0, 0)), affects = render, target = any, inherits))]
+#[derive(Debug, UiType)]
+#[ui(attached(name = "FontFamily", ty = FontFamily, affects = layout, target = any, inherits))]
+#[ui(attached(name = "FontSize", ty = f32, default = 14.0, affects = layout, target = any, inherits))]
+#[ui(attached(name = "FontWeight", ty = FontWeight, affects = layout, target = any, inherits))]
+#[ui(attached(name = "FontStyle", ty = FontStyle, affects = layout, target = any, inherits))]
+#[ui(attached(name = "Foreground", ty = Brush, default = Brush::from(Color::rgb(0, 0, 0)), affects = render, target = any, inherits))]
 pub struct TextElement;
 ```
 
@@ -43,7 +42,7 @@ pub struct TextElement;
 
 A node that doesn't hold a key costs nothing, and inheritance skips it, so a `Border` between a panel and its text neither carries a `Foreground` nor breaks the chain. That's why these aren't a property group flattened into every element: every `Border` and panel would hold five properties it never reads. `affects` belongs to the key, so a panel that holds `TextElement.FontSize` is itself marked for measure when it changes; that costs one measure of the panel, which its text's new size causes anyway.
 
-`TextBlock` also lets you write `FontSize="20"` on it directly, by declaring fields that share the attached keys, as WPF's `AddOwner` does. `#[xaml(key = ...)]` takes a `PropertyKey` static or an attached key's constant, such as `TextElement::FONT_SIZE`:
+`TextBlock` also lets you write `FontSize="20"` on it directly, by declaring fields that share the attached keys, as WPF's `AddOwner` does. `#[ui(key = ...)]` takes a `PropertyKey` static or an attached key's constant, such as `TextElement::FONT_SIZE`:
 
 - the field is stored under the attached property's `PropertyKey`, so a value set as `FontSize` on a `TextBlock` and one set as `TextElement.FontSize` on a panel are the same property, and the `TextBlock`'s descendants inherit either;
 - the field's default is the attached key's, so the two can't disagree.
@@ -52,22 +51,21 @@ The derive can't tell the two kinds of key apart by their path, so the generated
 
 ## 2. `TextBlock`
 
-```rust
+```rust,ignore
 #[element]
 #[derive(Debug)]
-#[xaml(namespace = "https://artic.rs/ui")]
 pub struct TextBlock {
-  #[xaml(affects = layout)] pub text: Property<String>,
-  #[xaml(affects = layout)] pub text_wrapping: Property<TextWrapping>,
-  #[xaml(affects = layout)] pub text_trimming: Property<TextTrimming>,
-  #[xaml(affects = layout)] pub text_alignment: Property<TextAlignment>,
-  #[xaml(affects = layout)] pub max_lines: Property<Option<NonZeroU32>>,
-  #[xaml(affects = layout)] pub line_height: Property<Option<f32>>,
-  #[xaml(key = TextElement::FONT_FAMILY)] pub font_family: Property<FontFamily>,
-  #[xaml(key = TextElement::FONT_SIZE)] pub font_size: Property<f32>,
-  #[xaml(key = TextElement::FONT_WEIGHT)] pub font_weight: Property<FontWeight>,
-  #[xaml(key = TextElement::FONT_STYLE)] pub font_style: Property<FontStyle>,
-  #[xaml(key = TextElement::FOREGROUND)] pub foreground: Property<Brush>,
+  #[ui(affects = layout)] pub text: Property<String>,
+  #[ui(affects = layout)] pub text_wrapping: Property<TextWrapping>,
+  #[ui(affects = layout)] pub text_trimming: Property<TextTrimming>,
+  #[ui(affects = layout)] pub text_alignment: Property<TextAlignment>,
+  #[ui(affects = layout)] pub max_lines: Property<Option<NonZeroU32>>,
+  #[ui(affects = layout)] pub line_height: Property<Option<f32>>,
+  #[ui(key = TextElement::FONT_FAMILY)] pub font_family: Property<FontFamily>,
+  #[ui(key = TextElement::FONT_SIZE)] pub font_size: Property<f32>,
+  #[ui(key = TextElement::FONT_WEIGHT)] pub font_weight: Property<FontWeight>,
+  #[ui(key = TextElement::FONT_STYLE)] pub font_style: Property<FontStyle>,
+  #[ui(key = TextElement::FOREGROUND)] pub foreground: Property<Brush>,
 }
 ```
 
@@ -88,7 +86,7 @@ The properties in the table belong to the `TextBlock` alone. Avalonia makes `Tex
 
 The engine takes three inputs, split by who decides them, as Avalonia splits run and paragraph properties:
 
-```rust
+```rust,ignore
 pub trait TextEngine {
   fn paragraph(&mut self, text: &str, style: &TextStyle, paragraph: &ParagraphStyle, limits: TextLimits) -> Paragraph;
 }
@@ -124,7 +122,7 @@ pub struct TextLimits {
 }
 ```
 
-`TextWrapping`, `TextTrimming` and `TextAlignment` are `XamlEnum`s in `artic-layout`, beside `FontStyle`, so `TextBlock` and the engine share one type each. `ParagraphStyle::default()` matches `TextBlock`'s defaults. `TextLimits::NONE` has no limits and `TextLimits::width(width)` limits the width only. Only `TextLimits` changes between measure and arrange, which is what lets `TextBlock` decide when to shape again (section 6).
+`TextWrapping`, `TextTrimming` and `TextAlignment` are `UiEnum`s in `artic-layout`, beside `FontStyle`, so `TextBlock` and the engine share one type each. `ParagraphStyle::default()` matches `TextBlock`'s defaults. `TextLimits::NONE` has no limits and `TextLimits::width(width)` limits the width only. Only `TextLimits` changes between measure and arrange, which is what lets `TextBlock` decide when to shape again (section 6).
 
 | `TextWrapping` | Lines break | `parley` |
 | --- | --- | --- |

@@ -30,7 +30,7 @@ The compositor (`artic-render`, `Walk::visit`) pushes the layers in a new order:
 
 Both are geometry, beside `RoundedRect` and `Path` in `artic-layout`:
 
-```rust
+```rust,ignore
 impl RoundedRect {
   /// The shape inside a border of `thickness`, as CSS defines its inner border edge.
   pub fn inner(self, thickness: Thickness) -> Path;
@@ -49,7 +49,7 @@ One even-odd fill of `ring` draws any border, whether its sides are equal or not
 
 ## 3. `BoxShadow` from text
 
-`BoxShadow` exists in `artic-render` (#36), and vello already draws it outside its caster only, so it never shows through a semi-transparent background (#283). Markup needs it from text, so `impl FromStr for BoxShadow` goes in `shadow.rs`.
+`BoxShadow` exists in `artic-render` (#36), and vello already draws it outside its caster only, so it never shows through a semi-transparent background (#283). UI languages need it from text, so `impl FromStr for BoxShadow` goes in `shadow.rs`.
 
 The grammar is CSS's and Avalonia's: `offset-x offset-y [blur [spread]] color`, separated by whitespace. Every token but the last is a finite number, two to four of them; the last is the color, parsed by `Color::from_str`. Blur and spread default to 0. Blur can't be negative; spread can, and shrinks the shadow. `"0 2 8 #40000000"`, `"4 4 Black"` and `"0 0 12 -2 #80000000"` are valid. One value is one shadow. `inset` (#275) is refused: a token equal to `inset`, ignoring case, anywhere in the value is checked for before the numbers are read, so it reports `Inset` rather than `NotANumber`.
 
@@ -57,7 +57,7 @@ The color is required: CSS defaults it to the text color, which artic doesn't ha
 
 Errors carry the text and a problem enum, as `ParseGeometryError` does; the type name and forms are fixed for a shadow, so they're part of the message rather than fields:
 
-```rust
+```rust,ignore
 pub struct ParseBoxShadowError {
   pub text: String,
   pub problem: ShadowProblem,
@@ -82,18 +82,17 @@ pub enum ShadowProblem {
 
 In `artic-controls`:
 
-```rust
+```rust,ignore
 #[element]
 #[derive(Debug)]
-#[xaml(namespace = "https://artic.rs/ui")]
 pub struct Border {
-  #[xaml(content)] pub child: Child,
-  #[xaml(affects = layout)] pub padding: Property<Thickness>,
-  #[xaml(affects = layout | render)] pub border_thickness: Property<Thickness>,
-  #[xaml(affects = render)] pub background: Property<Option<Brush>>,
-  #[xaml(affects = render)] pub border_brush: Property<Option<Brush>>,
-  #[xaml(affects = render)] pub corner_radius: Property<CornerRadius>,
-  #[xaml(affects = render)] pub box_shadow: Property<Option<BoxShadow>>,
+  #[ui(content)] pub child: Child,
+  #[ui(affects = layout)] pub padding: Property<Thickness>,
+  #[ui(affects = layout | render)] pub border_thickness: Property<Thickness>,
+  #[ui(affects = render)] pub background: Property<Option<Brush>>,
+  #[ui(affects = render)] pub border_brush: Property<Option<Brush>>,
+  #[ui(affects = render)] pub corner_radius: Property<CornerRadius>,
+  #[ui(affects = render)] pub box_shadow: Property<Option<BoxShadow>>,
 }
 ```
 
@@ -115,7 +114,7 @@ Layout snaps the child's edges to the device-pixel grid, while the ring and the 
 | Document | Change |
 | --- | --- |
 | `docs/design/element.md` | `ElementImpl::clip` clips descendants only; the layers order in its `layers` row and in the composition paragraph |
-| `docs/design/shapes.md` | the clip layer's description and order; "Border insets its rectangle by half the thickness" becomes the ring fill; the `BoxShadow` text format lives on `artic-render`'s `BoxShadow` itself, not a separate XAML value type |
+| `docs/design/shapes.md` | the clip layer's description and order; "Border insets its rectangle by half the thickness" becomes the ring fill; the `BoxShadow` text format lives on `artic-render`'s `BoxShadow` itself, not a separate value type |
 | `artic-render` docs | `Layers` and `Layers.clip`, and `Compositor::compose`'s order, which becomes: transform and opacity, the node's fragment, then the clip around its children |
 | Spec §7 | the `clip` hook comment ("clips the element's descendants") and the `layers` comment's order; the `Border` row gains padding |
 | Spec §3 | the `Border` example lists the properties of section 4 |
@@ -135,9 +134,9 @@ Layout snaps the child's edges to the device-pixel grid, while the ring and the 
 
 | Crate | Tests |
 | --- | --- |
-| `artic-render` | `clip_applies_to_children_not_the_node`, `no_clip_without_children`, `no_clip_when_no_child_is_drawn` (a collapsed child), and `composition_applies_transform_clip_opacity` rewritten for the new order; `BoxShadow` parsing: `two_numbers_and_a_color`, `three_numbers_add_blur`, `four_numbers_add_spread`, `negative_spread_is_allowed`, `inset_is_reported_as_inset`, and one test per `ShadowProblem`, each checking the message quotes the text |
+| `artic-render` | `clip_applies_to_children_not_the_node`, `no_clip_without_children`, `no_clip_when_no_child_is_drawn` (a collapsed child), with the composition tests updated for the new order; `BoxShadow` parsing: `two_numbers_and_a_color`, `three_numbers_add_blur`, `four_numbers_add_spread`, `negative_spread_is_allowed`, `inset_is_reported_as_inset`, and one test per `ShadowProblem`, each checking the message quotes the text |
 | `artic-layout` | `inner_radii_shrink_per_axis`, `zero_thickness_inner_is_the_outline`, `inner_radius_stops_at_zero`, `radii_stop_at_the_opposite_inner_edge`, `inner_corners_share_the_outer_centers`, `inner_stays_inside_the_outline`, `fitted_for_no_border_is_fitted`, `negative_sides_count_as_zero`, `thick_border_leaves_no_hole`, `ring_fills_even_odd`, `ring_bounds_match_the_outer_shape` |
-| `artic-controls` | `border_measure_includes_padding_and_thickness`, `border_arranges_child_inside_padding`, `border_without_a_child_is_its_chrome`, `thick_border_and_padding_stay_non_negative`, `border_clips_to_the_inner_shape`, `border_child_is_xaml_content`, `border_accesskit_node`, and the property test `border_invariants_hold` over random thickness and padding, with containment on |
+| `artic-controls` | `border_measure_includes_padding_and_thickness`, `border_arranges_child_inside_padding`, `border_without_a_child_is_its_chrome`, `thick_border_and_padding_stay_non_negative`, `border_clips_to_the_inner_shape`, `border_child_is_its_content`, `border_accesskit_node`, and the property test `border_invariants_hold` over random thickness and padding, with containment on |
 | `artic-vello` | `transform_and_clip_place_the_child` in `pixels.rs` rewritten so the clip is on a parent; goldens `border_background`, `border_uneven_thickness`, `border_corner_radius`, `border_box_shadow`, `border_clips_child` (a square child whose corners would show past rounded corners) |
 
 ## 8. Pull requests

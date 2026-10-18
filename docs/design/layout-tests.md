@@ -4,7 +4,7 @@ Issue: #56. Builds on: the layout manager (#41), the tree (#7, #14), sizes and r
 
 A layout test builds a tree with no window and no GPU, runs `LayoutManager`, and checks sizes and rectangles. When a check fails, the message names the node and shows both values. Property tests run the same checks over random available sizes and scales.
 
-```rust
+```rust,ignore
 #[test]
 fn stack_puts_children_top_to_bottom() {
   let mut layout = Headless::new(Boxes);
@@ -21,9 +21,9 @@ fn stack_puts_children_top_to_bottom() {
 
 ## 1. Running layout headless
 
-The helpers live in `artic_test::layout`. The module imports `artic-core`, `artic-layout` and `proptest`, and nothing from `artic-render`, so a layout test never needs a GPU.
+The helpers live in `artic_test::layout`. The module imports `artic-core`, `artic-layout`, `artic-element` and `proptest`, and from `artic-render` only the scene types `Headless::record` returns, so a layout test never needs a GPU.
 
-```rust
+```rust,ignore
 pub struct Headless<N: LayoutNodes> { /* tree, manager, nodes, labels */ }
 
 impl<N: LayoutNodes> Headless<N> {
@@ -46,7 +46,7 @@ impl<N: LayoutNodes> Headless<N> {
 
 ## 2. Assertions
 
-```rust
+```rust,ignore
 pub const TOLERANCE: f32 = 0.001;
 
 impl<N: LayoutNodes> Headless<N> {
@@ -81,7 +81,7 @@ A test with its own element writes its own `LayoutNodes` and passes it to `Headl
 
 ## 4. Strategies and invariants
 
-```rust
+```rust,ignore
 pub mod strategy {
   pub fn available() -> impl Strategy<Value = Size>;
   pub fn scale() -> impl Strategy<Value = f32>;
@@ -90,7 +90,7 @@ pub mod strategy {
 
 `available` picks each axis on its own: 0, a value from 1 to 1000, or infinity. `scale` picks 1, 1.25, 1.5, 2 or 3, the scales displays use, where snapping differs.
 
-```rust
+```rust,ignore
 #[derive(Default)]
 pub struct Invariants { /* contained: bool */ }
 
@@ -110,7 +110,7 @@ Containment is opt-in because some layouts break it on purpose: a negative margi
 
 `layout_invariants_hold` leaves containment off, since its children can add up to more than the available height. A broken invariant panics with the node's label and the input. The manager's panic carries no label, but either one fails the `proptest!` case, and proptest shrinks it to the smallest failing input.
 
-```rust
+```rust,ignore
 proptest! {
   #[test]
   fn layout_invariants_hold(
@@ -132,7 +132,7 @@ proptest! {
 
 ## 5. The #41 tests stay
 
-The 23 tests in `artic-layout/src/layout/tests.rs` keep their own helpers. Using `artic-test` from them would need `artic-test` as a dev-dependency of `artic-layout`, and `artic-test` already depends on `artic-layout`. The [dependency rules](../architecture.md#rules) allow a dev-dependency on `artic-test` only when `artic-test` doesn't depend back. `Fixed` and `Stack` start from the test node those tests use, so the two stay alike.
+The tests in `artic-layout/src/layout/tests.rs` keep their own helpers. Using `artic-test` from them would need `artic-test` as a dev-dependency of `artic-layout`, and `artic-test` already depends on `artic-layout`. The [dependency rules](../architecture.md#rules) allow a dev-dependency on `artic-test` only when `artic-test` doesn't depend back. `Fixed` and `Stack` start from the test node those tests use, so the two stay alike.
 
 ## 6. What waits
 
@@ -155,4 +155,4 @@ The tests with a broken element prove that `Invariants` can fail. Without them, 
 | PR | Contents | Done when |
 | --- | --- | --- |
 | A | this document | approved |
-| B | `artic_test::layout` with `Headless`, the assertions, `Fixed`, `Stack`, `Boxes`, `strategy` and `Invariants`, with a rustdoc example; `proptest` as a dependency of `artic-test` | the tests in section 7 pass, and `artic_test::layout` imports nothing from `artic-render` |
+| B | `artic_test::layout` with `Headless`, the assertions, `Fixed`, `Stack`, `Boxes`, `strategy` and `Invariants`, with a rustdoc example; `proptest` as a dependency of `artic-test` | the tests in section 7 pass, and a layout test needs no GPU |

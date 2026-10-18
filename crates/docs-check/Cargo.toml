@@ -1,0 +1,18 @@
+[package]
+name = "docs-check"
+description = "Compiles the Rust code blocks in the repository's documents"
+version.workspace = true
+# Edition 2024 merges doctests into one binary; each block here stays its own program, so the UI types
+# one block registers never meet another block's.
+edition = "2021"
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+artic-controls.workspace = true
+artic-core.workspace = true
+artic-registry.workspace = true
+
+[lints]
+workspace = true

@@ -2,7 +2,7 @@
 ///
 /// A type opts in with `#[ui(override_defaults)]`; its `Default` then builds every field with
 /// its declared default and calls [`override_defaults`](OverrideDefaults::override_defaults) once.
-/// Set values with `Property::set_default`, so an inherited value, a style, a binding or markup
+/// Set values with `Property::set_default`, so an inherited value, a style, a binding or a UI language
 /// still wins over them.
 ///
 /// ```ignore

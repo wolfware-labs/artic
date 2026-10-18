@@ -95,7 +95,7 @@ pub fn derive_ui_properties(input: TokenStream) -> TokenStream {
     .into()
 }
 
-/// Parses a fieldless enum from its variant names, ignoring ASCII case, so markup can set it from
+/// Parses a fieldless enum from its variant names, ignoring ASCII case, so a UI language can set it from
 /// text: `Orientation="horizontal"` becomes `Orientation::Horizontal`.
 ///
 /// It implements `FromStr` with `Err = ParseEnumError`, whose message lists every valid name. Every
