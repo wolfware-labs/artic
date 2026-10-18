@@ -27,6 +27,7 @@ members = [
     "crates/artic-xaml",
     "crates/artic-xaml-compiler",
     "crates/artic-xaml-runtime",
+    "crates/docs-check",
 ]
 
 [workspace.package]

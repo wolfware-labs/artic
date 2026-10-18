@@ -42,7 +42,7 @@ impl LoginVm {
 
 ## Project structure
 
-```
+```text
 .
 ├── Cargo.toml            Workspace manifest, shared package metadata and lints
 ├── rust-toolchain.toml   Pinned Rust toolchain

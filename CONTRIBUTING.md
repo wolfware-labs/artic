@@ -74,7 +74,7 @@ Issues are grouped into milestones. The "Depends on" line in an issue lists what
 
 Pull request titles and commits follow [Conventional Commits](https://www.conventionalcommits.org):
 
-```
+```text
 <type>(<scope>): <summary>
 ```
 
@@ -84,7 +84,7 @@ Pull request titles and commits follow [Conventional Commits](https://www.conven
 - Add a body after a blank line when the change needs explaining: what changed and why, wrapped at 72 characters.
 - Reference issues in the pull request description, not in the subject line.
 
-```
+```text
 feat(layout): add Grid star sizing
 
 Distribute the remaining space across star rows and columns in
