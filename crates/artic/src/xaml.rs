@@ -6,6 +6,11 @@
 
 pub use artic_xaml::namespaces::NamespaceMap;
 
+// The registry only knows linked crates, and a crate nothing refers to is left out of the link:
+// these keep the crates `ARTIC_UI` names in every app that uses this module.
+use artic_controls as _;
+use artic_element as _;
+
 /// The namespace URI of artic's own UI types.
 pub const ARTIC_UI: &str = "https://artic.rs/ui";
 

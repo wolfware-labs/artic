@@ -68,6 +68,8 @@ jobs:
         run: cargo build --workspace --all-targets
       - name: Test
         run: cargo test --workspace
+      - name: Test the facade's features
+        run: cargo test -p artic --all-features
 
   test-windows:
     name: Test (windows-latest)
