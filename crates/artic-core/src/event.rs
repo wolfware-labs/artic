@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 
 /// An event a node raises, whose handlers receive arguments of type `A`.
 ///
-/// Declaring an `Event<A>` field makes it a XAML event of the node's type, such as
+/// Declaring an `Event<A>` field makes it an event of the node's type, such as
 /// `PointerPressed`. For now the field only declares the event; raising it and calling handlers
 /// come with event routing.
 ///

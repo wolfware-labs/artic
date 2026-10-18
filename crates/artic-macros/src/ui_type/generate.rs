@@ -116,7 +116,7 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
   let attached_infos = attached.iter().map(attached_info);
   let attached_count = attached.len();
   let value_provider = value_provider(analysis, &properties);
-  let markup_extension_info = if analysis.attributes.value_provider.is_some() {
+  let value_provider_info = if analysis.attributes.value_provider.is_some() {
     quote!(::core::option::Option::Some(&__VALUE_PROVIDER))
   } else {
     quote!(::core::option::Option::None)
@@ -190,7 +190,7 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
         groups: &__GROUPS,
         events: &__EVENTS,
         attached_properties: &__ATTACHED,
-        value_provider: #markup_extension_info,
+        value_provider: #value_provider_info,
         whitespace: #whitespace,
       };
 
@@ -212,7 +212,7 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
   })
 }
 
-/// The `ValueProviderInfo` static of a markup extension, or nothing for another type. Every
+/// The `ValueProviderInfo` static of a value provider, or nothing for another type. Every
 /// property is a named argument, and `positional(...)` lists those also set by position.
 fn value_provider(analysis: &Analysis, properties: &[&UiField]) -> TokenStream {
   let Some(positional) = &analysis.attributes.value_provider else {
@@ -240,7 +240,7 @@ fn value_provider(analysis: &Analysis, properties: &[&UiField]) -> TokenStream {
   }
 }
 
-/// The `ArgInfo` of a property used as a markup extension argument: its name and value type, as in
+/// The `ArgInfo` of a property used as a value provider argument: its name and value type, as in
 /// its `PropertyInfo`.
 fn arg_info(field: &UiField) -> TokenStream {
   let Role::Property { inner, .. } = field.role else {

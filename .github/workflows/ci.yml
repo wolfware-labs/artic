@@ -121,6 +121,9 @@ jobs:
       - uses: ./.github/actions/setup-rust
       - name: Format
         run: cargo fmt --all --check
+      - name: UI-language neutral
+        if: ${{ !cancelled() }}
+        run: scripts/check-ui-neutral.sh
       - name: Clippy
         if: ${{ !cancelled() }}
         run: cargo clippy --workspace --all-targets -- -D warnings

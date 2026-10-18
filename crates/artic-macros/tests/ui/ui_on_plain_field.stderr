@@ -5,7 +5,7 @@ error[E0277]: `String` can't hold child elements
   |         ^^^^^^ `#[ui]` on a field that isn't a `Property` or an `Event` makes it a collection of children
   |
   = help: the trait `UiCollection` is not implemented for `String`
-  = note: to make this field a XAML property, declare it as `Property<String>`
+  = note: to make this field a property, declare it as `Property<String>`
 note: required by a bound in `artic_registry::__private::assert_collection`
  --> $WORKSPACE/crates/artic-registry/src/__private.rs
   |

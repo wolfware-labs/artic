@@ -290,9 +290,9 @@ fn style_setter_beats_control_default() {
   assert!(!knob.interaction.focusable.get());
 }
 
-// `#[element]` adds `derive(UiType)`, so the control is registered and built like any XAML type.
+// `#[element]` adds `derive(UiType)`, so the control is registered and built like any UI type.
 #[test]
-fn element_adds_derive_xaml_type() {
+fn element_adds_derive_ui_type() {
   let mut tree = UiTree::new();
 
   let node = (<Knob as UiType>::TYPE_INFO.new)(&mut tree);

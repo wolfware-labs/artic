@@ -7,7 +7,7 @@
 use crate::ValueError;
 use artic_core::tree::{NodeId, UiTree};
 
-/// A field that receives the child elements written inside a XAML element, in order.
+/// A field that receives the child elements written inside an element, in order.
 ///
 /// A panel's children are the usual example: `<StackPanel><A/><B/></StackPanel>` adds `A`, then
 /// `B`. A collection may keep what it receives in the tree, as a panel's children are, or in its
@@ -15,7 +15,7 @@ use artic_core::tree::{NodeId, UiTree};
 #[diagnostic::on_unimplemented(
   message = "`{Self}` can't hold child elements",
   label = "`#[ui]` on a field that isn't a `Property` or an `Event` makes it a collection of children",
-  note = "to make this field a XAML property, declare it as `Property<{Self}>`"
+  note = "to make this field a property, declare it as `Property<{Self}>`"
 )]
 pub trait UiCollection: Sized {
   /// Adds `child` as content of `owner`. An implementation calls `field` first and returns

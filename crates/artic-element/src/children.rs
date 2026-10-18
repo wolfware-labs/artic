@@ -4,12 +4,12 @@
 use artic_core::tree::{LinkError, NodeId, TreeKind, UiTree};
 use artic_registry::{UiCollection, ValueError};
 
-/// Marks an element's XAML children: they become its logical and visual children, which the tree
+/// Marks an element's children, as a UI language writes them: they become its logical and visual children, which the tree
 /// holds; the field itself holds nothing.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Children;
 
-/// Marks an element's single XAML child: its only logical and visual child.
+/// Marks an element's single child, as a UI language writes it: its only logical and visual child.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Child;
 

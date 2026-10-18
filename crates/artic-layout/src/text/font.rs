@@ -1,4 +1,4 @@
-//! Font families, weights and styles, and parsing them from XAML text.
+//! Font families, weights and styles, and parsing them from text.
 
 use artic_macros::UiEnum;
 use std::str::FromStr;

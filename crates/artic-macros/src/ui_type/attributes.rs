@@ -8,7 +8,7 @@ pub struct TypeAttributes {
   pub whitespace: Whitespace,
   pub crate_path: Option<Path>,
   pub attached: Vec<Attached>,
-  /// The properties set by position, in order, if the type is a markup extension.
+  /// The properties set by position, in order, if the type is a value provider.
   pub value_provider: Option<Vec<Ident>>,
   pub override_defaults: bool,
 }
@@ -387,9 +387,9 @@ mod tests {
     );
   }
 
-  // `value_provider` marks a markup extension, with the properties set by position in order.
+  // `value_provider` marks a value provider, with the properties set by position in order.
   #[test]
-  fn markup_extension_is_parsed() {
+  fn value_provider_is_parsed() {
     let positional = |input: DeriveInput| {
       let attributes = parse_type_attributes(&input).expect("valid attributes");
       attributes
@@ -463,7 +463,7 @@ mod tests {
     assert!(matches!(combine.inherits, Some(Inherits::Combine(path)) if path.is_ident("and")));
   }
 
-  // A bare `#[ui]` marks the field with no settings, and no attribute means not a XAML field.
+  // A bare `#[ui]` marks the field with no settings, and no attribute means not a UI field.
   #[test]
   fn bare_and_missing_field_attributes() {
     let bare: DeriveInput = parse_quote! { struct A { #[ui] value: u8 } };

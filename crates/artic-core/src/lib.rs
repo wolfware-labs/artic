@@ -6,7 +6,7 @@
 //! - [`tree`]: [`UiTree`](tree::UiTree), which owns every node and links it into a logical and
 //!   a visual tree, with per-node dirty flags.
 //! - [`Object`]: the trait every node type implements.
-//! - [`event`]: [`Event`](event::Event), the field type that declares a node's XAML events.
+//! - [`event`]: [`Event`](event::Event), the field type that declares a node's events.
 //! - [`input`]: [`InputEvent`](input::InputEvent), the input an element receives.
 //! - [`dispatcher`]: [`Dispatcher`](dispatcher::Dispatcher), the UI thread's task queue, which flushes
 //!   effects after each task.

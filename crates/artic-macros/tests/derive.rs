@@ -278,7 +278,7 @@ fn attached_property_inherits_through_the_logical_tree() {
   assert!(Theme::ACCENT.key().inherits());
 }
 
-/// A markup extension with one positional argument and an optional named one.
+/// A value provider with one positional argument and an optional named one.
 #[derive(Debug, UiType)]
 #[ui(value_provider(positional(key)))]
 struct Localize {
@@ -288,17 +288,17 @@ struct Localize {
   fallback: Property<Option<String>>,
 }
 
-/// A markup extension without arguments.
+/// A value provider without arguments.
 #[derive(Debug, UiType)]
 #[ui(value_provider)]
 struct Nothing;
 
-// A markup extension's schema lists its positional arguments in order, and every property as a
+// A value provider's schema lists its positional arguments in order, and every property as a
 // named argument, with the names and value types of its properties.
 #[test]
-fn markup_extension_schema_is_registered() {
+fn value_provider_schema_is_registered() {
   let schema = |info: &TypeInfo| {
-    let extension = info.value_provider.expect("a markup extension");
+    let extension = info.value_provider.expect("a value provider");
     let arguments = |arguments: &[artic_registry::ArgInfo]| {
       arguments
         .iter()

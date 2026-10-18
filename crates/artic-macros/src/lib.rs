@@ -9,7 +9,7 @@ mod ui_type;
 use proc_macro::TokenStream;
 use syn::{DeriveInput, parse_macro_input};
 
-/// Describes a struct to the XAML registry, so markup can name it.
+/// Describes a struct to the registry, so a UI language can name it.
 ///
 /// # Struct attributes
 ///
@@ -32,7 +32,7 @@ use syn::{DeriveInput, parse_macro_input};
 ///
 /// Every `Property<T>` and `Event<A>` field must be marked `#[ui]`:
 ///
-/// - `Property<T>` is a XAML property. `T`, or `X` in `Option<X>`, must implement `FromStr` or
+/// - `Property<T>` is a property. `T`, or `X` in `Option<X>`, must implement `FromStr` or
 ///   `UiType`, or be a `NodeId` child slot. Its settings: `default = expr` for the `Default`
 ///   level (otherwise `T::default()`), `affects = layout | render | surface` and `inherits` for
 ///   its generated key, `key = KEY` to share a key with other types instead (inheritance across
@@ -44,7 +44,7 @@ use syn::{DeriveInput, parse_macro_input};
 ///   combines the two through `f(own, inherited)`, where a single name such as `and` is one of
 ///   `artic_core::property::inherit`'s functions and a longer path names any
 ///   `fn(&T, &T) -> T`: write your own function as `self::my_fn` or `crate::my_fn`.
-/// - `Event<A>` is a XAML event named like a property.
+/// - `Event<A>` is an event named like a property.
 /// - `#[ui(flatten)]` on a field whose type derives `UiProperties`: its properties are
 ///   listed and visited as the type's own. It takes no other settings.
 /// - Any other `#[ui]` field is a collection of child elements and must implement
@@ -58,7 +58,7 @@ use syn::{DeriveInput, parse_macro_input};
 /// # Generated code
 ///
 /// The derive implements `Default`, `Object` (with `visit_properties`) and `UiType`, writes the
-/// type's `TypeInfo` with its property, event, attached property and markup extension descriptors,
+/// type's `TypeInfo` with its property, event, attached property and value provider descriptors,
 /// and adds it to `UI_TYPES`. So the struct derives `Debug` but not `Default`, and a crate's types
 /// only reach the registry if the crate is linked (see `UI_TYPES`).
 ///
@@ -78,7 +78,7 @@ pub fn derive_ui_type(input: TokenStream) -> TokenStream {
   ui_type::expand(&input).unwrap_or_else(syn::Error::into_compile_error).into()
 }
 
-/// Makes a struct a property group: a set of properties several XAML types share by embedding it
+/// Makes a struct a property group: a set of properties several UI types share by embedding it
 /// in a field marked `#[ui(flatten)]`, as controls embed `Layout`.
 ///
 /// Fields follow `UiType`'s rules for `Property` fields; a group holds no events or

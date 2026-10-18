@@ -3,7 +3,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, quote};
 use syn::{Error, Ident, Path};
 
-/// The crates the XAML derives reach artic through: (package, library).
+/// The crates the UI derives reach artic through: (package, library).
 pub const REGISTRY: &[(&str, &str)] = &[("artic", "artic"), ("artic-registry", "artic_registry")];
 
 /// The crates `#[derive(UiEnum)]` reaches artic through: (package, library). Its output names

@@ -1,6 +1,6 @@
 [package]
 name = "artic-registry-fixture-b"
-description = "Test fixture: a crate that derives one XAML type, for the registry linking tests."
+description = "Test fixture: a crate that derives UI types, for the registry linking tests."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

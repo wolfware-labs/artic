@@ -12,7 +12,7 @@ enum Orientation {
   Vertical,
 }
 
-/// A XAML type with an enum-valued property, which only compiles if the enum passes the
+/// A UI type with an enum-valued property, which only compiles if the enum passes the
 /// property value check.
 #[derive(Debug, UiType)]
 struct StackPanel {

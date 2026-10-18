@@ -31,7 +31,7 @@ pub trait ViaFromStr {
 
 impl<T: FromStr> ViaFromStr for ValueCheck<T> {}
 
-/// The value type is itself a XAML type, written as an object element.
+/// The value type is itself a UI type, written as an object.
 pub trait ViaUiType {
   fn value_must_implement_fromstr_or_derive_uitype(&self) {}
 }
@@ -129,7 +129,7 @@ mod tests {
     whitespace: Whitespace::Collapse,
   };
 
-  // The check resolves for a FromStr type, a XAML type and a child node. A type that is none of
+  // The check resolves for a FromStr type, a UI type and a child node. A type that is none of
   // them fails to compile, which the derive's compile-fail tests cover.
   #[test]
   #[allow(

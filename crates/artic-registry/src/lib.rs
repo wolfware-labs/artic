@@ -1,6 +1,6 @@
-//! Type registry that maps XAML names to artic types and properties.
+//! Type registry that lets UI languages find artic types and their properties.
 //!
-//! Every crate that defines XAML types adds a [`TypeInfo`] to the [`UI_TYPES`] slice, and
+//! Every crate that defines UI types adds a [`TypeInfo`] to the [`UI_TYPES`] slice, and
 //! [`Registry::from_link_time`] indexes all of them for lookup. There is no registration call: the
 //! linker gathers the entries.
 

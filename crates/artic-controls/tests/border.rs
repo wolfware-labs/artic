@@ -132,7 +132,7 @@ fn collapsed_child_leaves_the_chrome() {
   layout.assert_desired(root, Size::new(10.0, 10.0));
 }
 
-// The child field is the type's XAML content.
+// The child field is the type's content.
 #[test]
 fn border_child_is_its_content() {
   assert!(matches!(
