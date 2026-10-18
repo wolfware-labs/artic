@@ -132,7 +132,7 @@ pub struct TextLimits {
 | `Wrap` | between words, and inside a word wider than `max_width`, so nothing sticks out | `TextWrapMode::Wrap`, `OverflowWrap::Anywhere` |
 | `WrapWithOverflow` | between words only, so a long word or URL sticks out | `TextWrapMode::Wrap`, `OverflowWrap::Normal` |
 
-`max_width` used to turn wrapping on. Now it only limits, and `wrapping` says whether lines break, since a `NoWrap` line that is trimmed still needs a width to fit. Today's callers that wrap become `WrapWithOverflow`, which is what `parley` did for them, so their lines and the existing goldens don't change. A negative `max_width` is 0, so `Wrap` puts each cluster on its own line and `WrapWithOverflow` breaks at every opportunity.
+`max_width` used to turn wrapping on. Now it only limits, and `wrapping` says whether lines break, since a `NoWrap` line that is trimmed still needs a width to fit. Today's callers that wrap become `WrapWithOverflow`, which is what `parley` did for them, so their lines and the existing goldens don't change. A negative `max_width` is 0, so `Wrap` puts each cluster on its own line, and `WrapWithOverflow` breaks at every opportunity and keeps each word whole, overhanging. A `max_width` that is NaN or infinite is no width limit, and trimming still applies to a last kept line that `max_lines` or `max_height` cut.
 
 The engine keeps lines in order until `max_lines` is reached or the next line's bottom would pass `max_height`, whichever comes first, and always keeps the first line, as WPF does. A `max_height` that is NaN or infinite is no limit, and a negative one keeps one line.
 
