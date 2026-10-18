@@ -17,20 +17,45 @@ pub struct Paragraph {
   size: Size,
   lines: Arc<[Line]>,
   runs: Arc<[GlyphRun]>,
+  right_to_left: bool,
+  limited_width: bool,
+  limited_height: bool,
 }
 
 impl Paragraph {
-  /// A paragraph of `size`, with `lines` from top to bottom and the glyph `runs` that draw it.
+  /// A left-to-right paragraph of `size` that no limit shaped, with `lines` from top to bottom and
+  /// the glyph `runs` that draw it. [`with_right_to_left`](Paragraph::with_right_to_left) and
+  /// [`with_limited`](Paragraph::with_limited) set the rest.
   #[must_use]
   pub fn new(size: Size, lines: impl Into<Arc<[Line]>>, runs: impl Into<Arc<[GlyphRun]>>) -> Paragraph {
     Paragraph {
       size,
       lines: lines.into(),
       runs: runs.into(),
+      right_to_left: false,
+      limited_width: false,
+      limited_height: false,
     }
   }
 
-  /// The widest line's width by the sum of the lines' heights.
+  /// This paragraph, running right to left when `right_to_left` is true.
+  #[must_use]
+  pub fn with_right_to_left(mut self, right_to_left: bool) -> Paragraph {
+    self.right_to_left = right_to_left;
+    self
+  }
+
+  /// This paragraph, shaped by its width limit when `width` is true and by its height limit when
+  /// `height` is.
+  #[must_use]
+  pub fn with_limited(mut self, width: bool, height: bool) -> Paragraph {
+    self.limited_width = width;
+    self.limited_height = height;
+    self
+  }
+
+  /// The widest line's width by the sum of the lines' heights. A paragraph with a justified line is
+  /// as wide as the width it was justified to, which can be more than its widest natural line.
   #[must_use]
   pub fn size(&self) -> Size {
     self.size
@@ -52,6 +77,25 @@ impl Paragraph {
   #[must_use]
   pub fn is_empty(&self) -> bool {
     self.runs.iter().all(|run| run.glyphs().is_empty())
+  }
+
+  /// Whether the paragraph runs right to left, as its first strong character does.
+  #[must_use]
+  pub fn right_to_left(&self) -> bool {
+    self.right_to_left
+  }
+
+  /// Whether its width limit shaped it: a line broke other than at a hard break, was stretched to
+  /// justify it, or was cut to fit. Another width can give another paragraph.
+  #[must_use]
+  pub fn limited_width(&self) -> bool {
+    self.limited_width
+  }
+
+  /// Whether its height limit dropped lines.
+  #[must_use]
+  pub fn limited_height(&self) -> bool {
+    self.limited_height
   }
 }
 
@@ -246,6 +290,28 @@ mod tests {
       width: 13.0,
     };
     Paragraph::new(Size::new(13.0, 20.0), [line], [run(font)])
+  }
+
+  // A new paragraph runs left to right and no limit shaped it.
+  #[test]
+  fn new_paragraph_is_left_to_right_and_unlimited() {
+    let paragraph = paragraph(&font());
+
+    assert!(!paragraph.right_to_left());
+    assert!(!paragraph.limited_width());
+    assert!(!paragraph.limited_height());
+  }
+
+  // The builders set the direction and each limit flag on their own.
+  #[test]
+  fn builders_set_the_reports() {
+    let font = font();
+
+    assert!(paragraph(&font).with_right_to_left(true).right_to_left());
+    let width_only = paragraph(&font).with_limited(true, false);
+    assert!(width_only.limited_width() && !width_only.limited_height());
+    let height_only = paragraph(&font).with_limited(false, true);
+    assert!(!height_only.limited_width() && height_only.limited_height());
   }
 
   // Each new font data gets its own id, even from the same bytes, and a clone keeps it.

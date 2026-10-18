@@ -1,5 +1,6 @@
 use artic_layout::text::{
-  FontFamily, FontStyle, FontWeight, GenericFamily, Line, Paragraph, TextEngine, TextLimits, TextStyle,
+  FontFamily, FontStyle, FontWeight, GenericFamily, Line, Paragraph, ParagraphStyle, TextAlignment, TextEngine, TextLimits,
+  TextStyle, TextWrapping,
 };
 use artic_test_fonts::{BOLD, REGULAR};
 use artic_text::Engine;
@@ -22,7 +23,18 @@ fn style() -> TextStyle {
 }
 
 fn shape(engine: &mut Engine, text: &str, style: &TextStyle) -> Paragraph {
-  engine.paragraph(text, style, TextLimits::NONE)
+  engine.paragraph(text, style, &ParagraphStyle::default(), TextLimits::NONE)
+}
+
+fn laid_out(engine: &mut Engine, text: &str, paragraph: &ParagraphStyle, limits: TextLimits) -> Paragraph {
+  engine.paragraph(text, &style(), paragraph, limits)
+}
+
+fn wrapping(wrapping: TextWrapping) -> ParagraphStyle {
+  ParagraphStyle {
+    wrapping,
+    ..ParagraphStyle::default()
+  }
 }
 
 fn assert_close(actual: f32, expected: f32) {
@@ -159,11 +171,11 @@ fn same_font_keeps_its_id() {
 // A line height puts each line that far below the previous one.
 #[test]
 fn line_height_sets_line_spacing() {
-  let style = TextStyle {
+  let style = ParagraphStyle {
     line_height: Some(30.0),
-    ..style()
+    ..ParagraphStyle::default()
   };
-  let paragraph = shape(&mut engine(), "a\nb", &style);
+  let paragraph = laid_out(&mut engine(), "a\nb", &style, TextLimits::NONE);
 
   assert_eq!(paragraph.lines().len(), 2);
   assert_close(paragraph.lines()[1].top, 30.0);
@@ -177,12 +189,16 @@ fn unusable_line_height_uses_the_font_spacing() {
   let expected = shape(&mut engine, "a\nb", &style());
 
   for line_height in [0.0, -1.0, f32::NAN, f32::INFINITY] {
-    let style = TextStyle {
+    let style = ParagraphStyle {
       line_height: Some(line_height),
-      ..style()
+      ..ParagraphStyle::default()
     };
 
-    assert_eq!(shape(&mut engine, "a\nb", &style), expected, "{line_height}");
+    assert_eq!(
+      laid_out(&mut engine, "a\nb", &style, TextLimits::NONE),
+      expected,
+      "{line_height}"
+    );
   }
 }
 
@@ -245,7 +261,12 @@ const FOX: &str = "The quick brown fox jumps over the lazy dog";
 const HEBREW: &str = "שלום עולם שלום עולם שלום";
 
 fn wrapped(engine: &mut Engine, text: &str, max_width: f32) -> Paragraph {
-  engine.paragraph(text, &style(), TextLimits::wrap(max_width))
+  laid_out(
+    engine,
+    text,
+    &wrapping(TextWrapping::WrapWithOverflow),
+    TextLimits::width(max_width),
+  )
 }
 
 fn glyph_xs(paragraph: &Paragraph, line: &Line) -> Vec<f32> {
@@ -276,11 +297,11 @@ fn line_breaking_respects_max_width() {
 // heights.
 #[test]
 fn max_lines_caps_the_paragraph() {
-  let limits = TextLimits {
-    max_width: Some(100.0),
+  let style = ParagraphStyle {
     max_lines: NonZeroU32::new(2),
+    ..wrapping(TextWrapping::WrapWithOverflow)
   };
-  let paragraph = engine().paragraph(FOX, &style(), limits);
+  let paragraph = laid_out(&mut engine(), FOX, &style, TextLimits::width(100.0));
 
   assert_eq!(paragraph.lines().len(), 2);
   assert_close(paragraph.size().width, 68.67);
@@ -291,19 +312,22 @@ fn max_lines_caps_the_paragraph() {
 #[test]
 fn max_lines_above_the_line_count_keeps_every_line() {
   let mut engine = engine();
-  let limits = TextLimits {
-    max_width: Some(100.0),
+  let style = ParagraphStyle {
     max_lines: NonZeroU32::new(10),
+    ..wrapping(TextWrapping::WrapWithOverflow)
   };
 
-  assert_eq!(engine.paragraph(FOX, &style(), limits), wrapped(&mut engine, FOX, 100.0));
+  assert_eq!(
+    laid_out(&mut engine, FOX, &style, TextLimits::width(100.0)),
+    wrapped(&mut engine, FOX, 100.0)
+  );
 }
 
 // A max_width that is NaN or infinite doesn't wrap.
 #[test]
 fn unusable_max_width_does_not_wrap() {
   let mut engine = engine();
-  let expected = engine.paragraph(FOX, &style(), TextLimits::NONE);
+  let expected = shape(&mut engine, FOX, &style());
 
   for max_width in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
     assert_eq!(wrapped(&mut engine, FOX, max_width), expected, "{max_width}");
@@ -435,11 +459,11 @@ fn empty_last_line_has_no_width() {
 // A line height below the font's own still stacks the lines from 0, each baseline inside its line.
 #[test]
 fn tight_line_height_stacks_lines_from_zero() {
-  let style = TextStyle {
+  let style = ParagraphStyle {
     line_height: Some(16.0),
-    ..style()
+    ..ParagraphStyle::default()
   };
-  let paragraph = shape(&mut engine(), "a\nb", &style);
+  let paragraph = laid_out(&mut engine(), "a\nb", &style, TextLimits::NONE);
   let lines = paragraph.lines();
 
   assert_eq!([lines[0].top, lines[1].top], [0.0, 16.0]);
@@ -477,4 +501,401 @@ fn lines_follow_the_paragraph_direction() {
     glyph_xs(&right_to_left, latin).into_iter().fold(f32::MAX, f32::min),
     right_to_left.size().width - latin.width,
   );
+}
+
+const LONG_WORD: &str = "Supercalifragilisticexpialidocious";
+
+// NoWrap breaks only at hard breaks: one line wider than the width it was given.
+#[test]
+fn no_wrap_keeps_one_line() {
+  let paragraph = laid_out(&mut engine(), FOX, &wrapping(TextWrapping::NoWrap), TextLimits::width(100.0));
+
+  assert_eq!(paragraph.lines().len(), 1);
+  assert!(paragraph.size().width > 100.0);
+}
+
+// Wrap breaks inside a word wider than the width, so no line sticks out.
+#[test]
+fn wrap_breaks_a_long_word() {
+  let paragraph = laid_out(
+    &mut engine(),
+    LONG_WORD,
+    &wrapping(TextWrapping::Wrap),
+    TextLimits::width(100.0),
+  );
+
+  assert!(paragraph.lines().len() > 1);
+  assert!(
+    paragraph.lines().iter().all(|line| line.width <= 100.0),
+    "{:?}",
+    paragraph.lines()
+  );
+}
+
+// WrapWithOverflow breaks only between words, so a long word stays whole and sticks out.
+#[test]
+fn wrap_with_overflow_keeps_a_long_word() {
+  let paragraph = wrapped(&mut engine(), LONG_WORD, 100.0);
+
+  assert_eq!(paragraph.lines().len(), 1);
+  assert!(paragraph.size().width > 100.0);
+}
+
+// MaxLines applies to hard-broken lines too.
+#[test]
+fn max_lines_with_no_wrap() {
+  let style = ParagraphStyle {
+    max_lines: NonZeroU32::new(2),
+    ..ParagraphStyle::default()
+  };
+
+  assert_eq!(
+    laid_out(&mut engine(), "a\nb\nc", &style, TextLimits::width(100.0))
+      .lines()
+      .len(),
+    2
+  );
+}
+
+// A negative width is 0, so Wrap puts each cluster on its own line.
+#[test]
+fn negative_max_width_breaks_every_cluster_under_wrap() {
+  let paragraph = laid_out(&mut engine(), "abc", &wrapping(TextWrapping::Wrap), TextLimits::width(-5.0));
+
+  assert_eq!(paragraph.lines().len(), 3);
+}
+
+fn limits(max_width: Option<f32>, max_height: Option<f32>) -> TextLimits {
+  TextLimits { max_width, max_height }
+}
+
+fn overflowing() -> ParagraphStyle {
+  wrapping(TextWrapping::WrapWithOverflow)
+}
+
+// A height of two and a half lines keeps two, and the paragraph is their height.
+#[test]
+fn max_height_drops_lines_that_do_not_fit() {
+  let paragraph = laid_out(&mut engine(), FOX, &overflowing(), limits(Some(100.0), Some(2.5 * LINE)));
+
+  assert_eq!(paragraph.lines().len(), 2);
+  assert_close(paragraph.size().height, 2.0 * LINE);
+}
+
+// A height below one line still keeps the first line.
+#[test]
+fn max_height_keeps_the_first_line() {
+  let paragraph = laid_out(&mut engine(), FOX, &overflowing(), limits(Some(100.0), Some(5.0)));
+
+  assert_eq!(paragraph.lines().len(), 1);
+}
+
+// A negative height keeps one line.
+#[test]
+fn negative_max_height_keeps_one_line() {
+  let paragraph = laid_out(&mut engine(), FOX, &overflowing(), limits(Some(100.0), Some(-10.0)));
+
+  assert_eq!(paragraph.lines().len(), 1);
+}
+
+// A height that is NaN or infinite is no limit.
+#[test]
+fn unusable_max_height_is_no_limit() {
+  let mut engine = engine();
+  let expected = wrapped(&mut engine, FOX, 100.0);
+
+  for max_height in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+    let paragraph = laid_out(&mut engine, FOX, &overflowing(), limits(Some(100.0), Some(max_height)));
+
+    assert_eq!(paragraph, expected, "{max_height}");
+  }
+}
+
+// A height exactly at a line's bottom keeps that line.
+#[test]
+fn max_height_at_a_line_bottom_keeps_that_line() {
+  let mut engine = engine();
+  let second = wrapped(&mut engine, FOX, 100.0).lines()[1];
+
+  let paragraph = laid_out(
+    &mut engine,
+    FOX,
+    &overflowing(),
+    limits(Some(100.0), Some(second.top + second.height)),
+  );
+
+  assert_eq!(paragraph.lines().len(), 2);
+}
+
+// MaxLines and the height together keep the fewer lines.
+#[test]
+fn max_lines_and_max_height_keep_the_fewer() {
+  let mut engine = engine();
+  let three = ParagraphStyle {
+    max_lines: NonZeroU32::new(3),
+    ..overflowing()
+  };
+  let one = ParagraphStyle {
+    max_lines: NonZeroU32::new(1),
+    ..overflowing()
+  };
+
+  assert_eq!(
+    laid_out(&mut engine, FOX, &three, limits(Some(100.0), Some(2.5 * LINE)))
+      .lines()
+      .len(),
+    2
+  );
+  assert_eq!(
+    laid_out(&mut engine, FOX, &one, limits(Some(100.0), Some(2.5 * LINE)))
+      .lines()
+      .len(),
+    1
+  );
+}
+
+// The paragraph reports the direction its first strong character gives it.
+#[test]
+fn paragraph_reports_its_direction() {
+  let mut engine = engine();
+
+  assert!(!shape(&mut engine, FOX, &style()).right_to_left());
+  assert!(shape(&mut engine, HEBREW, &style()).right_to_left());
+}
+
+// Lines that broke to fit the width mark the paragraph as limited by it.
+#[test]
+fn wrapped_paragraph_is_limited_by_width() {
+  let paragraph = wrapped(&mut engine(), FOX, 100.0);
+
+  assert!(paragraph.limited_width());
+  assert!(!paragraph.limited_height());
+}
+
+// Text that breaks only at hard breaks isn't limited, with or without a width.
+#[test]
+fn unwrapped_paragraph_is_not_limited() {
+  let mut engine = engine();
+
+  for paragraph in [
+    shape(&mut engine, FOX, &style()),
+    laid_out(&mut engine, "a\nb", &overflowing(), TextLimits::width(100.0)),
+    laid_out(&mut engine, FOX, &ParagraphStyle::default(), TextLimits::width(100.0)),
+  ] {
+    assert!(!paragraph.limited_width(), "{paragraph:?}");
+    assert!(!paragraph.limited_height(), "{paragraph:?}");
+  }
+}
+
+// Lines dropped for the height mark the paragraph as limited by it; a height they all fit doesn't.
+#[test]
+fn dropped_lines_limit_the_height() {
+  let mut engine = engine();
+
+  assert!(laid_out(&mut engine, FOX, &overflowing(), limits(Some(100.0), Some(2.5 * LINE))).limited_height());
+  assert!(!laid_out(&mut engine, FOX, &overflowing(), limits(Some(100.0), Some(10.0 * LINE))).limited_height());
+}
+
+// A line cut only because MaxLines dropped the ones after it isn't limited by the width.
+#[test]
+fn clamped_line_that_fits_is_not_limited_by_width() {
+  let style = ParagraphStyle {
+    max_lines: NonZeroU32::new(1),
+    ..overflowing()
+  };
+
+  assert!(!laid_out(&mut engine(), "a\nb\nc", &style, TextLimits::width(100.0)).limited_width());
+}
+
+fn aligned(alignment: TextAlignment) -> ParagraphStyle {
+  ParagraphStyle {
+    alignment,
+    ..overflowing()
+  }
+}
+
+fn left_edge(paragraph: &Paragraph, line: &Line) -> f32 {
+  glyph_xs(paragraph, line).into_iter().fold(f32::MAX, f32::min)
+}
+
+fn right_glyph(paragraph: &Paragraph, line: &Line) -> f32 {
+  glyph_xs(paragraph, line).into_iter().fold(f32::MIN, f32::max)
+}
+
+// Center puts each line's free width half before it, End all of it, and in right-to-left text
+// End is the left edge.
+#[test]
+fn center_and_end_place_lines() {
+  let mut engine = engine();
+  let center = laid_out(&mut engine, FOX, &aligned(TextAlignment::Center), TextLimits::width(100.0));
+  let end = laid_out(&mut engine, FOX, &aligned(TextAlignment::End), TextLimits::width(100.0));
+  let hebrew_end = laid_out(&mut engine, HEBREW, &aligned(TextAlignment::End), TextLimits::width(100.0));
+
+  for line in center.lines() {
+    assert_close(left_edge(&center, line), (center.size().width - line.width) / 2.0);
+  }
+  for line in end.lines() {
+    assert_close(left_edge(&end, line), end.size().width - line.width);
+  }
+  for line in hebrew_end.lines() {
+    assert_close(left_edge(&hebrew_end, line), 0.0);
+  }
+}
+
+// Left and Right ignore the direction: Left starts Hebrew lines at 0, Right ends Latin lines at
+// the paragraph's right edge.
+#[test]
+fn left_and_right_ignore_direction() {
+  let mut engine = engine();
+  let left = laid_out(&mut engine, HEBREW, &aligned(TextAlignment::Left), TextLimits::width(100.0));
+  let right = laid_out(&mut engine, FOX, &aligned(TextAlignment::Right), TextLimits::width(100.0));
+
+  for line in left.lines() {
+    assert_close(left_edge(&left, line), 0.0);
+  }
+  for line in right.lines() {
+    assert_close(left_edge(&right, line), right.size().width - line.width);
+  }
+}
+
+// Justify stretches every line but the last to the paragraph's width, and leaves the last at the
+// start.
+#[test]
+fn justify_fills_every_line_but_the_last() {
+  let paragraph = laid_out(&mut engine(), FOX, &aligned(TextAlignment::Justify), TextLimits::width(100.0));
+  let (last, rest) = paragraph.lines().split_last().unwrap();
+
+  for line in rest {
+    assert_eq!(line.width, paragraph.size().width);
+    assert_close(left_edge(&paragraph, line), 0.0);
+  }
+  assert!(last.width < paragraph.size().width);
+  assert_close(left_edge(&paragraph, last), 0.0);
+}
+
+// A line that ends at a hard break isn't stretched.
+#[test]
+fn justify_skips_hard_breaks_and_trimmed_lines() {
+  let text = "The quick\nbrown fox jumps over the lazy dog";
+  let mut engine = engine();
+  let justified = laid_out(&mut engine, text, &aligned(TextAlignment::Justify), TextLimits::width(100.0));
+  let start = laid_out(&mut engine, text, &overflowing(), TextLimits::width(100.0));
+
+  assert_eq!(justified.lines()[0].width, start.lines()[0].width);
+  assert!(justified.lines()[0].width < justified.size().width);
+  assert!(justified.lines()[1].width == justified.size().width);
+}
+
+// A line without spaces, such as a piece of a word broken by Wrap, isn't stretched.
+#[test]
+fn justify_skips_a_line_without_spaces() {
+  let text = "Supercalifragilisticexpialidocious and a few more words here";
+  let justify = ParagraphStyle {
+    alignment: TextAlignment::Justify,
+    ..wrapping(TextWrapping::Wrap)
+  };
+  let mut engine = engine();
+  let justified = laid_out(&mut engine, text, &justify, TextLimits::width(100.0));
+  let start = laid_out(&mut engine, text, &wrapping(TextWrapping::Wrap), TextLimits::width(100.0));
+
+  assert_eq!(justified.size().width, 100.0);
+  assert_eq!(justified.lines()[0].width, start.lines()[0].width);
+  assert_eq!(
+    glyph_xs(&justified, &justified.lines()[0]),
+    glyph_xs(&start, &start.lines()[0])
+  );
+}
+
+// The space hanging at a stretched line's end takes no share: the line's last glyph moves by the
+// whole free width, so the line ends at the paragraph's edge.
+#[test]
+fn justify_ignores_hanging_whitespace() {
+  let mut engine = engine();
+  let justified = laid_out(&mut engine, FOX, &aligned(TextAlignment::Justify), TextLimits::width(100.0));
+  let start = laid_out(&mut engine, FOX, &overflowing(), TextLimits::width(100.0));
+  let (natural, stretched) = (start.lines()[0], justified.lines()[0]);
+
+  assert_close(
+    right_glyph(&justified, &stretched),
+    right_glyph(&start, &natural) + (justified.size().width - natural.width),
+  );
+}
+
+// A paragraph with a stretched line is as wide as max_width, and limited by it.
+#[test]
+fn justified_paragraph_takes_max_width() {
+  let paragraph = laid_out(&mut engine(), FOX, &aligned(TextAlignment::Justify), TextLimits::width(100.0));
+
+  assert_eq!(paragraph.size().width, 100.0);
+  assert!(paragraph.limited_width());
+}
+
+// A line wider than max_width isn't stretched, even when another line makes the paragraph wider
+// still. No-break spaces keep the first line's words together.
+#[test]
+fn overflowing_line_is_not_justified() {
+  let text = "Super\u{a0}cali\u{a0}fragi Supercalifragilisticexpialidociousness end";
+  let mut engine = engine();
+  let justified = laid_out(&mut engine, text, &aligned(TextAlignment::Justify), TextLimits::width(60.0));
+  let start = laid_out(&mut engine, text, &overflowing(), TextLimits::width(60.0));
+
+  assert!(start.lines()[0].width > 60.0);
+  assert!(start.lines()[0].width < start.size().width);
+  assert_eq!(
+    glyph_xs(&justified, &justified.lines()[0]),
+    glyph_xs(&start, &start.lines()[0])
+  );
+}
+
+// Right-to-left justified lines span the paragraph from 0 to its width.
+#[test]
+fn justify_fills_right_to_left_lines() {
+  let paragraph = laid_out(
+    &mut engine(),
+    HEBREW,
+    &aligned(TextAlignment::Justify),
+    TextLimits::width(100.0),
+  );
+  let (_, rest) = paragraph.lines().split_last().unwrap();
+
+  assert_eq!(paragraph.size().width, 100.0);
+  for line in rest {
+    assert_close(left_edge(&paragraph, line), 0.0);
+    assert!(right_glyph(&paragraph, line) <= paragraph.size().width);
+  }
+  assert_inside(&paragraph);
+}
+
+// With no width limit there's nothing to stretch to: the paragraph keeps its widest line's width.
+#[test]
+fn justify_without_a_width_limit_stretches_nothing() {
+  let mut engine = engine();
+  let justified = laid_out(
+    &mut engine,
+    "The quick\nbrown fox",
+    &aligned(TextAlignment::Justify),
+    TextLimits::NONE,
+  );
+
+  assert_eq!(
+    justified,
+    laid_out(&mut engine, "The quick\nbrown fox", &overflowing(), TextLimits::NONE)
+  );
+}
+
+// Beside a word wider than max_width, justified lines stretch to max_width, not to the word: only
+// the word overflows.
+#[test]
+fn justified_lines_stop_at_max_width() {
+  let text = "Supercalifragilisticexpialidociousness one two three four five six seven";
+  let paragraph = laid_out(&mut engine(), text, &aligned(TextAlignment::Justify), TextLimits::width(60.0));
+  let (word, rest) = paragraph.lines().split_first().unwrap();
+
+  assert!(word.width > 60.0);
+  assert_eq!(paragraph.size().width, word.width);
+  assert!(rest.iter().any(|line| line.width == 60.0), "{rest:?}");
+  for line in rest {
+    assert!(line.width <= 60.0, "{line:?}");
+    assert!(right_glyph(&paragraph, line) < 60.0, "{line:?}");
+  }
 }

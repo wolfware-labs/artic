@@ -11,7 +11,7 @@ use artic_core::Object;
 use artic_core::property::{Affects, AnyProperty};
 use artic_core::tree::{NodeId, UiTree};
 use artic_layout::geometry::{CornerRadius, Path, Point, Rect, RelativePoint, RelativeScalar, RoundedRect, Transform};
-use artic_layout::text::{FontFamily, Paragraph, TextEngine, TextLimits, TextStyle};
+use artic_layout::text::{FontFamily, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle, TextWrapping};
 use artic_render::Renderer as _;
 use artic_render::{
   BoxShadow, Color, Compositor, GradientStop, Layers, LineJoin, LinearGradientBrush, Nodes, PhysicalSize, RadialGradientBrush,
@@ -181,7 +181,12 @@ impl Demo {
     let mut tree = UiTree::new();
     let root = tree.alloc(Box::new(Node));
     let style = TextStyle::new(FontFamily::default(), 28.0);
-    let paragraph = artic_text::Engine::system().paragraph("Text in a gradient", &style, TextLimits::wrap(TILE - 16.0));
+    let wrapping = ParagraphStyle {
+      wrapping: TextWrapping::WrapWithOverflow,
+      ..ParagraphStyle::default()
+    };
+    let paragraph =
+      artic_text::Engine::system().paragraph("Text in a gradient", &style, &wrapping, TextLimits::width(TILE - 16.0));
     Demo {
       renderer,
       compositor: Compositor::default(),

@@ -185,7 +185,7 @@ pub fn arrange_with(sizing: &Sizing, slot: Rect, desired: Size) -> Rect {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::text::{Paragraph, TextEngine, TextLimits, TextStyle};
+  use crate::text::{Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
   use crate::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx, PixelGrid};
   use artic_core::Object;
   use artic_core::property::AnyProperty;
@@ -197,7 +197,7 @@ mod tests {
   struct NoText;
 
   impl TextEngine for NoText {
-    fn paragraph(&mut self, _text: &str, _style: &TextStyle, _limits: TextLimits) -> Paragraph {
+    fn paragraph(&mut self, _text: &str, _style: &TextStyle, _paragraph: &ParagraphStyle, _limits: TextLimits) -> Paragraph {
       Paragraph::default()
     }
   }

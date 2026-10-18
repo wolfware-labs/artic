@@ -1,15 +1,25 @@
-//! What a [`TextStyle`] becomes on a `parley` builder.
+//! What a [`TextStyle`] and a [`ParagraphStyle`] become on a `parley` builder.
 
-use artic_layout::text::{FamilyName, FontFamily, FontStyle, FontWeight, GenericFamily, TextStyle};
-use parley::{FontFamilyName, LineHeight, RangedBuilder, StyleProperty};
+use artic_layout::text::{
+  FamilyName, FontFamily, FontStyle, FontWeight, GenericFamily, ParagraphStyle, TextStyle, TextWrapping,
+};
+use parley::{FontFamilyName, LineHeight, OverflowWrap, RangedBuilder, StyleProperty, TextWrapMode};
 use std::borrow::Cow;
 
-pub(crate) fn push(builder: &mut RangedBuilder<'_, ()>, style: &TextStyle, default_family: &FamilyName) {
+pub(crate) fn push(
+  builder: &mut RangedBuilder<'_, ()>,
+  style: &TextStyle,
+  paragraph: &ParagraphStyle,
+  default_family: &FamilyName,
+) {
   builder.push_default(StyleProperty::FontFamily(font_stack(&style.family, default_family)));
   builder.push_default(StyleProperty::FontSize(style.size));
   builder.push_default(StyleProperty::FontWeight(weight(style.weight)));
   builder.push_default(StyleProperty::FontStyle(font_style(style.style)));
-  builder.push_default(StyleProperty::LineHeight(line_height(style.line_height)));
+  builder.push_default(StyleProperty::LineHeight(line_height(paragraph.line_height)));
+  let (mode, overflow) = wrap(paragraph.wrapping);
+  builder.push_default(StyleProperty::TextWrapMode(mode));
+  builder.push_default(StyleProperty::OverflowWrap(overflow));
 }
 
 fn font_stack(family: &FontFamily, default_family: &FamilyName) -> parley::FontFamily<'static> {
@@ -51,6 +61,14 @@ fn font_style(style: FontStyle) -> parley::FontStyle {
     FontStyle::Normal => parley::FontStyle::Normal,
     FontStyle::Italic => parley::FontStyle::Italic,
     FontStyle::Oblique => parley::FontStyle::Oblique(None),
+  }
+}
+
+fn wrap(wrapping: TextWrapping) -> (TextWrapMode, OverflowWrap) {
+  match wrapping {
+    TextWrapping::NoWrap => (TextWrapMode::NoWrap, OverflowWrap::Normal),
+    TextWrapping::Wrap => (TextWrapMode::Wrap, OverflowWrap::Anywhere),
+    TextWrapping::WrapWithOverflow => (TextWrapMode::Wrap, OverflowWrap::Normal),
   }
 }
 
@@ -109,6 +127,17 @@ mod tests {
     assert_eq!(font_style(FontStyle::Normal), parley::FontStyle::Normal);
     assert_eq!(font_style(FontStyle::Italic), parley::FontStyle::Italic);
     assert_eq!(font_style(FontStyle::Oblique), parley::FontStyle::Oblique(None));
+  }
+
+  // Each wrapping mode becomes parley's wrap mode and overflow rule.
+  #[test]
+  fn wrapping_maps_to_parley() {
+    assert_eq!(wrap(TextWrapping::NoWrap), (TextWrapMode::NoWrap, OverflowWrap::Normal));
+    assert_eq!(wrap(TextWrapping::Wrap), (TextWrapMode::Wrap, OverflowWrap::Anywhere));
+    assert_eq!(
+      wrap(TextWrapping::WrapWithOverflow),
+      (TextWrapMode::Wrap, OverflowWrap::Normal)
+    );
   }
 
   // A line height above 0 is an absolute distance; none, or one that isn't finite or above 0, is

@@ -1,19 +1,21 @@
 //! The values text is shaped from and into, and the engine that shapes it.
 //!
-//! A control describes its text with a [`TextStyle`] and [`TextLimits`], asks a [`TextEngine`] for
-//! the [`Paragraph`] they make while it's measured, and draws that paragraph when it renders.
+//! A control describes its text with a [`TextStyle`], a [`ParagraphStyle`] and [`TextLimits`], asks a
+//! [`TextEngine`] for the [`Paragraph`] they make while it's measured, and draws that paragraph when
+//! it renders.
 
 mod font;
 mod paragraph;
+mod paragraph_style;
 
 pub use font::{
   FamilyName, FamilyProblem, FontFamily, FontStyle, FontWeight, GenericFamily, ParseFontFamilyError, ParseFontWeightError,
   WeightProblem,
 };
 pub use paragraph::{FontData, Glyph, GlyphRun, Line, Paragraph, Synthesis};
-use std::num::NonZeroU32;
+pub use paragraph_style::{ParagraphStyle, TextAlignment, TextTrimming, TextWrapping};
 
-/// What text is shaped in: its font and its line spacing.
+/// How the characters look: their font.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextStyle {
   /// The families to find the font in, in order.
@@ -24,13 +26,10 @@ pub struct TextStyle {
   pub weight: FontWeight,
   /// Upright or slanted.
   pub style: FontStyle,
-  /// The distance from one line's top to the next one's, in logical pixels, or `None` for the
-  /// font's own line spacing.
-  pub line_height: Option<f32>,
 }
 
 impl TextStyle {
-  /// `family` at `size`, with normal weight and style and the font's own line spacing.
+  /// `family` at `size`, with normal weight and style.
   #[must_use]
   pub fn new(family: FontFamily, size: f32) -> TextStyle {
     TextStyle {
@@ -38,33 +37,33 @@ impl TextStyle {
       size,
       weight: FontWeight::NORMAL,
       style: FontStyle::Normal,
-      line_height: None,
     }
   }
 }
 
-/// How much room text may take: a width to wrap at and a number of lines to keep.
+/// How much room layout gives a paragraph.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct TextLimits {
-  /// The width lines break at, or `None` to break only at hard line breaks.
+  /// The width lines break at and trimmed lines fit, or `None` for no limit. Whether lines break
+  /// at it is [`ParagraphStyle::wrapping`]'s choice.
   pub max_width: Option<f32>,
-  /// The number of lines kept, or `None` to keep every line.
-  pub max_lines: Option<NonZeroU32>,
+  /// The height the kept lines fit, or `None` for no limit. The first line is always kept.
+  pub max_height: Option<f32>,
 }
 
 impl TextLimits {
-  /// No limits: lines break only at hard line breaks, and every line is kept.
+  /// No limits.
   pub const NONE: TextLimits = TextLimits {
     max_width: None,
-    max_lines: None,
+    max_height: None,
   };
 
-  /// Lines break to fit `width`, and every line is kept.
+  /// A limit on the width only.
   #[must_use]
-  pub const fn wrap(width: f32) -> TextLimits {
+  pub const fn width(width: f32) -> TextLimits {
     TextLimits {
       max_width: Some(width),
-      max_lines: None,
+      max_height: None,
     }
   }
 }
@@ -74,11 +73,11 @@ impl TextLimits {
 /// Layout holds it as `&mut dyn TextEngine` and lends it to the controls it measures and
 /// arranges. It runs on the UI thread, so it needn't be `Send`.
 pub trait TextEngine {
-  /// Shapes `text` in `style` and breaks it into lines within `limits`.
+  /// Shapes `text` in `style`, and lays it out as `paragraph` says within `limits`.
   ///
   /// It never fails: text it can't shape, such as a size that isn't above 0, gives an empty
   /// paragraph.
-  fn paragraph(&mut self, text: &str, style: &TextStyle, limits: TextLimits) -> Paragraph;
+  fn paragraph(&mut self, text: &str, style: &TextStyle, paragraph: &ParagraphStyle, limits: TextLimits) -> Paragraph;
 }
 
 #[cfg(test)]
@@ -95,34 +94,33 @@ mod tests {
   }
 
   impl TextEngine for Squares {
-    fn paragraph(&mut self, text: &str, style: &TextStyle, limits: TextLimits) -> Paragraph {
+    fn paragraph(&mut self, text: &str, style: &TextStyle, _paragraph: &ParagraphStyle, limits: TextLimits) -> Paragraph {
       self.asked.push((text.to_owned(), limits));
       Paragraph::new(Size::new(text.chars().count() as f32 * style.size, style.size), [], [])
     }
   }
 
-  // `wrap` sets only the width, and `NONE`, the default, sets nothing.
+  // `width` sets only the width, and `NONE`, the default, sets nothing.
   #[test]
-  fn text_limits_wrap_and_none() {
+  fn text_limits_width_and_none() {
     assert_eq!(
-      TextLimits::wrap(200.0),
+      TextLimits::width(200.0),
       TextLimits {
         max_width: Some(200.0),
-        max_lines: None,
+        max_height: None,
       }
     );
     assert_eq!(
       TextLimits::NONE,
       TextLimits {
         max_width: None,
-        max_lines: None,
+        max_height: None,
       }
     );
     assert_eq!(TextLimits::default(), TextLimits::NONE);
   }
 
-  // `TextStyle::new` takes the family and size, with normal weight and style and the font's own
-  // line spacing.
+  // `TextStyle::new` takes the family and size, with normal weight and style.
   #[test]
   fn text_style_new_has_normal_weight_and_style() {
     let style = TextStyle::new(FontFamily::default(), 14.0);
@@ -130,7 +128,6 @@ mod tests {
     assert_eq!(style.size, 14.0);
     assert_eq!(style.weight, FontWeight::NORMAL);
     assert_eq!(style.style, FontStyle::Normal);
-    assert_eq!(style.line_height, None);
   }
 
   // An engine is reached through `&mut dyn TextEngine`, as layout holds it, and gets the text and
@@ -140,9 +137,14 @@ mod tests {
     let mut squares = Squares::default();
     let engine: &mut dyn TextEngine = &mut squares;
 
-    let paragraph = engine.paragraph("abc", &TextStyle::new(FontFamily::default(), 10.0), TextLimits::wrap(25.0));
+    let paragraph = engine.paragraph(
+      "abc",
+      &TextStyle::new(FontFamily::default(), 10.0),
+      &ParagraphStyle::default(),
+      TextLimits::width(25.0),
+    );
 
     assert_eq!(paragraph.size(), Size::new(30.0, 10.0));
-    assert_eq!(squares.asked, [(String::from("abc"), TextLimits::wrap(25.0))]);
+    assert_eq!(squares.asked, [(String::from("abc"), TextLimits::width(25.0))]);
   }
 }

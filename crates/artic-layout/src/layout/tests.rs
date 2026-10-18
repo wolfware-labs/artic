@@ -1122,7 +1122,7 @@ mod collapsed {
   }
 }
 
-use crate::text::{FontFamily, Paragraph, TextEngine, TextLimits, TextStyle};
+use crate::text::{FontFamily, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
 
 /// A text engine that records the text it's asked to shape and answers with an empty paragraph.
 #[derive(Debug, Default)]
@@ -1131,19 +1131,20 @@ struct Recorder {
 }
 
 impl TextEngine for Recorder {
-  fn paragraph(&mut self, text: &str, _style: &TextStyle, _limits: TextLimits) -> Paragraph {
+  fn paragraph(&mut self, text: &str, _style: &TextStyle, _paragraph: &ParagraphStyle, _limits: TextLimits) -> Paragraph {
     self.asked.push(text.to_owned());
     Paragraph::default()
   }
 }
 
 /// A test leaf, 50 by 10, that shapes "measure" in its measure and "arrange" in its arrange, keeps
-/// the results it's told to, and notes what its arrange read back.
+/// the results it's told to, and notes what its arrange read back of each.
 #[derive(Debug, Default)]
 struct Shaper {
   measured: Cell<Option<u32>>,
   arranged: Cell<Option<u32>>,
   read: Cell<Option<u32>>,
+  read_measured: Cell<Option<u32>>,
   twice: Cell<bool>,
   collapsed: Cell<bool>,
 }
@@ -1154,8 +1155,12 @@ impl Object for Shaper {
 
 impl Layoutable for Shaper {
   fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {
-    cx.text()
-      .paragraph("measure", &TextStyle::new(FontFamily::default(), 16.0), TextLimits::NONE);
+    cx.text().paragraph(
+      "measure",
+      &TextStyle::new(FontFamily::default(), 16.0),
+      &ParagraphStyle::default(),
+      TextLimits::NONE,
+    );
     if let Some(result) = self.measured.get() {
       if self.twice.get() {
         cx.set_measured(9_u32);
@@ -1166,9 +1171,14 @@ impl Layoutable for Shaper {
   }
 
   fn arrange(&self, cx: &mut ArrangeCx<'_>, _rect: Rect) {
-    cx.text()
-      .paragraph("arrange", &TextStyle::new(FontFamily::default(), 16.0), TextLimits::NONE);
+    cx.text().paragraph(
+      "arrange",
+      &TextStyle::new(FontFamily::default(), 16.0),
+      &ParagraphStyle::default(),
+      TextLimits::NONE,
+    );
     self.read.set(cx.arranged::<u32>().copied());
+    self.read_measured.set(cx.measured::<u32>().copied());
     if let Some(result) = self.arranged.get() {
       cx.set_arranged(result);
     }
@@ -1281,6 +1291,17 @@ fn measured_result_is_kept_with_the_size() {
 
   assert_eq!(result(&layout, node), Some(1));
   assert_eq!(layout.desired(node), Some(Size::new(50.0, 10.0)));
+}
+
+// Arrange reads back what the node's measure kept.
+#[test]
+fn arrange_reads_the_measured_result() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+
+  lay_out(&mut LayoutManager::default(), &mut tree, holder, WINDOW);
+
+  assert_eq!(shaper(&tree, node).read_measured.get(), Some(1));
 }
 
 // A measure answered from the cache doesn't run, so the result it set before stays.

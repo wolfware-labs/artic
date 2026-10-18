@@ -6,7 +6,7 @@ use artic_core::Object;
 use artic_core::property::AnyProperty;
 use artic_core::tree::{NodeId, UiTree};
 use artic_layout::geometry::{CornerRadius, FillRule, Path, Point, Rect, RelativePoint, RelativeScalar, RoundedRect};
-use artic_layout::text::{FontFamily, TextEngine, TextLimits, TextStyle};
+use artic_layout::text::{FontFamily, ParagraphStyle, TextEngine, TextLimits, TextStyle, TextWrapping};
 use artic_render::{
   BoxShadow, Color, Compositor, GradientStop, Layers, LineJoin, LinearGradientBrush, Nodes, PhysicalSize, RadialGradientBrush,
   Scene, SceneBuilder, Stroke,
@@ -117,7 +117,12 @@ pub fn nested_opacity() -> Scene {
 /// "Text" in the test font at 20 px, in solid blue.
 #[must_use]
 pub fn text_solid() -> Scene {
-  let paragraph = engine().paragraph("Text", &TextStyle::new(FontFamily::default(), 20.0), TextLimits::NONE);
+  let paragraph = engine().paragraph(
+    "Text",
+    &TextStyle::new(FontFamily::default(), 20.0),
+    &ParagraphStyle::default(),
+    TextLimits::NONE,
+  );
   scene(|builder| builder.text(&paragraph, Point::new(4.0, 4.0), BLUE))
 }
 
@@ -125,7 +130,7 @@ pub fn text_solid() -> Scene {
 #[must_use]
 pub fn text_gradient() -> Scene {
   let style = TextStyle::new(FontFamily::default(), 16.0);
-  let paragraph = engine().paragraph("Grad ient", &style, TextLimits::wrap(56.0));
+  let paragraph = engine().paragraph("Grad ient", &style, &overflowing(), TextLimits::width(56.0));
   scene(|builder| builder.text(&paragraph, Point::new(4.0, 4.0), gradient()))
 }
 
@@ -133,8 +138,15 @@ pub fn text_gradient() -> Scene {
 #[must_use]
 pub fn text_wrapped() -> Scene {
   let style = TextStyle::new(FontFamily::default(), 12.0);
-  let paragraph = engine().paragraph("Wrapped to the width", &style, TextLimits::wrap(56.0));
+  let paragraph = engine().paragraph("Wrapped to the width", &style, &overflowing(), TextLimits::width(56.0));
   scene(|builder| builder.text(&paragraph, Point::new(4.0, 4.0), Color::rgb(51, 65, 85)))
+}
+
+fn overflowing() -> ParagraphStyle {
+  ParagraphStyle {
+    wrapping: TextWrapping::WrapWithOverflow,
+    ..ParagraphStyle::default()
+  }
 }
 
 fn gradient() -> LinearGradientBrush {
