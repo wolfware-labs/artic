@@ -17,10 +17,12 @@ Some of the contract is built and some comes with XAML's back ends. Each section
 
 ## 1. Two paths
 
+**The registry both paths read is built. XAML's two back ends aren't yet: the compiler comes with #49 and the runtime loader with #57.**
+
 A language interprets its source when the app runs, or generates Rust when the app builds. Both build the same tree.
 
-- **At run time** the language reads the registry: it looks types and properties up by name and calls the function pointers in their descriptors. XAML's runtime loader works this way, for hot reload and the `runtime-xaml` feature.
-- **At build time** the language reads the registry while it generates code, and the code calls the types directly, such as `Border::default()` and `border.padding.set(...)`. Nothing is looked up when the app runs. XAML's compiler works this way, from the app's `build.rs`.
+- **At run time** the language reads the registry: it looks types and properties up by name and calls the function pointers in their descriptors. XAML's runtime loader will work this way, for hot reload and the `runtime-xaml` feature.
+- **At build time** the language reads the registry while it generates code, and the code calls the types directly, such as `Border::default()` and `border.padding.set(...)`. Nothing is looked up when the app runs. XAML's compiler will work this way, from the app's `build.rs`.
 
 `build.rs` is a separate program, and its registry holds only the crates it links. A build-time language lists the crates it reaches as build-dependencies and names each one, as [Finding types](#2-finding-types) explains.
 
@@ -47,7 +49,7 @@ assert!(matches!(registry.type_by_name("artic_controls", "Gauge"), Lookup::Missi
 - A type's namespace is its crate: `TypeInfo::namespace()` returns the first segment of `TypeInfo::rust_path`. Nothing declares it. A dependency renamed in `Cargo.toml` keeps its crate's own name here.
 - `rust_path` is where the type is defined, such as `artic_controls::border::Border`, never a path it's re-exported under.
 - Names are exact and case-sensitive.
-- Two types of one crate may share a name in different modules. `type_by_name` then returns `Lookup::Ambiguous` with both, sorted by Rust path, and the language reports it so the author can name the type by path. Only a Rust path registered twice makes `Registry::from_link_time` fail.
+- Two types of one crate may share a name in different modules. `type_by_name` then returns `Lookup::Ambiguous` with both, sorted by Rust path, and the language reports it so the author can name the type by path. Only these make `Registry::from_link_time` fail, each reported as a `Duplicate`: a Rust path registered twice, a type with two properties of one name (counting the groups it embeds), and an owner that declares one attached property twice.
 - The registry holds only the crates the binary links. A crate the app depends on but never names is dropped before linking. A language that finds nothing in a crate it expected says so and suggests `use that_crate as _;`, written with the name the app's `Cargo.toml` gives the dependency.
 
 How a language spells a namespace is its own business. XAML maps URIs to crates and reaches modules with `using:` ([XAML's mapping](#11-xamls-mapping)).
@@ -95,7 +97,7 @@ A value reaches a property in one of four forms:
 
 - **Text**, parsed with the value type's `FromStr`. A failure is `ValueError::Parse`, carrying the type's own message.
 - **An object** of a type that is itself a `UiType`, such as a brush: built as a node, then converted into the property's type ([value objects](../design/value-objects.md)).
-- **A child node**, for a property that holds one, such as `Border`'s child.
+- **A child node**, for a property whose type is `NodeId`, or `Option<NodeId>`, filled in by the node written inside it.
 - **Null**, for a property whose type is `Option<T>`. Any other refuses it with `ValueError::NotNullable`.
 
 The derive refuses, at compile time, a property whose type takes none of these.
@@ -125,9 +127,9 @@ The value lives on the target node, which creates it on first use under the owne
 
 Children or text that a language gives a type without naming a property go to its content, `TypeInfo::content`:
 
-- `ContentInfo::Property`: a property takes it, such as `Border`'s child or `TextBlock`'s text, set like any property.
-- `ContentInfo::Collection`: a field takes child nodes in order through `add_child`, which calls the field's `UiCollection::push_child`. A panel's children are the usual case.
-- `None`: the type takes no content, and the language reports any as an error.
+- `ContentInfo::Property`: a property takes it, set like any property, such as a content control's `Content` once one is built.
+- `ContentInfo::Collection`: a field takes child nodes in order through `add_child`, which calls the field's `UiCollection::push_child`: a panel's `Children`, or a `Child` field such as `Border`'s, which takes one.
+- `None`: the type takes no content, and the language reports any as an error. `TextBlock` is one for now: its `Text` is an ordinary property, and its inline runs (#47) will be its content.
 
 ```rust
 # use artic_controls as _;
@@ -135,6 +137,12 @@ Children or text that a language gives a type without naming a property go to it
 # let registry = Registry::from_link_time().unwrap();
 let panel = registry.type_by_name("artic_controls", "StackPanel").found().unwrap();
 assert!(matches!(panel.content, Some(ContentInfo::Collection { .. })));
+
+let border = registry.type_by_name("artic_controls", "Border").found().unwrap();
+assert!(matches!(border.content, Some(ContentInfo::Collection { .. })));
+
+let text = registry.type_by_name("artic_controls", "TextBlock").found().unwrap();
+assert!(text.content.is_none());
 ```
 
 Text follows `TypeInfo::whitespace`. With `Collapse`, runs of whitespace become one space and leading and trailing whitespace is dropped; with `Significant`, text stays as written. The language applies it; XAML's rules are in [spec §4](technical_spec.md#whitespace).
@@ -151,9 +159,11 @@ A child the tree can't link is `ValueError::InvalidChild`, a second child where 
 
 **The descriptors are built. Resolving a value provider comes with the runtime loader and the compiler.**
 
-A value provider computes a property's value when the UI is built: a binding, a resource lookup, a type reference, a static item, or null. Its type declares its arguments with `#[ui(value_provider(positional(...)))]`, and `TypeInfo::value_provider` holds them as `ValueProviderInfo`: the positional arguments in order, then the named ones. A markup language writes one inline, as XAML's `{Binding Name, Mode=TwoWay}`; a code language calls it like a function. Resolving one gives one of the four forms in [Properties](#4-properties).
+A value provider computes a property's value when the UI is built: a binding, a resource lookup, a type reference, a static item, or null. Its type declares its arguments with `#[ui(value_provider(positional(...)))]`, and `TypeInfo::value_provider` holds them as `ValueProviderInfo`: `named` lists every argument, each a property of the type, and `positional` lists, in order, those that may also be given by position. A markup language writes one inline, as XAML's `{Binding Name, Mode=TwoWay}`; a code language calls it like a function. Resolving one gives one of the four forms in [Properties](#4-properties).
 
 ## 9. Language features
+
+**Planned, with the XAML compiler (#49) and `#[ui_class]` (#52).**
 
 These aren't in the registry. A language offers them in its own syntax, with these meanings:
 
@@ -164,8 +174,11 @@ These aren't in the registry. A language offers them in its own syntax, with the
 | Code type | The Rust type that holds a view's handlers and named nodes, marked `#[ui_class]` | `x:Class` |
 | Data type | The type compiled bindings are checked against | `x:DataType` |
 | Typed literals | A primitive value written with its type | `x:String`, `x:Int32`, `x:Double`, `x:Boolean` |
+| Field visibility | The visibility of the field generated for a named node | `x:FieldModifier` (`x:Uid` is accepted and has no meaning yet) |
 
 ## 10. Errors
+
+**`Lookup` and `ValueError` are built; positions come with each back end.**
 
 A language reports each of these at its location in the source:
 
@@ -178,6 +191,8 @@ A language reports each of these at its location in the source:
 `ValueError` carries no position; the language adds it. A build-time language reports these as errors from `build.rs`; a run-time one returns them to the app.
 
 ## 11. XAML's mapping
+
+**The parser and the namespace map are built; the back ends that use this mapping are planned (#49, #57).**
 
 Each construct [spec §4](technical_spec.md#supported) supports, and the section it uses:
 
@@ -194,7 +209,7 @@ Each construct [spec §4](technical_spec.md#supported) supports, and the section
 | Event, `Click="on_click"` | [7](#7-events) |
 | `x:Name`, `x:Key`, `x:Class`, `x:DataType`, primitives | [9](#9-language-features) |
 | `x:Type`, `x:Static`, `x:Null` | [8](#8-value-providers): a type reference, a `#[ui_static]` item, null |
-| `x:Uid`, `x:FieldModifier` | [9](#9-language-features): accepted; no meaning beyond a generated field's visibility |
+| `x:Uid`, `x:FieldModifier` | [9](#9-language-features), field visibility |
 | XML comments, CDATA, `xml:space` | [6](#6-content-and-children) for whitespace; the rest is XAML syntax with nothing to map |
 
 XAML spells namespaces as URIs. `NamespaceMap` in `artic-xaml` says which crates a URI stands for: `artic::xaml::namespaces()` maps `https://artic.rs/ui` to `artic_element` and `artic_controls`, and an app adds its own URIs with `NamespaceMap::alias`. `using:my_crate::views` joins the module and the name into a Rust path, `my_crate::views::Gauge`, for `Registry::type_by_rust_path`. `https://artic.rs/markup` holds XAML's own `x:` directives.

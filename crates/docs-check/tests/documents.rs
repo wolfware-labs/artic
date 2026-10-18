@@ -41,17 +41,44 @@ fn every_fence_names_a_language() {
   let mut untagged = Vec::new();
   for file in markdown_files() {
     let text = std::fs::read_to_string(repository().join(&file)).expect("document reads");
-    let mut open = false;
-    for (index, line) in text.lines().enumerate() {
-      let Some(info) = line.trim_start().strip_prefix("```") else {
-        continue;
-      };
-      if !open && info.trim().is_empty() {
-        untagged.push(format!("{file}:{}", index + 1));
-      }
-      open = !open;
-    }
+    untagged.extend(untagged_fences(&text).into_iter().map(|line| format!("{file}:{line}")));
   }
 
   assert!(untagged.is_empty(), "give these fences a language: {untagged:?}");
+}
+
+// Tildes, longer runs and quoted fences open blocks too, and only a run as long closes one.
+#[test]
+fn untagged_fences_follow_commonmark_runs() {
+  let text = "~~~~\n```\n~~~~\n> ```\n> x\n> ```\n````rust\n```\n````\n```text\n```\n";
+
+  assert_eq!(untagged_fences(text), [1, 4]);
+}
+
+/// The 1-based lines of the opening fences that name no language.
+fn untagged_fences(text: &str) -> Vec<usize> {
+  let mut untagged = Vec::new();
+  let mut open: Option<(char, usize)> = None;
+  for (index, line) in text.lines().enumerate() {
+    let line = line.trim_start().trim_start_matches('>').trim_start();
+    let Some(marker) = line.chars().next().filter(|marker| *marker == '`' || *marker == '~') else {
+      continue;
+    };
+    let run = line.chars().take_while(|character| *character == marker).count();
+    if run < 3 {
+      continue;
+    }
+    let info = line[run..].trim();
+    match open {
+      None => {
+        if info.is_empty() {
+          untagged.push(index + 1);
+        }
+        open = Some((marker, run));
+      }
+      Some((open_marker, open_run)) if marker == open_marker && run >= open_run && info.is_empty() => open = None,
+      Some(_) => {}
+    }
+  }
+  untagged
 }
