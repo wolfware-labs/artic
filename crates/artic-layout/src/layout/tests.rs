@@ -1521,3 +1521,32 @@ fn invalidated_arrange_drops_the_arranged_result() {
   assert_eq!(result(&layout, node), None);
   assert_eq!(stats.results, [node]);
 }
+
+// A result dropped with its slot is reported too, whichever way the slot goes: the node leaving
+// the tree, its parent no longer measuring it, or a collapsed root clearing everything.
+#[test]
+fn results_dropped_with_their_slot_are_reported() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+  shaper(&tree, node).collapsed.set(true);
+  LayoutManager::invalidate_measure(&mut tree, holder);
+  assert_eq!(lay_out(&mut layout, &mut tree, holder, WINDOW).results, [node]);
+
+  let mut tree = UiTree::new();
+  let root = tree.alloc(Box::<Shaper>::default());
+  shaper(&tree, root).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, root, WINDOW);
+  shaper(&tree, root).collapsed.set(true);
+  assert_eq!(lay_out(&mut layout, &mut tree, root, WINDOW).results, [root]);
+
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+  tree.detach(TreeKind::Visual, node);
+  LayoutManager::invalidate_measure(&mut tree, holder);
+  assert_eq!(lay_out(&mut layout, &mut tree, holder, WINDOW).results, [node]);
+}

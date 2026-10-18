@@ -98,10 +98,27 @@ impl Results {
     }
   }
 
-  /// Drops `node`'s results, as its slot goes.
+  /// Drops `node`'s results, as its slot goes, and notes the node if it had one.
   fn forget(&mut self, node: NodeId) {
-    self.measured.remove(&node);
-    self.arranged.remove(&node);
+    let measured = self.measured.remove(&node).is_some();
+    let arranged = self.arranged.remove(&node).is_some();
+    if measured || arranged {
+      self.changed(node);
+    }
+  }
+
+  /// Drops the results of every node `keep` turns down.
+  fn retain(&mut self, keep: impl Fn(NodeId) -> bool) {
+    let gone: Vec<NodeId> = self
+      .measured
+      .keys()
+      .chain(self.arranged.keys())
+      .copied()
+      .filter(|node| !keep(*node))
+      .collect();
+    for node in gone {
+      self.forget(node);
+    }
   }
 
   /// Hands over the nodes noted since the last call.
@@ -236,12 +253,10 @@ impl LayoutManager {
     }
     self.slots.retain(|node, _| depths.contains_key(node));
     self.sizes.retain(|node, _| depths.contains_key(node));
-    self.results.measured.retain(|node, _| depths.contains_key(node));
-    self.results.arranged.retain(|node, _| depths.contains_key(node));
+    self.results.retain(|node| depths.contains_key(&node));
     if collapsed(nodes, tree, root) {
       self.slots.clear();
-      self.results.measured.clear();
-      self.results.arranged.clear();
+      self.results.retain(|_| false);
       dirty.clear();
     }
 
