@@ -20,7 +20,7 @@ pub(crate) const UNSUPPORTED: &[Unsupported] = &[
   Unsupported {
     construct: "x:Code",
     reason: "views' logic is Rust, not inline code",
-    suggestion: "put the code in the view's `#[xaml_class]` struct",
+    suggestion: "put the code in the view's `#[ui_class]` struct",
   },
   Unsupported {
     construct: "x:Subclass",

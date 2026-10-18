@@ -666,7 +666,7 @@ fn unsupported_constructs_are_rejected() {
       "<Panel {}><x:Code/></Panel>",
       "x:Code",
       "views' logic is Rust, not inline code",
-      "put the code in the view's `#[xaml_class]` struct",
+      "put the code in the view's `#[ui_class]` struct",
     ),
     (
       r#"<Button {} Tag="{x:Reference other}"/>"#,

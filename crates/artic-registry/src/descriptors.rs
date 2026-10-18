@@ -46,7 +46,7 @@ pub enum Whitespace {
 /// A Rust type that UI languages can name, described by a [`TypeInfo`].
 ///
 /// `#[derive(UiType)]` implements it. A type that implements it can also be the value of a
-/// property, as an object element.
+/// property, written as an object rather than as text.
 pub trait UiType {
   /// The type's registry descriptor.
   const TYPE_INFO: &'static TypeInfo;
@@ -58,7 +58,10 @@ impl TypeInfo {
   /// namespace and name, or by Rust path.
   #[must_use]
   pub fn namespace(&self) -> &'static str {
-    self.rust_path.split("::").next().unwrap_or(self.rust_path)
+    self
+      .rust_path
+      .split_once("::")
+      .map_or(self.rust_path, |(crate_name, _)| crate_name)
   }
 
   /// The type's property named `name`: one of its own, or one from a group it embeds.

@@ -24,9 +24,10 @@ use syn::{DeriveInput, parse_macro_input};
 ///   of an element of this type, `target = any` anywhere. The value type is checked like a
 ///   property's. `inherits` or `inherits = f` works as on a property: a node that holds it follows
 ///   its nearest logical ancestor that does, and one that doesn't reads that ancestor's value.
-/// - `value_provider`, or `value_provider(positional(key, ...))`: the type is a markup
-///   extension like `{Localize greeting}`. Every property is a named argument; `positional` lists,
-///   in order, the properties also set by position.
+/// - `value_provider`, or `value_provider(positional(key, ...))`: the type is a value provider:
+///   it computes a property's value when the UI is built, such as a localized string. Every
+///   property is a named argument; `positional` lists, in order, the properties also set by
+///   position.
 ///
 /// # Fields
 ///

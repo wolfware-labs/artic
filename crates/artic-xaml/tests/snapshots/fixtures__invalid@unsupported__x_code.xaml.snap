@@ -6,4 +6,4 @@ input_file: crates/artic-xaml/tests/fixtures/invalid/unsupported/x_code.xaml
 invalid/unsupported/x_code.xaml:2:4: error: `x:Code` isn't supported: views' logic is Rust, not inline code
 2 |   <x:Code/>
   |    ^^^^^^
-help: put the code in the view's `#[xaml_class]` struct
+help: put the code in the view's `#[ui_class]` struct

@@ -21,6 +21,27 @@ pub fn namespaces() -> NamespaceMap {
 mod tests {
   use super::*;
 
+  // Each crate artic's URI names is the namespace of a real UI type, so renaming or splitting a
+  // crate can't leave the map pointing at nothing.
+  #[test]
+  fn artic_uri_names_real_namespaces() {
+    use artic_registry::UiType;
+
+    let map = namespaces();
+    let crates = map.crates(ARTIC_UI).expect("artic's URI");
+
+    assert!(
+      crates
+        .iter()
+        .any(|name| name == <artic_controls::Border as UiType>::TYPE_INFO.namespace())
+    );
+    assert!(
+      crates
+        .iter()
+        .any(|name| name == <artic_element::Surface as UiType>::TYPE_INFO.namespace())
+    );
+  }
+
   // artic's URI stands for the crates that define its UI types, the same each time.
   #[test]
   fn facade_maps_the_artic_uri() {

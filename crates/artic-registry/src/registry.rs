@@ -90,6 +90,9 @@ impl Registry {
         }
       }
     }
+    for types in registry.by_name.values_mut().flat_map(HashMap::values_mut) {
+      types.sort_by_key(|info| info.rust_path);
+    }
     if duplicates.is_empty() {
       Ok(registry)
     } else {
@@ -219,7 +222,6 @@ mod tests {
   }
 
   static BUTTON: TypeInfo = info("Button", "artic_controls::Button");
-  static APP_BUTTON: TypeInfo = info("Button", "app::Button");
   static GAUGE: TypeInfo = info("Gauge", "app::views::Gauge");
   static GRID: TypeInfo = TypeInfo {
     attached_properties: &[AttachedPropertyInfo {
@@ -263,6 +265,22 @@ mod tests {
       registry.type_by_rust_path("my_app::settings::Page").unwrap(),
       &SETTINGS_PAGE
     ));
+  }
+
+  // An ambiguous name lists its types sorted by Rust path, whatever order they came in, so a
+  // report reads the same in every build.
+  #[test]
+  fn ambiguous_types_are_sorted_by_rust_path() {
+    let forward = Registry::from_types(&[&HOME_PAGE, &SETTINGS_PAGE]).expect("not a duplicate");
+    let backward = Registry::from_types(&[&SETTINGS_PAGE, &HOME_PAGE]).expect("not a duplicate");
+
+    for registry in [forward, backward] {
+      let Lookup::Ambiguous(found) = registry.type_by_name("my_app", "Page") else {
+        panic!("expected ambiguity");
+      };
+      let paths = found.iter().map(|info| info.rust_path).collect::<Vec<_>>();
+      assert_eq!(paths, ["my_app::home::Page", "my_app::settings::Page"]);
+    }
   }
 
   // The same Rust path registered twice is still an error.
@@ -347,8 +365,8 @@ mod tests {
       ..info("Grid", "artic_controls::Grid")
     };
 
-    let forward = Registry::from_types(&[&GRID, &GRID_AGAIN, &APP_BUTTON, &BUTTON]).expect_err("duplicates");
-    let backward = Registry::from_types(&[&BUTTON, &APP_BUTTON, &GRID_AGAIN, &GRID]).expect_err("duplicates");
+    let forward = Registry::from_types(&[&GRID, &GRID_AGAIN, &BUTTON]).expect_err("duplicates");
+    let backward = Registry::from_types(&[&BUTTON, &GRID_AGAIN, &GRID]).expect_err("duplicates");
 
     assert_eq!(forward, backward);
     assert_eq!(
