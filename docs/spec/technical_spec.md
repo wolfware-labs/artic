@@ -461,7 +461,7 @@ WPF two-pass measure/arrange with these rules:
 
 | Control | Composed of | Template parts (`PART_*`) | Notes |
 | --- | --- | --- | --- |
-| `TextBlock` | groups | — | `Text`, `Inlines` (Run, Bold, Italic), wrapping, trimming |
+| `TextBlock` | groups | — | `Text`, `Inlines` (Run, Bold, Italic), `TextWrapping`, `TextTrimming`, `TextAlignment`, `MaxLines`, `LineHeight`; the font and `Foreground` are `TextElement`'s inherited attached properties (`TextElement.FontFamily`, `.FontSize`, `.FontWeight`, `.FontStyle`, `.Foreground`), which a `TextBlock` can also set as its own |
 | `Image` | groups | — | `Source` (path/bytes), `Stretch` |
 | `Border` | groups | — | child, padding, background, border brush/thickness, corner radius, `BoxShadow` |
 | `ContentPresenter` | groups + content | — | resolves `Content` to text, node, or `DataTemplate` |
@@ -736,7 +736,7 @@ Accessibility, text editing, and input are cross-cutting: every control implemen
 ### Text
 
 - Fonts: `FontFamily` accepts a list (`"Inter, Segoe UI, sans-serif"`); resolution through `fontique`, falling back to the engine's default family (`system-ui`, which `fontique` maps per platform); app fonts bundled via `Source="crate://…"`.
-- `TextBlock`: shaping, bidi, line breaking (UAX #14), `TextWrapping`, `TextTrimming`, `MaxLines`, `LineHeight`, inline runs with per-run brush/weight/style.
+- `TextBlock`: shaping, bidi, line breaking (UAX #14), `TextWrapping`, `TextTrimming`, `TextAlignment`, `MaxLines`, `LineHeight`, inline runs with per-run brush/weight/style. The font and `Foreground` inherit down the logical tree through `TextElement`'s attached properties.
 - `TextBox` editing model: `TextEditor` service (in `artic-core::text`) owns the rope-like buffer, selection, undo/redo, and word/line navigation; `TextBox` is a thin control over it. Grapheme-cluster cursor movement, `Ctrl/Alt+Arrow` word jumps, platform shortcut mapping (`Cmd` on Apple).
 - IME: composition events (`ImeStart/Update/Commit`) from the platform draw the preedit inline with underline styling; the control reports the cursor rect through `set_ime` so candidate windows and the mobile keyboard position correctly. `InputMode` (`Text`, `Numeric`, `Decimal`, `Tel`, `Email`, `Url`, `Search`, as HTML `inputmode`) maps to keyboard types on mobile.
 - Clipboard: plain text in v1; rich text v2. Reading is async so a web host can implement it (D24).

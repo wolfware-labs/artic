@@ -68,7 +68,7 @@ Settings are shared through mechanisms artic already has:
 | A group of settings for some surfaces | a `Style` on `Surface` whose setters name the attached properties, grouped by role (`ToolSurface`), not by platform |
 | One surface differs | a local value on that surface |
 
-Precedence is the usual one, `Local > Binding > StyleSetter > Inherited > Default`, so there are no merge rules of its own. Settings stay typed: the XAML compiler checks `Desktop.Chrome` and the LSP completes it. Attached properties can't inherit today (`artic-macros` rejects `inherits` on `attached`); #48 adds it, since the family owners need it.
+Precedence is the usual one, `Local > Binding > StyleSetter > Inherited > Default`, so there are no merge rules of its own. Settings stay typed: the XAML compiler checks `Desktop.Chrome` and the LSP completes it. Attached properties inherit through `inherits` on `attached`, which #48 added for the family owners.
 
 ## 4. Lifecycle
 
