@@ -11,31 +11,31 @@
 //! 0, and in a right-to-left one every line's span ends at the paragraph's width, whatever
 //! direction the line's own text runs: the paragraph's direction is its first strong character's.
 
-use crate::shaped::{Shaped, ShapedLine};
-use crate::shaper::Shaper;
+use crate::candidates::Candidates;
+use crate::draft::{Draft, DraftLine};
 use crate::trim;
 use artic_layout::geometry::Size;
 use artic_layout::text::{Line, Paragraph, ParagraphStyle, TextAlignment, TextTrimming};
 
 pub(crate) fn paragraph(
   text: &str,
-  shaped: Shaped,
+  draft: Draft,
   style: &ParagraphStyle,
   max_width: Option<f32>,
-  shaper: &mut Shaper<'_>,
+  candidates: &mut Candidates<'_>,
 ) -> Paragraph {
-  let Shaped {
-    lines: mut shaped,
+  let Draft {
+    lines: mut drafts,
     right_to_left,
     limited_height,
-  } = shaped;
-  let height = shaped.iter().map(|line| line.height).sum::<f32>();
+  } = draft;
+  let height = drafts.iter().map(|line| line.height).sum::<f32>();
   if height <= 0.0 {
     return Paragraph::default();
   }
-  let lost = trim(text, &mut shaped, style.trimming, max_width, right_to_left, shaper);
-  let last = shaped.len() - 1;
-  let stretched = shaped
+  let lost = trim(text, &mut drafts, style.trimming, max_width, candidates);
+  let last = drafts.len() - 1;
+  let stretched = drafts
     .iter()
     .enumerate()
     .map(|(index, line)| {
@@ -47,15 +47,15 @@ pub(crate) fn paragraph(
         && max_width.is_some_and(|max| line.width() <= max)
     })
     .collect::<Vec<_>>();
-  let widest = shaped.iter().map(ShapedLine::width).fold(0.0, f32::max);
+  let widest = drafts.iter().map(DraftLine::width).fold(0.0, f32::max);
   let stretch_to = max_width.filter(|_| stretched.contains(&true));
   let width = stretch_to.map_or(widest, |max| max.max(widest));
-  let limited_width = lost || stretched.contains(&true) || shaped.iter().any(|line| line.soft_break);
+  let limited_width = lost || stretched.contains(&true) || drafts.iter().any(|line| line.soft_break);
   let factor = style.alignment.factor(right_to_left);
   let mut top = 0.0;
-  let mut lines = Vec::with_capacity(shaped.len());
+  let mut lines = Vec::with_capacity(drafts.len());
   let mut runs = Vec::new();
-  for (line, stretch) in shaped.into_iter().zip(stretched) {
+  for (line, stretch) in drafts.into_iter().zip(stretched) {
     let (line_width, gap) = match stretch_to {
       Some(max) if stretch => (max, (max - line.width()) / line.gaps as f32),
       _ => (line.width(), 0.0),
@@ -77,11 +77,10 @@ pub(crate) fn paragraph(
 
 fn trim(
   text: &str,
-  lines: &mut [ShapedLine],
+  lines: &mut [DraftLine],
   mode: TextTrimming,
   max_width: Option<f32>,
-  right_to_left: bool,
-  shaper: &mut Shaper<'_>,
+  candidates: &mut Candidates<'_>,
 ) -> bool {
   if mode == TextTrimming::None {
     return false;
@@ -95,7 +94,7 @@ fn trim(
       continue;
     }
     let limit = max_width.unwrap_or(f32::INFINITY);
-    if let Some(trimmed) = trim::trim_line(shaper, &text[line.text.start..line.hung], mode, limit, right_to_left) {
+    if let Some(trimmed) = trim::trim_line(candidates, &text[line.text.start..line.hung], mode, limit) {
       lost |= trimmed.lost;
       *line = std::mem::take(line).replaced_by(trimmed.line);
     }

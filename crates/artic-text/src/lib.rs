@@ -9,13 +9,14 @@
 //! without spaces, such as Thai, Lao, Khmer and Myanmar, with ICU's dictionaries. It adds about
 //! 3.6 MB to a release binary; without it, those scripts break only at spaces and hard line breaks.
 
+mod candidates;
+mod draft;
 mod engine;
 mod faces;
 mod lines;
 mod paragraph;
 mod properties;
-mod shaped;
-mod shaper;
+mod shaping;
 mod trim;
 
 pub use engine::Engine;

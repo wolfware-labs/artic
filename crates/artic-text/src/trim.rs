@@ -11,8 +11,8 @@
 //! than the best that would. [`trim_line`] shapes
 //! each candidate it tries once, and draws the one it picks.
 
-use crate::shaped::ShapedLine;
-use crate::shaper::Shaper;
+use crate::candidates::Candidates;
+use crate::draft::DraftLine;
 use artic_layout::text::TextTrimming;
 use std::collections::HashMap;
 use std::ops::Range;
@@ -28,32 +28,26 @@ pub(crate) struct Clusters {
 }
 
 pub(crate) struct Trimmed {
-  pub(crate) line: ShapedLine,
+  pub(crate) line: DraftLine,
   pub(crate) lost: bool,
 }
 
-pub(crate) fn trim_line(
-  shaper: &mut Shaper<'_>,
-  text: &str,
-  mode: TextTrimming,
-  max_width: f32,
-  right_to_left: bool,
-) -> Option<Trimmed> {
+pub(crate) fn trim_line(candidates: &mut Candidates<'_>, text: &str, mode: TextTrimming, max_width: f32) -> Option<Trimmed> {
   if mode == TextTrimming::None {
     return None;
   }
-  let clusters = shaper.clusters(text, right_to_left);
-  let mut shaped = HashMap::new();
+  let clusters = candidates.clusters(text);
+  let mut tried = HashMap::new();
   let dropped = cut(mode, text, &clusters, &mut |dropped| {
-    shaped
+    tried
       .entry(dropped.clone())
-      .or_insert_with(|| shaper.line(&candidate(text, dropped), right_to_left))
+      .or_insert_with(|| candidates.line(&candidate(text, dropped)))
       .width()
       <= max_width
   })?;
-  let line = shaped
+  let line = tried
     .remove(&dropped)
-    .unwrap_or_else(|| shaper.line(&candidate(text, &dropped), right_to_left));
+    .unwrap_or_else(|| candidates.line(&candidate(text, &dropped)));
   Some(Trimmed {
     line,
     lost: loses_text(text, &dropped),
