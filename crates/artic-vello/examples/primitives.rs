@@ -1,7 +1,8 @@
 // Opens a window and draws every primitive artic's scene builder records, one per tile, through
 // the same `Compositor` and `Renderer` seam artic's frame pipeline uses: a card with a shadow, a
 // rounded rectangle with four radii, a stroked star, linear and radial gradients, clips by
-// rectangle, rounded rectangle and path, and nested opacity.
+// rectangle, rounded rectangle and path, nested opacity, and wrapped text in a gradient, shaped
+// with the system's fonts.
 //
 // Run with `cargo run -p artic-vello --example primitives`. It drives `winit` itself, so it needs
 // no host crate.
@@ -10,6 +11,7 @@ use artic_core::Object;
 use artic_core::property::{Affects, AnyProperty};
 use artic_core::tree::{NodeId, UiTree};
 use artic_layout::geometry::{CornerRadius, Path, Point, Rect, RelativePoint, RelativeScalar, RoundedRect, Transform};
+use artic_layout::text::{FontFamily, Paragraph, TextEngine, TextLimits, TextStyle};
 use artic_render::Renderer as _;
 use artic_render::{
   BoxShadow, Color, Compositor, GradientStop, Layers, LineJoin, LinearGradientBrush, Nodes, PhysicalSize, RadialGradientBrush,
@@ -25,7 +27,8 @@ use winit::window::{Window, WindowId};
 
 const TILE: f32 = 160.0;
 const GAP: f32 = 24.0;
-const COLUMNS: usize = 3;
+const COLUMNS: usize = 5;
+const ROWS: usize = 2;
 const BACKGROUND: Color = Color::rgb(241, 245, 249);
 const WHITE: Color = Color::rgb(255, 255, 255);
 const SLATE: Color = Color::rgb(203, 213, 225);
@@ -58,6 +61,8 @@ struct Primitives {
   /// The window's size in logical units.
   width: f32,
   height: f32,
+  /// The text tile's sentence, shaped once.
+  paragraph: Paragraph,
 }
 
 impl Nodes for Primitives {
@@ -83,6 +88,9 @@ impl Nodes for Primitives {
       let origin = Transform::translate(GAP + column * (TILE + GAP), GAP + row * (TILE + GAP));
       builder.with_transform(origin, tile);
     }
+    let (column, row) = ((tiles.len() % COLUMNS) as f32, (tiles.len() / COLUMNS) as f32);
+    let origin = Point::new(GAP + column * (TILE + GAP) + 8.0, GAP + row * (TILE + GAP) + 8.0);
+    builder.text(&self.paragraph, origin, blue_to_pink());
   }
 }
 
@@ -106,9 +114,12 @@ fn star_outline(builder: &mut SceneBuilder) {
 }
 
 fn linear(builder: &mut SceneBuilder) {
+  builder.fill(Rect::new(8.0, 8.0, 144.0, 144.0), blue_to_pink());
+}
+
+fn blue_to_pink() -> LinearGradientBrush {
   let stops = [GradientStop::new(0.0, BLUE), GradientStop::new(1.0, PINK)];
-  let brush = LinearGradientBrush::new(RelativePoint::relative(0.0, 0.0), RelativePoint::relative(1.0, 1.0), stops);
-  builder.fill(Rect::new(8.0, 8.0, 144.0, 144.0), brush);
+  LinearGradientBrush::new(RelativePoint::relative(0.0, 0.0), RelativePoint::relative(1.0, 1.0), stops)
 }
 
 fn radial(builder: &mut SceneBuilder) {
@@ -169,12 +180,18 @@ impl Demo {
   fn new(renderer: Renderer) -> Demo {
     let mut tree = UiTree::new();
     let root = tree.alloc(Box::new(Node));
+    let style = TextStyle::new(FontFamily::default(), 28.0);
+    let paragraph = artic_text::Engine::system().paragraph("Text in a gradient", &style, TextLimits::wrap(TILE - 16.0));
     Demo {
       renderer,
       compositor: Compositor::default(),
       tree,
       root,
-      primitives: Primitives { width: 0.0, height: 0.0 },
+      primitives: Primitives {
+        width: 0.0,
+        height: 0.0,
+        paragraph,
+      },
       window: None,
     }
   }
@@ -207,10 +224,11 @@ impl ApplicationHandler for Demo {
     if self.window.is_some() {
       return;
     }
-    let side = f64::from(COLUMNS as f32 * (TILE + GAP) + GAP);
+    let width = f64::from(COLUMNS as f32 * (TILE + GAP) + GAP);
+    let height = f64::from(ROWS as f32 * (TILE + GAP) + GAP);
     let attributes = Window::default_attributes()
       .with_title("artic · primitives")
-      .with_inner_size(winit::dpi::LogicalSize::new(side, side));
+      .with_inner_size(winit::dpi::LogicalSize::new(width, height));
     let window = event_loop.create_window(attributes).expect("a window");
     window.request_redraw();
     self.window = Some(Arc::new(window));
