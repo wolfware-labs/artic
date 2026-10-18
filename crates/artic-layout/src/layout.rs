@@ -2,6 +2,7 @@
 mod tests;
 
 use crate::geometry::{Rect, Size};
+use crate::text::TextEngine;
 use artic_core::property::Affects;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -63,13 +64,23 @@ struct Slot {
 /// visual children did) or when its parent offers it a different size. When a measured node's
 /// size doesn't change, its ancestors keep theirs and only the node is arranged again.
 ///
-/// A new scale or snapping arranges every node again, and measures only what the new logical
-/// size reaches: a desired size doesn't depend on the display.
+/// A new [`PixelGrid`] arranges every node again, and measures only what the new logical size
+/// reaches: a desired size doesn't depend on the display.
 #[derive(Debug, Default)]
 pub struct LayoutManager {
   slots: HashMap<NodeId, Slot>,
   sizes: HashMap<NodeId, Size>,
-  grid: Option<(f32, bool)>,
+  grid: Option<PixelGrid>,
+}
+
+/// The device-pixel grid arranged rectangles land on: device pixels per logical pixel, and whether
+/// rectangles snap to it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PixelGrid {
+  /// Device pixels per logical pixel.
+  pub scale: f32,
+  /// Whether every arranged rectangle has its edges on the grid.
+  pub snap: bool,
 }
 
 /// What a [`LayoutManager::run`] did.
@@ -87,35 +98,30 @@ pub struct LayoutStats {
 }
 
 impl LayoutManager {
-  /// Lays out `root`'s visual subtree in `available`, at `scale` device pixels per logical pixel.
+  /// Lays out `root`'s visual subtree in `available`, on `grid`, shaping text with `text`.
   ///
-  /// With `snap`, every arranged rectangle has its edges on the device-pixel grid. The root's
-  /// rectangle is `available` where it's finite, and its desired size where it isn't. Results of
-  /// nodes no longer in the subtree are dropped, and a collapsed root lays out nothing. Returns
-  /// what it measured, arranged and resized.
+  /// The root's rectangle is `available` where it's finite, and its desired size where it isn't.
+  /// Results of nodes no longer in the subtree are dropped, and a collapsed root lays out nothing.
+  /// Returns what it measured, arranged and resized.
   pub fn run(
     &mut self,
     tree: &mut UiTree,
     nodes: &impl LayoutNodes,
     root: NodeId,
     available: Size,
-    scale: f32,
-    snap: bool,
+    grid: PixelGrid,
+    text: &mut dyn TextEngine,
   ) -> LayoutStats {
-    if self.grid.replace((scale, snap)) != Some((scale, snap)) {
+    if self.grid.replace(grid) != Some(grid) {
       for slot in self.slots.values_mut() {
         slot.arrange_dirty = true;
       }
     }
-    let (cx, depths, desired) = self.measure_pass(tree, nodes, root, available);
+    let (cx, depths, desired) = self.measure_pass(tree, nodes, root, available, text);
     if cx.pass.collapsed(root) {
       return cx.pass.stats;
     }
-    let mut cx = ArrangeCx {
-      pass: cx.pass,
-      scale,
-      snap,
-    };
+    let mut cx = ArrangeCx { pass: cx.pass, grid };
     let width = if available.width.is_finite() {
       available.width
     } else {
@@ -148,11 +154,19 @@ impl LayoutManager {
     cx.pass.stats
   }
 
-  /// Measures `root`'s visual subtree in `available`, as a [`run`](LayoutManager::run) does first,
-  /// without arranging it, and returns the size it wants. A later `run` in the same `available`
-  /// answers every measure from the cache. A collapsed root measures nothing and returns zero.
-  pub fn measure(&mut self, tree: &mut UiTree, nodes: &impl LayoutNodes, root: NodeId, available: Size) -> Size {
-    self.measure_pass(tree, nodes, root, available).2
+  /// Measures `root`'s visual subtree in `available`, shaping text with `text`, as a
+  /// [`run`](LayoutManager::run) does first, without arranging it, and returns the size it wants. A
+  /// later `run` in the same `available` answers every measure from the cache. A collapsed root
+  /// measures nothing and returns zero.
+  pub fn measure(
+    &mut self,
+    tree: &mut UiTree,
+    nodes: &impl LayoutNodes,
+    root: NodeId,
+    available: Size,
+    text: &mut dyn TextEngine,
+  ) -> Size {
+    self.measure_pass(tree, nodes, root, available, text).2
   }
 
   fn measure_pass<'a>(
@@ -161,6 +175,7 @@ impl LayoutManager {
     nodes: &'a impl LayoutNodes,
     root: NodeId,
     available: Size,
+    text: &'a mut dyn TextEngine,
   ) -> (MeasureCx<'a>, HashMap<NodeId, usize>, Size) {
     let mut depths = HashMap::new();
     let mut dirty = HashSet::new();
@@ -209,6 +224,7 @@ impl LayoutManager {
         nodes,
         slots: &mut self.slots,
         sizes: &mut self.sizes,
+        text,
         current: None,
         stats: LayoutStats::default(),
       },
@@ -279,6 +295,7 @@ struct Pass<'a> {
   nodes: &'a dyn LayoutNodes,
   slots: &'a mut HashMap<NodeId, Slot>,
   sizes: &'a mut HashMap<NodeId, Size>,
+  text: &'a mut dyn TextEngine,
   current: Option<NodeId>,
   stats: LayoutStats,
 }
@@ -368,6 +385,11 @@ impl<'a> MeasureCx<'a> {
   /// The visual children of the node being measured, in order, leaving out collapsed ones.
   pub fn children(&self) -> impl Iterator<Item = NodeId> + use<'a> {
     self.pass.children()
+  }
+
+  /// The text engine, for shaping the node's text into the paragraph its size comes from.
+  pub fn text(&mut self) -> &mut dyn TextEngine {
+    &mut *self.pass.text
   }
 
   /// Measures `child` in `available` and returns the size it wants, its margin included. A child
@@ -494,8 +516,7 @@ impl std::fmt::Debug for MeasureCx<'_> {
 /// ```
 pub struct ArrangeCx<'a> {
   pass: Pass<'a>,
-  scale: f32,
-  snap: bool,
+  grid: PixelGrid,
 }
 
 impl<'a> ArrangeCx<'a> {
@@ -520,16 +541,21 @@ impl<'a> ArrangeCx<'a> {
     self.pass.children()
   }
 
+  /// The text engine, for shaping the node's text again at the width it was given.
+  pub fn text(&mut self) -> &mut dyn TextEngine {
+    &mut *self.pass.text
+  }
+
   /// Device pixels per logical pixel.
   #[must_use]
   pub fn scale(&self) -> f32 {
-    self.scale
+    self.grid.scale
   }
 
   /// `rect` on the device-pixel grid, or unchanged when snapping is off.
   #[must_use]
   pub fn snap(&self, rect: Rect) -> Rect {
-    if self.snap { rect.snap(self.scale) } else { rect }
+    if self.grid.snap { rect.snap(self.grid.scale) } else { rect }
   }
 
   /// The size `child` asked for in its last measure, or zero if it wasn't measured.
@@ -610,8 +636,7 @@ impl std::fmt::Debug for ArrangeCx<'_> {
     formatter
       .debug_struct("ArrangeCx")
       .field("current", &self.pass.current)
-      .field("scale", &self.scale)
-      .field("snap", &self.snap)
+      .field("grid", &self.grid)
       .finish_non_exhaustive()
   }
 }

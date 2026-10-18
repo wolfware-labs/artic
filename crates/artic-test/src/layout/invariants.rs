@@ -3,7 +3,7 @@ use super::compare::{rects_match, sizes_match};
 use super::headless::Headless;
 use artic_core::tree::{NodeId, TreeKind};
 use artic_layout::geometry::{Rect, Size};
-use artic_layout::{LayoutManager, LayoutNodes};
+use artic_layout::{LayoutManager, LayoutNodes, PixelGrid};
 use std::fmt::Display;
 
 /// The rules a layout keeps for any input, checked on every node under a root.
@@ -41,7 +41,11 @@ impl Invariants {
   pub fn assert<N: LayoutNodes>(&self, layout: &mut Headless<N>, root: NodeId, available: Size, scale: f32) {
     layout.run(root, available, scale);
     let mut fresh = LayoutManager::default();
-    fresh.run(&mut layout.tree, &layout.nodes, root, available, scale, layout.snap);
+    let grid = PixelGrid {
+      scale,
+      snap: layout.snap,
+    };
+    fresh.run(&mut layout.tree, &layout.nodes, root, available, grid, &mut layout.text);
     let input = format!("for available {available} at scale {scale}");
     let contained = self.contained && available.width.is_finite() && available.height.is_finite();
     let mut order = Vec::new();

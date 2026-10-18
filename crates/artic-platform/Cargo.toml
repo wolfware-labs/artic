@@ -17,6 +17,8 @@ thiserror.workspace = true
 
 [dev-dependencies]
 accesskit.workspace = true
+artic-text.workspace = true
+artic-test-fonts.workspace = true
 pretty_assertions.workspace = true
 static_assertions.workspace = true
 

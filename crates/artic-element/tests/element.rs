@@ -11,10 +11,11 @@ use artic_element::{
   RenderCx, Visibility,
 };
 use artic_layout::geometry::{Point, Rect, Size, Thickness};
-use artic_layout::{ArrangeCx, LayoutManager, MeasureCx};
+use artic_layout::{ArrangeCx, LayoutManager, MeasureCx, PixelGrid};
 use artic_macros::element;
 use artic_registry::XamlType;
 use artic_render::{SceneBuilder, Shape};
+use artic_text::Engine;
 use pretty_assertions::assert_eq;
 use std::cell::Cell;
 
@@ -80,8 +81,8 @@ fn element_lays_out_through_cast_table() {
     &ElementTypes::from_link_time(),
     node,
     Size::new(100.0, 100.0),
-    1.0,
-    false,
+    PixelGrid { scale: 1.0, snap: false },
+    &mut Engine::with_fonts([]),
   );
 
   assert_eq!(layout.desired(node), Some(Size::new(40.0, 20.0)));
@@ -119,8 +120,8 @@ fn collapsed_element_skips_measure_override() {
     &ElementTypes::from_link_time(),
     node,
     Size::new(100.0, 100.0),
-    1.0,
-    false,
+    PixelGrid { scale: 1.0, snap: false },
+    &mut Engine::with_fonts([]),
   );
 
   assert_eq!(layout.desired(node), None);

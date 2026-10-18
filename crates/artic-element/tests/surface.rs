@@ -4,8 +4,9 @@
 use artic_core::property::Affects;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{AccessCx, Application, Chrome, Desktop, ElementTypes, SizeToContent, Surface};
-use artic_layout::LayoutManager;
 use artic_layout::geometry::{Rect, Size};
+use artic_layout::{LayoutManager, PixelGrid};
+use artic_text::Engine;
 use pretty_assertions::assert_eq;
 
 /// An application holding one surface, and the surface.
@@ -100,8 +101,8 @@ fn surface_lays_out_its_content() {
     &ElementTypes::from_link_time(),
     surface,
     Size::new(200.0, 100.0),
-    1.0,
-    false,
+    PixelGrid { scale: 1.0, snap: false },
+    &mut Engine::with_fonts([]),
   );
 
   assert_eq!(layout.rect(content), Some(Rect::new(0.0, 0.0, 200.0, 100.0)));

@@ -2,8 +2,8 @@
 //! draws, and what a frame runs.
 
 use crate::{
-  AppHandler, Axes, Error, FrameStats, Hooks, Host, HostContext, HostEvent, LogicalSize, Pipeline, SurfaceInfo, SurfaceLoss,
-  Waker, WindowDesc,
+  AppHandler, Axes, Error, FrameStats, Hooks, Host, HostContext, HostEvent, LogicalSize, Pipeline, Services, SurfaceInfo,
+  SurfaceLoss, Waker, WindowDesc,
 };
 use artic_core::dispatcher::Dispatcher;
 use artic_core::property::Affects;
@@ -11,6 +11,7 @@ use artic_core::reactive::flush_effects;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{Application, Chrome, Desktop, ElementTypes, Surface};
 use artic_layout::geometry::Size;
+use artic_layout::text::TextEngine;
 use artic_render::{RenderError, Renderer, SurfaceId, Target};
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -21,13 +22,14 @@ use std::time::Duration;
 /// Drives a tree's frames from a host: it presents the open [`Surface`]s of the tree's
 /// [`Application`], asks for a frame when something changed, and runs each frame's stages.
 ///
-/// Build it with the tree, a renderer and the `Application` node, register hooks, and hand it to
+/// Build it with the tree, a renderer, a text engine and the `Application` node, register hooks, and hand it to
 /// [`run`]. After every call from the host it reconciles the surfaces with the host: a surface
 /// opened is presented, one closed or taken out of the tree is taken down, and one whose title,
 /// size or chrome changed is updated.
 pub struct Runner<R> {
   tree: UiTree,
   renderer: R,
+  text: Box<dyn TextEngine>,
   types: ElementTypes,
   hooks: Hooks,
   application: NodeId,
@@ -107,14 +109,15 @@ impl Settings {
 }
 
 impl<R: Renderer> Runner<R> {
-  /// A runner for `tree`, drawing with `renderer` the surfaces of `application`.
+  /// A runner for `tree`, drawing with `renderer` the surfaces of `application`, and shaping text
+  /// with `text`, which every surface shares.
   ///
   /// # Panics
   ///
   /// Panics if `application` isn't an [`Application`] in `tree`.
   #[must_use]
   #[track_caller]
-  pub fn new(tree: UiTree, renderer: R, application: NodeId) -> Self {
+  pub fn new(tree: UiTree, renderer: R, text: Box<dyn TextEngine>, application: NodeId) -> Self {
     assert!(
       tree.get_as::<Application>(application).is_some(),
       "node {application:?} isn't an Application"
@@ -122,6 +125,7 @@ impl<R: Renderer> Runner<R> {
     Runner {
       tree,
       renderer,
+      text,
       types: ElementTypes::from_link_time(),
       hooks: Hooks::default(),
       application,
@@ -218,9 +222,13 @@ impl<R: Renderer> Runner<R> {
   fn present(&mut self, cx: &mut dyn HostContext, node: NodeId, settings: &Settings) {
     if let Some(windows) = cx.windows() {
       let mut pipeline = Pipeline::new();
-      let desired = settings
-        .available(None)
-        .map(|available| pipeline.measure(&mut self.tree, node, available, &self.types));
+      let desired = settings.available(None).map(|available| {
+        let mut services = Services {
+          types: &self.types,
+          text: &mut *self.text,
+        };
+        pipeline.measure(&mut self.tree, node, available, &mut services)
+      });
       let desc = settings.desc(self.title(node), desired);
       let id = windows.open(&desc);
       self.bound.push(Bound {
@@ -264,9 +272,13 @@ impl<R: Renderer> Runner<R> {
     let host = bound
       .info
       .map(|info| Size::new(info.size.width as f32 / info.scale, info.size.height as f32 / info.scale));
-    let desired = settings
-      .available(host)
-      .map(|available| bound.pipeline.measure(&mut self.tree, node, available, &self.types));
+    let desired = settings.available(host).map(|available| {
+      let mut services = Services {
+        types: &self.types,
+        text: &mut *self.text,
+      };
+      bound.pipeline.measure(&mut self.tree, node, available, &mut services)
+    });
     let desc = settings.desc(title, desired);
     if bound.applied.as_ref() != Some(&desc) {
       windows.update(bound.id, &desc);
@@ -398,9 +410,13 @@ impl<R: Renderer> AppHandler for Runner<R> {
     let window = &mut self.bound[index];
     let result = if window.needs_frame {
       window.needs_frame = false;
+      let mut services = Services {
+        types: &self.types,
+        text: &mut *self.text,
+      };
       let frame = window
         .pipeline
-        .prepare(&mut self.tree, root, surface, &info, &self.types, content);
+        .prepare(&mut self.tree, root, surface, &info, &mut services, content);
       if let (Some(applied), Some(desired)) = (&window.applied, window.pipeline.desired(root)) {
         let requested = applied.size;
         let grew = (content.width && requested.width != Some(desired.width))

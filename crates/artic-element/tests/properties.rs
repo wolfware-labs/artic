@@ -6,10 +6,13 @@ use artic_core::property::{Affects, AnyProperty};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{AccessCx, Appearance, Classes, HitTestCx, HitTestResult, Identity, Interaction, Layout, Visibility};
 use artic_layout::geometry::{Point, Rect, Size, Thickness, Transform};
-use artic_layout::{ArrangeCx, HorizontalAlignment, LayoutManager, LayoutNodes, Layoutable, MeasureCx, VerticalAlignment};
+use artic_layout::{
+  ArrangeCx, HorizontalAlignment, LayoutManager, LayoutNodes, Layoutable, MeasureCx, PixelGrid, VerticalAlignment,
+};
 use artic_macros::XamlType;
 use artic_registry::{PropertyGroup, Registry};
 use artic_render::{Layers, Shape};
+use artic_text::Engine;
 use pretty_assertions::assert_eq;
 use std::cell::Cell;
 
@@ -166,7 +169,14 @@ fn bounds_of(boxed: Boxed) -> Rect {
   let mut tree = UiTree::new();
   let node = tree.alloc(Box::new(boxed));
   let mut layout = LayoutManager::default();
-  layout.run(&mut tree, &Boxes, node, Size::new(200.0, 100.0), 1.0, false);
+  layout.run(
+    &mut tree,
+    &Boxes,
+    node,
+    Size::new(200.0, 100.0),
+    PixelGrid { scale: 1.0, snap: false },
+    &mut Engine::with_fonts([]),
+  );
   layout.rect(node).expect("arranged")
 }
 
@@ -200,7 +210,14 @@ fn min_max_clamp_desired_size() {
   let node = tree.alloc(Box::new(boxed));
   let mut layout = LayoutManager::default();
 
-  layout.run(&mut tree, &Boxes, node, Size::new(200.0, 100.0), 1.0, false);
+  layout.run(
+    &mut tree,
+    &Boxes,
+    node,
+    Size::new(200.0, 100.0),
+    PixelGrid { scale: 1.0, snap: false },
+    &mut Engine::with_fonts([]),
+  );
 
   assert_eq!(layout.desired(node), Some(Size::new(60.0, 30.0)));
 }
@@ -215,7 +232,14 @@ fn collapsed_takes_no_space() {
   tree.add_child(TreeKind::Visual, parent, child);
   let mut layout = LayoutManager::default();
   let available = Size::new(200.0, 100.0);
-  layout.run(&mut tree, &Boxes, parent, available, 1.0, false);
+  layout.run(
+    &mut tree,
+    &Boxes,
+    parent,
+    available,
+    PixelGrid { scale: 1.0, snap: false },
+    &mut Engine::with_fonts([]),
+  );
 
   tree
     .get_as::<Boxed>(parent)
@@ -223,12 +247,26 @@ fn collapsed_takes_no_space() {
     .appearance
     .visibility
     .set(Visibility::Collapsed);
-  layout.run(&mut tree, &Boxes, parent, available, 1.0, false);
+  layout.run(
+    &mut tree,
+    &Boxes,
+    parent,
+    available,
+    PixelGrid { scale: 1.0, snap: false },
+    &mut Engine::with_fonts([]),
+  );
   assert_eq!((layout.desired(parent), layout.rect(parent)), (None, None));
   assert_eq!((layout.desired(child), layout.rect(child)), (None, None));
 
   LayoutManager::invalidate_measure(&mut tree, child);
-  layout.run(&mut tree, &Boxes, parent, available, 1.0, false);
+  layout.run(
+    &mut tree,
+    &Boxes,
+    parent,
+    available,
+    PixelGrid { scale: 1.0, snap: false },
+    &mut Engine::with_fonts([]),
+  );
   assert_eq!(tree.get_as::<Boxed>(child).unwrap().measured.get(), 1);
 }
 
@@ -258,7 +296,14 @@ fn content_is_arranged_in_the_snapped_bounds() {
   tree.add_child(TreeKind::Visual, parent, child);
   let mut layout = LayoutManager::default();
 
-  layout.run(&mut tree, &Boxes, parent, Size::new(100.0, 10.0), 1.0, true);
+  layout.run(
+    &mut tree,
+    &Boxes,
+    parent,
+    Size::new(100.0, 10.0),
+    PixelGrid { scale: 1.0, snap: true },
+    &mut Engine::with_fonts([]),
+  );
 
   let width = |node| layout.rect(node).expect("arranged").width;
   assert_eq!(width(child), width(parent));

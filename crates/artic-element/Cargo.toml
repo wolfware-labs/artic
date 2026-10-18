@@ -18,6 +18,7 @@ artic-render.workspace = true
 linkme.workspace = true
 
 [dev-dependencies]
+artic-text.workspace = true
 pretty_assertions.workspace = true
 static_assertions.workspace = true
 

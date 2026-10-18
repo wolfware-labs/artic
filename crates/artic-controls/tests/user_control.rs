@@ -4,8 +4,8 @@
 use artic_controls::UserControl;
 use artic_core::tree::{TreeKind, UiTree};
 use artic_element::{AccessCx, ElementTypes};
-use artic_layout::LayoutManager;
 use artic_layout::geometry::{Rect, Size};
+use artic_layout::{LayoutManager, PixelGrid};
 use pretty_assertions::assert_eq;
 
 // A UserControl is a plain container to accessibility.
@@ -40,8 +40,8 @@ fn user_control_lays_out_its_content() {
     &ElementTypes::from_link_time(),
     view,
     Size::new(f32::INFINITY, f32::INFINITY),
-    1.0,
-    false,
+    PixelGrid { scale: 1.0, snap: false },
+    &mut artic_test::text::engine(),
   );
 
   assert_eq!(layout.desired(view), Some(Size::new(40.0, 30.0)));

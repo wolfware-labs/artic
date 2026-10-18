@@ -5,9 +5,9 @@ mod common;
 use artic_core::tree::{TreeKind, UiTree};
 use artic_element::{ElementTypes, SizeToContent};
 use artic_layout::geometry::{Size, Transform};
-use artic_platform::{Axes, Frame, FrameStats, Pipeline};
+use artic_platform::{Axes, Frame, FrameStats, Pipeline, Services};
 use artic_render::{Layer, SceneItem, SurfaceId};
-use common::{Counter, column, info, leaf, pixels, target};
+use common::{Counter, column, engine, info, leaf, pixels, target};
 use pretty_assertions::assert_eq;
 use static_assertions::assert_impl_all;
 
@@ -29,7 +29,10 @@ fn layout_offset_applies_after_render_transform() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &ElementTypes::from_link_time(),
+    &mut Services {
+      types: &ElementTypes::from_link_time(),
+      text: &mut engine(),
+    },
     Axes::NONE,
   );
 
@@ -49,7 +52,10 @@ fn render_cx_has_the_arranged_size() {
     root,
     SURFACE,
     &info(128, 128, 2.0),
-    &ElementTypes::from_link_time(),
+    &mut Services {
+      types: &ElementTypes::from_link_time(),
+      text: &mut engine(),
+    },
     Axes::NONE,
   );
 
@@ -71,7 +77,10 @@ fn first_frame_does_all_the_work() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &ElementTypes::from_link_time(),
+    &mut Services {
+      types: &ElementTypes::from_link_time(),
+      text: &mut engine(),
+    },
     Axes::NONE,
   );
   let stats = pipeline.present(&mut Counter::default(), frame, target(&mut buffer)).unwrap();
@@ -106,7 +115,10 @@ fn redraw_presents_the_last_scene() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &ElementTypes::from_link_time(),
+    &mut Services {
+      types: &ElementTypes::from_link_time(),
+      text: &mut engine(),
+    },
     Axes::NONE,
   );
   pipeline.present(&mut renderer, frame, target(&mut buffer)).unwrap();
@@ -140,7 +152,10 @@ fn failed_present_keeps_no_scene() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &ElementTypes::from_link_time(),
+    &mut Services {
+      types: &ElementTypes::from_link_time(),
+      text: &mut engine(),
+    },
     Axes::NONE,
   );
 
@@ -161,10 +176,15 @@ fn measure_before_open_serves_the_first_frame() {
   let child = leaf(&mut tree, 20.0);
   let (root, _) = column(&mut tree, &[child.id]);
   let types = ElementTypes::from_link_time();
+  let mut text = engine();
+  let mut services = Services {
+    types: &types,
+    text: &mut text,
+  };
   let mut pipeline = Pipeline::new();
 
-  let desired = pipeline.measure(&mut tree, root, Size::new(f32::INFINITY, f32::INFINITY), &types);
-  let frame = pipeline.prepare(&mut tree, root, SURFACE, &info(64, 64, 1.0), &types, Axes::BOTH);
+  let desired = pipeline.measure(&mut tree, root, Size::new(f32::INFINITY, f32::INFINITY), &mut services);
+  let frame = pipeline.prepare(&mut tree, root, SURFACE, &info(64, 64, 1.0), &mut services, Axes::BOTH);
 
   assert_eq!(desired, Size::new(10.0, 20.0));
   assert_eq!(pipeline.desired(root), Some(desired));
@@ -201,7 +221,10 @@ fn nodes_not_laid_out_are_not_drawn() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &ElementTypes::from_link_time(),
+    &mut Services {
+      types: &ElementTypes::from_link_time(),
+      text: &mut engine(),
+    },
     Axes::NONE,
   );
 

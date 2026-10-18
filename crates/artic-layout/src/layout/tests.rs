@@ -86,7 +86,7 @@ fn counts(tree: &UiTree, ids: &[NodeId]) -> Vec<(u32, u32)> {
 }
 
 fn run(manager: &mut LayoutManager, tree: &mut UiTree, root: NodeId, available: Size) {
-  manager.run(tree, &Nodes, root, available, 1.0, false);
+  manager.run(tree, &Nodes, root, available, GRID, &mut Recorder::default());
 }
 
 const WINDOW: Size = Size::new(400.0, 300.0);
@@ -241,7 +241,14 @@ fn layout_rounding_snaps_to_device_pixels() {
     let root = stack(&mut tree, &children);
     let mut manager = LayoutManager::default();
 
-    manager.run(&mut tree, &Nodes, root, Size::new(100.3, 200.0), scale, true);
+    manager.run(
+      &mut tree,
+      &Nodes,
+      root,
+      Size::new(100.3, 200.0),
+      PixelGrid { scale, snap: true },
+      &mut Recorder::default(),
+    );
 
     for child in children {
       let rect = manager.rect(child).expect("arranged");
@@ -254,6 +261,7 @@ fn layout_rounding_snaps_to_device_pixels() {
 }
 
 mod bounds {
+  use super::{GRID, Recorder};
   use crate::geometry::{Rect, Size};
   use crate::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx};
   use artic_core::Object;
@@ -311,18 +319,33 @@ mod bounds {
     tree.add_child(TreeKind::Visual, outer, inner);
     let mut layout = LayoutManager::default();
 
-    layout.run(&mut tree, &Insets, outer, Size::new(100.0, 80.0), 1.0, false);
+    layout.run(
+      &mut tree,
+      &Insets,
+      outer,
+      Size::new(100.0, 80.0),
+      GRID,
+      &mut Recorder::default(),
+    );
     assert_eq!(layout.rect(outer), Some(Rect::new(10.0, 10.0, 80.0, 60.0)));
     assert_eq!(layout.rect(inner), Some(Rect::new(10.0, 10.0, 60.0, 40.0)));
 
     LayoutManager::invalidate_measure(&mut tree, outer);
-    layout.run(&mut tree, &Insets, outer, Size::new(100.0, 80.0), 1.0, false);
+    layout.run(
+      &mut tree,
+      &Insets,
+      outer,
+      Size::new(100.0, 80.0),
+      GRID,
+      &mut Recorder::default(),
+    );
     let arranged = |node| tree.get_as::<Inset>(node).unwrap().arranged.get();
     assert_eq!(arranged(inner), 1, "same slot, nothing changed below: not arranged again");
   }
 }
 
 mod skipped {
+  use super::{GRID, Recorder};
   use crate::geometry::{Rect, Size};
   use crate::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx};
   use artic_core::Object;
@@ -386,16 +409,16 @@ mod skipped {
     tree.add_child(TreeKind::Visual, child, grandchild);
     let mut layout = LayoutManager::default();
     let available = Size::new(100.0, 100.0);
-    layout.run(&mut tree, &Toggles, parent, available, 1.0, false);
+    layout.run(&mut tree, &Toggles, parent, available, GRID, &mut Recorder::default());
     assert!(layout.rect(grandchild).is_some());
 
     tree.get_as::<Toggle>(parent).unwrap().skip.set(true);
     LayoutManager::invalidate_measure(&mut tree, parent);
-    layout.run(&mut tree, &Toggles, parent, available, 1.0, false);
+    layout.run(&mut tree, &Toggles, parent, available, GRID, &mut Recorder::default());
     assert_eq!((layout.rect(child), layout.rect(grandchild)), (None, None));
 
     LayoutManager::invalidate_measure(&mut tree, child);
-    layout.run(&mut tree, &Toggles, parent, available, 1.0, false);
+    layout.run(&mut tree, &Toggles, parent, available, GRID, &mut Recorder::default());
     assert_eq!(tree.get_as::<Toggle>(child).unwrap().measured.get(), 1);
   }
 
@@ -407,14 +430,35 @@ mod skipped {
     let [parent, child] = [(); 2].map(|()| tree.alloc(Box::<Toggle>::default()));
     tree.add_child(TreeKind::Visual, parent, child);
     let mut layout = LayoutManager::default();
-    layout.run(&mut tree, &Toggles, parent, Size::new(100.0, 100.0), 1.0, false);
+    layout.run(
+      &mut tree,
+      &Toggles,
+      parent,
+      Size::new(100.0, 100.0),
+      GRID,
+      &mut Recorder::default(),
+    );
     tree.get_as::<Toggle>(parent).unwrap().skip.set(true);
     LayoutManager::invalidate_measure(&mut tree, parent);
-    layout.run(&mut tree, &Toggles, parent, Size::new(200.0, 200.0), 1.0, false);
+    layout.run(
+      &mut tree,
+      &Toggles,
+      parent,
+      Size::new(200.0, 200.0),
+      GRID,
+      &mut Recorder::default(),
+    );
 
     tree.get_as::<Toggle>(parent).unwrap().skip.set(false);
     LayoutManager::invalidate_measure(&mut tree, parent);
-    let stats = layout.run(&mut tree, &Toggles, parent, Size::new(200.0, 200.0), 1.0, false);
+    let stats = layout.run(
+      &mut tree,
+      &Toggles,
+      parent,
+      Size::new(200.0, 200.0),
+      GRID,
+      &mut Recorder::default(),
+    );
 
     assert_eq!(stats.resized, [child]);
   }
@@ -426,7 +470,14 @@ mod skipped {
     tree.add_child(TreeKind::Visual, nodes[0], nodes[1]);
     tree.add_child(TreeKind::Visual, nodes[1], nodes[2]);
     let mut layout = LayoutManager::default();
-    layout.run(&mut tree, &Toggles, nodes[0], Size::new(100.0, 100.0), 1.0, false);
+    layout.run(
+      &mut tree,
+      &Toggles,
+      nodes[0],
+      Size::new(100.0, 100.0),
+      GRID,
+      &mut Recorder::default(),
+    );
     (tree, layout, nodes)
   }
 
@@ -444,7 +495,14 @@ mod skipped {
     tree.get_as::<Toggle>(middle).unwrap().skip.set(true);
     LayoutManager::invalidate_measure(&mut tree, middle);
     LayoutManager::invalidate_measure(&mut tree, leaf);
-    layout.run(&mut tree, &Toggles, root, Size::new(100.0, 100.0), 1.0, false);
+    layout.run(
+      &mut tree,
+      &Toggles,
+      root,
+      Size::new(100.0, 100.0),
+      GRID,
+      &mut Recorder::default(),
+    );
 
     assert_eq!(measures(&tree, leaf), 1);
     assert_eq!(layout.rect(leaf), None);
@@ -458,13 +516,21 @@ mod skipped {
 
     LayoutManager::invalidate_measure(&mut tree, root);
     LayoutManager::invalidate_measure(&mut tree, leaf);
-    layout.run(&mut tree, &Toggles, root, Size::new(100.0, 100.0), 1.0, false);
+    layout.run(
+      &mut tree,
+      &Toggles,
+      root,
+      Size::new(100.0, 100.0),
+      GRID,
+      &mut Recorder::default(),
+    );
 
     assert_eq!(measures(&tree, leaf), 2);
   }
 }
 
 mod misuse {
+  use super::{GRID, Recorder};
   use crate::geometry::{Rect, Size};
   use crate::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx};
   use artic_core::Object;
@@ -512,7 +578,14 @@ mod misuse {
     tree.add_child(TreeKind::Visual, root, child);
     tree.add_child(TreeKind::Visual, child, grandchild);
 
-    LayoutManager::default().run(&mut tree, &Skippers, root, Size::new(10.0, 10.0), 1.0, false);
+    LayoutManager::default().run(
+      &mut tree,
+      &Skippers,
+      root,
+      Size::new(10.0, 10.0),
+      GRID,
+      &mut Recorder::default(),
+    );
   }
 }
 
@@ -525,8 +598,8 @@ fn run_reports_measured_and_arranged() {
   let root = stack(&mut tree, &[child]);
   let mut manager = LayoutManager::default();
 
-  let first = manager.run(&mut tree, &Nodes, root, WINDOW, 1.0, false);
-  let second = manager.run(&mut tree, &Nodes, root, WINDOW, 1.0, false);
+  let first = manager.run(&mut tree, &Nodes, root, WINDOW, GRID, &mut Recorder::default());
+  let second = manager.run(&mut tree, &Nodes, root, WINDOW, GRID, &mut Recorder::default());
 
   assert_eq!((first.measured, first.arranged), (2, 2));
   assert!(first.resized.is_empty());
@@ -545,7 +618,7 @@ fn run_reports_resized() {
 
   node(&tree, grows).size.set(Size::new(100.0, 40.0));
   LayoutManager::invalidate_measure(&mut tree, grows);
-  let stats = manager.run(&mut tree, &Nodes, root, WINDOW, 1.0, false);
+  let stats = manager.run(&mut tree, &Nodes, root, WINDOW, GRID, &mut Recorder::default());
 
   assert_eq!(stats.resized, [grows]);
 }
@@ -558,9 +631,23 @@ fn scale_change_arranges_without_measuring() {
   let children = [10.3, 10.3].map(|height| leaf(&mut tree, 33.3, height));
   let root = stack(&mut tree, &children);
   let mut manager = LayoutManager::default();
-  manager.run(&mut tree, &Nodes, root, WINDOW, 1.0, true);
+  manager.run(
+    &mut tree,
+    &Nodes,
+    root,
+    WINDOW,
+    PixelGrid { scale: 1.0, snap: true },
+    &mut Recorder::default(),
+  );
 
-  let stats = manager.run(&mut tree, &Nodes, root, WINDOW, 1.25, true);
+  let stats = manager.run(
+    &mut tree,
+    &Nodes,
+    root,
+    WINDOW,
+    PixelGrid { scale: 1.25, snap: true },
+    &mut Recorder::default(),
+  );
 
   assert_eq!((stats.measured, stats.arranged), (0, 3));
   let rect = manager.rect(children[1]).expect("arranged");
@@ -576,9 +663,23 @@ fn scale_reported_before_size_measures_again() {
   let children = [10.0, 10.0].map(|height| leaf(&mut tree, 33.0, height));
   let root = stack(&mut tree, &children);
   let mut manager = LayoutManager::default();
-  manager.run(&mut tree, &Nodes, root, WINDOW, 1.0, true);
+  manager.run(
+    &mut tree,
+    &Nodes,
+    root,
+    WINDOW,
+    PixelGrid { scale: 1.0, snap: true },
+    &mut Recorder::default(),
+  );
 
-  let stats = manager.run(&mut tree, &Nodes, root, Size::new(200.0, 150.0), 2.0, true);
+  let stats = manager.run(
+    &mut tree,
+    &Nodes,
+    root,
+    Size::new(200.0, 150.0),
+    PixelGrid { scale: 2.0, snap: true },
+    &mut Recorder::default(),
+  );
 
   assert_eq!(stats.measured, 3);
   assert_eq!(manager.rect(root), Some(Rect::new(0.0, 0.0, 200.0, 150.0)));
@@ -591,9 +692,16 @@ fn snap_change_arranges_again() {
   let children = [10.3, 10.3].map(|height| leaf(&mut tree, 33.3, height));
   let root = stack(&mut tree, &children);
   let mut manager = LayoutManager::default();
-  manager.run(&mut tree, &Nodes, root, WINDOW, 1.0, false);
+  manager.run(&mut tree, &Nodes, root, WINDOW, GRID, &mut Recorder::default());
 
-  let stats = manager.run(&mut tree, &Nodes, root, WINDOW, 1.0, true);
+  let stats = manager.run(
+    &mut tree,
+    &Nodes,
+    root,
+    WINDOW,
+    PixelGrid { scale: 1.0, snap: true },
+    &mut Recorder::default(),
+  );
 
   assert_eq!((stats.measured, stats.arranged), (0, 3));
   assert_eq!(manager.rect(children[1]).map(|rect| rect.y), Some(10.0));
@@ -609,16 +717,16 @@ fn measure_alone_leaves_arranging_to_the_next_run() {
   let mut manager = LayoutManager::default();
   let unbounded = Size::new(f32::INFINITY, f32::INFINITY);
 
-  let desired = manager.measure(&mut tree, &Nodes, root, unbounded);
+  let desired = manager.measure(&mut tree, &Nodes, root, unbounded, &mut Recorder::default());
 
   assert_eq!(desired, Size::new(100.0, 20.0));
   assert_eq!(manager.rect(root), None);
-  let stats = manager.run(&mut tree, &Nodes, root, unbounded, 1.0, false);
+  let stats = manager.run(&mut tree, &Nodes, root, unbounded, GRID, &mut Recorder::default());
   assert_eq!((stats.measured, stats.arranged), (0, 2));
 }
 
 mod overlay {
-  use super::leaf;
+  use super::{GRID, Recorder, leaf};
   use crate::geometry::{Rect, Size};
   use crate::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx};
   use artic_core::Object;
@@ -667,7 +775,14 @@ mod overlay {
     tree.add_child(TreeKind::Visual, root, tall);
     let mut manager = LayoutManager::default();
 
-    manager.run(&mut tree, &Nodes, root, Size::new(f32::INFINITY, f32::INFINITY), 1.0, false);
+    manager.run(
+      &mut tree,
+      &Nodes,
+      root,
+      Size::new(f32::INFINITY, f32::INFINITY),
+      GRID,
+      &mut Recorder::default(),
+    );
 
     assert_eq!(manager.desired(root), Some(Size::new(40.0, 30.0)));
     for child in [wide, tall] {
@@ -677,6 +792,7 @@ mod overlay {
 }
 
 mod collapsed {
+  use super::{GRID, Recorder};
   use crate::geometry::{Rect, Size};
   use crate::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx};
   use artic_core::Object;
@@ -779,7 +895,7 @@ mod collapsed {
   }
 
   fn run(layout: &mut LayoutManager, tree: &mut UiTree, root: NodeId) {
-    layout.run(tree, &Nodes, root, WINDOW, 1.0, false);
+    layout.run(tree, &Nodes, root, WINDOW, GRID, &mut Recorder::default());
   }
 
   fn collapse(tree: &mut UiTree, node: NodeId, collapsed: bool) {
@@ -955,7 +1071,7 @@ mod collapsed {
     tree.add_child(TreeKind::Visual, root, child);
     let mut layout = LayoutManager::default();
 
-    layout.run(&mut tree, &WithDirect, root, WINDOW, 1.0, false);
+    layout.run(&mut tree, &WithDirect, root, WINDOW, GRID, &mut Recorder::default());
 
     assert_eq!(layout.desired(root), Some(Size::ZERO));
     assert_eq!((layout.desired(child), layout.rect(child)), (None, None));
@@ -984,7 +1100,7 @@ mod collapsed {
     tree.get_as::<Column>(root).unwrap().collapsed.set(true);
     let mut layout = LayoutManager::default();
 
-    let size = layout.measure(&mut tree, &Nodes, root, WINDOW);
+    let size = layout.measure(&mut tree, &Nodes, root, WINDOW, &mut Recorder::default());
 
     assert_eq!((size, layout.desired(root)), (Size::ZERO, None));
   }
@@ -1004,4 +1120,119 @@ mod collapsed {
 
     assert_eq!(layout.rect(a), Some(Rect::new(0.0, 0.0, 100.0, 20.0)));
   }
+}
+
+use crate::text::{FontFamily, Paragraph, TextEngine, TextLimits, TextStyle};
+
+/// A text engine that records the text it's asked to shape and answers with an empty paragraph.
+#[derive(Debug, Default)]
+struct Recorder {
+  asked: Vec<String>,
+}
+
+impl TextEngine for Recorder {
+  fn paragraph(&mut self, text: &str, _style: &TextStyle, _limits: TextLimits) -> Paragraph {
+    self.asked.push(text.to_owned());
+    Paragraph::default()
+  }
+}
+
+/// A test leaf, 50 by 10, that shapes "measure" in its measure and "arrange" in its arrange.
+#[derive(Debug, Default)]
+struct Shaper;
+
+impl Object for Shaper {
+  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+}
+
+impl Layoutable for Shaper {
+  fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {
+    cx.text()
+      .paragraph("measure", &TextStyle::new(FontFamily::default(), 16.0), TextLimits::NONE);
+    Size::new(50.0, 10.0)
+  }
+
+  fn arrange(&self, cx: &mut ArrangeCx<'_>, _rect: Rect) {
+    cx.text()
+      .paragraph("arrange", &TextStyle::new(FontFamily::default(), 16.0), TextLimits::NONE);
+  }
+}
+
+/// Measures its children with all the room they want and arranges each in its whole rectangle, so
+/// a change of its size reaches their arrange and not their measure.
+#[derive(Debug, Default)]
+struct Holder;
+
+impl Object for Holder {
+  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+}
+
+impl Layoutable for Holder {
+  fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {
+    cx.measure_children(Size::new(f32::INFINITY, f32::INFINITY))
+  }
+
+  fn arrange(&self, cx: &mut ArrangeCx<'_>, rect: Rect) {
+    cx.arrange_children(Rect::new(0.0, 0.0, rect.width, rect.height));
+  }
+}
+
+/// Lays out `Node`, `Holder` and `Shaper` nodes.
+struct WithShapers;
+
+impl LayoutNodes for WithShapers {
+  fn layoutable<'a>(&self, tree: &'a UiTree, node: NodeId) -> Option<&'a dyn Layoutable> {
+    tree
+      .get_as::<Node>(node)
+      .map(|node| node as &dyn Layoutable)
+      .or_else(|| tree.get_as::<Holder>(node).map(|node| node as &dyn Layoutable))
+      .or_else(|| tree.get_as::<Shaper>(node).map(|node| node as &dyn Layoutable))
+  }
+}
+
+/// A `Holder` holding one `Shaper`: the tree, the holder and the shaper.
+fn holding_a_shaper() -> (UiTree, NodeId, NodeId) {
+  let mut tree = UiTree::new();
+  let shaper = tree.alloc(Box::<Shaper>::default());
+  let holder = tree.alloc(Box::new(Holder));
+  tree.add_child(TreeKind::Visual, holder, shaper);
+  (tree, holder, shaper)
+}
+
+const GRID: PixelGrid = PixelGrid { scale: 1.0, snap: false };
+
+// Measuring hands the node the engine layout was given.
+#[test]
+fn measure_reaches_the_text_engine() {
+  let (mut tree, holder, _) = holding_a_shaper();
+  let mut text = Recorder::default();
+
+  LayoutManager::default().run(&mut tree, &WithShapers, holder, WINDOW, GRID, &mut text);
+
+  assert_eq!(text.asked, ["measure", "arrange"]);
+}
+
+// LayoutManager::measure lends the engine to measure too, and arranges nothing.
+#[test]
+fn measure_only_reaches_the_text_engine() {
+  let (mut tree, holder, _) = holding_a_shaper();
+  let mut text = Recorder::default();
+
+  LayoutManager::default().measure(&mut tree, &WithShapers, holder, WINDOW, &mut text);
+
+  assert_eq!(text.asked, ["measure"]);
+}
+
+// Arranging hands the node the same engine, after measuring.
+#[test]
+fn arrange_reaches_the_text_engine() {
+  let (mut tree, holder, _) = holding_a_shaper();
+  let mut layout = LayoutManager::default();
+  let mut text = Recorder::default();
+  layout.run(&mut tree, &WithShapers, holder, WINDOW, GRID, &mut text);
+  text.asked.clear();
+
+  layout.run(&mut tree, &WithShapers, holder, Size::new(300.0, 200.0), GRID, &mut text);
+
+  assert_eq!(text.asked, ["arrange"]);
 }

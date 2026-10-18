@@ -6,6 +6,7 @@ use artic_core::property::{Affects, AnyProperty, Inheritance, Property, Property
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{AccessCx, Application, Element, RenderCx, Surface};
 use artic_layout::geometry::{Rect, Size, Transform};
+use artic_layout::text::{FontFamily, GlyphRun, Line, Paragraph, TextEngine, TextLimits, TextStyle};
 use artic_layout::{ArrangeCx, Layoutable, MeasureCx};
 use artic_platform::{DisplayId, HostContext, SurfaceInfo, WindowDesc, Windows};
 use artic_render::{
@@ -14,6 +15,7 @@ use artic_render::{
 };
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::sync::Arc;
 
 static VISIBLE: PropertyKey<bool> = PropertyKey::new("Visible", Affects::RENDER, Inheritance::None);
 static HEIGHT: PropertyKey<f32> = PropertyKey::new("Height", Affects::LAYOUT, Inheritance::None);
@@ -311,3 +313,53 @@ pub fn target(pixels: &mut [u8]) -> Target<'_> {
 pub fn set_color(property: Property<u32>, color: u32) {
   property.set(color);
 }
+
+/// The text engine the pipeline and runner tests shape with: only the test font.
+pub fn engine() -> artic_text::Engine {
+  artic_text::Engine::with_fonts([Arc::new(artic_test_fonts::REGULAR) as Arc<dyn AsRef<[u8]> + Send + Sync>])
+}
+
+/// A text engine that shares, with every clone, the list of text it was asked to shape, and
+/// answers with an empty paragraph 8 wide per character and 16 tall.
+#[derive(Debug, Clone, Default)]
+pub struct Recorder {
+  pub asked: Rc<RefCell<Vec<String>>>,
+}
+
+impl TextEngine for Recorder {
+  fn paragraph(&mut self, text: &str, _style: &TextStyle, _limits: TextLimits) -> Paragraph {
+    self.asked.borrow_mut().push(text.to_owned());
+    let size = Size::new(8.0 * text.chars().count() as f32, 16.0);
+    Paragraph::new(size, Vec::<Line>::new(), Vec::<GlyphRun>::new())
+  }
+}
+
+/// A line of text, as wide and tall as the paragraph the engine makes of it.
+#[derive(Debug)]
+pub struct Label {
+  pub text: &'static str,
+}
+
+impl Object for Label {
+  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+}
+
+impl Layoutable for Label {
+  fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {
+    cx.text()
+      .paragraph(self.text, &TextStyle::new(FontFamily::default(), 16.0), TextLimits::NONE)
+      .size()
+  }
+
+  fn arrange(&self, _cx: &mut ArrangeCx<'_>, _rect: Rect) {}
+}
+
+impl Element for Label {
+  fn render(&self, _cx: &mut RenderCx<'_>, _scene: &mut SceneBuilder) {}
+
+  fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
+    accesskit::Node::new(accesskit::Role::Label)
+  }
+}
+
+artic_element::element_type!(Label);
