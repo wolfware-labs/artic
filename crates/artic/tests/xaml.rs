@@ -19,6 +19,9 @@ fn artic_uri_crates_are_linked() {
       "artic_element" => "Surface",
       other => panic!("no probe type for {other}"),
     };
-    assert!(registry.type_by_name(name, probe).found().is_some(), "{name}::{probe} isn't linked");
+    assert!(
+      registry.type_by_name(name, probe).found().is_some(),
+      "{name}::{probe} isn't linked"
+    );
   }
 }
