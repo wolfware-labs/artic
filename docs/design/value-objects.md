@@ -26,7 +26,7 @@ Values are immutable Rust data (`Clone`, usually `PartialEq`). Unlike WPF's `Fre
 
 `TypeInfo` gains a kind. Both kinds keep the one constructor signature:
 
-```rust
+```rust,ignore
 pub enum TypeKind {
   /// The object stays in the tree.
   Node,
@@ -45,18 +45,18 @@ A single `fn` pointer type can't return a `Brush` for one entry and a `RowDefini
 
 A value type uses the same derive with a `value` flag. Its fields are plain, not `Property`:
 
-```rust
-#[derive(Debug, Clone, PartialEq, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui", value)]
+```rust,ignore
+#[derive(Debug, Clone, PartialEq, UiType)]
+#[ui(value)]
 pub struct SolidColorBrush {
-  #[xaml] pub color: Color,
-  #[xaml(default = 1.0)] pub opacity: f32,
+  #[ui] pub color: Color,
+  #[ui(default = 1.0)] pub opacity: f32,
 }
 ```
 
-| `#[xaml(value)]` changes | Why |
+| `#[ui(value)]` changes | Why |
 | --- | --- |
-| `#[xaml]` fields are plain `T`; their `PropertyAccess` thunks assign the field and ignore `Precedence` | A value is immutable data, with no signals and no precedence stack; reactivity lives in the property that holds it |
+| `#[ui]` fields are plain `T`; their `PropertyAccess` thunks assign the field and ignore `Precedence` | A value is immutable data, with no signals and no precedence stack; reactivity lives in the property that holds it |
 | `TypeInfo.kind` is `TypeKind::Value` | Both back ends can tell nodes from values |
 | `Event<A>` fields are a compile error | Values aren't in the tree, so they raise no events |
 | A content collection of values is allowed | `LinearGradientBrush` holds its `GradientStop`s; each child is a staged value moved in by `add_child` |
@@ -66,19 +66,19 @@ pub struct SolidColorBrush {
 
 A property's value type may be a family rather than the element's type: #35 plans `Brush` as an enum with a variant per brush, while `<SolidColorBrush>` maps 1:1 to the struct `SolidColorBrush` (§3 rule 1). The **target type** decides what it accepts:
 
-```rust
+```rust,ignore
 // artic-registry
-/// A property value type that can be taken from a staged XAML object.
-pub trait FromXamlObject: Sized {
+/// A property value type that can be taken from a staged object.
+pub trait FromUiObject: Sized {
   /// Takes the staged object `object` out of the tree as `Self`.
   fn from_object(tree: &mut UiTree, object: NodeId) -> Result<Self, ValueError>;
 }
 
-/// Every XAML type takes itself: free the staging node and check it is a `T`.
-impl<T: XamlType + 'static> FromXamlObject for T { /* … */ }
+/// Every UI type takes itself: free the staging node and check it is a `T`.
+impl<T: UiType + 'static> FromUiObject for T { /* … */ }
 
 // In #35's crate: a family accepts its members, written in terms of its `From` impls.
-impl FromXamlObject for Brush {
+impl FromUiObject for Brush {
   fn from_object(tree: &mut UiTree, object: NodeId) -> Result<Brush, ValueError> {
     // a SolidColorBrush becomes Brush::from(solid), a LinearGradientBrush Brush::from(linear),
     // anything else ValueError::WrongType
@@ -86,9 +86,9 @@ impl FromXamlObject for Brush {
 }
 ```
 
-The blanket impl and a family's impl don't conflict: only the crate that owns `Brush` could make it a `XamlType`, so Rust's coherence rules accept both (checked with a two-crate prototype).
+The blanket impl and a family's impl don't conflict: only the crate that owns `Brush` could make it a `UiType`, so Rust's coherence rules accept both (checked with a two-crate prototype).
 
-The [loader values](loader-values.md) thunk `set_object` for `Property<V>` or `Property<Option<V>>` is then `V::from_object(tree, object)?` followed by `set_at(level, value)`. The derive can't know at macro time whether `V` implements `FromXamlObject`, so `set_object` is generated for every property: with the same autoref selection #18 uses for its value check, it calls `from_object` when available, and otherwise returns `ValueError::WrongType { expected, found: "an object element" }`. `PropertyAccess.set_object` is therefore always present, not an `Option` (the loader values design is updated accordingly).
+The [loader values](loader-values.md) thunk `set_object` for `Property<V>` or `Property<Option<V>>` is then `V::from_object(tree, object)?` followed by `set_at(level, value)`. The derive can't know at macro time whether `V` implements `FromUiObject`, so `set_object` is generated for every property: with the same autoref selection #18 uses for its value check, it calls `from_object` when available, and otherwise returns `ValueError::WrongType { expected, found: "an object element" }`. `PropertyAccess.set_object` is therefore always present, not an `Option` (the loader values design is updated accordingly).
 
 ## Loader steps
 
@@ -104,9 +104,9 @@ The staging node is always freed by `from_object`, on success and on error, so n
 
 ## Compiled output
 
-The compiled path knows every type at build time, so it stages nothing and never calls `FromXamlObject`. It builds the value with the builder methods (#21, generated by #43 for value types too) and converts it with `Into`:
+The compiled path knows every type at build time, so it stages nothing and never calls `FromUiObject`. It builds the value with the builder methods (#21, generated by #43 for value types too) and converts it with `Into`:
 
-```rust
+```rust,ignore
 border.background.set(Some(
   SolidColorBrush::new()
     .color(COLOR_3B82F6)   // validated at build time; how the constant is emitted is #49's design
@@ -114,7 +114,7 @@ border.background.set(Some(
 ));
 ```
 
-Because a family's `FromXamlObject` is written in terms of its `From` impls, the two paths can't convert differently.
+Because a family's `FromUiObject` is written in terms of its `From` impls, the two paths can't convert differently.
 
 ## Resources
 
@@ -125,7 +125,7 @@ For `<SolidColorBrush x:Key="Accent" Color="#3B82F6"/>` used as `Background="{St
 | Loader | The resource's infoset node, unconverted ([deferred markup](loader-values.md#resources-and-templates-deferred-markup)) | Run the loader steps above on the stored node |
 | Compiled | No runtime dictionary for static resources: one generated function per resource | `border.background.set(Some(resource_accent().into()))` |
 
-```rust
+```rust,ignore
 // compiled output for the resource itself
 fn resource_accent() -> SolidColorBrush {
   SolidColorBrush::new().color(COLOR_3B82F6)
@@ -164,6 +164,6 @@ A node written as a resource (`<Button x:Key="…"/>`) is built anew at each use
 
 | Issue | Change |
 | --- | --- |
-| #35 `Color` and `Brush` | `Brush` implements `From` for each brush struct and `FromXamlObject` written in terms of them |
-| #43 Builder generation | `#[xaml(value)]` in the derive: plain fields, `TypeKind::Value`, no events, `Clone` required, builder methods for value types |
-| #57 Loader values | Stage values with `TypeInfo::new`; `set_object` always present and calling `FromXamlObject`; free the staging node in every case |
+| #35 `Color` and `Brush` | `Brush` implements `From` for each brush struct and `FromUiObject` written in terms of them |
+| #43 Builder generation | `#[ui(value)]` in the derive: plain fields, `TypeKind::Value`, no events, `Clone` required, builder methods for value types |
+| #57 Loader values | Stage values with `TypeInfo::new`; `set_object` always present and calling `FromUiObject`; free the staging node in every case |

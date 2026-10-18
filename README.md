@@ -62,7 +62,7 @@ The workspace is layered. A crate depends only on crates in lower layers, so the
 | Layer | Crate | Responsibility |
 | --- | --- | --- |
 | 0 | `artic-core` | Signals, effects, `Property<T>`, the node tree and trees, the UI dispatcher |
-| 0 | `artic-macros` | The derive and attribute macros, such as `#[element]`, `#[derive(UiType)]` and `#[derive(ViewModel)]` |
+| 0 | `artic-macros` | The derive and attribute macros, such as `#[element]`, `#[derive(UiType)]` and `#[derive(UiEnum)]` |
 | 0 | `artic-xaml` | XAML parser, markup extension grammar and spanned diagnostics |
 | 0 | `artic-test-fonts` | The font artic's tests shape text with, as byte constants |
 | 1 | `artic-registry` | Type metadata that lets UI languages name Rust types and properties |

@@ -4,7 +4,7 @@ Issue: #38. Builds on: the `Renderer` trait and pixel targets (#34, [backend des
 
 A golden test draws a scene into memory and compares the pixels with a PNG checked into the repository. After this, a drawing change is checked by a machine, and an intended change shows up in the pull request as a changed picture.
 
-```rust
+```rust,ignore
 #[test]
 fn box_shadow() {
   with_renderer(|renderer| {
@@ -18,7 +18,7 @@ fn box_shadow() {
 
 The harness lives in `artic_test::golden` and draws through the `Renderer` trait into `Target::Pixels`, in `PixelFormat::Rgba8`. The renderer copies the pixels back and strips the row padding itself, so the harness never touches wgpu, and the same calls work for any renderer that accepts pixel targets in `Rgba8`. The trait lets a renderer draw only on window handles, or take pixel targets in only some formats; such a renderer can't have goldens, and `render` returns its `RenderError`, `Unsupported` or `UnsupportedFormat`.
 
-```rust
+```rust,ignore
 pub struct Image { /* width: u32, height: u32, pixels: Vec<[u8; 4]> */ }
 
 impl Image {
@@ -46,7 +46,7 @@ An `Image` holds straight RGBA, row by row from the top, as `Rgba8` returns it a
 
 ## 2. Goldens
 
-```rust
+```rust,ignore
 #[non_exhaustive]
 pub struct Tolerance { pub channel: u8, pub pixels: f32 }
 
@@ -99,13 +99,13 @@ Two environment variables, each on only when set to `1`:
 | `ARTIC_UPDATE_GOLDENS=1` | `check` writes the image as the golden, removes any `.actual.png` and `.diff.png` beside it, and passes. Rerunning without it passes and changes no file. The new PNGs are reviewed in the pull request, where GitHub shows the old and new picture side by side |
 | `ARTIC_REQUIRE_GPU=1` | a golden test that finds no usable GPU fails instead of skipping |
 
-```rust
+```rust,ignore
 pub fn no_gpu(reason: impl Display);
 ```
 
 Each renderer's tests decide what a usable GPU is, in the helper that hands the tests their renderer: for vello, an adapter that isn't WARP, the software DX12 adapter of Windows, on which vello's compute shaders crash. The check looks for a CPU adapter on the DX12 backend, so Mesa's lavapipe, a CPU adapter on Vulkan, counts as usable on Windows too. When there's none, the helper calls `no_gpu` with the reason instead of running the test. Only those two cases skip: a renderer that finds a usable adapter and then fails, opening the device or building vello's pipelines, is a broken renderer, and the helper panics with its error:
 
-```rust
+```rust,ignore
 fn with_renderer(test: impl FnOnce(&mut Renderer)) {
   match Renderer::new() {
     Ok(renderer) if is_warp(&renderer) => golden::no_gpu("vello crashes on WARP, the only adapter here"),

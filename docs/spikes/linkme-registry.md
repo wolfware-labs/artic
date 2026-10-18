@@ -2,7 +2,7 @@
 
 Issue: #6. Time box: 2 days.
 
-The registry (§3 of the spec) is a `linkme` distributed slice that each crate fills through `#[derive(XamlType)]`. Linkers can drop data that no code references, so this spike checks whether entries from several crates survive LTO, dead-code stripping, an iOS static library and an Android shared library.
+The registry (§3 of the spec) is a `linkme` distributed slice that each crate fills through `#[derive(UiType)]`. Linkers can drop data that no code references, so this spike checks whether entries from several crates survive LTO, dead-code stripping, an iOS static library and an Android shared library.
 
 ## Setup
 
@@ -89,7 +89,7 @@ Section check: the size of the `linkme_ENTRIES` section in `libspike_ffi.so` div
 Keep `linkme` (D11). No fallback mechanism is needed, but two rules must hold, and both can be enforced without adding a registration call for library authors (§3 rule 5).
 
 1. Every crate that contributes registry entries must be linked.
-   - The `artic` facade references its own crates, so built-in controls are always present.
+   - The `artic` facade's `xaml` module references artic's control crates, so built-in controls are present in every app that uses it.
    - For app and third-party crates, the XAML compiler's `build.rs` (#49) finds every dependency that depends on `artic-registry` through `cargo metadata` and emits a `use name as _;` line for each into the generated code. Library authors still write only the derive.
    - Cost: a `cargo metadata` call in the build script, and crates that register types but are never used stay in the binary. Only crates that depend on the registry are affected.
    - Without this, a control that only appears in hot-reloaded or `runtime-xaml` views would be missing from the registry, and the loader would report it as an unknown type.

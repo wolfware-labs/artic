@@ -1,6 +1,6 @@
 # Design: the builder API that generated code targets
 
-Issue: #21. Builds on: `derive(XamlType)` (#18), [value objects](value-objects.md) (#32), geometry (#22). Implemented by: #43 (builder generation in the derive), #49 (compiler emission), #31 (attached-property helpers), #42 (`#[element]` delegation).
+Issue: #21. Builds on: `derive(UiType)` (#18), [value objects](value-objects.md) (#32), geometry (#22). Implemented by: #43 (builder generation in the derive), #49 (compiler emission), #31 (attached-property helpers), #42 (`#[element]` delegation).
 
 The XAML compiler and, in v2, hand-written Rust views both build trees through one API: `Button::new().content("Hi").on_click(…)` (D8). This document fixes that API's shape, so every later codegen issue follows it.
 
@@ -24,13 +24,13 @@ The same `StackPanel` with two children, under each option:
 
 ## The builder is the node struct
 
-- `T::new()` is the `Default` that `#[derive(XamlType)]` generates: every property created with its key and default.
+- `T::new()` is the `Default` that `#[derive(UiType)]` generates: every property created with its key and default.
 - Every builder method takes `self` by value, writes one member, and returns `Self`.
-- `build(self, tree: &mut UiTree) -> Handle<T>` allocates the struct, links its children (the content field and collection fields) in the **logical** tree, which resolves inherited values (#15), and returns a typed handle.
+- `build(self, tree: &mut UiTree) -> Handle<T>` allocates the struct, links its children (the content field and collection fields) in the logical and visual trees, which resolves inherited values (#15), and returns a typed handle.
 
 Children are built before their parents. The compiler emits one `let` per element in post-order, so generated code stays flat. Hand-written code can still nest, because the inner `build(tree)` finishes its borrow before the outer call starts:
 
-```rust
+```rust,ignore
 let panel = StackPanel::new()
   .spacing(8.0)
   .children([Button::new().content("Hi").build(tree)])
@@ -39,7 +39,7 @@ let panel = StackPanel::new()
 
 ## Typed handles and `x:Name`
 
-```rust
+```rust,ignore
 // artic-core, tree module
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Handle<T> {
@@ -68,7 +68,7 @@ impl<T> From<Handle<T>> for NodeId { /* … */ }
 
 ## Member methods
 
-A method is named after its field, which is already snake_case: the XAML name `CornerRadius` comes from the field `corner_radius`, whose method is `.corner_radius(…)`. Event methods add the prefix `on_`.
+A method is named after its field, which is already snake_case: the name UI languages use, `CornerRadius`, comes from the field `corner_radius`, whose method is `.corner_radius(…)`. Event methods add the prefix `on_`.
 
 | Member | Generated method | What it does |
 | --- | --- | --- |
@@ -81,7 +81,7 @@ A method is named after its field, which is already snake_case: the XAML name `C
 
 Each property's key is also exposed, for styles:
 
-```rust
+```rust,ignore
 impl Border {
   pub const PADDING: &'static PropertyKey<Thickness> = &__KEY_PADDING;   // or the shared `key = …`
 }
@@ -89,13 +89,13 @@ impl Border {
 
 A constant may point at a `static` since Rust 1.83, so the generated key stays private in the derive's block and gets a public name here. The constant's name is the field name in SCREAMING_SNAKE_CASE.
 
-Value types (`#[xaml(value)]`, [value objects](value-objects.md)) get the same `new` and property methods, with no `build`: a value is passed straight to the property that holds it.
+Value types (`#[ui(value)]`, [value objects](value-objects.md)) get the same `new` and property methods, with no `build`: a value is passed straight to the property that holds it.
 
 ### Attached properties
 
 An attached property is stored on its target node, so it can only be set once that node exists. #31 generates two associated functions on the owner, called after `build`:
 
-```rust
+```rust,ignore
 impl Grid {
   pub const ROW: &'static AttachedKey<usize>;
   pub fn set_row(tree: &mut UiTree, node: impl Into<NodeId>, row: usize);
@@ -115,7 +115,7 @@ There is no second setter in builder form; the builder doesn't wrap these helper
 | A field named `new` or `build` | Derive error: the name is the builder's start or finish; rename the field |
 | A Rust keyword field (`r#type`) | The method is `r#type` too (a raw identifier) |
 | A user's inherent method with a builder method's name | Rust's duplicate-definition error; builder method names are reserved on derived types |
-| An attached getter clashing with the owner's own property method | Derive error naming both; `#[xaml(name = …)]` renames one |
+| An attached getter clashing with the owner's own property method | Derive error naming both; `#[ui(name = …)]` renames one |
 
 ## Bindings, resources, classes and styles
 
@@ -127,7 +127,7 @@ There is no second setter in builder form; the builder doesn't wrap these helper
 | `Classes="primary"` | `.classes(["primary"])`, delegated from the `identity` group (#42, #108) |
 | `Style` (D6) | `Style::new(selector).setter(key, value)`, below |
 
-```rust
+```rust,ignore
 // artic-style
 impl Style {
   /// A style for the nodes `selector` matches; the selector syntax is #107's.
@@ -145,14 +145,15 @@ The key carries the value type, so `.setter(Button::PADDING, "red")` doesn't com
 
 ## `Border`'s generated items
 
-For the spec §3 `Border`:
+For `Border` as built:
 
 | Kind | Items |
 | --- | --- |
 | Start and finish | `Border::new() -> Border`, `fn build(self, tree: &mut UiTree) -> Handle<Border>` |
-| Properties | `.child(impl Into<NodeId>)`, `.padding(impl Into<Thickness>)`, `.background(impl Into<Brush>)`, `.corner_radius(impl Into<CornerRadius>)` |
-| Events | `.on_pointer_pressed(impl FnMut(&PointerEvent) + 'static)` |
-| Keys | `Border::CHILD`, `Border::PADDING`, `Border::BACKGROUND`, `Border::CORNER_RADIUS` |
+| Content | `.child(item)`, returning `WithChildren` ([panels](panels.md)) |
+| Properties | `.padding(impl Into<Thickness>)`, `.background(impl Into<Brush>)`, `.corner_radius(impl Into<CornerRadius>)` |
+| Events | one `.on_…` method per `Event` field; `Border` has none |
+| Keys | `Border::PADDING`, `Border::BACKGROUND`, `Border::CORNER_RADIUS` |
 | Registry | `Border::TYPE_INFO` (#18) |
 | Through the groups (#42) | `.margin(…)`, `.width(…)`, `.height(…)`, `.classes(…)` and the other group members |
 
@@ -176,7 +177,7 @@ For the spec §3 `Border`:
 
 What the compiler (#49) emits for it:
 
-```rust
+```rust,ignore
 // The resource: one function, called at each use (value objects design).
 fn resource_accent() -> SolidColorBrush {
   SolidColorBrush::new().color(Color::rgb(0x3B, 0x82, 0xF6))   // "#3B82F6", parsed at build time

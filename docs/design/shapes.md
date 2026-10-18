@@ -4,7 +4,7 @@ Issue: #36. Builds on: the retained scene (#33), the vello renderer (#34), [colo
 
 `SceneBuilder` learns to draw everything the [backend design](backends.md) requires of a renderer, apart from images and glyph runs: rectangles, rounded rectangles and paths, filled or stroked with any brush, box shadows, clips of any shape and opacity layers. After this, `Border` and every later control can draw.
 
-```rust
+```rust,ignore
 builder.box_shadow(card, BoxShadow::new(Point::new(0.0, 2.0), 8.0, Color::rgba(0, 0, 0, 64)));
 builder.fill(card, Color::WHITE);
 builder.stroke(card, Color::LIGHT_GRAY, Stroke::new(1.0));
@@ -17,7 +17,7 @@ builder.with_clip(card, |builder| {
 
 Two types join `Rect` in `artic_layout::geometry`, because layout and hit-testing need them as much as drawing does:
 
-```rust
+```rust,ignore
 pub struct RoundedRect { pub rect: Rect, pub radius: CornerRadius }
 
 pub enum PathElement { MoveTo(Point), LineTo(Point), QuadTo(Point, Point), CubicTo(Point, Point, Point), Close }
@@ -49,7 +49,7 @@ Parsing SVG path data (`"M0,0 L10,10 Z"`) can come later as a `FromStr` beside t
 
 A shape says *what* is drawn; a command says *how*. Fills, strokes and clips work on every shape. A box shadow is cast only by a rounded rectangle, as [Box shadows](#box-shadows) explains:
 
-```rust
+```rust,ignore
 pub enum Shape { Rect(Rect), RoundedRect(RoundedRect), Path(Path) }
 
 pub enum Command {
@@ -69,7 +69,7 @@ The `Clip` enum is gone: a clip is a `Shape`, so rectangles, rounded rectangles 
 
 ### Strokes
 
-```rust
+```rust,ignore
 #[non_exhaustive]
 pub struct Stroke { pub width: f32, pub join: LineJoin, pub cap: LineCap, pub miter_limit: f32 }
 pub enum LineJoin { Miter, Round, Bevel }
@@ -78,13 +78,13 @@ pub enum LineCap { Flat, Round, Square }
 Stroke::new(2.0).with_join(LineJoin::Round).with_cap(LineCap::Round)
 ```
 
-The defaults are WPF's and Avalonia's: width `1`, `Miter`, `Flat`, miter limit `10`. The names are the XAML ones (`Flat`, not SVG's `Butt`), since markup will set them once shapes become elements. A stroke is centered on the outline. `Border` draws its outline as a filled even-odd ring instead, so its sides can differ in width ([border design](border.md)).
+The defaults are WPF's and Avalonia's: width `1`, `Miter`, `Flat`, miter limit `10`. The names are the XAML ones (`Flat`, not SVG's `Butt`), since UI languages will set them once shapes become elements. A stroke is centered on the outline. `Border` draws its outline as a filled even-odd ring instead, so its sides can differ in width ([border design](border.md)).
 
 `Stroke` is `#[non_exhaustive]` and built with `new` and `with_*` methods, so code outside `artic-render` can't write it as a literal, and adding fields (dashes, below) breaks no caller.
 
 ### Box shadows
 
-```rust
+```rust,ignore
 #[non_exhaustive]
 pub struct BoxShadow { pub offset: Point, pub blur: f32, pub spread: f32, pub color: Color }
 
@@ -95,7 +95,7 @@ BoxShadow::new(Point::new(0.0, 2.0), 8.0, Color::rgba(0, 0, 0, 64)).with_spread(
 
 ## 3. The builder
 
-```rust
+```rust,ignore
 impl SceneBuilder {
   pub fn fill(&mut self, shape: impl Into<Shape>, brush: impl Into<Brush>);
   pub fn stroke(&mut self, shape: impl Into<Shape>, brush: impl Into<Brush>, stroke: Stroke);
@@ -154,7 +154,7 @@ Glyph runs (#37), images (#71), golden images (#38) and blend modes other than `
 | Crate | Tests |
 | --- | --- |
 | `artic-layout` | `path_builder_records_figures`, `path_bounds_include_curve_extrema`, `path_fill_rule_defaults_to_even_odd`, `rounded_rect_fitted_scales_overlapping_radii` (and negative and NaN radii) |
-| `artic-render` | `opacity_is_clamped`, `layers_balance_by_construction`, `opacity_layer_nests` (two nested opacity layers record in order), `fill_and_stroke_record_shapes`, `shape_bounds_cover_each_variant`, `stroke_defaults_match_xaml` |
+| `artic-render` | `opacity_is_clamped`, `layers_balance_by_construction`, `opacity_layer_nests` (two nested opacity layers record in order), `fill_and_stroke_record_shapes`, `shape_bounds_cover_each_variant`, `stroke_has_the_usual_defaults` |
 | `artic-vello` | `shapes_convert_to_kurbo` (per-corner radii, curves), `stroke_converts_join_cap_and_miter`, `invalid_shapes_and_strokes_draw_nothing` (each row of section 4's table, infinities included), `box_shadow_values_are_made_drawable`, `box_shadow_grows_moves_and_blurs` (spread, offset, standard deviation) |
 | `artic-vello` pixels | `rounded_rect_leaves_corners_clear`, `stroke_paints_only_the_outline`, `path_clip_masks_drawing`, `fill_rule_decides_a_star_center`, `box_shadow_fades_outside_the_rect`, `unequal_radii_shadow_matches_each_corner` (each corner matches a shadow with that corner's radius everywhere), `box_shadow_stays_outside_its_caster`, `gradient_on_path_uses_its_bounds` |
 

@@ -4,7 +4,7 @@ Issue: #37. Builds on: [backends](backends.md) (#33), [brushes](brush.md) (#35),
 
 Text goes from a string, a font family list and a width to positioned glyphs broken into lines, with a size layout can use. A control shapes its text while it's measured, lets layout keep the result, and draws that same result when it records its scene, so text is shaped once per change and never by a renderer.
 
-```rust
+```rust,ignore
 let paragraph = cx.text().paragraph("Hello, world", &style, &paragraph_style, TextLimits::width(200.0));
 // later, in render:
 scene.text(&paragraph, Point::ZERO, foreground);
@@ -36,7 +36,7 @@ The issue predates the [backends design](backends.md), which removed `Renderer::
 
 In `artic-layout`, beside `Thickness` and `Path`:
 
-```rust
+```rust,ignore
 pub struct FontFamily(Arc<[FamilyName]>);
 pub enum FamilyName { Named(Arc<str>), Generic(GenericFamily) }
 pub enum GenericFamily { Serif, SansSerif, Monospace, Cursive, Fantasy, SystemUi, Emoji, Math }
@@ -72,7 +72,7 @@ pub struct FontData { bytes: Arc<dyn AsRef<[u8]> + Send + Sync>, index: u32, id:
 ```
 
 - `FontFamily: FromStr` reads a CSS family list: names separated by commas, each quoted with `'` or `"` or not. An unquoted name equal to a generic keyword (`serif`, `sans-serif`, `monospace`, `cursive`, `fantasy`, `system-ui`, `emoji`, `math`), ignoring case, is that generic family; a quoted one is a font named so. The default, which `TextBlock` (#46) inherits, is `system-ui`.
-- `FontWeight` is 1 to 1000, as in CSS. `FromStr` takes a number or one of WPF's `FontWeights` names, ignoring case: `Thin` 100, `ExtraLight` and `UltraLight` 200, `Light` 300, `Normal` and `Regular` 400, `Medium` 500, `SemiBold` and `DemiBold` 600, `Bold` 700, `ExtraBold` and `UltraBold` 800, `Black` and `Heavy` 900, `ExtraBlack` and `UltraBlack` 950. `FontStyle` is a `XamlEnum`, as `Orientation` is.
+- `FontWeight` is 1 to 1000, as in CSS. `FromStr` takes a number or one of WPF's `FontWeights` names, ignoring case: `Thin` 100, `ExtraLight` and `UltraLight` 200, `Light` 300, `Normal` and `Regular` 400, `Medium` 500, `SemiBold` and `DemiBold` 600, `Bold` 700, `ExtraBold` and `UltraBold` 800, `Black` and `Heavy` 900, `ExtraBlack` and `UltraBlack` 950. `FontStyle` is a `UiEnum`, as `Orientation` is.
 - `TextStyle` is how the characters look, `ParagraphStyle` how the paragraph is laid out, and `TextLimits` the room layout gives it, so only `TextLimits` changes between measure and arrange. The [TextBlock design](text-block.md) (#46) defines `ParagraphStyle`, its enums and the `Paragraph` reports `right_to_left()`, `limited_width()` and `limited_height()`. `line_height: None` uses the font's own line spacing, and `max_lines: None` keeps every line. `max_width` doesn't turn wrapping on: `wrapping` does. `TextLimits::width(width)` and `TextLimits::NONE` are the two common limits.
 - `Paragraph`, `GlyphRun` and `FontData` keep their fields private and expose them through read-only accessors (`size()`, `lines()`, `runs()`, `font()`, `size()`, `coords()`, `synthesis()`, `glyphs()`, `bytes()`, `index()`, `id()`), and are built through `new` functions, so an engine outside artic can build them too and a renderer can't change a recorded paragraph.
 - A `Paragraph` is cheap to clone: its lines and runs are behind `Arc`s. Glyph positions are in logical units, relative to the paragraph's top-left corner, with `y` on the glyph's baseline. Nothing is snapped to device pixels.
@@ -94,7 +94,7 @@ pub enum WeightProblem { UnknownName, OutOfRange }
 
 ## 3. The `TextEngine` trait
 
-```rust
+```rust,ignore
 pub trait TextEngine {
   /// Shapes `text` in `style` and breaks it into lines within `limits`.
   fn paragraph(&mut self, text: &str, style: &TextStyle, paragraph: &ParagraphStyle, limits: TextLimits) -> Paragraph;
@@ -138,7 +138,7 @@ Arrange receives a snapped rectangle, so a width can lose up to a device pixel t
 
 ### Reaching the engine
 
-```rust
+```rust,ignore
 pub struct PixelGrid { pub scale: f32, pub snap: bool }
 
 pub fn run(&mut self, tree: &mut UiTree, nodes: &impl LayoutNodes, root: NodeId, available: Size,
@@ -157,7 +157,7 @@ Text doesn't change the rule that a desired size doesn't depend on the display: 
 
 In `artic-text`:
 
-```rust
+```rust,ignore
 pub struct Engine { /* parley::FontContext, parley::LayoutContext, its font table, its default family */ }
 
 impl Engine {
@@ -198,7 +198,7 @@ The default family is the engine's policy, as the default font is a browser's se
 
 In `artic-render`:
 
-```rust
+```rust,ignore
 pub enum Command {
   // …
   /// Draws `paragraph`'s glyphs with its top-left corner at `origin`, painted with `brush`.

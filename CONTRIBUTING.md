@@ -24,7 +24,12 @@ CI runs these on every pull request. Run them locally before pushing:
 | Tests | `cargo test --workspace` | Test (Windows, macOS, Ubuntu) |
 | Formatting | `cargo fmt --all --check` | Lint |
 | Lints | `cargo clippy --workspace --all-targets -- -D warnings` | Lint |
-| Docs | `cargo doc --workspace --no-deps` with `RUSTDOCFLAGS=-D warnings` | Docs |
+| Facade features | `cargo test -p artic --all-features` | Test (Ubuntu) |
+| Host examples | `cargo run -p artic-winit --example smoke` (with `ARTIC_SMOKE_FRAMES=60`) and `--example frames` | Test (Windows, macOS) |
+| UI-language neutral | `scripts/check-ui-neutral.sh` | Lint |
+| Docs | `cargo doc --workspace --no-deps --exclude docs-check` with `RUSTDOCFLAGS=-D warnings` | Docs |
+| Code in documents | `cargo test -p docs-check` | Docs |
+| Links in documents | `lychee --offline --include-fragments --root-dir "$PWD" '*.md' 'docs/**/*.md'` | Docs |
 | Dependency policy | `cargo deny check` | Deny |
 
 On Windows PowerShell, set the docs flag with `$env:RUSTDOCFLAGS="-D warnings"` before running `cargo doc`.

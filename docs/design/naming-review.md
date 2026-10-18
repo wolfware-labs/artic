@@ -45,4 +45,4 @@ them up as each API is built.
 
 The XAML name, the `.xaml` extension and MS-XAML directive syntax stay by D20. Names that are
 general UI vocabulary (`Margin`, `Padding`, `Button`, `Grid`, `StackPanel`) and artic's own names
-(`LayoutProperties`, `TreeArena`, `ArticTheme`) aren't WPF-specific.
+(`Layout`, `Arena`, `ArticTheme`) aren't WPF-specific.
