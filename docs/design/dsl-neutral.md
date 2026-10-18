@@ -90,13 +90,13 @@ impl NamespaceMap {
 
 It lives in `artic-xaml`, beside the parser, and depends on nothing:
 
-- `using:my_crate::views` keeps working as the spec describes, through the Rust path; it needs no entry.
+- `using:my_crate::views` keeps working as the spec describes, and needs no entry: the back end joins the module and the local name into a Rust path, `my_crate::views::Gauge`, and calls `Registry::type_by_rust_path`, so it finds exactly the type in that module even when another module of the crate has one of the same name.
 - Nothing is built in. The `artic` facade, which already depends on every artic crate with UI types and owns the `runtime-xaml` feature, adds `https://artic.rs/ui` → `artic_element`, `artic_controls` (and the style crates when they define types) through `alias`, the call an app uses for its own URIs, such as `https://acme.com/ui` → `acme_controls`. A new artic crate is added where the crates are composed.
 - A URI that maps to several crates finds a name in each; a name found in two of them is ambiguous, and the back end reports it.
 - The registry only knows the crates the app links: `UI_TYPES` is collected at link time, so a crate the app depends on but never references is left out, as `docs/architecture.md` notes. A crate named in an alias must therefore be linked. The facade's crates are, since it re-exports them; an app that aliases a crate it doesn't otherwise use references it with `use acme_controls as _;`. A back end that finds no type at all in a URI's crates says so, and names that line as the likely fix.
 - `https://artic.rs/markup`, the `x:` directives, stays XAML's own.
 
-A control library therefore never depends on or mentions XAML, and neither the parser nor the registry knows artic's crate layout. The loader (#43's builder path, #49's generated code) resolves a type as: prefix → URI → crates through the map → one `Registry::type_by_name(crate, name)` call on the app's single registry for each of those crates. One `Found` across them is the type; two, or an `Ambiguous`, is ambiguous; none is missing.
+A control library therefore never depends on or mentions XAML, and neither the parser nor the registry knows artic's crate layout. The loader (#43's builder path, #49's generated code) resolves a type by its prefix. A `using:` prefix gives a Rust path, looked up with `Registry::type_by_rust_path`. A URI prefix goes through the map to crates, then one `Registry::type_by_name(crate, name)` call on the app's single registry for each of those crates: one `Found` across them is the type; two, or an `Ambiguous`, is ambiguous; none is missing.
 
 ## 4. The language spec
 
@@ -142,7 +142,7 @@ Design documents keep their "Documents that change" tables.
 
 | Where | Tests |
 | --- | --- |
-| `artic-registry` | `namespace_is_the_first_segment_of_the_rust_path`, `same_name_in_one_crate_is_ambiguous_by_name_and_found_by_path`, `same_rust_path_twice_is_an_error`, `missing_name_is_missing`; `same_name_in_two_crates_is_found_in_each` in the real-crate fixtures (`fixtures/types-a`, `types-b`, `linking/tests`): their `#[xaml(namespace = ...)]` attributes are removed, so their types' namespaces become `types_a` and `types_b`, and the test looks the shared name up in each |
+| `artic-registry` | `namespace_is_the_first_segment_of_the_rust_path`, `same_name_in_one_crate_is_ambiguous_by_name_and_found_by_path`, `same_rust_path_twice_is_an_error`, `missing_name_is_missing`; `same_name_in_two_crates_is_found_in_each` in the real-crate fixtures (`fixtures/types-a`, `types-b`, `linking/tests`): their `#[xaml(namespace = ...)]` attributes are removed, so their types' namespaces become their crate names, `artic_registry_fixture_a` and `artic_registry_fixture_b`, and the test looks the shared name up in each |
 | `artic-macros` | the derive tests and trybuild cases under the new names; `derived_namespace_is_the_crate`; every new or renamed `.stderr` checked for `$RUST/` lines |
 | `artic-xaml` | `NamespaceMap`: `alias_maps_a_uri_to_crates`, `alias_adds_to_a_uri`, `unknown_uri_is_none`; the fixture corpus and its snapshots unchanged |
 | `artic` | `facade_maps_the_artic_uri` (with `runtime-xaml` on) |
