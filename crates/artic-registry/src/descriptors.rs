@@ -10,10 +10,8 @@ use artic_core::tree::{NodeId, UiTree};
 pub struct TypeInfo {
   /// The name markup uses for the type, such as `Border`. Lookups are exact and case-sensitive.
   pub name: &'static str,
-  /// The XML namespace the name belongs to, such as `https://artic.rs/ui`.
-  pub namespace: &'static str,
-  /// The full Rust path of the type, such as `artic_controls::Border`. A `using:` namespace prefix
-  /// is resolved through it.
+  /// The full Rust path where the type is defined, such as `artic_controls::border::Border`; a
+  /// re-export doesn't change it.
   pub rust_path: &'static str,
   /// Creates a node of this type with its default values and returns its id.
   pub new: fn(&mut UiTree) -> NodeId,
@@ -55,6 +53,14 @@ pub trait UiType {
 }
 
 impl TypeInfo {
+  /// The type's namespace: the crate it's defined in, the first segment of its
+  /// [`rust_path`](TypeInfo::rust_path), such as `artic_controls`. A language reaches types by
+  /// namespace and name, or by Rust path.
+  #[must_use]
+  pub fn namespace(&self) -> &'static str {
+    self.rust_path.split("::").next().unwrap_or(self.rust_path)
+  }
+
   /// The type's property named `name`: one of its own, or one from a group it embeds.
   #[must_use]
   pub fn property(&self, name: &str) -> Option<PropertyRef> {
@@ -227,7 +233,6 @@ mod tests {
 
   static BORDER: TypeInfo = TypeInfo {
     name: "Border",
-    namespace: "https://artic.rs/ui",
     rust_path: "artic_controls::Border",
     new: new_border,
     content: None,

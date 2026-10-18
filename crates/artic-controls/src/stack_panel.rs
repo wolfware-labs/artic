@@ -11,7 +11,6 @@ use artic_render::SceneBuilder;
 /// background under them.
 #[element]
 #[derive(Debug)]
-#[ui(namespace = "https://artic.rs/ui")]
 pub struct StackPanel {
   /// The background.
   #[ui(flatten)]

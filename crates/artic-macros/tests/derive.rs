@@ -11,8 +11,6 @@ use artic_registry::{
 use pretty_assertions::assert_eq;
 use std::str::FromStr;
 
-const UI: &str = "https://artic.rs/ui";
-
 // Placeholders for value types that later issues add: geometry (#22), brushes (#35), pointer input
 // and the property groups (#42). They only need to parse from text and have defaults.
 
@@ -61,7 +59,6 @@ struct Layout;
 
 /// The `Border` from the spec's §3, with `affects` added.
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui")]
 struct Border {
   _layout: Layout,
   #[ui(content)]
@@ -93,14 +90,13 @@ impl UiCollection for Items {
 }
 
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui")]
 struct StackPanel {
   #[ui(content)]
   children: Items,
 }
 
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui", whitespace = "significant")]
+#[ui(whitespace = "significant")]
 struct Run {
   #[ui(content)]
   text: Property<String>,
@@ -109,14 +105,12 @@ struct Run {
 static FONT_SIZE: PropertyKey<f32> = PropertyKey::new("FontSize", Affects::LAYOUT, Inheritance::Replace);
 
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui")]
 struct Window {
   #[ui(key = FONT_SIZE, default = 14.0)]
   font_size: Property<f32>,
 }
 
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui")]
 struct TextBlock {
   #[ui(key = FONT_SIZE)]
   font_size: Property<f32>,
@@ -125,7 +119,7 @@ struct TextBlock {
 /// Looks `name` up in the default namespace of a registry built from every linked type.
 fn lookup(name: &str) -> &'static TypeInfo {
   let registry = Registry::from_link_time().expect("no duplicates");
-  registry.type_by_name(UI, name).expect("the type is registered")
+  registry.type_by_name("derive", name).found().expect("the type is registered")
 }
 
 // The spec's `Border` is registered with its four properties, its event and its content field.
@@ -214,7 +208,6 @@ fn shared_key_inherits_across_types() {
 
 /// A panel owning two attached properties: `Row`, set on its children, and `Label`, set anywhere.
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui")]
 #[ui(attached(name = "Row", ty = usize, affects = layout, target = children))]
 #[ui(attached(name = "Label", ty = String, default = "unnamed".to_owned(), target = any))]
 struct Grid {
@@ -266,7 +259,6 @@ fn attached_key_carries_its_metadata() {
 
 /// An owner of one inheriting attached property, as a platform family owner is.
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui")]
 #[ui(attached(name = "Accent", ty = u32, affects = render | surface, target = any, inherits))]
 struct Theme;
 
@@ -288,7 +280,7 @@ fn attached_property_inherits_through_the_logical_tree() {
 
 /// A markup extension with one positional argument and an optional named one.
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui", value_provider(positional(key)))]
+#[ui(value_provider(positional(key)))]
 struct Localize {
   #[ui]
   key: Property<String>,
@@ -298,7 +290,7 @@ struct Localize {
 
 /// A markup extension without arguments.
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui", value_provider)]
+#[ui(value_provider)]
 struct Nothing;
 
 // A markup extension's schema lists its positional arguments in order, and every property as a
@@ -338,7 +330,6 @@ struct Common {
 
 /// A widget that flattens `Common` and adds a property of its own.
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/test")]
 struct Widget {
   #[ui(flatten)]
   common: Common,
@@ -348,7 +339,6 @@ struct Widget {
 
 /// Another widget, to check that a group's inheriting property crosses types.
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/test")]
 struct Gadget {
   #[ui(flatten)]
   common: Common,
@@ -382,7 +372,6 @@ fn group_property_inherits_across_types() {
 
 /// A node whose enabled flag every ancestor must allow.
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/test")]
 struct Switch {
   #[ui(default = true, inherits = and)]
   enabled: Property<bool>,
@@ -406,7 +395,7 @@ fn combining_property_ands_with_its_ancestor() {
 }
 
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/test", override_defaults)]
+#[ui(override_defaults)]
 struct Gauge {
   #[ui(default = 1)]
   low: Property<i32>,
@@ -453,7 +442,6 @@ struct Labeled {
 }
 
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/test")]
 struct Tag {
   #[ui(flatten)]
   labeled: Labeled,
@@ -497,12 +485,10 @@ fn add_child_refuses_another_type() {
 }
 
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui")]
 #[ui(attached(name = "Size", ty = f32, default = 14.0, affects = layout, target = any, inherits))]
 struct Text;
 
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui")]
 struct Label {
   #[ui(key = Text::SIZE)]
   size: Property<f32>,
@@ -531,7 +517,6 @@ static WIDTH: PropertyKey<f32> = PropertyKey::new("Width", Affects::LAYOUT, Inhe
 const WIDTH_KEY: &PropertyKey<f32> = &WIDTH;
 
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui")]
 struct Sized {
   #[ui(key = WIDTH_KEY, default = 3.0)]
   width: Property<f32>,
@@ -541,4 +526,10 @@ struct Sized {
 #[test]
 fn key_through_a_reference_takes_a_default() {
   assert_eq!(Sized::default().width.get(), 3.0);
+}
+
+// A derived type's namespace is its crate: this test crate, `derive`.
+#[test]
+fn derived_namespace_is_the_crate() {
+  assert_eq!(<Border as artic_registry::UiType>::TYPE_INFO.namespace(), "derive");
 }

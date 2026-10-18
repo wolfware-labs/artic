@@ -1,7 +1,7 @@
 error[E0277]: `default` can't go beside an attached key
-  --> tests/ui/default_beside_attached_key.rs:12:14
+  --> tests/ui/default_beside_attached_key.rs:10:14
    |
-12 |   #[ui(key = Text::SIZE, default = 12.0)]
+10 |   #[ui(key = Text::SIZE, default = 12.0)]
    |              ^^^^^^^^^^            ---- required by a bound introduced by this call
    |              |
    |              this attached key already gives the field its default

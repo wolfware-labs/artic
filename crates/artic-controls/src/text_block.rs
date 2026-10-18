@@ -16,7 +16,6 @@ use std::num::NonZeroU32;
 /// [`TextElement`]'s properties when it doesn't set them itself.
 #[element]
 #[derive(Debug)]
-#[ui(namespace = "https://artic.rs/ui")]
 pub struct TextBlock {
   /// The text.
   #[ui(affects = layout)]

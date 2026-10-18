@@ -1,5 +1,5 @@
 error: `#[element]` can't be used on a generic struct
- --> tests/ui/element_generic.rs:6:15
+ --> tests/ui/element_generic.rs:5:15
   |
-6 | struct Wrapper<T> {
+5 | struct Wrapper<T> {
   |               ^^^

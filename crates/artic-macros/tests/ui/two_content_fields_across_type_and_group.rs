@@ -8,7 +8,6 @@ struct Labeled {
 }
 
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/test")]
 struct Tag {
   #[ui(flatten)]
   labeled: Labeled,

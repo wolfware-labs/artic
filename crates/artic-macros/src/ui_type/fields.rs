@@ -265,7 +265,6 @@ mod tests {
   #[test]
   fn fields_are_sorted_by_role() {
     let input: DeriveInput = parse_quote! {
-      #[ui(namespace = "https://artic.rs/ui")]
       struct Border {
         layout: Layout,
         #[ui(content)] child: Property<Option<NodeId>>,
@@ -298,7 +297,6 @@ mod tests {
   #[test]
   fn flatten_makes_a_group() {
     let input: DeriveInput = parse_quote! {
-      #[ui(namespace = "https://artic.rs/ui")]
       struct Border { #[ui(flatten)] layout: Layout }
     };
 
@@ -311,7 +309,6 @@ mod tests {
   #[test]
   fn ui_names() {
     let input: DeriveInput = parse_quote! {
-      #[ui(namespace = "https://artic.rs/ui")]
       struct Border {
         #[ui] corner_radius: Property<f32>,
         #[ui(name = "BorderBrush")] brush: Property<f32>,
@@ -335,7 +332,6 @@ mod tests {
   #[test]
   fn content_on_an_event_is_an_error() {
     let input: DeriveInput = parse_quote! {
-      #[ui(namespace = "https://artic.rs/ui")]
       struct Button { #[ui(content)] click: Event<ClickEvent> }
     };
 
@@ -348,7 +344,6 @@ mod tests {
   #[test]
   fn unmarked_property_is_an_error() {
     let input: DeriveInput = parse_quote! {
-      #[ui(namespace = "https://artic.rs/ui")]
       struct Border { padding: Property<f32> }
     };
 
@@ -361,7 +356,6 @@ mod tests {
   #[test]
   fn property_settings_on_an_event_are_an_error() {
     let input: DeriveInput = parse_quote! {
-      #[ui(namespace = "https://artic.rs/ui")]
       struct Button { #[ui(affects = render)] clicked: Event<ClickArgs> }
     };
 

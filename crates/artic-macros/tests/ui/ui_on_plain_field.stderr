@@ -1,7 +1,7 @@
 error[E0277]: `String` can't hold child elements
- --> tests/ui/ui_on_plain_field.rs:7:9
+ --> tests/ui/ui_on_plain_field.rs:6:9
   |
-7 |   text: String,
+6 |   text: String,
   |         ^^^^^^ `#[ui]` on a field that isn't a `Property` or an `Event` makes it a collection of children
   |
   = help: the trait `UiCollection` is not implemented for `String`

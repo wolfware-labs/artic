@@ -18,7 +18,6 @@ use std::cell::Cell;
 
 /// A control with the four groups and nothing else.
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/test")]
 struct Probe {
   #[ui(flatten)]
   layout: Layout,
@@ -32,7 +31,6 @@ struct Probe {
 
 /// A second control type, to check inheritance across types.
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/test")]
 struct Other {
   #[ui(flatten)]
   interaction: Interaction,
@@ -67,7 +65,8 @@ const NAMES: [(&str, &str); 20] = [
 fn groups_registered() {
   let registry = Registry::from_link_time().expect("no duplicates");
   let info = registry
-    .type_by_name("https://artic.rs/test", "Probe")
+    .type_by_name("properties", "Probe")
+    .found()
     .expect("Probe is registered");
 
   for (name, group) in NAMES {

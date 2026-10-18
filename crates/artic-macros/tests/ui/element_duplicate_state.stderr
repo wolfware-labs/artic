@@ -1,5 +1,5 @@
 error: `second` has the same state type as `first`; a struct holds at most one field per state type
-  --> tests/ui/element_duplicate_state.rs:14:11
+  --> tests/ui/element_duplicate_state.rs:13:11
    |
-14 |   second: Presses,
+13 |   second: Presses,
    |           ^^^^^^^

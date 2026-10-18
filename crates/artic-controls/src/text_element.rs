@@ -6,7 +6,6 @@ use artic_render::{Brush, Color};
 /// inherits, so text follows the nearest ancestor that sets them: a panel can set the font of
 /// everything inside it.
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui")]
 #[ui(attached(name = "FontFamily", ty = FontFamily, affects = layout, target = any, inherits))]
 #[ui(attached(name = "FontSize", ty = f32, default = 14.0, affects = layout, target = any, inherits))]
 #[ui(attached(name = "FontWeight", ty = FontWeight, affects = layout, target = any, inherits))]

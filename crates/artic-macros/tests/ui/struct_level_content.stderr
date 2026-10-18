@@ -1,5 +1,5 @@
-error: unknown `ui` key `content`; expected `namespace`, `whitespace`, `crate`, `attached`, `value_provider` or `override_defaults`
- --> tests/ui/struct_level_content.rs:5:43
+error: unknown `ui` key `content`; expected `whitespace`, `crate`, `attached`, `value_provider` or `override_defaults`
+ --> tests/ui/struct_level_content.rs:5:6
   |
-5 | #[ui(namespace = "https://artic.rs/test", content = text)]
-  |                                           ^^^^^^^
+5 | #[ui(content = text)]
+  |      ^^^^^^^

@@ -13,7 +13,6 @@ use syn::{DeriveInput, parse_macro_input};
 ///
 /// # Struct attributes
 ///
-/// - `namespace = "..."` (required): the XML namespace the type's name belongs to.
 /// - `override_defaults`: `Default` calls `OverrideDefaults::override_defaults` once after building
 ///   the fields, to change defaults the type doesn't declare, such as a flattened group's.
 /// - `whitespace = "significant"`: keep whitespace in text content (the default collapses it).
@@ -116,7 +115,6 @@ pub fn derive_ui_enum(input: TokenStream) -> TokenStream {
 /// ```ignore
 /// #[element]
 /// #[derive(Debug)]
-/// #[ui(namespace = "https://artic.rs/ui")]
 /// pub struct Border {
 ///   #[ui(content)] pub child: Property<Option<NodeId>>,
 /// }

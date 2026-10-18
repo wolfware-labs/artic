@@ -8,7 +8,7 @@
 /// ```ignore
 /// #[element]
 /// #[derive(Debug)]
-/// #[ui(namespace = "https://artic.rs/ui", override_defaults)]
+/// #[ui(override_defaults)]
 /// pub struct Button {}
 ///
 /// impl OverrideDefaults for Button {

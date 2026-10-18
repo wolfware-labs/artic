@@ -11,7 +11,6 @@ use artic_macros::{UiEnum, UiType, element};
 /// [`Desktop`] setting on it reaches every one of them.
 #[element]
 #[derive(Debug)]
-#[ui(namespace = "https://artic.rs/ui")]
 pub struct Application;
 
 impl ElementImpl for Application {}
@@ -23,7 +22,6 @@ impl ElementImpl for Application {}
 /// platform family are attached properties of that family's owner, such as [`Desktop`].
 #[element]
 #[derive(Debug)]
-#[ui(namespace = "https://artic.rs/ui")]
 pub struct Surface {
   /// What the surface is called: its window's title, and its name to assistive technology.
   #[ui(affects = surface | render)]
@@ -54,7 +52,6 @@ impl ElementImpl for Surface {
 /// Each inherits: set on the [`Application`], it reaches every surface; a style on `Surface` or a
 /// local value overrides it for some. A host that isn't a desktop never reads them.
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui")]
 #[ui(attached(name = "Width", ty = Option<f32>, affects = surface, target = any, inherits))]
 #[ui(attached(name = "Height", ty = Option<f32>, affects = surface, target = any, inherits))]
 #[ui(attached(name = "SizeToContent", ty = SizeToContent, affects = surface, target = any, inherits))]

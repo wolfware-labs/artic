@@ -23,7 +23,6 @@ use std::cell::Cell;
 /// arranges its content in, and adds a label and a clip.
 #[element]
 #[derive(Debug)]
-#[ui(namespace = "https://artic.rs/test")]
 struct Tile {
   measured: Cell<u32>,
   arranged: Cell<Option<Size>>,
@@ -234,7 +233,6 @@ impl<T: Element + HasState<Caption>> Captioned for T {}
 /// A control with two states.
 #[element]
 #[derive(Debug)]
-#[ui(namespace = "https://artic.rs/test")]
 struct Key {
   #[element(state)]
   presses: Presses,
@@ -257,7 +255,7 @@ fn state_fields_give_their_traits() {
 /// A control that is focusable and shows a hand by default.
 #[element]
 #[derive(Debug)]
-#[ui(namespace = "https://artic.rs/test", override_defaults)]
+#[ui(override_defaults)]
 struct Knob {}
 
 impl ElementImpl for Knob {}
@@ -305,7 +303,7 @@ fn element_adds_derive_xaml_type() {
 /// A control that names its crate path itself.
 #[element]
 #[derive(Debug)]
-#[ui(namespace = "https://artic.rs/test", crate = "element_crate")]
+#[ui(crate = "element_crate")]
 struct Pinned {}
 
 impl ElementImpl for Pinned {}
@@ -319,7 +317,6 @@ fn element_keeps_its_own_crate_path() {
 /// A control with nothing of its own.
 #[element]
 #[derive(Debug)]
-#[ui(namespace = "https://artic.rs/test")]
 struct Spacer;
 
 impl ElementImpl for Spacer {}
@@ -335,7 +332,6 @@ fn unit_struct_gets_the_groups() {
 /// A control with a property of its own, with its own default.
 #[element]
 #[derive(Debug)]
-#[ui(namespace = "https://artic.rs/test")]
 struct Dial {
   #[ui(default = 3)]
   turns: Property<i32>,
@@ -363,7 +359,6 @@ mod shadowed {
   /// A control declared beside that constant.
   #[element]
   #[derive(Debug)]
-  #[ui(namespace = "https://artic.rs/test")]
   pub struct Lamp;
 
   impl ElementImpl for Lamp {}

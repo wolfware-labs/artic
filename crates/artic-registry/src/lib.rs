@@ -18,7 +18,7 @@ pub use descriptors::{
   ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, EventInfo, PropertyGroup, PropertyGroupInfo, PropertyInfo,
   PropertyRef, TypeInfo, UiType, ValueProviderInfo, Whitespace,
 };
-pub use registry::{Duplicate, Registry, RegistryError};
+pub use registry::{Duplicate, Lookup, Registry, RegistryError};
 pub use value_error::ValueError;
 
 #[doc(hidden)]
@@ -43,7 +43,6 @@ use linkme::distributed_slice;
 ///
 /// static GAUGE: TypeInfo = TypeInfo {
 ///   name: "Gauge",
-///   namespace: "using:my_app::views",
 ///   rust_path: "my_app::views::Gauge",
 ///   new: |tree: &mut UiTree| -> NodeId { tree.alloc(Box::new(Gauge)) },
 ///   content: None,
@@ -101,7 +100,6 @@ pub static UI_TYPES: [&'static TypeInfo];
 ///
 /// static DIAL: TypeInfo = TypeInfo {
 ///   name: "Dial",
-///   namespace: "using:my_app::views",
 ///   rust_path: "my_app::views::Dial",
 ///   new: |tree: &mut UiTree| -> NodeId { tree.alloc(Box::new(Dial)) },
 ///   content: None,
@@ -117,7 +115,7 @@ pub static UI_TYPES: [&'static TypeInfo];
 /// artic_registry::register_type!(DIAL);
 ///
 /// let registry = Registry::from_link_time().expect("no duplicates");
-/// assert!(registry.type_by_name("using:my_app::views", "Dial").is_some());
+/// assert!(registry.type_by_name("my_app", "Dial").found().is_some());
 /// ```
 #[macro_export]
 macro_rules! register_type {

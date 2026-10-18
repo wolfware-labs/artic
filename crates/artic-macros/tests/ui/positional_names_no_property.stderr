@@ -1,5 +1,5 @@
 error: `positional(changed)` names no property of `Localize`
- --> tests/ui/positional_names_no_property.rs:6:72
+ --> tests/ui/positional_names_no_property.rs:6:37
   |
-6 | #[ui(namespace = "https://artic.rs/ui", value_provider(positional(key, changed)))]
-  |                                                                        ^^^^^^^
+6 | #[ui(value_provider(positional(key, changed)))]
+  |                                     ^^^^^^^

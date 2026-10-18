@@ -1,5 +1,5 @@
 error: this type already declares the attached property `Row`
- --> tests/ui/attached_duplicate_name.rs:6:22
+ --> tests/ui/attached_duplicate_name.rs:5:22
   |
-6 | #[ui(attached(name = "Row", ty = i32, target = children))]
+5 | #[ui(attached(name = "Row", ty = i32, target = children))]
   |                      ^^^^^

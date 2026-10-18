@@ -1,5 +1,5 @@
 error: `layout` is added by `#[element]`; remove this field
- --> tests/ui/element_reserved_name.rs:7:3
+ --> tests/ui/element_reserved_name.rs:6:3
   |
-7 |   layout: u8,
+6 |   layout: u8,
   |   ^^^^^^

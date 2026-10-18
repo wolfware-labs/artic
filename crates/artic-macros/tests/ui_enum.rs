@@ -15,7 +15,6 @@ enum Orientation {
 /// A XAML type with an enum-valued property, which only compiles if the enum passes the
 /// property value check.
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui")]
 struct StackPanel {
   #[ui(affects = layout)]
   orientation: Property<Orientation>,

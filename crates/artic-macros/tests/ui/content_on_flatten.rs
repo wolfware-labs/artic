@@ -8,7 +8,6 @@ struct Common {
 }
 
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/test")]
 struct Widget {
   #[ui(flatten, content)]
   common: Common,

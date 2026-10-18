@@ -60,7 +60,6 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
     let ty = field.ty;
     quote_spanned!(ty.span()=> __artic::assert_collection::<#ty>();)
   });
-  let namespace = &analysis.attributes.namespace;
   let own_content = analysis
     .ui_fields
     .iter()
@@ -183,7 +182,6 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
 
       static __TYPE_INFO: __artic::TypeInfo = __artic::TypeInfo {
         name: ::core::stringify!(#ident),
-        namespace: #namespace,
         rust_path: ::core::concat!(::core::module_path!(), "::", ::core::stringify!(#ident)),
         new: __new,
         content: #content,

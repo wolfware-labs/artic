@@ -8,7 +8,6 @@ use artic_macros::element;
 /// A control made through the facade.
 #[element]
 #[derive(Debug)]
-#[ui(namespace = "https://artic.rs/test")]
 struct Spacer;
 
 impl ElementImpl for Spacer {}

@@ -6,7 +6,6 @@ struct Presses;
 
 #[element]
 #[derive(Debug)]
-#[ui(namespace = "https://artic.rs/test")]
 struct Key {
   #[element(state)]
   first: Presses,

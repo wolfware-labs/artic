@@ -10,7 +10,6 @@ use artic_render::{BoxShadow, Brush, SceneBuilder, Shape};
 /// inside of the outline.
 #[element]
 #[derive(Debug)]
-#[ui(namespace = "https://artic.rs/ui")]
 pub struct Border {
   /// The child, drawn inside the padding and clipped to the inside of the outline.
   #[ui(content)]

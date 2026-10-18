@@ -4,7 +4,7 @@ use artic_macros::UiType;
 struct Telemetry;
 
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui", attached(name = "Reading", ty = Telemetry, target = any))]
+#[ui(attached(name = "Reading", ty = Telemetry, target = any))]
 struct Gauge;
 
 fn main() {}

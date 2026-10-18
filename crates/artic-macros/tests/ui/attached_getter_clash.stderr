@@ -1,5 +1,5 @@
 error: the attached property `Row`'s helpers `row` and `set_row` clash with the property `row`; rename one with `name = ...`
- --> tests/ui/attached_getter_clash.rs:5:57
+ --> tests/ui/attached_getter_clash.rs:5:22
   |
-5 | #[ui(namespace = "https://artic.rs/ui", attached(name = "Row", ty = usize, target = children))]
-  |                                                         ^^^^^
+5 | #[ui(attached(name = "Row", ty = usize, target = children))]
+  |                      ^^^^^

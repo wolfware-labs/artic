@@ -5,7 +5,6 @@ use syn::{DeriveInput, Error, Expr, Field, Ident, LitStr, Meta, Path, Token, Typ
 /// What `#[ui(...)]` on the struct says.
 #[cfg_attr(test, derive(Debug))]
 pub struct TypeAttributes {
-  pub namespace: LitStr,
   pub whitespace: Whitespace,
   pub crate_path: Option<Path>,
   pub attached: Vec<Attached>,
@@ -69,7 +68,6 @@ pub struct Affects {
 
 /// Reads the struct's `#[ui(...)]` attributes.
 pub fn parse_type_attributes(input: &DeriveInput) -> syn::Result<TypeAttributes> {
-  let mut namespace = None;
   let mut whitespace = Whitespace::Collapse;
   let mut crate_path = None;
   let mut attached = Vec::new();
@@ -77,9 +75,7 @@ pub fn parse_type_attributes(input: &DeriveInput) -> syn::Result<TypeAttributes>
   let mut override_defaults = false;
   for attribute in input.attrs.iter().filter(|attribute| attribute.path().is_ident("ui")) {
     attribute.parse_nested_meta(|meta| {
-      if meta.path.is_ident("namespace") {
-        namespace = Some(meta.value()?.parse::<LitStr>()?);
-      } else if meta.path.is_ident("whitespace") {
+      if meta.path.is_ident("whitespace") {
         let value: LitStr = meta.value()?.parse()?;
         whitespace = match value.value().as_str() {
           "collapse" => Whitespace::Collapse,
@@ -92,26 +88,19 @@ pub fn parse_type_attributes(input: &DeriveInput) -> syn::Result<TypeAttributes>
       } else if meta.path.is_ident("attached") {
         attached.push(parse_attached(&meta)?);
       } else if meta.path.is_ident("value_provider") {
-        value_provider = Some(parse_markup_extension(&meta)?);
+        value_provider = Some(parse_value_provider(&meta)?);
       } else if meta.path.is_ident("override_defaults") {
         override_defaults = true;
       } else {
         return Err(unknown_key(
           &meta,
-          "`namespace`, `whitespace`, `crate`, `attached`, `value_provider` or `override_defaults`",
+          "`whitespace`, `crate`, `attached`, `value_provider` or `override_defaults`",
         ));
       }
       Ok(())
     })?;
   }
-  let namespace = namespace.ok_or_else(|| {
-    Error::new_spanned(
-      &input.ident,
-      "missing the XML namespace: add `#[ui(namespace = \"...\")]` to the struct",
-    )
-  })?;
   Ok(TypeAttributes {
-    namespace,
     whitespace,
     crate_path,
     attached,
@@ -122,7 +111,7 @@ pub fn parse_type_attributes(input: &DeriveInput) -> syn::Result<TypeAttributes>
 
 /// Reads `value_provider` or `value_provider(positional(key, fallback))`, returning the
 /// properties set by position.
-fn parse_markup_extension(value_provider: &ParseNestedMeta) -> syn::Result<Vec<Ident>> {
+fn parse_value_provider(value_provider: &ParseNestedMeta) -> syn::Result<Vec<Ident>> {
   let mut positional = Vec::new();
   if value_provider.input.peek(syn::token::Paren) {
     value_provider.parse_nested_meta(|meta| {
@@ -289,13 +278,12 @@ mod tests {
   #[test]
   fn type_attributes_are_parsed() {
     let input: DeriveInput = parse_quote! {
-      #[ui(namespace = "https://artic.rs/ui", override_defaults, whitespace = "significant")]
+      #[ui(override_defaults, whitespace = "significant")]
       struct Border { child: u8 }
     };
 
     let attributes = parse_type_attributes(&input).expect("valid attributes");
 
-    assert_eq!(attributes.namespace.value(), "https://artic.rs/ui");
     assert!(attributes.override_defaults);
     assert_eq!(attributes.whitespace, Whitespace::Significant);
   }
@@ -304,7 +292,7 @@ mod tests {
   #[test]
   fn crate_path_is_parsed() {
     let input: DeriveInput = parse_quote! {
-      #[ui(namespace = "https://artic.rs/ui", crate = "::my_artic")]
+      #[ui(crate = "::my_artic")]
       struct Border;
     };
 
@@ -318,7 +306,6 @@ mod tests {
   #[test]
   fn attached_is_parsed() {
     let input: DeriveInput = parse_quote! {
-      #[ui(namespace = "https://artic.rs/ui")]
       #[ui(attached(name = "Row", ty = usize, default = 1, affects = layout, target = children))]
       #[ui(attached(name = "Label", ty = String, target = any))]
       struct Grid;
@@ -350,7 +337,7 @@ mod tests {
   fn attached_errors() {
     let message = |attached: proc_macro2::TokenStream| {
       let input: DeriveInput = parse_quote! {
-        #[ui(namespace = "https://artic.rs/ui", attached(#attached))]
+        #[ui(attached(#attached))]
         struct Grid;
       };
       parse_type_attributes(&input).expect_err("invalid attached").to_string()
@@ -379,7 +366,7 @@ mod tests {
   fn attached_inherits_is_parsed() {
     let attached = |tokens: proc_macro2::TokenStream| {
       let input: DeriveInput = parse_quote! {
-        #[ui(namespace = "https://artic.rs/ui", attached(#tokens))]
+        #[ui(attached(#tokens))]
         struct Desktop;
       };
       parse_type_attributes(&input).expect("valid").attached.remove(0)
@@ -410,10 +397,10 @@ mod tests {
         .map(|names| names.iter().map(ToString::to_string).collect::<Vec<_>>())
     };
 
-    let plain: DeriveInput = parse_quote! { #[ui(namespace = "u")] struct Border; };
-    let bare: DeriveInput = parse_quote! { #[ui(namespace = "u", value_provider)] struct Null; };
+    let plain: DeriveInput = parse_quote! { struct Border; };
+    let bare: DeriveInput = parse_quote! { #[ui(value_provider)] struct Null; };
     let listed: DeriveInput = parse_quote! {
-      #[ui(namespace = "u", value_provider(positional(key, fallback)))]
+      #[ui(value_provider(positional(key, fallback)))]
       struct Localize;
     };
 
@@ -422,14 +409,19 @@ mod tests {
     assert_eq!(positional(listed), Some(vec!["key".to_owned(), "fallback".to_owned()]));
   }
 
-  // A struct without a namespace is rejected.
+  // A struct needs no attributes: its namespace is its crate, and `namespace` is no longer a key.
   #[test]
-  fn missing_namespace_is_an_error() {
-    let input: DeriveInput = parse_quote! { struct Border; };
+  fn struct_needs_no_attributes() {
+    let plain: DeriveInput = parse_quote! { struct Border; };
+    let old: DeriveInput = parse_quote! { #[ui(namespace = "https://artic.rs/ui")] struct Border; };
 
-    let error = parse_type_attributes(&input).expect_err("no namespace");
-
-    assert!(error.to_string().starts_with("missing the XML namespace"));
+    assert!(parse_type_attributes(&plain).is_ok());
+    assert!(
+      parse_type_attributes(&old)
+        .expect_err("unknown key")
+        .to_string()
+        .starts_with("unknown `ui` key `namespace`")
+    );
   }
 
   // A field's `affects` takes `layout`, `render` or both joined with `|`.

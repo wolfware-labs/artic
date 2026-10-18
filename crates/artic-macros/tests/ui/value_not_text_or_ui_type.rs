@@ -5,7 +5,6 @@ use artic_macros::UiType;
 struct Telemetry;
 
 #[derive(Debug, UiType)]
-#[ui(namespace = "https://artic.rs/ui")]
 struct Gauge {
   #[ui]
   reading: Property<Telemetry>,

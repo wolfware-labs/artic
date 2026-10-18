@@ -117,7 +117,6 @@ mod tests {
 
   static GAUGE: TypeInfo = TypeInfo {
     name: "Gauge",
-    namespace: "https://fixtures.artic.test",
     rust_path: "tests::Gauge",
     new: |_| unreachable!("never created"),
     content: None,
