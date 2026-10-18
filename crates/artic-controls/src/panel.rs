@@ -1,15 +1,15 @@
 use artic_core::property::Property;
 use artic_element::RenderCx;
 use artic_layout::geometry::Rect;
-use artic_macros::XamlProperties;
+use artic_macros::UiProperties;
 use artic_render::{Brush, SceneBuilder};
 
 /// What every panel has: a background drawn under its children. A panel flattens it and calls
 /// [`render`](Panel::render) from its own `render`.
-#[derive(Debug, XamlProperties)]
+#[derive(Debug, UiProperties)]
 pub struct Panel {
   /// The brush the panel's bounds are filled with, if any.
-  #[xaml(affects = render)]
+  #[ui(affects = render)]
   pub background: Property<Option<Brush>>,
 }
 

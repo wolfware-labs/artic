@@ -2,15 +2,14 @@ use proc_macro2::Span;
 use syn::meta::ParseNestedMeta;
 use syn::{DeriveInput, Error, Expr, Field, Ident, LitStr, Meta, Path, Token, Type};
 
-/// What `#[xaml(...)]` on the struct says.
+/// What `#[ui(...)]` on the struct says.
 #[cfg_attr(test, derive(Debug))]
 pub struct TypeAttributes {
-  pub namespace: LitStr,
   pub whitespace: Whitespace,
   pub crate_path: Option<Path>,
   pub attached: Vec<Attached>,
-  /// The properties set by position, in order, if the type is a markup extension.
-  pub markup_extension: Option<Vec<Ident>>,
+  /// The properties set by position, in order, if the type is a value provider.
+  pub value_provider: Option<Vec<Ident>>,
   pub override_defaults: bool,
 }
 
@@ -39,7 +38,7 @@ pub enum Whitespace {
   Significant,
 }
 
-/// What `#[xaml(...)]` on a field says.
+/// What `#[ui(...)]` on a field says.
 #[derive(Default)]
 #[cfg_attr(test, derive(Debug))]
 pub struct FieldAttributes {
@@ -67,19 +66,16 @@ pub struct Affects {
   pub surface: bool,
 }
 
-/// Reads the struct's `#[xaml(...)]` attributes.
+/// Reads the struct's `#[ui(...)]` attributes.
 pub fn parse_type_attributes(input: &DeriveInput) -> syn::Result<TypeAttributes> {
-  let mut namespace = None;
   let mut whitespace = Whitespace::Collapse;
   let mut crate_path = None;
   let mut attached = Vec::new();
-  let mut markup_extension = None;
+  let mut value_provider = None;
   let mut override_defaults = false;
-  for attribute in input.attrs.iter().filter(|attribute| attribute.path().is_ident("xaml")) {
+  for attribute in input.attrs.iter().filter(|attribute| attribute.path().is_ident("ui")) {
     attribute.parse_nested_meta(|meta| {
-      if meta.path.is_ident("namespace") {
-        namespace = Some(meta.value()?.parse::<LitStr>()?);
-      } else if meta.path.is_ident("whitespace") {
+      if meta.path.is_ident("whitespace") {
         let value: LitStr = meta.value()?.parse()?;
         whitespace = match value.value().as_str() {
           "collapse" => Whitespace::Collapse,
@@ -91,41 +87,34 @@ pub fn parse_type_attributes(input: &DeriveInput) -> syn::Result<TypeAttributes>
         crate_path = Some(value.parse::<Path>()?);
       } else if meta.path.is_ident("attached") {
         attached.push(parse_attached(&meta)?);
-      } else if meta.path.is_ident("markup_extension") {
-        markup_extension = Some(parse_markup_extension(&meta)?);
+      } else if meta.path.is_ident("value_provider") {
+        value_provider = Some(parse_value_provider(&meta)?);
       } else if meta.path.is_ident("override_defaults") {
         override_defaults = true;
       } else {
         return Err(unknown_key(
           &meta,
-          "`namespace`, `whitespace`, `crate`, `attached`, `markup_extension` or `override_defaults`",
+          "`whitespace`, `crate`, `attached`, `value_provider` or `override_defaults`",
         ));
       }
       Ok(())
     })?;
   }
-  let namespace = namespace.ok_or_else(|| {
-    Error::new_spanned(
-      &input.ident,
-      "missing the XML namespace: add `#[xaml(namespace = \"...\")]` to the struct",
-    )
-  })?;
   Ok(TypeAttributes {
-    namespace,
     whitespace,
     crate_path,
     attached,
-    markup_extension,
+    value_provider,
     override_defaults,
   })
 }
 
-/// Reads `markup_extension` or `markup_extension(positional(key, fallback))`, returning the
+/// Reads `value_provider` or `value_provider(positional(key, fallback))`, returning the
 /// properties set by position.
-fn parse_markup_extension(markup_extension: &ParseNestedMeta) -> syn::Result<Vec<Ident>> {
+fn parse_value_provider(value_provider: &ParseNestedMeta) -> syn::Result<Vec<Ident>> {
   let mut positional = Vec::new();
-  if markup_extension.input.peek(syn::token::Paren) {
-    markup_extension.parse_nested_meta(|meta| {
+  if value_provider.input.peek(syn::token::Paren) {
+    value_provider.parse_nested_meta(|meta| {
       if !meta.path.is_ident("positional") {
         return Err(unknown_key(&meta, "`positional`"));
       }
@@ -187,10 +176,10 @@ fn parse_attached(attached: &ParseNestedMeta) -> syn::Result<Attached> {
   })
 }
 
-/// Reads a field's `#[xaml]` or `#[xaml(...)]` attribute, or returns `None` if it has none.
+/// Reads a field's `#[ui]` or `#[ui(...)]` attribute, or returns `None` if it has none.
 pub fn parse_field_attributes(field: &Field) -> syn::Result<Option<FieldAttributes>> {
   let mut found = None;
-  for attribute in field.attrs.iter().filter(|attribute| attribute.path().is_ident("xaml")) {
+  for attribute in field.attrs.iter().filter(|attribute| attribute.path().is_ident("ui")) {
     let attributes = found.get_or_insert_with(FieldAttributes::default);
     if matches!(attribute.meta, Meta::Path(_)) {
       continue;
@@ -268,7 +257,7 @@ fn parse_affects(input: syn::parse::ParseStream) -> syn::Result<Affects> {
 
 fn unknown_key(meta: &ParseNestedMeta, expected: &str) -> Error {
   let key = meta.path.get_ident().map_or_else(|| "?".to_owned(), ToString::to_string);
-  meta.error(format_args!("unknown `xaml` key `{key}`; expected {expected}"))
+  meta.error(format_args!("unknown `ui` key `{key}`; expected {expected}"))
 }
 
 #[cfg(test)]
@@ -289,13 +278,12 @@ mod tests {
   #[test]
   fn type_attributes_are_parsed() {
     let input: DeriveInput = parse_quote! {
-      #[xaml(namespace = "https://artic.rs/ui", override_defaults, whitespace = "significant")]
+      #[ui(override_defaults, whitespace = "significant")]
       struct Border { child: u8 }
     };
 
     let attributes = parse_type_attributes(&input).expect("valid attributes");
 
-    assert_eq!(attributes.namespace.value(), "https://artic.rs/ui");
     assert!(attributes.override_defaults);
     assert_eq!(attributes.whitespace, Whitespace::Significant);
   }
@@ -304,7 +292,7 @@ mod tests {
   #[test]
   fn crate_path_is_parsed() {
     let input: DeriveInput = parse_quote! {
-      #[xaml(namespace = "https://artic.rs/ui", crate = "::my_artic")]
+      #[ui(crate = "::my_artic")]
       struct Border;
     };
 
@@ -318,9 +306,8 @@ mod tests {
   #[test]
   fn attached_is_parsed() {
     let input: DeriveInput = parse_quote! {
-      #[xaml(namespace = "https://artic.rs/ui")]
-      #[xaml(attached(name = "Row", ty = usize, default = 1, affects = layout, target = children))]
-      #[xaml(attached(name = "Label", ty = String, target = any))]
+      #[ui(attached(name = "Row", ty = usize, default = 1, affects = layout, target = children))]
+      #[ui(attached(name = "Label", ty = String, target = any))]
       struct Grid;
     };
 
@@ -350,7 +337,7 @@ mod tests {
   fn attached_errors() {
     let message = |attached: proc_macro2::TokenStream| {
       let input: DeriveInput = parse_quote! {
-        #[xaml(namespace = "https://artic.rs/ui", attached(#attached))]
+        #[ui(attached(#attached))]
         struct Grid;
       };
       parse_type_attributes(&input).expect_err("invalid attached").to_string()
@@ -379,7 +366,7 @@ mod tests {
   fn attached_inherits_is_parsed() {
     let attached = |tokens: proc_macro2::TokenStream| {
       let input: DeriveInput = parse_quote! {
-        #[xaml(namespace = "https://artic.rs/ui", attached(#tokens))]
+        #[ui(attached(#tokens))]
         struct Desktop;
       };
       parse_type_attributes(&input).expect("valid").attached.remove(0)
@@ -400,20 +387,20 @@ mod tests {
     );
   }
 
-  // `markup_extension` marks a markup extension, with the properties set by position in order.
+  // `value_provider` marks a value provider, with the properties set by position in order.
   #[test]
-  fn markup_extension_is_parsed() {
+  fn value_provider_is_parsed() {
     let positional = |input: DeriveInput| {
       let attributes = parse_type_attributes(&input).expect("valid attributes");
       attributes
-        .markup_extension
+        .value_provider
         .map(|names| names.iter().map(ToString::to_string).collect::<Vec<_>>())
     };
 
-    let plain: DeriveInput = parse_quote! { #[xaml(namespace = "u")] struct Border; };
-    let bare: DeriveInput = parse_quote! { #[xaml(namespace = "u", markup_extension)] struct Null; };
+    let plain: DeriveInput = parse_quote! { struct Border; };
+    let bare: DeriveInput = parse_quote! { #[ui(value_provider)] struct Null; };
     let listed: DeriveInput = parse_quote! {
-      #[xaml(namespace = "u", markup_extension(positional(key, fallback)))]
+      #[ui(value_provider(positional(key, fallback)))]
       struct Localize;
     };
 
@@ -422,26 +409,31 @@ mod tests {
     assert_eq!(positional(listed), Some(vec!["key".to_owned(), "fallback".to_owned()]));
   }
 
-  // A struct without a namespace is rejected.
+  // A struct needs no attributes: its namespace is its crate, and `namespace` is no longer a key.
   #[test]
-  fn missing_namespace_is_an_error() {
-    let input: DeriveInput = parse_quote! { struct Border; };
+  fn struct_needs_no_attributes() {
+    let plain: DeriveInput = parse_quote! { struct Border; };
+    let old: DeriveInput = parse_quote! { #[ui(namespace = "https://artic.rs/ui")] struct Border; };
 
-    let error = parse_type_attributes(&input).expect_err("no namespace");
-
-    assert!(error.to_string().starts_with("missing the XML namespace"));
+    assert!(parse_type_attributes(&plain).is_ok());
+    assert!(
+      parse_type_attributes(&old)
+        .expect_err("unknown key")
+        .to_string()
+        .starts_with("unknown `ui` key `namespace`")
+    );
   }
 
   // A field's `affects` takes `layout`, `render` or both joined with `|`.
   #[test]
   fn affects_lists_stages() {
     let input: DeriveInput = parse_quote! {
-      struct Text { #[xaml(affects = layout | render, inherits, default = 12.0)] size: u8 }
+      struct Text { #[ui(affects = layout | render, inherits, default = 12.0)] size: u8 }
     };
 
     let attributes = parse_field_attributes(first_field(&input))
       .expect("valid attributes")
-      .expect("has #[xaml]");
+      .expect("has #[ui]");
 
     assert_eq!(
       attributes.affects,
@@ -457,24 +449,24 @@ mod tests {
   // A bare `inherits` replaces what the field inherits, and `inherits = path` combines with it.
   #[test]
   fn inherits_takes_a_combining_function() {
-    let replace: DeriveInput = parse_quote! { struct A { #[xaml(inherits)] size: u8 } };
-    let combine: DeriveInput = parse_quote! { struct A { #[xaml(inherits = and)] enabled: bool } };
+    let replace: DeriveInput = parse_quote! { struct A { #[ui(inherits)] size: u8 } };
+    let combine: DeriveInput = parse_quote! { struct A { #[ui(inherits = and)] enabled: bool } };
 
     let replace = parse_field_attributes(first_field(&replace))
       .expect("valid")
-      .expect("has #[xaml]");
+      .expect("has #[ui]");
     let combine = parse_field_attributes(first_field(&combine))
       .expect("valid")
-      .expect("has #[xaml]");
+      .expect("has #[ui]");
 
     assert!(matches!(replace.inherits, Some(Inherits::Replace)));
     assert!(matches!(combine.inherits, Some(Inherits::Combine(path)) if path.is_ident("and")));
   }
 
-  // A bare `#[xaml]` marks the field with no settings, and no attribute means not a XAML field.
+  // A bare `#[ui]` marks the field with no settings, and no attribute means not a UI field.
   #[test]
   fn bare_and_missing_field_attributes() {
-    let bare: DeriveInput = parse_quote! { struct A { #[xaml] value: u8 } };
+    let bare: DeriveInput = parse_quote! { struct A { #[ui] value: u8 } };
     let missing: DeriveInput = parse_quote! { struct A { value: u8 } };
 
     assert!(parse_field_attributes(first_field(&bare)).expect("valid").is_some());
@@ -485,7 +477,7 @@ mod tests {
   #[test]
   fn key_with_affects_is_an_error() {
     let input: DeriveInput = parse_quote! {
-      struct Text { #[xaml(key = FONT_SIZE, affects = layout)] size: u8 }
+      struct Text { #[ui(key = FONT_SIZE, affects = layout)] size: u8 }
     };
 
     let error = parse_field_attributes(first_field(&input)).expect_err("conflict");

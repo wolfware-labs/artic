@@ -105,6 +105,7 @@ dependencies = [
  "artic-render",
  "artic-style",
  "artic-theme",
+ "artic-xaml",
  "artic-xaml-runtime",
 ]
 

@@ -9,7 +9,6 @@ use artic_macros::element;
 /// and view-model. Its content fills it, and it adds nothing to what assistive technology sees.
 #[element]
 #[derive(Debug)]
-#[xaml(namespace = "https://artic.rs/ui")]
 pub struct UserControl;
 
 impl ElementImpl for UserControl {

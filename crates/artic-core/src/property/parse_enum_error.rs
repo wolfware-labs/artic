@@ -1,6 +1,6 @@
 /// The error returned when text names none of an enum's values.
 ///
-/// `#[derive(XamlEnum)]` returns it from the enum's `FromStr`. The message repeats what was written
+/// `#[derive(UiEnum)]` returns it from the enum's `FromStr`. The message repeats what was written
 /// and lists every valid name, so a typo in markup explains its own fix.
 ///
 /// # Examples

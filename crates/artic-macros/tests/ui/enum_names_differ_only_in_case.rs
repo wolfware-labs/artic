@@ -1,6 +1,6 @@
-use artic_macros::XamlEnum;
+use artic_macros::UiEnum;
 
-#[derive(XamlEnum)]
+#[derive(UiEnum)]
 enum Size {
   Auto,
   AUTO,

@@ -1,7 +1,7 @@
 use crate::crate_root::{REGISTRY, crate_root};
-use crate::xaml_type::attributes::parse_field_attributes;
-use crate::xaml_type::fields::{Role, check_content, classify, reject_unmarked_member};
-use crate::xaml_type::generate::{default_field, key_static, property_info, value_check};
+use crate::ui_type::attributes::parse_field_attributes;
+use crate::ui_type::fields::{Role, check_content, classify, reject_unmarked_member};
+use crate::ui_type::generate::{default_field, key_static, property_info, value_check};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Error, Fields};
@@ -10,24 +10,24 @@ use syn::{Data, DeriveInput, Error, Fields};
 pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
   let ident = &input.ident;
   let Data::Struct(data) = &input.data else {
-    return Err(Error::new_spanned(ident, "`XamlProperties` can only be derived for a struct"));
+    return Err(Error::new_spanned(ident, "`UiProperties` can only be derived for a struct"));
   };
   let Fields::Named(fields) = &data.fields else {
     return Err(Error::new_spanned(
       &data.fields,
-      "`XamlProperties` needs a struct with named fields",
+      "`UiProperties` needs a struct with named fields",
     ));
   };
   if !input.generics.params.is_empty() {
     return Err(Error::new_spanned(
       &input.generics,
-      "`XamlProperties` can't be derived for a generic struct",
+      "`UiProperties` can't be derived for a generic struct",
     ));
   }
-  if let Some(attribute) = input.attrs.iter().find(|attribute| attribute.path().is_ident("xaml")) {
+  if let Some(attribute) = input.attrs.iter().find(|attribute| attribute.path().is_ident("ui")) {
     return Err(Error::new_spanned(
       attribute,
-      "a property group takes no `#[xaml(...)]` on the struct",
+      "a property group takes no `#[ui(...)]` on the struct",
     ));
   }
   let mut properties = Vec::new();
@@ -91,7 +91,7 @@ pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
 
       #[allow(dead_code, clippy::needless_borrow)]
       fn __checks() {
-        use __artic::{ViaChild as _, ViaFromStr as _, ViaXamlType as _};
+        use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
         #(#checks)*
       }
     };

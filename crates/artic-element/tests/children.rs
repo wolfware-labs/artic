@@ -5,7 +5,7 @@ use artic_core::Object;
 use artic_core::property::AnyProperty;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{Child, Children};
-use artic_registry::{ValueError, XamlCollection};
+use artic_registry::{UiCollection, ValueError};
 use pretty_assertions::assert_eq;
 
 #[derive(Debug, Default)]

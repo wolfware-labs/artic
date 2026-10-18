@@ -9,7 +9,7 @@ use artic_layout::geometry::{Point, Rect, Size, Thickness, Transform};
 use artic_layout::{
   ArrangeCx, HorizontalAlignment, LayoutManager, LayoutNodes, Layoutable, MeasureCx, PixelGrid, VerticalAlignment,
 };
-use artic_macros::XamlType;
+use artic_macros::UiType;
 use artic_registry::{PropertyGroup, Registry};
 use artic_render::{Layers, Shape};
 use artic_text::Engine;
@@ -17,24 +17,22 @@ use pretty_assertions::assert_eq;
 use std::cell::Cell;
 
 /// A control with the four groups and nothing else.
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/test")]
+#[derive(Debug, UiType)]
 struct Probe {
-  #[xaml(flatten)]
+  #[ui(flatten)]
   layout: Layout,
-  #[xaml(flatten)]
+  #[ui(flatten)]
   appearance: Appearance,
-  #[xaml(flatten)]
+  #[ui(flatten)]
   interaction: Interaction,
-  #[xaml(flatten)]
+  #[ui(flatten)]
   identity: Identity,
 }
 
 /// A second control type, to check inheritance across types.
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/test")]
+#[derive(Debug, UiType)]
 struct Other {
-  #[xaml(flatten)]
+  #[ui(flatten)]
   interaction: Interaction,
 }
 
@@ -67,7 +65,8 @@ const NAMES: [(&str, &str); 20] = [
 fn groups_registered() {
   let registry = Registry::from_link_time().expect("no duplicates");
   let info = registry
-    .type_by_name("https://artic.rs/test", "Probe")
+    .type_by_name("properties", "Probe")
+    .found()
     .expect("Probe is registered");
 
   for (name, group) in NAMES {

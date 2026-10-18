@@ -1,5 +1,5 @@
 error: unknown `element` setting; the only one is `state`
- --> tests/ui/element_unknown_setting.rs:7:13
+ --> tests/ui/element_unknown_setting.rs:6:13
   |
-7 |   #[element(status)]
+6 |   #[element(status)]
   |             ^^^^^^

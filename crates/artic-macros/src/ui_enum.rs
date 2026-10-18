@@ -34,17 +34,17 @@ pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
 /// variant with fields, or has two variants whose names differ only in case.
 fn unit_variants(input: &DeriveInput) -> syn::Result<Vec<&Ident>> {
   let Data::Enum(data) = &input.data else {
-    return Err(Error::new_spanned(&input.ident, "`XamlEnum` can only be derived for an enum"));
+    return Err(Error::new_spanned(&input.ident, "`UiEnum` can only be derived for an enum"));
   };
   if data.variants.is_empty() {
-    return Err(Error::new_spanned(&input.ident, "`XamlEnum` needs at least one variant"));
+    return Err(Error::new_spanned(&input.ident, "`UiEnum` needs at least one variant"));
   }
   let mut variants: Vec<&Ident> = Vec::new();
   for variant in &data.variants {
     if !matches!(variant.fields, Fields::Unit) {
       return Err(Error::new_spanned(
         &variant.fields,
-        "`XamlEnum` variants can't have fields: each one is a name written in markup",
+        "`UiEnum` variants can't have fields: each one is a name written in markup",
       ));
     }
     let name = variant.ident.to_string();

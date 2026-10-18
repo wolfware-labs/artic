@@ -2,18 +2,16 @@ use crate::ValueError;
 use artic_core::property::{Affects, AnyProperty};
 use artic_core::tree::{NodeId, UiTree};
 
-/// What the registry knows about one Rust type that XAML can name.
+/// What the registry knows about one Rust type that UI languages can name.
 ///
 /// Every field is plain data that can be built at compile time, so a descriptor is a `static` item:
-/// the `XamlType` derive emits one per type, and a type can also be described by hand.
+/// the `UiType` derive emits one per type, and a type can also be described by hand.
 #[derive(Debug)]
 pub struct TypeInfo {
   /// The name markup uses for the type, such as `Border`. Lookups are exact and case-sensitive.
   pub name: &'static str,
-  /// The XML namespace the name belongs to, such as `https://artic.rs/ui`.
-  pub namespace: &'static str,
-  /// The full Rust path of the type, such as `artic_controls::Border`. A `using:` namespace prefix
-  /// is resolved through it.
+  /// The full Rust path where the type is defined, such as `artic_controls::border::Border`; a
+  /// re-export doesn't change it.
   pub rust_path: &'static str,
   /// Creates a node of this type with its default values and returns its id.
   pub new: fn(&mut UiTree) -> NodeId,
@@ -21,16 +19,16 @@ pub struct TypeInfo {
   pub content: Option<ContentInfo>,
   /// Whether the type is a collection that accepts child elements.
   pub is_collection: bool,
-  /// The type's settable XAML properties.
+  /// The type's settable properties.
   pub properties: &'static [PropertyInfo],
   /// The property groups the type embeds, whose properties are listed as the type's.
   pub groups: &'static [PropertyGroupInfo],
-  /// The type's XAML events.
+  /// The type's events.
   pub events: &'static [EventInfo],
   /// The attached properties this type owns, set on other elements as `Owner.Name`.
   pub attached_properties: &'static [AttachedPropertyInfo],
-  /// The arguments the type takes when used as a markup extension, or `None` if it isn't one.
-  pub markup_extension: Option<&'static MarkupExtensionInfo>,
+  /// The arguments the type takes when used as a value provider, or `None` if it isn't one.
+  pub value_provider: Option<&'static ValueProviderInfo>,
   /// How the parser treats whitespace in text written inside the element.
   pub whitespace: Whitespace,
 }
@@ -45,16 +43,27 @@ pub enum Whitespace {
   Significant,
 }
 
-/// A Rust type that XAML can name, described by a [`TypeInfo`].
+/// A Rust type that UI languages can name, described by a [`TypeInfo`].
 ///
-/// `#[derive(XamlType)]` implements it. A type that implements it can also be the value of a
-/// property, as an object element.
-pub trait XamlType {
+/// `#[derive(UiType)]` implements it. A type that implements it can also be the value of a
+/// property, written as an object rather than as text.
+pub trait UiType {
   /// The type's registry descriptor.
   const TYPE_INFO: &'static TypeInfo;
 }
 
 impl TypeInfo {
+  /// The type's namespace: the crate it's defined in, the first segment of its
+  /// [`rust_path`](TypeInfo::rust_path), such as `artic_controls`. A language reaches types by
+  /// namespace and name, or by Rust path.
+  #[must_use]
+  pub fn namespace(&self) -> &'static str {
+    self
+      .rust_path
+      .split_once("::")
+      .map_or(self.rust_path, |(crate_name, _)| crate_name)
+  }
+
   /// The type's property named `name`: one of its own, or one from a group it embeds.
   #[must_use]
   pub fn property(&self, name: &str) -> Option<PropertyRef> {
@@ -74,14 +83,14 @@ impl TypeInfo {
     })
   }
 
-  /// Whether the type can be used as a markup extension, such as `{Binding}`.
+  /// Whether the type can be used as a value provider, such as a binding.
   #[must_use]
-  pub const fn is_markup_extension(&self) -> bool {
-    self.markup_extension.is_some()
+  pub const fn is_value_provider(&self) -> bool {
+    self.value_provider.is_some()
   }
 }
 
-/// A settable XAML property of a type.
+/// A settable property of a type.
 ///
 /// `name`, `affects` and `inherits` repeat the property's
 /// [`PropertyKey`](artic_core::property::PropertyKey), copied at compile time through its `const`
@@ -102,13 +111,13 @@ pub struct PropertyInfo {
 
 /// Properties several types share by embedding one struct, such as `Layout`.
 ///
-/// `#[derive(XamlProperties)]` implements it. A type lists a group's properties as its own by
-/// marking the field `#[xaml(flatten)]`.
+/// `#[derive(UiProperties)]` implements it. A type lists a group's properties as its own by
+/// marking the field `#[ui(flatten)]`.
 pub trait PropertyGroup {
   /// The group's properties.
   const PROPERTIES: &'static [PropertyInfo];
 
-  /// The group's property marked `#[xaml(content)]`, if any.
+  /// The group's property marked `#[ui(content)]`, if any.
   const CONTENT: Option<&'static PropertyInfo> = None;
 
   /// Lists the group's properties, as [`Object::visit_properties`](artic_core::Object::visit_properties)
@@ -125,7 +134,7 @@ pub struct PropertyGroupInfo {
   pub properties: &'static [PropertyInfo],
 }
 
-/// What a type takes as XAML content: a property, or a collection field of child elements.
+/// What a type takes as content: a property, or a collection field of child elements.
 #[derive(Debug, Clone, Copy)]
 pub enum ContentInfo {
   /// A property that takes the content as its value, set through its property access.
@@ -134,7 +143,7 @@ pub enum ContentInfo {
   Collection {
     /// The collection field.
     field: &'static str,
-    /// Adds one child element as content, calling the field's `XamlCollection::push_child` with
+    /// Adds one child element as content, calling the field's `UiCollection::push_child` with
     /// an accessor to the field.
     add_child: fn(&mut UiTree, NodeId, NodeId) -> Result<(), ValueError>,
   },
@@ -149,7 +158,7 @@ pub struct PropertyRef {
   pub info: &'static PropertyInfo,
 }
 
-/// A XAML event of a type.
+/// An event of a type.
 #[derive(Debug)]
 pub struct EventInfo {
   /// The event's name in markup, such as `PointerPressed`.
@@ -179,16 +188,16 @@ pub enum AttachedTarget {
   ChildrenOfOwner,
 }
 
-/// The arguments a markup extension accepts.
+/// The arguments a value provider accepts.
 #[derive(Debug)]
-pub struct MarkupExtensionInfo {
-  /// Arguments given by position, in order, as in `{Binding Name}`.
+pub struct ValueProviderInfo {
+  /// Arguments given by position, in order, such as a binding's path.
   pub positional: &'static [ArgInfo],
-  /// Arguments given by name, as in `{Binding Path=Name}`.
+  /// Arguments given by name, such as a binding's `Path`.
   pub named: &'static [ArgInfo],
 }
 
-/// One argument of a markup extension.
+/// One argument of a value provider.
 #[derive(Debug)]
 pub struct ArgInfo {
   /// The argument's name.
@@ -227,7 +236,6 @@ mod tests {
 
   static BORDER: TypeInfo = TypeInfo {
     name: "Border",
-    namespace: "https://artic.rs/ui",
     rust_path: "artic_controls::Border",
     new: new_border,
     content: None,
@@ -245,7 +253,7 @@ mod tests {
       args_type: "artic_core::PointerEvent",
     }],
     attached_properties: &[],
-    markup_extension: None,
+    value_provider: None,
     whitespace: Whitespace::Collapse,
   };
 
@@ -259,7 +267,7 @@ mod tests {
 
     assert_eq!(BORDER.properties[0].name, "Padding");
     assert_eq!(BORDER.properties[0].affects, Affects::LAYOUT);
-    assert!(!BORDER.is_markup_extension());
+    assert!(!BORDER.is_value_provider());
     assert!(tree.get_as::<Border>(node).is_some());
   }
 }

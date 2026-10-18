@@ -6,7 +6,7 @@ use artic_element::{AccessCx, Child, ElementTypes, RenderCx, Visibility};
 use artic_layout::LayoutNodes;
 use artic_layout::Layoutable;
 use artic_layout::geometry::{CornerRadius, Point, Rect, RoundedRect, Size, Thickness};
-use artic_registry::{ContentInfo, ValueError, XamlType};
+use artic_registry::{ContentInfo, UiType, ValueError};
 use artic_render::{BoxShadow, Brush, Color, Command, Compositor, Layer, Layers, Nodes, SceneBuilder, SceneItem, Shape};
 use artic_test::layout::{Boxes, Fixed, Headless, Invariants, strategy};
 use proptest::prelude::*;
@@ -132,11 +132,11 @@ fn collapsed_child_leaves_the_chrome() {
   layout.assert_desired(root, Size::new(10.0, 10.0));
 }
 
-// The child field is the type's XAML content.
+// The child field is the type's content.
 #[test]
-fn border_child_is_xaml_content() {
+fn border_child_is_its_content() {
   assert!(matches!(
-    <Border as XamlType>::TYPE_INFO.content,
+    <Border as UiType>::TYPE_INFO.content,
     Some(ContentInfo::Collection { field: "child", .. })
   ));
 }
@@ -144,7 +144,7 @@ fn border_child_is_xaml_content() {
 // Content takes one child; a second one is refused.
 #[test]
 fn border_takes_one_child() {
-  let Some(ContentInfo::Collection { add_child, .. }) = <Border as XamlType>::TYPE_INFO.content else {
+  let Some(ContentInfo::Collection { add_child, .. }) = <Border as UiType>::TYPE_INFO.content else {
     panic!("collection content");
   };
   let mut tree = UiTree::new();

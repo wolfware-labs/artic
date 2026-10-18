@@ -1,23 +1,23 @@
-use crate::xaml_type::attributes::{FieldAttributes, TypeAttributes, parse_field_attributes, parse_type_attributes};
+use crate::ui_type::attributes::{FieldAttributes, TypeAttributes, parse_field_attributes, parse_type_attributes};
 use syn::{Data, DeriveInput, Error, Field, Fields, GenericArgument, Ident, PathArguments, Type};
 
 /// A struct read for the derive: its attributes and its fields, sorted by role.
 pub struct Analysis<'a> {
   pub ident: &'a Ident,
   pub attributes: TypeAttributes,
-  pub xaml_fields: Vec<XamlField<'a>>,
+  pub ui_fields: Vec<UiField<'a>>,
   pub other_fields: Vec<&'a Ident>,
 }
 
-/// A field marked `#[xaml]`.
-pub struct XamlField<'a> {
+/// A field marked `#[ui]`.
+pub struct UiField<'a> {
   pub ident: &'a Ident,
   pub ty: &'a Type,
   pub role: Role<'a>,
   pub attributes: FieldAttributes,
 }
 
-/// What a `#[xaml]` field is, decided from how its type is written.
+/// What a `#[ui]` field is, decided from how its type is written.
 pub enum Role<'a> {
   /// `Property<T>`. `inner` is `T`; `value` is `T`, or the `X` of `Option<X>`, which is what text
   /// or an element sets.
@@ -26,61 +26,55 @@ pub enum Role<'a> {
   Event { args: &'a Type },
   /// Any other type, which must be a collection of child elements.
   Collection,
-  /// `#[xaml(flatten)]`: a property group whose properties are listed as the type's.
+  /// `#[ui(flatten)]`: a property group whose properties are listed as the type's.
   Group,
 }
 
 /// Reads the struct's attributes and sorts its fields by role.
 pub fn analyze(input: &DeriveInput) -> syn::Result<Analysis<'_>> {
   let Data::Struct(data) = &input.data else {
-    return Err(Error::new_spanned(
-      &input.ident,
-      "`XamlType` can only be derived for a struct",
-    ));
+    return Err(Error::new_spanned(&input.ident, "`UiType` can only be derived for a struct"));
   };
   let fields = match &data.fields {
     Fields::Named(fields) => fields.named.iter().collect(),
     Fields::Unit => Vec::new(),
     Fields::Unnamed(_) => {
-      return Err(Error::new_spanned(
-        &data.fields,
-        "`XamlType` needs a struct with named fields",
-      ));
+      return Err(Error::new_spanned(&data.fields, "`UiType` needs a struct with named fields"));
     }
   };
   if !input.generics.params.is_empty() {
     return Err(Error::new_spanned(
       &input.generics,
-      "`XamlType` can't be derived for a generic struct",
+      "`UiType` can't be derived for a generic struct",
     ));
   }
   let attributes = parse_type_attributes(input)?;
-  let mut xaml_fields = Vec::new();
+  let mut ui_fields = Vec::new();
   let mut other_fields = Vec::new();
   for field in fields {
     let ident = field.ident.as_ref().expect("named fields have names");
     match parse_field_attributes(field)? {
-      Some(field_attributes) => xaml_fields.push(classify(field, ident, field_attributes)?),
+      Some(field_attributes) => ui_fields.push(classify(field, ident, field_attributes)?),
       None => {
         reject_unmarked_member(field)?;
         other_fields.push(ident);
       }
     }
   }
-  check_attached(&attributes, &xaml_fields)?;
-  check_positional(&input.ident, &attributes, &xaml_fields)?;
-  check_content(&xaml_fields)?;
+  check_attached(&attributes, &ui_fields)?;
+  check_positional(&input.ident, &attributes, &ui_fields)?;
+  check_content(&ui_fields)?;
   Ok(Analysis {
     ident: &input.ident,
     attributes,
-    xaml_fields,
+    ui_fields,
     other_fields,
   })
 }
 
-/// Rejects a second field marked `#[xaml(content)]`, and the mark on an event.
-pub fn check_content(xaml_fields: &[XamlField]) -> syn::Result<()> {
-  let mut marked = xaml_fields
+/// Rejects a second field marked `#[ui(content)]`, and the mark on an event.
+pub fn check_content(ui_fields: &[UiField]) -> syn::Result<()> {
+  let mut marked = ui_fields
     .iter()
     .filter_map(|field| field.attributes.content.map(|span| (field, span)));
   if let Some((field, span)) = marked.next()
@@ -92,14 +86,14 @@ pub fn check_content(xaml_fields: &[XamlField]) -> syn::Result<()> {
     ));
   }
   if let Some((_, span)) = marked.next() {
-    return Err(Error::new(span, "a type has at most one `#[xaml(content)]` member"));
+    return Err(Error::new(span, "a type has at most one `#[ui(content)]` member"));
   }
   Ok(())
 }
 
 /// Rejects two attached properties with one name, and an attached property whose helpers would
 /// clash with a property's methods, which are named after its field.
-fn check_attached(attributes: &TypeAttributes, xaml_fields: &[XamlField]) -> syn::Result<()> {
+fn check_attached(attributes: &TypeAttributes, ui_fields: &[UiField]) -> syn::Result<()> {
   for (index, attached) in attributes.attached.iter().enumerate() {
     let name = attached.name.value();
     if attributes.attached[..index]
@@ -113,7 +107,7 @@ fn check_attached(attributes: &TypeAttributes, xaml_fields: &[XamlField]) -> syn
     }
     let getter = snake_case(&name);
     let setter = format!("set_{getter}");
-    let clash = xaml_fields
+    let clash = ui_fields
       .iter()
       .filter(|field| matches!(field.role, Role::Property { .. }))
       .find(|field| field.ident == getter.as_str() || field.ident == setter.as_str());
@@ -131,12 +125,12 @@ fn check_attached(attributes: &TypeAttributes, xaml_fields: &[XamlField]) -> syn
 }
 
 /// Rejects a positional argument that isn't a property, or that is listed twice.
-fn check_positional(owner: &Ident, attributes: &TypeAttributes, xaml_fields: &[XamlField]) -> syn::Result<()> {
-  let Some(positional) = &attributes.markup_extension else {
+fn check_positional(owner: &Ident, attributes: &TypeAttributes, ui_fields: &[UiField]) -> syn::Result<()> {
+  let Some(positional) = &attributes.value_provider else {
     return Ok(());
   };
   for (index, argument) in positional.iter().enumerate() {
-    let is_property = xaml_fields
+    let is_property = ui_fields
       .iter()
       .any(|field| field.ident == argument && matches!(field.role, Role::Property { .. }));
     if !is_property {
@@ -156,15 +150,15 @@ fn check_positional(owner: &Ident, attributes: &TypeAttributes, xaml_fields: &[X
 }
 
 /// The field's name in markup: its `name` override, or the field name in PascalCase.
-pub fn xaml_name(field: &XamlField) -> String {
+pub fn ui_name(field: &UiField) -> String {
   match &field.attributes.name {
     Some(name) => name.value(),
     None => pascal_case(&field.ident.to_string()),
   }
 }
 
-/// Decides a `#[xaml]` field's role from its attributes and how its type is written.
-pub fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttributes) -> syn::Result<XamlField<'a>> {
+/// Decides a `#[ui]` field's role from its attributes and how its type is written.
+pub fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttributes) -> syn::Result<UiField<'a>> {
   let role = if attributes.flatten.is_some() {
     Role::Group
   } else if let Some(value) = generic_argument(&field.ty, "Property") {
@@ -187,7 +181,7 @@ pub fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttribu
       ));
     }
   }
-  Ok(XamlField {
+  Ok(UiField {
     ident,
     ty: &field.ty,
     role,
@@ -195,14 +189,14 @@ pub fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttribu
   })
 }
 
-/// A `Property` or `Event` field must be marked `#[xaml]`: the derive builds properties with their
+/// A `Property` or `Event` field must be marked `#[ui]`: the derive builds properties with their
 /// keys, and an unmarked one would have none.
 pub fn reject_unmarked_member(field: &Field) -> syn::Result<()> {
   for wrapper in ["Property", "Event"] {
     if generic_argument(&field.ty, wrapper).is_some() {
       return Err(Error::new_spanned(
         &field.ty,
-        format_args!("add `#[xaml]` to this `{wrapper}` field so the derive can create it"),
+        format_args!("add `#[ui]` to this `{wrapper}` field so the derive can create it"),
       ));
     }
   }
@@ -266,25 +260,24 @@ mod tests {
     ty.to_token_stream().to_string()
   }
 
-  // Each `#[xaml]` field's role follows how its type is written, looking through `Option` for a
+  // Each `#[ui]` field's role follows how its type is written, looking through `Option` for a
   // property's value; unmarked fields are kept apart.
   #[test]
   fn fields_are_sorted_by_role() {
     let input: DeriveInput = parse_quote! {
-      #[xaml(namespace = "https://artic.rs/ui")]
       struct Border {
         layout: Layout,
-        #[xaml(content)] child: Property<Option<NodeId>>,
-        #[xaml(default = Thickness::ZERO)] padding: artic::Property<Thickness>,
-        #[xaml] pointer_pressed: Event<PointerEvent>,
-        #[xaml] items: Vec<NodeId>,
+        #[ui(content)] child: Property<Option<NodeId>>,
+        #[ui(default = Thickness::ZERO)] padding: artic::Property<Thickness>,
+        #[ui] pointer_pressed: Event<PointerEvent>,
+        #[ui] items: Vec<NodeId>,
       }
     };
 
     let analysis = analyze(&input).expect("valid struct");
 
     let roles: Vec<String> = analysis
-      .xaml_fields
+      .ui_fields
       .iter()
       .map(|field| match &field.role {
         Role::Property { value, .. } => format!("property {}", text(value)),
@@ -300,33 +293,31 @@ mod tests {
     assert_eq!(analysis.other_fields, ["layout"]);
   }
 
-  // `#[xaml(flatten)]` makes a field a group, whatever its type looks like.
+  // `#[ui(flatten)]` makes a field a group, whatever its type looks like.
   #[test]
   fn flatten_makes_a_group() {
     let input: DeriveInput = parse_quote! {
-      #[xaml(namespace = "https://artic.rs/ui")]
-      struct Border { #[xaml(flatten)] layout: Layout }
+      struct Border { #[ui(flatten)] layout: Layout }
     };
 
     let analysis = analyze(&input).expect("valid struct");
 
-    assert!(matches!(analysis.xaml_fields[0].role, Role::Group));
+    assert!(matches!(analysis.ui_fields[0].role, Role::Group));
   }
 
   // A field's markup name is its name in PascalCase unless `name` overrides it.
   #[test]
-  fn xaml_names() {
+  fn ui_names() {
     let input: DeriveInput = parse_quote! {
-      #[xaml(namespace = "https://artic.rs/ui")]
       struct Border {
-        #[xaml] corner_radius: Property<f32>,
-        #[xaml(name = "BorderBrush")] brush: Property<f32>,
+        #[ui] corner_radius: Property<f32>,
+        #[ui(name = "BorderBrush")] brush: Property<f32>,
       }
     };
 
     let analysis = analyze(&input).expect("valid struct");
 
-    let names: Vec<String> = analysis.xaml_fields.iter().map(xaml_name).collect();
+    let names: Vec<String> = analysis.ui_fields.iter().map(ui_name).collect();
     assert_eq!(names, ["CornerRadius", "BorderBrush"]);
   }
 
@@ -341,8 +332,7 @@ mod tests {
   #[test]
   fn content_on_an_event_is_an_error() {
     let input: DeriveInput = parse_quote! {
-      #[xaml(namespace = "https://artic.rs/ui")]
-      struct Button { #[xaml(content)] click: Event<ClickEvent> }
+      struct Button { #[ui(content)] click: Event<ClickEvent> }
     };
 
     let error = analyze(&input).err().expect("content on an event");
@@ -350,25 +340,23 @@ mod tests {
     assert!(error.to_string().contains("not an event"));
   }
 
-  // A `Property` field without `#[xaml]` is rejected, since the derive must create it with a key.
+  // A `Property` field without `#[ui]` is rejected, since the derive must create it with a key.
   #[test]
   fn unmarked_property_is_an_error() {
     let input: DeriveInput = parse_quote! {
-      #[xaml(namespace = "https://artic.rs/ui")]
       struct Border { padding: Property<f32> }
     };
 
     let error = analyze(&input).err().expect("unmarked property");
 
-    assert!(error.to_string().starts_with("add `#[xaml]` to this `Property` field"));
+    assert!(error.to_string().starts_with("add `#[ui]` to this `Property` field"));
   }
 
   // Property settings on an event field are rejected.
   #[test]
   fn property_settings_on_an_event_are_an_error() {
     let input: DeriveInput = parse_quote! {
-      #[xaml(namespace = "https://artic.rs/ui")]
-      struct Button { #[xaml(affects = render)] clicked: Event<ClickArgs> }
+      struct Button { #[ui(affects = render)] clicked: Event<ClickArgs> }
     };
 
     let error = analyze(&input).err().expect("affects on an event");

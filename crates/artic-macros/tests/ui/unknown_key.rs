@@ -1,7 +1,7 @@
-use artic_macros::XamlType;
+use artic_macros::UiType;
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui", color = "red")]
+#[derive(Debug, UiType)]
+#[ui(color = "red")]
 struct Border;
 
 fn main() {}

@@ -5,13 +5,12 @@ use crate::{AccessCx, ElementImpl};
 use artic_core::property::Property;
 use artic_layout::geometry::{Rect, Size};
 use artic_layout::{ArrangeCx, MeasureCx};
-use artic_macros::{XamlEnum, XamlType, element};
+use artic_macros::{UiEnum, UiType, element};
 
 /// The root of an app's tree. Its logical children are the [`Surface`]s the host presents, and a
 /// [`Desktop`] setting on it reaches every one of them.
 #[element]
 #[derive(Debug)]
-#[xaml(namespace = "https://artic.rs/ui")]
 pub struct Application;
 
 impl ElementImpl for Application {}
@@ -23,14 +22,13 @@ impl ElementImpl for Application {}
 /// platform family are attached properties of that family's owner, such as [`Desktop`].
 #[element]
 #[derive(Debug)]
-#[xaml(namespace = "https://artic.rs/ui")]
 pub struct Surface {
   /// What the surface is called: its window's title, and its name to assistive technology.
-  #[xaml(affects = surface | render)]
+  #[ui(affects = surface | render)]
   pub title: Property<String>,
   /// Whether the host presents it. The user closing its window sets it to `false`; setting it
   /// to `true` again presents it again.
-  #[xaml(default = true, affects = surface)]
+  #[ui(default = true, affects = surface)]
   pub is_open: Property<bool>,
 }
 
@@ -53,16 +51,15 @@ impl ElementImpl for Surface {
 ///
 /// Each inherits: set on the [`Application`], it reaches every surface; a style on `Surface` or a
 /// local value overrides it for some. A host that isn't a desktop never reads them.
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui")]
-#[xaml(attached(name = "Width", ty = Option<f32>, affects = surface, target = any, inherits))]
-#[xaml(attached(name = "Height", ty = Option<f32>, affects = surface, target = any, inherits))]
-#[xaml(attached(name = "SizeToContent", ty = SizeToContent, affects = surface, target = any, inherits))]
-#[xaml(attached(name = "Chrome", ty = Chrome, affects = surface, target = any, inherits))]
+#[derive(Debug, UiType)]
+#[ui(attached(name = "Width", ty = Option<f32>, affects = surface, target = any, inherits))]
+#[ui(attached(name = "Height", ty = Option<f32>, affects = surface, target = any, inherits))]
+#[ui(attached(name = "SizeToContent", ty = SizeToContent, affects = surface, target = any, inherits))]
+#[ui(attached(name = "Chrome", ty = Chrome, affects = surface, target = any, inherits))]
 pub struct Desktop;
 
 /// Which axes of a window its content sizes. The user can't resize those axes.
-#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, XamlEnum)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, UiEnum)]
 pub enum SizeToContent {
   /// Neither: the window has the size `Desktop.Width` and `Desktop.Height` give, or the host's.
   #[default]
@@ -90,7 +87,7 @@ impl SizeToContent {
 }
 
 /// Who draws a window's frame.
-#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, XamlEnum)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, UiEnum)]
 pub enum Chrome {
   /// The OS draws the title bar and borders.
   #[default]

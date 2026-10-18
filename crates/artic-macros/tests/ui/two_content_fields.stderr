@@ -1,5 +1,5 @@
-error: a type has at most one `#[xaml(content)]` member
- --> tests/ui/two_content_fields.rs:9:10
+error: a type has at most one `#[ui(content)]` member
+ --> tests/ui/two_content_fields.rs:8:8
   |
-9 |   #[xaml(content)]
-  |          ^^^^^^^
+8 |   #[ui(content)]
+  |        ^^^^^^^

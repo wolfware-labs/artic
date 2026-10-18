@@ -11,18 +11,6 @@ pub struct RegistryError {
 /// One clash between registered descriptors.
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, thiserror::Error)]
 pub enum Duplicate {
-  /// Two types have the same name in the same namespace.
-  #[error("two types are named `{name}` in {namespace}: `{first}` and `{second}`")]
-  Name {
-    /// The namespace both names belong to.
-    namespace: &'static str,
-    /// The name both types use.
-    name: &'static str,
-    /// The Rust path of one type, the first in sorted order.
-    first: &'static str,
-    /// The Rust path of the other type.
-    second: &'static str,
-  },
   /// Two descriptors have the same Rust path.
   #[error("two types are registered for the Rust path `{path}`")]
   RustPath {

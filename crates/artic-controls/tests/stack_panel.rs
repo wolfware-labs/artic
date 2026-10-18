@@ -6,7 +6,7 @@ use artic_core::tree::{NodeId, UiTree};
 use artic_element::{AccessCx, ElementTypes, Visibility};
 use artic_layout::geometry::{Rect, Size};
 use artic_layout::{LayoutNodes, Layoutable, Orientation};
-use artic_registry::{ContentInfo, XamlType};
+use artic_registry::{ContentInfo, UiType};
 use artic_test::layout::{Boxes, Fixed, Headless, Invariants, strategy};
 use proptest::prelude::*;
 
@@ -173,11 +173,11 @@ fn huge_spacing_stays_finite() {
   );
 }
 
-// The children field is the type's XAML content.
+// The children field is the type's content.
 #[test]
-fn stack_children_are_xaml_content() {
+fn stack_children_are_its_content() {
   assert!(matches!(
-    <StackPanel as XamlType>::TYPE_INFO.content,
+    <StackPanel as UiType>::TYPE_INFO.content,
     Some(ContentInfo::Collection { field: "children", .. })
   ));
 }

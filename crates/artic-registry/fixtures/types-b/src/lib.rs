@@ -1,7 +1,9 @@
-//! Test fixture: derives one XAML type, `Beta`, and nothing else.
+//! Test fixture: derives two UI types, `Beta` and `Twin`, and nothing else.
 
-use artic_macros::XamlType;
+use artic_macros::UiType;
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://fixtures.artic.test/b")]
+#[derive(Debug, UiType)]
 struct Beta;
+
+#[derive(Debug, UiType)]
+struct Twin;

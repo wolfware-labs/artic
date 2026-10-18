@@ -1,16 +1,15 @@
 use artic_core::property::Property;
-use artic_macros::{XamlProperties, XamlType};
+use artic_macros::{UiProperties, UiType};
 
-#[derive(Debug, XamlProperties)]
+#[derive(Debug, UiProperties)]
 struct Common {
-  #[xaml]
+  #[ui]
   margin: Property<i32>,
 }
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/test")]
+#[derive(Debug, UiType)]
 struct Widget {
-  #[xaml(flatten, name = "Base")]
+  #[ui(flatten, name = "Base")]
   common: Common,
 }
 

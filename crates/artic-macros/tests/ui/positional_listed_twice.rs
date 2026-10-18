@@ -1,10 +1,10 @@
 use artic_core::property::Property;
-use artic_macros::XamlType;
+use artic_macros::UiType;
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui", markup_extension(positional(key, key)))]
+#[derive(Debug, UiType)]
+#[ui(value_provider(positional(key, key)))]
 struct Localize {
-  #[xaml]
+  #[ui]
   key: Property<String>,
 }
 

@@ -254,7 +254,7 @@ fn cleared_font_size_inherits_again() {
   assert_eq!(drawn(&mut layout, block).0.runs()[0].size(), 30.0);
 }
 
-// TextElement.FontSize set on a TextBlock, as XAML does, is its own FontSize.
+// TextElement.FontSize set on a TextBlock, as a UI language does, is its own FontSize.
 #[test]
 fn attached_font_size_on_a_textblock_is_its_own() {
   let mut layout = layout();

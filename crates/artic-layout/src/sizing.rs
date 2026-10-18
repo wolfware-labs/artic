@@ -1,9 +1,9 @@
 use crate::finite;
 use crate::geometry::{Rect, Size, Thickness};
-use artic_macros::XamlEnum;
+use artic_macros::UiEnum;
 
 /// Where an element sits across its slot when it's narrower than the slot.
-#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, XamlEnum)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, UiEnum)]
 pub enum HorizontalAlignment {
   /// Against the slot's left edge.
   Left,
@@ -17,7 +17,7 @@ pub enum HorizontalAlignment {
 }
 
 /// Where an element sits along its slot's height when it's shorter than the slot.
-#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, XamlEnum)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, UiEnum)]
 pub enum VerticalAlignment {
   /// Against the slot's top edge.
   Top,
@@ -31,7 +31,7 @@ pub enum VerticalAlignment {
 }
 
 /// The axis a panel stacks or wraps its children along.
-#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, XamlEnum)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, UiEnum)]
 pub enum Orientation {
   /// Left to right.
   Horizontal,
@@ -204,7 +204,7 @@ mod tests {
 
   const SLOT: Rect = Rect::new(0.0, 0.0, 400.0, 300.0);
 
-  // The alignments parse through `XamlEnum`, ignoring case, with an error that lists the names.
+  // The alignments parse through `UiEnum`, ignoring case, with an error that lists the names.
   #[test]
   fn alignments_parse_with_the_derive() {
     assert_eq!("left".parse::<HorizontalAlignment>(), Ok(HorizontalAlignment::Left));

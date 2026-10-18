@@ -1,0 +1,5 @@
+error: `#[element]` writes `UiType`; remove `UiType` from this derive
+ --> tests/ui/element_derives_ui_type.rs:4:17
+  |
+4 | #[derive(Debug, UiType)]
+  |                 ^^^^^^

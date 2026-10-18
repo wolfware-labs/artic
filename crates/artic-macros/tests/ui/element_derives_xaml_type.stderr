@@ -1,5 +1,0 @@
-error: `#[element]` writes `XamlType`; remove `XamlType` from this derive
- --> tests/ui/element_derives_xaml_type.rs:4:17
-  |
-4 | #[derive(Debug, XamlType)]
-  |                 ^^^^^^^^

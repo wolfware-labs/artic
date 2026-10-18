@@ -6,6 +6,9 @@
 //! error is reported with a span. Namespace prefixes are resolved with XML's scoping rules while
 //! parsing, so every type reference in a returned document knows its namespace.
 //!
+//! [`NamespaceMap`](namespaces::NamespaceMap) says which crates each namespace URI stands for, for
+//! the back ends that look types up.
+//!
 //! ```
 //! use artic_xaml::diagnostics::SourceMap;
 //! use artic_xaml::parse;
@@ -68,6 +71,7 @@
 
 pub mod diagnostics;
 pub mod infoset;
+pub mod namespaces;
 mod parse;
 
 pub use parse::parse;

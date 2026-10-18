@@ -1,5 +1,5 @@
-error: unknown `xaml` key `color`; expected `namespace`, `whitespace`, `crate`, `attached`, `markup_extension` or `override_defaults`
- --> tests/ui/unknown_key.rs:4:43
+error: unknown `ui` key `color`; expected `whitespace`, `crate`, `attached`, `value_provider` or `override_defaults`
+ --> tests/ui/unknown_key.rs:4:6
   |
-4 | #[xaml(namespace = "https://artic.rs/ui", color = "red")]
-  |                                           ^^^^^
+4 | #[ui(color = "red")]
+  |      ^^^^^

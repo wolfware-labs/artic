@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 /// An sRGB color with straight (not premultiplied) alpha, 8 bits per channel.
 ///
-/// It parses from XAML text, ignoring whitespace around it:
+/// It parses from text, ignoring whitespace around it:
 ///
 /// - `#RGB` and `#ARGB`, each digit doubled: `#3AF` is `#33AAFF`;
 /// - `#RRGGBB`, opaque, and `#AARRGGBB`, alpha first as in WPF and Avalonia. CSS writes alpha

@@ -1,5 +1,5 @@
 // Only fixture A is named. Fixture B is a dependency too, but nothing here refers to it, so rustc
-// leaves it out of the link and its entry never reaches XAML_TYPES.
+// leaves it out of the link and its entry never reaches UI_TYPES.
 
 use artic_registry::Registry;
 use artic_registry_fixture_a as _;

@@ -1,10 +1,10 @@
-error[E0599]: the method `value_must_implement_fromstr_or_derive_xamltype` exists for reference `&&artic_registry::__private::ValueCheck<Telemetry>`, but its trait bounds were not satisfied
-  --> tests/ui/value_not_text_or_xaml_type.rs:11:21
+error[E0599]: the method `value_must_implement_fromstr_or_derive_uitype` exists for reference `&&artic_registry::__private::ValueCheck<Telemetry>`, but its trait bounds were not satisfied
+  --> tests/ui/value_not_text_or_ui_type.rs:10:21
    |
  5 | struct Telemetry;
-   | ---------------- doesn't satisfy `Telemetry: FromStr` or `Telemetry: XamlType`
+   | ---------------- doesn't satisfy `Telemetry: FromStr` or `Telemetry: UiType`
 ...
-11 |   reading: Property<Telemetry>,
+10 |   reading: Property<Telemetry>,
    |                     ^^^^^^^^^ method cannot be called on `&&artic_registry::__private::ValueCheck<Telemetry>` due to unsatisfied trait bounds
    |
   ::: $WORKSPACE/crates/artic-registry/src/__private.rs
@@ -13,13 +13,13 @@ error[E0599]: the method `value_must_implement_fromstr_or_derive_xamltype` exist
    | ------------------------ doesn't satisfy `_: ViaFromStr`
    |
    = note: the following trait bounds were not satisfied:
-           `Telemetry: XamlType`
-           which is required by `&artic_registry::__private::ValueCheck<Telemetry>: artic_registry::__private::ViaXamlType`
+           `Telemetry: UiType`
+           which is required by `&artic_registry::__private::ValueCheck<Telemetry>: artic_registry::__private::ViaUiType`
            `Telemetry: FromStr`
            which is required by `artic_registry::__private::ValueCheck<Telemetry>: artic_registry::__private::ViaFromStr`
-note: the traits `FromStr` and `XamlType` must be implemented
+note: the traits `FromStr` and `UiType` must be implemented
   --> $WORKSPACE/crates/artic-registry/src/descriptors.rs
    |
-   | pub trait XamlType {
-   | ^^^^^^^^^^^^^^^^^^
+   | pub trait UiType {
+   | ^^^^^^^^^^^^^^^^
   --> $RUST/core/src/str/traits.rs

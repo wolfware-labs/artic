@@ -1,13 +1,12 @@
 use artic_core::property::Property;
-use artic_macros::XamlType;
+use artic_macros::UiType;
 
 #[derive(Debug, Default, PartialEq)]
 struct Telemetry;
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui")]
+#[derive(Debug, UiType)]
 struct Gauge {
-  #[xaml]
+  #[ui]
   reading: Property<Telemetry>,
 }
 

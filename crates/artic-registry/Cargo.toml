@@ -1,6 +1,6 @@
 [package]
 name = "artic-registry"
-description = "Type registry that maps XAML names to artic types and properties."
+description = "Type registry that lets UI languages find artic types and their properties."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

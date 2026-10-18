@@ -1,10 +1,10 @@
 use artic_core::property::Property;
-use artic_macros::XamlType;
+use artic_macros::UiType;
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/test", content = text)]
+#[derive(Debug, UiType)]
+#[ui(content = text)]
 struct Label {
-  #[xaml]
+  #[ui]
   text: Property<String>,
 }
 

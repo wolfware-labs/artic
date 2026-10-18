@@ -6,7 +6,7 @@
 /// One input event delivered to an element, such as a pointer press or a key.
 ///
 /// A placeholder until input routing (M3). It's named apart from [`Event`](crate::event::Event),
-/// the field type that declares a node's XAML events.
+/// the field type that declares a node's events.
 #[derive(Debug, Clone, Default, PartialEq)]
 #[non_exhaustive]
 pub struct InputEvent {}

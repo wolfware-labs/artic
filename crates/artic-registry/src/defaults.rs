@@ -1,6 +1,6 @@
 /// Changes defaults the type doesn't declare itself, such as those of a flattened property group.
 ///
-/// A type opts in with `#[xaml(override_defaults)]`; its `Default` then builds every field with
+/// A type opts in with `#[ui(override_defaults)]`; its `Default` then builds every field with
 /// its declared default and calls [`override_defaults`](OverrideDefaults::override_defaults) once.
 /// Set values with `Property::set_default`, so an inherited value, a style, a binding or markup
 /// still wins over them.
@@ -8,7 +8,7 @@
 /// ```ignore
 /// #[element]
 /// #[derive(Debug)]
-/// #[xaml(namespace = "https://artic.rs/ui", override_defaults)]
+/// #[ui(override_defaults)]
 /// pub struct Button {}
 ///
 /// impl OverrideDefaults for Button {

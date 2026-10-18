@@ -1,4 +1,4 @@
-error: `XamlEnum` variants can't have fields: each one is a name written in markup
+error: `UiEnum` variants can't have fields: each one is a name written in markup
  --> tests/ui/enum_tuple_variant.rs:5:8
   |
 5 |   Solid(u32),

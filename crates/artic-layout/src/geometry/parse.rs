@@ -1,4 +1,4 @@
-//! Parsing geometry from XAML text, such as `Margin="4,8"`.
+//! Parsing geometry from text, such as `Margin="4,8"`.
 //!
 //! Numbers are separated by a comma, by whitespace, or by both: `"4,8"`, `"4 8"` and `"4, 8"` are
 //! the same. Whitespace around the text is ignored. An empty value, such as two commas in a row or

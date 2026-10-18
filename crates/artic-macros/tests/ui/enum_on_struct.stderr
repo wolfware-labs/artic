@@ -1,4 +1,4 @@
-error: `XamlEnum` can only be derived for an enum
+error: `UiEnum` can only be derived for an enum
  --> tests/ui/enum_on_struct.rs:4:8
   |
 4 | struct Orientation {
