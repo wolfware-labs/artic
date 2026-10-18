@@ -14,5 +14,6 @@ mod faces;
 mod lines;
 mod paragraph;
 mod properties;
+mod trim;
 
 pub use engine::Engine;
