@@ -234,13 +234,10 @@ fn border_clips_child() {
   );
 }
 
-/// Sets up one TextBlock of a golden.
 type Configure = Box<dyn Fn(&TextBlock)>;
 
 const TEXT_SIZE: PhysicalSize = PhysicalSize { width: 160, height: 160 };
 
-/// A vertical StackPanel of TextBlocks, each configured by one entry of `blocks`, rendered to the
-/// golden `name`.
 fn text_blocks_golden(name: &str, blocks: Vec<Configure>) {
   with_renderer(|renderer| {
     let mut tree = UiTree::new();

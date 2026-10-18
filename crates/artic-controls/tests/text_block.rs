@@ -4,11 +4,14 @@
 use artic_controls::{StackPanel, TextBlock, TextElement};
 use artic_core::Object;
 use artic_core::property::AnyProperty;
-use artic_core::property::Precedence;
+use artic_core::property::{Affects, Precedence};
 use artic_core::tree::{NodeId, UiTree};
 use artic_element::{AccessCx, Children, ElementTypes};
 use artic_layout::geometry::{Point, Rect, Size};
-use artic_layout::text::{FontFamily, FontStyle, FontWeight, Paragraph, TextAlignment, TextTrimming, TextWrapping};
+use artic_layout::text::{
+  FontFamily, FontStyle, FontWeight, Paragraph, ParagraphStyle, TextAlignment, TextEngine, TextLimits, TextStyle, TextTrimming,
+  TextWrapping,
+};
 use artic_layout::{ArrangeCx, MeasureCx};
 use artic_layout::{LayoutNodes, Layoutable, Orientation};
 use artic_render::{Brush, Color, Command};
@@ -53,28 +56,55 @@ impl LayoutNodes for Nodes {
   }
 }
 
+/// The window most tests lay out in.
 const WINDOW: Size = Size::new(200.0, 300.0);
+/// A sentence long enough to wrap and trim at test widths.
 const SENTENCE: &str = "The quick brown fox jumps over the lazy dog";
 
+/// A headless layout of real elements and the shared test leaves.
 fn layout() -> Headless<Nodes> {
   Headless::new(Nodes(ElementTypes::from_link_time()))
 }
 
+/// A TextBlock showing `text`, otherwise at its defaults.
 fn text_block(text: &str) -> TextBlock {
   let block = TextBlock::default();
   block.text.set(text.to_owned());
   block
 }
 
+/// The TextBlock at `node`.
 fn get(layout: &mut Headless<Nodes>, node: NodeId) -> &TextBlock {
   layout.tree().get_as::<TextBlock>(node).expect("a text block")
 }
 
+/// The commands the node records.
+fn drawn_commands(layout: &mut Headless<Nodes>, node: NodeId) -> Vec<Command> {
+  layout.record(node, &ElementTypes::from_link_time())
+}
+
+/// The id of the ellipsis glyph in the test font at TextBlock's default size.
+fn ellipsis() -> u32 {
+  let style = TextStyle::new(FontFamily::default(), 14.0);
+  let paragraph = artic_test::text::engine().paragraph("\u{2026}", &style, &ParagraphStyle::default(), TextLimits::NONE);
+  paragraph.runs()[0].glyphs()[0].id
+}
+
+/// The paragraph's glyph ids, left to right on each line, top line first.
+fn glyph_ids(paragraph: &Paragraph) -> Vec<u32> {
+  let mut glyphs = paragraph
+    .runs()
+    .iter()
+    .flat_map(|run| run.glyphs())
+    .copied()
+    .collect::<Vec<_>>();
+  glyphs.sort_by(|a, b| (a.y, a.x).partial_cmp(&(b.y, b.x)).expect("finite positions"));
+  glyphs.into_iter().map(|glyph| glyph.id).collect()
+}
+
 /// The paragraph the node draws and where.
 fn drawn(layout: &mut Headless<Nodes>, node: NodeId) -> (Paragraph, Point) {
-  let types = ElementTypes::from_link_time();
-  layout
-    .record(node, &types)
+  drawn_commands(layout, node)
     .into_iter()
     .find_map(|command| match command {
       Command::Text { paragraph, origin, .. } => Some((paragraph, origin)),
@@ -123,18 +153,27 @@ fn textblock_max_lines() {
   assert_eq!(drawn(&mut layout, root).0.lines().len(), 2);
 }
 
-// Trimming cuts a line that doesn't fit and keeps it inside the width.
+// Trimming cuts a line that doesn't fit, keeps it inside the width, and puts "…" where the mode
+// says: last for CharacterEllipsis, first for LeadingCharacterEllipsis.
 #[test]
 fn textblock_trims_with_ellipsis() {
-  let mut layout = layout();
-  let root = layout.add("text", text_block(SENTENCE));
-  get(&mut layout, root).text_trimming.set(TextTrimming::CharacterEllipsis);
+  for (mode, first) in [
+    (TextTrimming::CharacterEllipsis, false),
+    (TextTrimming::LeadingCharacterEllipsis, true),
+  ] {
+    let mut layout = layout();
+    let root = layout.add("text", text_block(SENTENCE));
+    get(&mut layout, root).text_trimming.set(mode);
 
-  layout.run(root, Size::new(80.0, 300.0), 1.0);
+    layout.run(root, Size::new(80.0, 300.0), 1.0);
 
-  let (paragraph, _) = drawn(&mut layout, root);
-  assert!(paragraph.size().width <= 80.0);
-  assert!(paragraph.limited_width());
+    let (paragraph, _) = drawn(&mut layout, root);
+    let glyphs = glyph_ids(&paragraph);
+    let at = if first { glyphs.first() } else { glyphs.last() };
+    assert!(paragraph.size().width <= 80.0, "{mode:?}");
+    assert!(paragraph.limited_width(), "{mode:?}");
+    assert_eq!(at, Some(&ellipsis()), "{mode:?}");
+  }
 }
 
 // With trimming, the available height drops the lines that don't fit.
@@ -165,6 +204,7 @@ fn empty_textblock_is_one_line_high() {
   assert!(desired.height > 0.0);
 }
 
+/// A StackPanel holding one TextBlock of `text` in both trees: the panel and the block.
 fn in_panel(layout: &mut Headless<Nodes>, text: &str) -> (NodeId, NodeId) {
   let panel = layout.add("panel", StackPanel::default());
   let block = layout.add("text", text_block(text));
@@ -205,11 +245,13 @@ fn cleared_font_size_inherits_again() {
   let (panel, block) = in_panel(&mut layout, "Hi");
   TextElement::set_font_size(layout.tree(), panel, 30.0);
   get(&mut layout, block).font_size.set(10.0);
-  get(&mut layout, block).font_size.clear(Precedence::Local);
+  layout.run(panel, WINDOW, 1.0);
 
+  get(&mut layout, block).font_size.clear(Precedence::Local);
   layout.run(panel, WINDOW, 1.0);
 
   assert_eq!(get(&mut layout, block).font_size.get(), 30.0);
+  assert_eq!(drawn(&mut layout, block).0.runs()[0].size(), 30.0);
 }
 
 // TextElement.FontSize set on a TextBlock, as XAML does, is its own FontSize.
@@ -251,17 +293,25 @@ fn text_change_invalidates_measure() {
   assert!(layout.manager().desired(root).expect("measured").width > before.width);
 }
 
-// Changing Foreground re-records the TextBlock without measuring it again.
+// Changing Foreground marks the TextBlock to be drawn again, with the new brush, without measuring
+// it again. A new node starts dirty for every stage, so the render flag is cleared first.
 #[test]
 fn foreground_change_does_not_remeasure() {
   let mut layout = layout();
   let root = layout.add("text", text_block("Hi"));
   layout.run(root, WINDOW, 1.0);
+  layout.tree().clear_dirty(root, Affects::RENDER);
 
   get(&mut layout, root).foreground.set(Color::rgb(0, 0, 255).into());
+  let needs_drawing = layout.tree().dirty(root).contains(Affects::RENDER);
   let stats = layout.run(root, WINDOW, 1.0);
 
+  assert!(needs_drawing);
   assert_eq!(stats.measured, 0);
+  assert!(drawn_commands(&mut layout, root).iter().any(|command| matches!(
+    command,
+    Command::Text { brush, .. } if *brush == Brush::from(Color::rgb(0, 0, 255))
+  )));
 }
 
 // Center places the paragraph in the middle of a wider box.
@@ -351,7 +401,7 @@ impl Layoutable for Frame {
 
 /// A frame around a TextBlock of `text`, measured in `available`; the second run arranges it in
 /// `arranged` and returns whether that arrange shaped the text again.
-fn shapes_again(block: TextBlock, available: Size, arranged: Size, scale: f32) -> bool {
+fn reshaped_by_second_arrange(block: TextBlock, available: Size, arranged: Size, scale: f32) -> bool {
   let mut layout = layout();
   let text = layout.add("text", block);
   let frame = layout.parent(
@@ -369,6 +419,7 @@ fn shapes_again(block: TextBlock, available: Size, arranged: Size, scale: f32) -
   stats.results.contains(&text)
 }
 
+/// A TextBlock of `text` that wraps as `wrapping` says.
 fn wrapping(text: &str, wrapping: TextWrapping) -> TextBlock {
   let block = text_block(text);
   block.text_wrapping.set(wrapping);
@@ -381,7 +432,12 @@ fn wrapping(text: &str, wrapping: TextWrapping) -> TextBlock {
 fn snapping_alone_does_not_shape_again() {
   let block = wrapping(SENTENCE, TextWrapping::Wrap);
 
-  assert!(!shapes_again(block, Size::new(100.6, 300.0), Size::new(100.0, 300.0), 1.0));
+  assert!(!reshaped_by_second_arrange(
+    block,
+    Size::new(100.6, 300.0),
+    Size::new(100.0, 300.0),
+    1.0
+  ));
 }
 
 // The same 0.6 px is more than a device pixel at scale 3, so it shapes again there.
@@ -389,7 +445,12 @@ fn snapping_alone_does_not_shape_again() {
 fn snapping_threshold_follows_the_scale() {
   let block = wrapping(SENTENCE, TextWrapping::Wrap);
 
-  assert!(shapes_again(block, Size::new(100.6, 300.0), Size::new(100.0, 300.0), 3.0));
+  assert!(reshaped_by_second_arrange(
+    block,
+    Size::new(100.6, 300.0),
+    Size::new(100.0, 300.0),
+    3.0
+  ));
 }
 
 // Wrapped text in a clearly narrower box shapes again.
@@ -397,7 +458,12 @@ fn snapping_threshold_follows_the_scale() {
 fn narrower_box_shapes_again() {
   let block = wrapping(SENTENCE, TextWrapping::Wrap);
 
-  assert!(shapes_again(block, Size::new(200.0, 300.0), Size::new(100.0, 300.0), 1.0));
+  assert!(reshaped_by_second_arrange(
+    block,
+    Size::new(200.0, 300.0),
+    Size::new(100.0, 300.0),
+    1.0
+  ));
 }
 
 // NoWrap text without trimming never shapes again, whatever the box.
@@ -405,7 +471,12 @@ fn narrower_box_shapes_again() {
 fn no_wrap_without_trimming_never_shapes_again() {
   let block = text_block(SENTENCE);
 
-  assert!(!shapes_again(block, Size::new(400.0, 300.0), Size::new(50.0, 10.0), 1.0));
+  assert!(!reshaped_by_second_arrange(
+    block,
+    Size::new(400.0, 300.0),
+    Size::new(50.0, 10.0),
+    1.0
+  ));
 }
 
 // Without trimming the height can't change the paragraph: a shorter box shapes nothing.
@@ -413,7 +484,12 @@ fn no_wrap_without_trimming_never_shapes_again() {
 fn shorter_box_without_trimming_does_not_shape_again() {
   let block = wrapping(SENTENCE, TextWrapping::Wrap);
 
-  assert!(!shapes_again(block, Size::new(100.0, 300.0), Size::new(100.0, 10.0), 1.0));
+  assert!(!reshaped_by_second_arrange(
+    block,
+    Size::new(100.0, 300.0),
+    Size::new(100.0, 10.0),
+    1.0
+  ));
 }
 
 // A wrapped paragraph wider than its box only because of a word that can't break, arranged in the
@@ -422,7 +498,12 @@ fn shorter_box_without_trimming_does_not_shape_again() {
 fn limited_overflowing_word_does_not_shape_again() {
   let block = wrapping("a Supercalifragilisticexpialidocious b", TextWrapping::WrapWithOverflow);
 
-  assert!(!shapes_again(block, Size::new(100.0, 300.0), Size::new(100.0, 250.0), 1.0));
+  assert!(!reshaped_by_second_arrange(
+    block,
+    Size::new(100.0, 300.0),
+    Size::new(100.0, 250.0),
+    1.0
+  ));
 }
 
 // Wrapped text in a wider box than it was measured for shapes again to fill it.
@@ -430,9 +511,15 @@ fn limited_overflowing_word_does_not_shape_again() {
 fn wider_box_wraps_again() {
   let block = wrapping(SENTENCE, TextWrapping::Wrap);
 
-  assert!(shapes_again(block, Size::new(100.0, 300.0), Size::new(300.0, 300.0), 1.0));
+  assert!(reshaped_by_second_arrange(
+    block,
+    Size::new(100.0, 300.0),
+    Size::new(300.0, 300.0),
+    1.0
+  ));
 }
 
+/// Every wrapping mode.
 fn wrappings() -> impl Strategy<Value = TextWrapping> {
   prop_oneof![
     Just(TextWrapping::NoWrap),
@@ -441,6 +528,7 @@ fn wrappings() -> impl Strategy<Value = TextWrapping> {
   ]
 }
 
+/// Every trimming mode.
 fn trimmings() -> impl Strategy<Value = TextTrimming> {
   prop_oneof![
     Just(TextTrimming::None),

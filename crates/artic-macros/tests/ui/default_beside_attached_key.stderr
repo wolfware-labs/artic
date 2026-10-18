@@ -2,20 +2,23 @@ error[E0277]: `default` can't go beside an attached key
   --> tests/ui/default_beside_attached_key.rs:12:16
    |
 12 |   #[xaml(key = Text::SIZE, default = 12.0)]
-   |                ^^^^^^^^^^^^^^^^^^^^^^----
-   |                |                     |
-   |                |                     required by a bound introduced by this call
+   |                ^^^^^^^^^^            ---- required by a bound introduced by this call
+   |                |
    |                this attached key already gives the field its default
    |
-   = help: the trait `TakesDefault` is not implemented for `&AttachedKey<f32>`
+   = help: the trait `artic_registry::__private::TakesDefault` is not implemented for `AttachedKey<f32>`
    = note: remove `default = ...`; the field starts at the attached property's default
-help: the trait `TakesDefault` is implemented for `PropertyKey<T>`
-  --> $WORKSPACE/crates/artic-core/src/property/shared.rs
+help: the following other types implement trait `artic_registry::__private::TakesDefault`
+  --> $WORKSPACE/crates/artic-registry/src/__private.rs
    |
    | impl<T> TakesDefault for PropertyKey<T> {}
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-note: required by a bound in `default_beside`
-  --> $WORKSPACE/crates/artic-core/src/property/shared.rs
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `PropertyKey<T>`
+   |
+   | impl<K: TakesDefault + ?Sized> TakesDefault for &K {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&K`
+   = note: required for `&AttachedKey<f32>` to implement `artic_registry::__private::TakesDefault`
+note: required by a bound in `artic_registry::__private::default_beside`
+  --> $WORKSPACE/crates/artic-registry/src/__private.rs
    |
    | pub fn default_beside<K: TakesDefault + ?Sized, T>(key: &K, value: T) -> T {
    |                          ^^^^^^^^^^^^ required by this bound in `default_beside`

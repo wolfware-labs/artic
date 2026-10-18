@@ -527,3 +527,19 @@ fn key_takes_an_attached_key() {
   assert_eq!(Text::size(&tree, label), 30.0);
   assert_eq!(lookup("Label").properties[0].name, "Size");
 }
+
+static WIDTH: PropertyKey<f32> = PropertyKey::new("Width", Affects::LAYOUT, Inheritance::None);
+const WIDTH_KEY: &PropertyKey<f32> = &WIDTH;
+
+#[derive(Debug, XamlType)]
+#[xaml(namespace = "https://artic.rs/ui")]
+struct Sized {
+  #[xaml(key = WIDTH_KEY, default = 3.0)]
+  width: Property<f32>,
+}
+
+// A property key reached through a reference-typed constant still takes a `default`.
+#[test]
+fn key_through_a_reference_takes_a_default() {
+  assert_eq!(Sized::default().width.get(), 3.0);
+}

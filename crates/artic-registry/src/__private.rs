@@ -10,8 +10,7 @@ pub use crate::{
 pub use artic_core::Object;
 pub use artic_core::event::Event;
 pub use artic_core::property::{
-  Affects, AnyProperty, AttachedKey, Inheritance, ParseEnumError, Property, PropertyKey, SharedKey, TakesDefault,
-  default_beside, inherit,
+  Affects, AnyProperty, AttachedKey, Inheritance, ParseEnumError, Property, PropertyKey, SharedKey, inherit,
 };
 pub use artic_core::tree::{NodeId, UiTree};
 pub use std::marker::PhantomData;
@@ -83,6 +82,26 @@ pub const fn one_content(candidates: &[Option<ContentInfo>]) -> Option<ContentIn
     index += 1;
   }
   found
+}
+
+/// A key a field may name its own default beside: a property key, through any number of
+/// references. An attached key brings its own default, and two could disagree.
+#[diagnostic::on_unimplemented(
+  message = "`default` can't go beside an attached key",
+  label = "this attached key already gives the field its default",
+  note = "remove `default = ...`; the field starts at the attached property's default"
+)]
+pub trait TakesDefault {}
+
+impl<T> TakesDefault for PropertyKey<T> {}
+
+impl<K: TakesDefault + ?Sized> TakesDefault for &K {}
+
+/// Returns `value`, the default a field names beside `key`, once the compiler has checked that
+/// `key` may take one.
+pub fn default_beside<K: TakesDefault + ?Sized, T>(key: &K, value: T) -> T {
+  let _ = key;
+  value
 }
 
 #[cfg(test)]

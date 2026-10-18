@@ -86,9 +86,9 @@ impl TextBlock {
     let wrapping = self.text_wrapping.get() != TextWrapping::NoWrap;
     let trimming = self.text_trimming.get() != TextTrimming::None;
     let paragraph = &shaped.paragraph;
-    let differs = |limit: Option<f32>, size: f32, limited: bool, extent: f32| {
+    let differs = |limit: Option<f32>, side: f32, limited: bool, extent: f32| {
       let limit = limit.filter(|limit| limit.is_finite()).unwrap_or(f32::INFINITY);
-      (size - limit).abs() > device_pixel && (limited || extent - size > device_pixel)
+      (side - limit).abs() > device_pixel && (limited || extent - side > device_pixel)
     };
     let width = (wrapping || trimming)
       && differs(

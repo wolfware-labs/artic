@@ -70,7 +70,7 @@ pub use attached::AttachedKey;
 pub use key::{Inheritance, PropertyKey};
 use levels::Levels;
 pub use parse_enum_error::ParseEnumError;
-pub use shared::{SharedKey, TakesDefault, default_beside};
+pub use shared::SharedKey;
 use state::PropertyState;
 
 /// Who supplied a property's value, from lowest to highest priority.
