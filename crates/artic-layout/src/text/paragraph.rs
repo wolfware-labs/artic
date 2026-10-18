@@ -86,7 +86,8 @@ impl Paragraph {
   }
 
   /// Whether its width limit shaped it: a line broke other than at a hard break, was stretched to
-  /// justify it, or was cut to fit. Another width can give another paragraph.
+  /// justify it, or was cut to fit and lost some of its own text. Another width can give another
+  /// paragraph.
   #[must_use]
   pub fn limited_width(&self) -> bool {
     self.limited_width

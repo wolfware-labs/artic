@@ -5,9 +5,13 @@
 //! in what order: [`cut`] tries them, keeping the most text first, and returns the first that fits.
 //! Widths are only nearly monotonic, because of kerning and ligatures, so the binary search steps
 //! on toward keeping less while its pick doesn't fit: the result always fits, or is the mode's
-//! last resort, and can keep a cluster or two less than the best that would.
+//! last resort, and can keep a cluster or two less than the best that would. [`trim_line`] shapes
+//! each candidate it tries once, and draws the one it picks.
 
+use crate::shaped::ShapedLine;
+use crate::shaper::Shaper;
 use artic_layout::text::TextTrimming;
+use std::collections::HashMap;
 use std::ops::Range;
 
 pub(crate) const ELLIPSIS: char = '\u{2026}';
@@ -18,6 +22,40 @@ const PREFIX_CLUSTERS: usize = 8;
 pub(crate) struct Clusters {
   pub(crate) starts: Vec<usize>,
   pub(crate) words: Vec<usize>,
+}
+
+pub(crate) struct Trimmed {
+  pub(crate) line: ShapedLine,
+  pub(crate) lost: bool,
+}
+
+pub(crate) fn trim_line(
+  shaper: &mut Shaper<'_>,
+  text: &str,
+  own: usize,
+  mode: TextTrimming,
+  max_width: f32,
+  right_to_left: bool,
+) -> Option<Trimmed> {
+  if mode == TextTrimming::None {
+    return None;
+  }
+  let clusters = shaper.clusters(text, right_to_left);
+  let mut shaped = HashMap::new();
+  let dropped = cut(mode, text, &clusters, &mut |dropped| {
+    shaped
+      .entry(dropped.clone())
+      .or_insert_with(|| shaper.line(&candidate(text, dropped), right_to_left))
+      .width()
+      <= max_width
+  })?;
+  let line = shaped
+    .remove(&dropped)
+    .unwrap_or_else(|| shaper.line(&candidate(text, &dropped), right_to_left));
+  Some(Trimmed {
+    line,
+    lost: loses_own_text(text, own, &dropped),
+  })
 }
 
 pub(crate) fn candidate(text: &str, dropped: &Range<usize>) -> String {
