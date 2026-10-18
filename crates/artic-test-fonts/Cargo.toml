@@ -1,0 +1,13 @@
+[package]
+name = "artic-test-fonts"
+description = "The font artic's tests shape and draw text with."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+# The code is MIT OR Apache-2.0; the font files are under the SIL Open Font License (fonts/OFL.txt).
+license = "(MIT OR Apache-2.0) AND OFL-1.1"
+repository.workspace = true
+
+[lints]
+workspace = true

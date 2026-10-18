@@ -20,7 +20,7 @@ The issue predates the [backends design](backends.md), which removed `Renderer::
 | --- | --- | --- |
 | `artic-layout` | the `TextEngine` trait and the value types of section 2; `text()` on `MeasureCx` and `ArrangeCx`, `set_measured` and `set_arranged`; `PixelGrid`; an engine argument to `LayoutManager::run` and `measure` | unchanged |
 | `artic-element` | `RenderCx::layout_result` | tests dev-depend on `artic-text` and `artic-test-fonts` |
-| `artic-text` (new) | `Engine`, which implements `TextEngine` with `parley` and `fontique` | `artic-core`, `artic-layout` |
+| `artic-text` (new) | `Engine`, which implements `TextEngine` with `parley` and `fontique` | `artic-layout` |
 | `artic-render` | `Command::Text` and `SceneBuilder::text` | unchanged |
 | `artic-platform` | the runner owns one engine and lends it to each surface's `Pipeline::prepare` and `Pipeline::measure` | tests dev-depend on `artic-text` and `artic-test-fonts` |
 | `artic-vello` | draws `Command::Text` | unchanged |
@@ -29,6 +29,8 @@ The issue predates the [backends design](backends.md), which removed `Renderer::
 | `artic-winit` | the `frames` example creates `Engine::system()` | a dev-dependency on `artic-text` |
 
 `artic-text` sits in layer 2, beside `artic-render`. The data it produces, `Paragraph`, is defined in `artic-layout`, so neither `artic-text` nor a renderer depends on the other: both speak `artic-layout`'s types. The runner takes the engine as a `Box<dyn TextEngine>`, so `artic-platform` doesn't depend on `artic-text` either; whatever builds the runner, the facade or an example, passes `artic_text::Engine::system()`. The engine isn't a backend an app picks: shaping is artic's and the same for every host and renderer, so `artic::run(host, renderer, app)` keeps its arguments and the facade creates the engine itself.
+
+`artic-text`'s `complex-scripts` feature, on by default, turns on `parley`'s dictionaries for breaking lines in scripts written without spaces between words, such as Thai, Lao, Khmer and Myanmar. It adds about 3.6 MB to a release binary; without it, those scripts break only at spaces and hard line breaks.
 
 ## 2. Value types
 
@@ -164,7 +166,7 @@ impl TextEngine for Engine { /* … */ }
 
 1. builds a `parley` layout at display scale 1, without quantizing, so its numbers are logical units. The family list, followed by the engine's default family, becomes a `parley` font stack; size, weight and style carry over; `line_height: None` is the font's metrics (`MetricsRelative(1.0)`);
 2. breaks it with `break_all_lines(max_width)` and keeps the first `max_lines` lines. The size is the widest kept line by the sum of the kept lines' heights;
-3. aligns the kept lines against that width with `align`, in start alignment, which `parley` needs to place the lines, so the glyphs stay inside the paragraph's size. `parley` reorders mixed-direction runs. The alignment field in `TextStyle` that selects other modes comes with #46;
+3. places the kept lines against that width itself. A line is the visual span of its clusters, except the whitespace that ends its text, which hangs: it takes no width and draws nothing. In a left-to-right paragraph every line's span starts at 0, and in a right-to-left one every line's span ends at the paragraph's width, whatever direction the line's own text runs. The paragraph's direction comes from its first strong character, as HTML's `dir="auto"` does. `parley`'s `align` isn't used: it aligns against `max_width` rather than the widest kept line, and it measures trailing whitespace wrongly in right-to-left runs. `parley` reorders mixed-direction runs. The alignment field that #46 adds to `TextStyle` moves each span by its free width, the paragraph's width minus its own, times 0, ½ or 1;
 4. turns each `parley` glyph run into a `GlyphRun`, with its synthesis, looking its face up in the engine's font table by the blob's id and the face's index, so one face always has one `FontData` and one `id` for the engine's life. The table holds only the faces of the engine's own collection. Faces of a collection file (`.ttc`) share a blob and differ by index.
 
 It never panics and never fails:

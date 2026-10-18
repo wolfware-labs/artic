@@ -1,0 +1,27 @@
+[package]
+name = "artic-text"
+description = "Text shaping and fonts for artic, with parley and fontique."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+artic-layout.workspace = true
+fontique.workspace = true
+parley.workspace = true
+
+[dev-dependencies]
+artic-test-fonts.workspace = true
+pretty_assertions.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["complex-scripts"]
+# Breaks lines between words in scripts written without spaces, such as Thai, Lao, Khmer and
+# Myanmar, with ICU's dictionaries: about 3.6 MB in a release binary.
+complex-scripts = ["parley/complex-scripts"]

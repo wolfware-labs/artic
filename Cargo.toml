@@ -19,6 +19,8 @@ members = [
     "crates/artic-render",
     "crates/artic-style",
     "crates/artic-test",
+    "crates/artic-test-fonts",
+    "crates/artic-text",
     "crates/artic-theme",
     "crates/artic-vello",
     "crates/artic-winit",
@@ -50,6 +52,8 @@ artic-registry = { path = "crates/artic-registry", version = "0.1.0" }
 artic-render = { path = "crates/artic-render", version = "0.1.0" }
 artic-style = { path = "crates/artic-style", version = "0.1.0" }
 artic-test = { path = "crates/artic-test", version = "0.1.0" }
+artic-test-fonts = { path = "crates/artic-test-fonts", version = "0.1.0" }
+artic-text = { path = "crates/artic-text", version = "0.1.0" }
 artic-theme = { path = "crates/artic-theme", version = "0.1.0" }
 artic-vello = { path = "crates/artic-vello", version = "0.1.0" }
 artic-winit = { path = "crates/artic-winit", version = "0.1.0" }
@@ -58,8 +62,12 @@ artic-xaml-compiler = { path = "crates/artic-xaml-compiler", version = "0.1.0" }
 artic-xaml-runtime = { path = "crates/artic-xaml-runtime", version = "0.1.0" }
 
 accesskit = "0.25.1"
+# fontique and parley are pre-1.0, as vello is: pinned exactly. fontique loads fontconfig when it
+# runs (`fontconfig-dlopen`), so building on Linux needs no fontconfig headers.
+fontique = { version = "=0.11.1", features = ["fontconfig-dlopen"] }
 insta = "1.49.0"
 linkme = "0.3.37"
+parley = "=0.11.1"
 png = "0.18.1"
 pollster = "1.0.1"
 pretty_assertions = "1.4.1"

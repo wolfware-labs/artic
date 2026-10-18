@@ -78,7 +78,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-layout` | `artic-core`, `artic-macros` |
 | `artic-i18n` | `artic-core` |
 | `artic-render` | `artic-core`, `artic-layout` |
-| `artic-text` | `artic-core`, `artic-layout` |
+| `artic-text` | `artic-layout` |
 | `artic-style` | `artic-core`, `artic-registry`, `artic-xaml` (for `Span`/`Diagnostic` in selector errors) |
 | `artic-xaml-compiler` | `artic-xaml`, `artic-registry` |
 | `artic-xaml-runtime` | `artic-xaml`, `artic-registry`, `artic-core` |

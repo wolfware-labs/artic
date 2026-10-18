@@ -24,6 +24,8 @@ allow = [
 ]
 confidence-threshold = 0.9
 unused-allowed-license = "allow"
+# The test font is under the SIL Open Font License; only the crate that holds it carries that licence.
+exceptions = [{ crate = "artic-test-fonts", allow = ["OFL-1.1"] }]
 
 [bans]
 multiple-versions = "warn"
