@@ -344,13 +344,15 @@ fn is_property(field: &XamlField) -> bool {
   matches!(field.role, Role::Property { .. })
 }
 
-/// The path of the key a property uses: its shared `key`, or the key the derive generates.
+/// The key a property is stored under, as a `&'static PropertyKey` expression usable in const
+/// code: the derive's own static, or a shared key's `key()`, which a property key and an attached
+/// key both have.
 fn key_path(field: &XamlField) -> TokenStream {
   match &field.attributes.key {
-    Some(key) => quote!(#key),
+    Some(key) => quote!(#key.key()),
     None => {
       let key = generated_key(field.ident);
-      quote!(#key)
+      quote!((&#key))
     }
   }
 }
@@ -409,11 +411,18 @@ pub fn default_field(field: &XamlField) -> TokenStream {
   match field.role {
     Role::Property { inner, .. } => {
       let key = key_path(field);
-      let value = match &field.attributes.default {
-        Some(expression) => quote!(#expression),
-        None => quote_spanned!(inner.span()=> <#inner as ::core::default::Default>::default()),
+      let value = match (&field.attributes.key, &field.attributes.default) {
+        (Some(shared), Some(expression)) => {
+          quote_spanned!(expression.span()=> __artic::default_beside(&#shared, #expression))
+        }
+        (Some(shared), None) => quote!({
+          use __artic::SharedKey as _;
+          #shared.initial_value()
+        }),
+        (None, Some(expression)) => quote!(#expression),
+        (None, None) => quote_spanned!(inner.span()=> <#inner as ::core::default::Default>::default()),
       };
-      quote!(#field_ident: __artic::Property::new(&#key, #value))
+      quote!(#field_ident: __artic::Property::new(#key, #value))
     }
     Role::Event { .. } | Role::Collection | Role::Group => quote!(#field_ident: ::core::default::Default::default()),
   }
