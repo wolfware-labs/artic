@@ -9,6 +9,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+accesskit.workspace = true
 artic-core.workspace = true
 artic-element.workspace = true
 artic-registry.workspace = true
@@ -18,7 +19,6 @@ artic-style.workspace = true
 artic-macros.workspace = true
 
 [dev-dependencies]
-accesskit.workspace = true
 artic-test.workspace = true
 proptest.workspace = true
 pretty_assertions.workspace = true
