@@ -185,12 +185,22 @@ pub fn arrange_with(sizing: &Sizing, slot: Rect, desired: Size) -> Rect {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx};
+  use crate::text::{Paragraph, TextEngine, TextLimits, TextStyle};
+  use crate::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx, PixelGrid};
   use artic_core::Object;
   use artic_core::property::AnyProperty;
   use artic_core::tree::{NodeId, UiTree};
   use pretty_assertions::assert_eq;
   use std::cell::Cell;
+
+  /// A text engine for nodes that shape no text.
+  struct NoText;
+
+  impl TextEngine for NoText {
+    fn paragraph(&mut self, _text: &str, _style: &TextStyle, _limits: TextLimits) -> Paragraph {
+      Paragraph::default()
+    }
+  }
 
   const SLOT: Rect = Rect::new(0.0, 0.0, 400.0, 300.0);
 
@@ -339,7 +349,8 @@ mod tests {
       inner_rect: Cell::new(None),
     }));
 
-    LayoutManager::default().run(&mut tree, &Elements, element, SLOT.size(), 1.0, false);
+    let grid = PixelGrid { scale: 1.0, snap: false };
+    LayoutManager::default().run(&mut tree, &Elements, element, SLOT.size(), grid, &mut NoText);
 
     let inner = tree.get_as::<Element>(element).expect("the element").inner_rect.get();
     assert_eq!(inner, Some(Rect::new(330.0, 140.0, 60.0, 20.0)));

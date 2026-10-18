@@ -6,8 +6,9 @@ use artic_core::property::AnyProperty;
 use artic_core::tree::{TreeKind, UiTree};
 use artic_element::{AccessCx, ElementImpl, ElementTypes, RenderCx};
 use artic_layout::geometry::{Rect, Size};
-use artic_layout::{ArrangeCx, LayoutManager, Layoutable, MeasureCx};
+use artic_layout::{ArrangeCx, LayoutManager, Layoutable, MeasureCx, PixelGrid};
 use artic_render::SceneBuilder;
+use artic_text::Engine;
 use pretty_assertions::assert_eq;
 
 /// A panel that stacks its children vertically, written as a control would be: its own layout in
@@ -139,7 +140,14 @@ fn registered_elements_are_laid_out_through_the_cast_table() {
   let types = ElementTypes::from_link_time();
   let mut layout = LayoutManager::default();
 
-  layout.run(&mut tree, &types, column, Size::new(200.0, 100.0), 1.0, false);
+  layout.run(
+    &mut tree,
+    &types,
+    column,
+    Size::new(200.0, 100.0),
+    PixelGrid { scale: 1.0, snap: false },
+    &mut Engine::with_fonts([]),
+  );
 
   assert_eq!(layout.desired(column), Some(Size::new(30.0, 30.0)));
   assert_eq!(layout.rect(first), Some(Rect::new(0.0, 0.0, 200.0, 20.0)));

@@ -6,6 +6,7 @@ use artic_core::property::{Affects, AnyProperty, Inheritance, Property, Property
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{AccessCx, Application, Element, RenderCx, Surface};
 use artic_layout::geometry::{Rect, Size, Transform};
+use artic_layout::text::{FontFamily, GlyphRun, Line, Paragraph, TextEngine, TextLimits, TextStyle};
 use artic_layout::{ArrangeCx, Layoutable, MeasureCx};
 use artic_platform::{DisplayId, HostContext, SurfaceInfo, WindowDesc, Windows};
 use artic_render::{
@@ -14,11 +15,13 @@ use artic_render::{
 };
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::sync::Arc;
 
 static VISIBLE: PropertyKey<bool> = PropertyKey::new("Visible", Affects::RENDER, Inheritance::None);
 static HEIGHT: PropertyKey<f32> = PropertyKey::new("Height", Affects::LAYOUT, Inheritance::None);
 static COLOR: PropertyKey<u32> = PropertyKey::new("Color", Affects::RENDER, Inheritance::None);
 static TURN: PropertyKey<bool> = PropertyKey::new("Turn", Affects::RENDER, Inheritance::None);
+static TEXT: PropertyKey<String> = PropertyKey::new("Text", Affects::LAYOUT, Inheritance::None);
 
 /// Stacks its children from top to bottom, each as wide as itself; draws nothing.
 #[derive(Debug)]
@@ -310,4 +313,72 @@ pub fn target(pixels: &mut [u8]) -> Target<'_> {
 /// Sets `property`, for hooks that capture a property handle.
 pub fn set_color(property: Property<u32>, color: u32) {
   property.set(color);
+}
+
+/// The text engine the pipeline and runner tests shape with: only the test font.
+pub fn engine() -> artic_text::Engine {
+  artic_text::Engine::with_fonts([Arc::new(artic_test_fonts::REGULAR) as Arc<dyn AsRef<[u8]> + Send + Sync>])
+}
+
+/// A text engine that shares, with every clone, the list of text it was asked to shape, and
+/// answers with an empty paragraph 8 wide per character and 16 tall.
+#[derive(Debug, Clone, Default)]
+pub struct Recorder {
+  pub asked: Rc<RefCell<Vec<String>>>,
+}
+
+impl TextEngine for Recorder {
+  fn paragraph(&mut self, text: &str, _style: &TextStyle, _limits: TextLimits) -> Paragraph {
+    self.asked.borrow_mut().push(text.to_owned());
+    let size = Size::new(8.0 * text.chars().count() as f32, 16.0);
+    Paragraph::new(size, Vec::<Line>::new(), Vec::<GlyphRun>::new())
+  }
+}
+
+/// A line of text, as wide and tall as the paragraph the engine makes of it, which it keeps as its
+/// layout result and notes the size of when it draws.
+#[derive(Debug)]
+pub struct Label {
+  text: Property<String>,
+  pub drawn: Cell<Option<Size>>,
+}
+
+impl Object for Label {
+  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
+    visit(&self.text);
+  }
+}
+
+impl Layoutable for Label {
+  fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {
+    let style = TextStyle::new(FontFamily::default(), 16.0);
+    let paragraph = cx.text().paragraph(&self.text.get(), &style, TextLimits::NONE);
+    let size = paragraph.size();
+    cx.set_measured(paragraph);
+    size
+  }
+
+  fn arrange(&self, _cx: &mut ArrangeCx<'_>, _rect: Rect) {}
+}
+
+impl Element for Label {
+  fn render(&self, cx: &mut RenderCx<'_>, _scene: &mut SceneBuilder) {
+    self.drawn.set(cx.layout_result::<Paragraph>().map(Paragraph::size));
+  }
+
+  fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
+    accesskit::Node::new(accesskit::Role::Label)
+  }
+}
+
+artic_element::element_type!(Label);
+
+/// Allocates a label showing `text`, and returns it with its text.
+pub fn label(tree: &mut UiTree, text: &str) -> (NodeId, Property<String>) {
+  let text = Property::new(&TEXT, text.to_owned());
+  let id = tree.alloc(Box::new(Label {
+    text,
+    drawn: Cell::new(None),
+  }));
+  (id, text)
 }

@@ -184,7 +184,7 @@ impl Nodes for OneSize {
 
   fn record(&mut self, tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
     if let Some(element) = tree.get(node).and_then(|object| self.0.element(object)) {
-      element.render(&mut RenderCx::new(tree, node, SIZE), builder);
+      element.render(&mut RenderCx::new(tree, node, SIZE, None), builder);
     }
   }
 }

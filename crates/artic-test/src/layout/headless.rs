@@ -3,7 +3,7 @@ use super::compare::{rects_match, sizes_match};
 use artic_core::Object;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_layout::geometry::{Rect, Size};
-use artic_layout::{LayoutManager, LayoutNodes, LayoutStats};
+use artic_layout::{LayoutManager, LayoutNodes, LayoutStats, PixelGrid};
 use std::collections::HashMap;
 
 /// A tree laid out with no window and no GPU. Nodes get a label when they're added, and failures
@@ -13,6 +13,7 @@ pub struct Headless<N: LayoutNodes> {
   pub(super) tree: UiTree,
   pub(super) manager: LayoutManager,
   pub(super) nodes: N,
+  pub(super) text: artic_text::Engine,
   pub(super) snap: bool,
   labels: HashMap<NodeId, String>,
 }
@@ -25,6 +26,7 @@ impl<N: LayoutNodes> Headless<N> {
       tree: UiTree::new(),
       manager: LayoutManager::default(),
       nodes,
+      text: crate::text::engine(),
       snap: true,
       labels: HashMap::new(),
     }
@@ -62,11 +64,13 @@ impl<N: LayoutNodes> Headless<N> {
     self.snap = snap;
   }
 
-  /// Lays out `root`'s subtree in `available`, at `scale` device pixels per logical pixel.
+  /// Lays out `root`'s subtree in `available`, at `scale` device pixels per logical pixel, shaping
+  /// text with the test engine.
   pub fn run(&mut self, root: NodeId, available: Size, scale: f32) -> LayoutStats {
+    let grid = PixelGrid { scale, snap: self.snap };
     self
       .manager
-      .run(&mut self.tree, &self.nodes, root, available, scale, self.snap)
+      .run(&mut self.tree, &self.nodes, root, available, grid, &mut self.text)
   }
 
   /// The label `node` was added with, or its id for a node made through [`tree`](Headless::tree).

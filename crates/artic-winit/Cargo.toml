@@ -18,6 +18,7 @@ winit = { workspace = true, features = ["rwh_06", "x11", "wayland", "wayland-dlo
 
 [dev-dependencies]
 accesskit.workspace = true
+artic-text.workspace = true
 artic-element.workspace = true
 artic-layout.workspace = true
 artic-vello.workspace = true

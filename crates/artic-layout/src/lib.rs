@@ -6,5 +6,5 @@ mod layout;
 mod sizing;
 pub mod text;
 
-pub use layout::{ArrangeCx, LayoutManager, LayoutNodes, LayoutStats, Layoutable, MeasureCx};
+pub use layout::{ArrangeCx, LayoutManager, LayoutNodes, LayoutStats, Layoutable, MeasureCx, PixelGrid};
 pub use sizing::{HorizontalAlignment, Orientation, Sizing, VerticalAlignment, arrange_with, measure_with};

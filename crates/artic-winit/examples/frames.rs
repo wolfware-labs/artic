@@ -149,7 +149,7 @@ fn check(renderer: impl Renderer + 'static) -> Result<(), Box<dyn std::error::Er
   }
   Desktop::set_width(&mut tree, surface, Some(320.0));
   Desktop::set_height(&mut tree, surface, Some(240.0));
-  let mut runner = Runner::new(tree, renderer, application);
+  let mut runner = Runner::new(tree, renderer, Box::new(artic_text::Engine::system()), application);
   let changed = Rc::new(Cell::new(false));
   runner.hooks().after_present(move |_, _, stats| {
     println!("frame: {stats:?}");

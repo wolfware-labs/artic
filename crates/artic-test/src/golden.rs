@@ -27,7 +27,7 @@ pub use image::Image;
 
 use artic_core::tree::{NodeId, UiTree};
 use artic_element::ElementTypes;
-use artic_platform::{Axes, DisplayId, Pipeline, SurfaceInfo};
+use artic_platform::{Axes, DisplayId, FrameServices, Pipeline, SurfaceInfo};
 use artic_render::{PhysicalSize, PixelBuffer, PixelFormat, RenderError, Renderer, Scene, SurfaceId, SurfaceView, Target};
 use std::fmt::Display;
 
@@ -69,7 +69,7 @@ pub fn render(renderer: &mut impl Renderer, scene: &Scene, size: PhysicalSize, s
 
 /// Lays out, composes and draws `root`'s tree with `renderer` into an image of `size` device
 /// pixels, at `scale`. The root is arranged in the image's logical size, `size / scale`, as in a
-/// window of that size.
+/// window of that size. Text is shaped with the test engine.
 ///
 /// # Errors
 ///
@@ -89,7 +89,9 @@ pub fn render_tree(
     refresh_rate: None,
   };
   let mut pipeline = Pipeline::new();
-  let frame = pipeline.prepare(tree, root, SURFACE, &info, types, Axes::NONE);
+  let mut text = crate::text::engine();
+  let mut services = FrameServices { types, text: &mut text };
+  let frame = pipeline.prepare(tree, root, SURFACE, &info, &mut services, Axes::NONE);
   pixels(size, |target| pipeline.present(renderer, frame, target).map(|_| ()))
 }
 

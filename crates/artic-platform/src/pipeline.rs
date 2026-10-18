@@ -3,12 +3,14 @@
 use crate::{Axes, SurfaceInfo};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{ElementTypes, RenderCx};
-use artic_layout::LayoutManager;
 use artic_layout::geometry::{Rect, Size, Transform};
+use artic_layout::text::TextEngine;
+use artic_layout::{LayoutManager, PixelGrid};
 use artic_render::{
   Compositor, Layers, Nodes, PhysicalSize, RenderError, Renderer, Scene, SceneBuilder, SurfaceId, SurfaceView, Target,
 };
 use std::collections::HashSet;
+use std::fmt::{self, Debug, Formatter};
 
 /// What one frame did, for tests and the debug overlay.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -50,6 +52,26 @@ impl Frame {
   }
 }
 
+/// What a frame's layout and composition borrow from the runner: the table it finds a node's
+/// element in, and the text engine layout shapes with. Every surface's pipeline borrows the same
+/// ones, so elements resolve the same way and a font keeps one identity in every window.
+pub struct FrameServices<'a> {
+  /// The element table.
+  pub types: &'a ElementTypes,
+  /// The text engine.
+  pub text: &'a mut dyn TextEngine,
+}
+
+impl Debug for FrameServices<'_> {
+  /// Shows the element table; the engine needn't implement `Debug`.
+  fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+    formatter
+      .debug_struct("FrameServices")
+      .field("types", &self.types)
+      .finish_non_exhaustive()
+  }
+}
+
 /// Draws one surface's frames.
 ///
 /// It keeps the surface's layout results and recorded drawings between frames, so each frame
@@ -72,28 +94,36 @@ impl Pipeline {
 
   /// Lays out `root`'s visual subtree in the surface's logical size and composes it.
   ///
-  /// Layout measures only what changed; composition records only render-dirty nodes and the
-  /// nodes layout resized since they were last recorded, including while hidden. On the `content`
+  /// Layout measures only what changed; composition records only render-dirty nodes, the nodes
+  /// layout resized since they were last recorded, including while hidden, and those whose layout
+  /// result was set or dropped. On the `content`
   /// axes, which the surface's content sizes, layout offers `∞`, so the root takes its desired
-  /// size there.
+  /// size there. Layout shapes text with `services`' engine.
   pub fn prepare(
     &mut self,
     tree: &mut UiTree,
     root: NodeId,
     surface: SurfaceId,
     info: &SurfaceInfo,
-    types: &ElementTypes,
+    services: &mut FrameServices<'_>,
     content: Axes,
   ) -> Frame {
     let fit = |sizes: bool, device: u32| if sizes { f32::INFINITY } else { device as f32 / info.scale };
     let available = Size::new(fit(content.width, info.size.width), fit(content.height, info.size.height));
-    let layout = self.layout.run(tree, types, root, available, info.scale, true);
+    let grid = PixelGrid {
+      scale: info.scale,
+      snap: true,
+    };
+    let layout = self
+      .layout
+      .run(tree, services.types, root, available, grid, &mut *services.text);
     self.stale.extend(layout.resized);
+    self.stale.extend(layout.results);
     self
       .stale
       .retain(|node| tree.contains(*node) && (*node == root || tree.ancestors(TreeKind::Visual, *node).any(|a| a == root)));
     let mut nodes = ElementNodes {
-      types,
+      types: services.types,
       layout: &self.layout,
       stale: &mut self.stale,
     };
@@ -115,8 +145,10 @@ impl Pipeline {
   /// Measures `root`'s visual subtree in `available` without arranging it, as before its window
   /// opens, and returns the size it wants. The next [`prepare`](Pipeline::prepare) in the same
   /// available size answers from the cache.
-  pub fn measure(&mut self, tree: &mut UiTree, root: NodeId, available: Size, types: &ElementTypes) -> Size {
-    self.layout.measure(tree, types, root, available)
+  pub fn measure(&mut self, tree: &mut UiTree, root: NodeId, available: Size, services: &mut FrameServices<'_>) -> Size {
+    self
+      .layout
+      .measure(tree, services.types, root, available, &mut *services.text)
   }
 
   /// The size `root` wanted in its last measure.
@@ -211,7 +243,7 @@ impl Nodes for ElementNodes<'_> {
     self.stale.remove(&node);
     let size = self.layout.rect(node).map_or(Size::ZERO, Rect::size);
     if let Some(element) = tree.get(node).and_then(|object| self.types.element(object)) {
-      element.render(&mut RenderCx::new(tree, node, size), builder);
+      element.render(&mut RenderCx::new(tree, node, size, self.layout.result(node)), builder);
     }
   }
 
