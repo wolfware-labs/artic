@@ -234,11 +234,14 @@ fn border_clips_child() {
   );
 }
 
+/// Sets up one TextBlock of a golden.
+type Configure = Box<dyn Fn(&TextBlock)>;
+
 const TEXT_SIZE: PhysicalSize = PhysicalSize { width: 160, height: 160 };
 
 /// A vertical StackPanel of TextBlocks, each configured by one entry of `blocks`, rendered to the
 /// golden `name`.
-fn text_blocks_golden(name: &str, blocks: Vec<Box<dyn Fn(&TextBlock)>>) {
+fn text_blocks_golden(name: &str, blocks: Vec<Configure>) {
   with_renderer(|renderer| {
     let mut tree = UiTree::new();
     let root = tree.alloc(Box::new(StackPanel::default()));
@@ -265,7 +268,7 @@ const PANGRAM: &str = "The quick brown fox jumps over the lazy dog";
 fn text_block_wrapping() {
   let text = "Wrap a Supercalifragilistic word";
   let modes = [TextWrapping::NoWrap, TextWrapping::Wrap, TextWrapping::WrapWithOverflow];
-  let blocks: Vec<Box<dyn Fn(&TextBlock)>> = modes
+  let blocks: Vec<Configure> = modes
     .into_iter()
     .map(|mode| {
       Box::new(move |block: &TextBlock| {
@@ -273,7 +276,7 @@ fn text_block_wrapping() {
         block.text_wrapping.set(mode);
         block.layout.width.set(Some(70.0));
         block.layout.horizontal_alignment.set(HorizontalAlignment::Left);
-      }) as Box<dyn Fn(&TextBlock)>
+      }) as Configure
     })
     .collect();
   text_blocks_golden("text_block_wrapping", blocks);
@@ -289,7 +292,7 @@ fn text_block_trimming() {
     (TextTrimming::LeadingCharacterEllipsis, PANGRAM),
     (TextTrimming::PathSegmentEllipsis, r"C:\Users\ada\projects\artic\docs\text.md"),
   ];
-  let blocks: Vec<Box<dyn Fn(&TextBlock)>> = modes
+  let blocks: Vec<Configure> = modes
     .into_iter()
     .map(|(mode, text)| {
       Box::new(move |block: &TextBlock| {
@@ -297,7 +300,7 @@ fn text_block_trimming() {
         block.text_trimming.set(mode);
         block.layout.width.set(Some(120.0));
         block.layout.horizontal_alignment.set(HorizontalAlignment::Left);
-      }) as Box<dyn Fn(&TextBlock)>
+      }) as Configure
     })
     .collect();
   text_blocks_golden("text_block_trimming", blocks);
@@ -306,7 +309,7 @@ fn text_block_trimming() {
 // The same wrapped text at the font's spacing and at a 22 px line height.
 #[test]
 fn text_block_line_height() {
-  let blocks: Vec<Box<dyn Fn(&TextBlock)>> = [None, Some(22.0)]
+  let blocks: Vec<Configure> = [None, Some(22.0)]
     .into_iter()
     .map(|line_height| {
       Box::new(move |block: &TextBlock| {
@@ -314,7 +317,7 @@ fn text_block_line_height() {
         block.text_wrapping.set(TextWrapping::Wrap);
         block.line_height.set(line_height);
         block.max_lines.set(NonZeroU32::new(3));
-      }) as Box<dyn Fn(&TextBlock)>
+      }) as Configure
     })
     .collect();
   text_blocks_golden("text_block_line_height", blocks);
@@ -331,14 +334,14 @@ fn text_block_alignment() {
     (TextAlignment::Right, "Right"),
     (TextAlignment::Justify, PANGRAM),
   ];
-  let blocks: Vec<Box<dyn Fn(&TextBlock)>> = alignments
+  let blocks: Vec<Configure> = alignments
     .into_iter()
     .map(|(alignment, text)| {
       Box::new(move |block: &TextBlock| {
         block.text.set(text.to_owned());
         block.text_alignment.set(alignment);
         block.text_wrapping.set(TextWrapping::Wrap);
-      }) as Box<dyn Fn(&TextBlock)>
+      }) as Configure
     })
     .collect();
   text_blocks_golden("text_block_alignment", blocks);
