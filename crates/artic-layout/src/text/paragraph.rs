@@ -48,10 +48,10 @@ impl Paragraph {
     &self.runs
   }
 
-  /// Whether it draws nothing: it has no glyph runs.
+  /// Whether it draws nothing: none of its runs has a glyph.
   #[must_use]
   pub fn is_empty(&self) -> bool {
-    self.runs.is_empty()
+    self.runs.iter().all(|run| run.glyphs().is_empty())
   }
 }
 
@@ -325,5 +325,13 @@ mod tests {
     assert_eq!(empty.size(), Size::ZERO);
     assert!(empty.lines().is_empty());
     assert!(!paragraph(&font()).is_empty());
+  }
+
+  // A paragraph whose runs hold no glyphs draws nothing, so it's empty too.
+  #[test]
+  fn paragraph_of_glyphless_runs_is_empty() {
+    let run = GlyphRun::new(font(), 16.0, Vec::<i16>::new(), Synthesis::default(), Vec::<Glyph>::new());
+
+    assert!(Paragraph::new(Size::new(10.0, 20.0), Vec::<Line>::new(), [run]).is_empty());
   }
 }
