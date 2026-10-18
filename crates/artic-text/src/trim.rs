@@ -6,8 +6,9 @@
 //! line cut because the lines after it were dropped, which keeps its text and gains "…". The modes differ only in which runs they try and
 //! in what order: [`cut`] tries them, keeping the most text first, and returns the first that fits.
 //! Widths are only nearly monotonic, because of kerning and ligatures, so the binary search steps
-//! on toward keeping less while its pick doesn't fit: the result always fits, or is the mode's
-//! last resort, and can keep a cluster or two less than the best that would. [`trim_line`] shapes
+//! on toward keeping less while its pick doesn't fit, and back toward keeping more when nothing
+//! after it fits: the result fits whenever any candidate does, and can keep a cluster or two less
+//! than the best that would. [`trim_line`] shapes
 //! each candidate it tries once, and draws the one it picks.
 
 use crate::shaped::ShapedLine;
@@ -164,11 +165,11 @@ fn path(text: &str, fits: &mut dyn FnMut(&Range<usize>) -> bool) -> Option<Range
 }
 
 fn first_fit(tries: &[Range<usize>], fits: &mut dyn FnMut(&Range<usize>) -> bool) -> Option<Range<usize>> {
-  let mut index = tries.partition_point(|dropped| !fits(dropped));
-  while index < tries.len() && !fits(&tries[index]) {
-    index += 1;
-  }
-  tries.get(index).cloned()
+  let pick = tries.partition_point(|dropped| !fits(dropped));
+  (pick..tries.len())
+    .find(|&index| fits(&tries[index]))
+    .or_else(|| (0..pick).rev().find(|&index| fits(&tries[index])))
+    .map(|index| tries[index].clone())
 }
 
 #[cfg(test)]
@@ -294,6 +295,18 @@ mod tests {
   #[test]
   fn short_path_falls_back_to_leading() {
     assert_eq!(shown(TextTrimming::PathSegmentEllipsis, "abc/defghij", 5), "…ghij");
+  }
+
+  // A fitting candidate that the binary search passes over is still found, rather than falling
+  // back to "…" alone.
+  #[test]
+  fn search_finds_a_fit_the_binary_search_passes_over() {
+    let text = "abcdefghij";
+    let dropped = cut(TextTrimming::CharacterEllipsis, text, &clusters(text), &mut |dropped| {
+      dropped.start == 9
+    });
+
+    assert_eq!(dropped, Some(9..10));
   }
 
   // When widths aren't monotonic, the binary search's pick can fail to fit; the cut steps on to
