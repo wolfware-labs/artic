@@ -1,9 +1,12 @@
 use artic_layout::geometry::{CornerRadius, FillRule, PathElement, Point, Rect, RoundedRect, Transform};
+use artic_layout::text::Paragraph;
 use artic_render::{
   BoxShadow, Brush, Color, Command, GradientStop, Layer, LineCap, LineJoin, PhysicalSize, Scene, SceneItem, Shape, Stroke,
 };
-use vello::kurbo::{self, Affine, BezPath, Cap, Join, PathEl, Shape as _};
+use std::sync::Arc;
+use vello::kurbo::{self, Affine, BezPath, Cap, Diagonal2, Join, PathEl, Shape as _};
 use vello::peniko::{self, BlendMode, Compose, Fill, Gradient, Mix};
+use vello::{FontEmbolden, Glyph};
 
 /// The tolerance vello flattens a shape with, so converting one to a path first changes nothing.
 const TOLERANCE: f64 = 0.1;
@@ -13,6 +16,10 @@ const KAPPA: f64 = 0.552_284_749_830_793_6;
 
 /// How many standard deviations past its rectangle vello draws a blur, where it's close to clear.
 const BLUR_EXTENT: f64 = 2.5;
+
+/// How far a synthesized bold pushes each side of a glyph's outline out, per unit of font size:
+/// Skia's fake bold, which strokes outlines a twenty-fourth of the size wide at small sizes.
+const EMBOLDEN: f64 = 1.0 / 48.0;
 
 /// Writes `scene` into `out`, drawn at `scale` device pixels per logical unit on a surface of
 /// `size`.
@@ -36,6 +43,11 @@ pub(crate) fn translate(scene: &Scene, scale: f32, size: PhysicalSize, out: &mut
             Command::Fill { shape, brush } => translation.fill(shape, brush),
             Command::Stroke { shape, brush, stroke } => translation.stroke(shape, brush, stroke),
             Command::BoxShadow { rect, shadow } => translation.box_shadow(rect, shadow),
+            Command::Text {
+              paragraph,
+              origin,
+              brush,
+            } => translation.text(paragraph, *origin, brush),
           }
         }
       }
@@ -125,6 +137,42 @@ impl Translation<'_> {
     self.out.push_clip_layer(Fill::EvenOdd, Affine::IDENTITY, &outside);
     self.shadow(shape, shadow.blur, color(shadow.color, 1.0));
     self.out.pop_layer();
+  }
+
+  fn text(&mut self, paragraph: &Paragraph, origin: Point, brush: &Brush) {
+    let size = paragraph.size();
+    let Some((brush, transform)) = paint(brush, Rect::new(origin.x, origin.y, size.width, size.height)) else {
+      return;
+    };
+    for run in paragraph.runs() {
+      let font = run.font();
+      let blob = peniko::Blob::from_raw_parts(Arc::clone(font.bytes()), font.id());
+      let synthesis = run.synthesis();
+      let embolden = if synthesis.embolden {
+        let amount = f64::from(run.size()) * EMBOLDEN;
+        FontEmbolden::new(Diagonal2::new(amount, amount))
+      } else {
+        FontEmbolden::default()
+      };
+      let skew = (synthesis.skew != 0.0).then(|| Affine::skew(f64::from(synthesis.skew.to_radians().tan()), 0.0));
+      let glyphs = run.glyphs().iter().map(|glyph| Glyph {
+        id: glyph.id,
+        x: glyph.x + origin.x,
+        y: glyph.y + origin.y,
+      });
+      self
+        .out
+        .draw_glyphs(&peniko::FontData::new(blob, font.index()))
+        .font_size(run.size())
+        .transform(self.current)
+        .glyph_transform(skew)
+        .brush_transform(transform)
+        .font_embolden(embolden)
+        .hint(false)
+        .normalized_coords(run.coords())
+        .brush(&brush)
+        .draw(Fill::NonZero, glyphs);
+    }
   }
 
   fn shadow(&mut self, shape: RoundedRect, blur: f32, color: peniko::Color) {
@@ -351,9 +399,12 @@ fn kurbo_point(point: Point) -> kurbo::Point {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use artic_layout::geometry::Size;
   use artic_layout::geometry::{CornerRadius, FillRule, Path, Point, RelativePoint, RelativeScalar, RoundedRect};
+  use artic_layout::text::{FontData, Glyph, GlyphRun, Line, Paragraph, Synthesis};
   use artic_render::{BoxShadow, LinearGradientBrush, RadialGradientBrush, SolidColorBrush};
   use pretty_assertions::assert_eq;
+  use vello::low_level::vello_encoding::Transform as Encoded;
 
   // artic's transform and kurbo's map points the same way.
   #[test]
@@ -763,5 +814,104 @@ mod tests {
       ) > 0,
       "unequal radii draw"
     );
+  }
+
+  fn face(bytes: &'static [u8]) -> FontData {
+    FontData::new(Arc::new(bytes), 0)
+  }
+
+  fn run(font: &FontData, synthesis: Synthesis) -> GlyphRun {
+    let glyphs = [Glyph { id: 36, x: 0.0, y: 12.0 }, Glyph { id: 37, x: 9.0, y: 12.0 }];
+    GlyphRun::new(font.clone(), 16.0, Vec::<i16>::new(), synthesis, glyphs)
+  }
+
+  fn paragraph(runs: Vec<GlyphRun>) -> Paragraph {
+    Paragraph::new(Size::new(30.0, 20.0), Vec::<Line>::new(), runs)
+  }
+
+  // Each run draws from a blob that carries the font's artic id and index, so vello's glyph cache
+  // knows a face by the same id in every frame. Glyphs are moved by the origin.
+  #[test]
+  fn font_id_becomes_the_blob_id() {
+    let font = face(artic_test_fonts::REGULAR);
+    let text = paragraph(vec![run(&font, Synthesis::default())]);
+
+    let out = encoded(|translation| translation.text(&text, Point::new(4.0, 6.0), &Color::rgb(0, 0, 0).into()));
+
+    let runs = &out.encoding().resources.glyph_runs;
+    assert_eq!(runs.len(), 1);
+    assert_eq!((runs[0].font.data.id(), runs[0].font.index), (font.id(), 0));
+    assert_eq!(runs[0].font_size, 16.0);
+    assert!(!runs[0].hint);
+    let glyphs = &out.encoding().resources.glyphs;
+    assert_eq!((glyphs[0].x, glyphs[0].y, glyphs[1].x), (4.0, 18.0, 13.0));
+  }
+
+  // Runs from different faces draw as separate glyph runs, each with its own face's id.
+  #[test]
+  fn each_run_draws_with_its_own_font() {
+    let (regular, bold) = (face(artic_test_fonts::REGULAR), face(artic_test_fonts::BOLD));
+    let text = paragraph(vec![run(&regular, Synthesis::default()), run(&bold, Synthesis::default())]);
+
+    let out = encoded(|translation| translation.text(&text, Point::ZERO, &Color::rgb(0, 0, 0).into()));
+
+    let ids: Vec<u64> = out
+      .encoding()
+      .resources
+      .glyph_runs
+      .iter()
+      .map(|run| run.font.data.id())
+      .collect();
+    assert_eq!(ids, [regular.id(), bold.id()]);
+  }
+
+  // A synthesized bold pushes each side of the outlines out by a forty-eighth of the size; a
+  // synthesized slant shears them.
+  #[test]
+  fn synthesis_becomes_embolden_and_skew() {
+    let font = face(artic_test_fonts::REGULAR);
+    let synthesis = Synthesis {
+      embolden: true,
+      skew: 14.0,
+    };
+    let text = paragraph(vec![run(&font, synthesis)]);
+
+    let out = encoded(|translation| translation.text(&text, Point::ZERO, &Color::rgb(0, 0, 0).into()));
+
+    let drawn = &out.encoding().resources.glyph_runs[0];
+    assert_eq!(drawn.font_embolden.amount, kurbo::Diagonal2::new(16.0 / 48.0, 16.0 / 48.0));
+    let skew = Affine::skew(f64::from(14.0_f32.to_radians().tan()), 0.0);
+    assert_eq!(drawn.glyph_transform, Some(Encoded::from_kurbo(&skew)));
+  }
+
+  // Glyphs draw in the current coordinates, so a transform such as the display scale applies.
+  #[test]
+  fn text_follows_the_current_transform() {
+    let font = face(artic_test_fonts::REGULAR);
+    let text = paragraph(vec![run(&font, Synthesis::default())]);
+    let mut out = vello::Scene::new();
+
+    Translation {
+      out: &mut out,
+      current: Affine::scale(2.0),
+      stack: Vec::new(),
+      surface: kurbo::Rect::ZERO,
+    }
+    .text(&text, Point::ZERO, &Color::rgb(0, 0, 0).into());
+
+    let drawn = &out.encoding().resources.glyph_runs[0];
+    assert_eq!(drawn.transform, Encoded::from_kurbo(&Affine::scale(2.0)));
+  }
+
+  // A brush that paints nothing, such as a gradient without stops, draws no glyphs.
+  #[test]
+  fn text_without_paint_draws_nothing() {
+    let font = face(artic_test_fonts::REGULAR);
+    let text = paragraph(vec![run(&font, Synthesis::default())]);
+    let nothing = LinearGradientBrush::new(RelativePoint::relative(0.0, 0.0), RelativePoint::relative(1.0, 0.0), []);
+
+    let out = encoded(|translation| translation.text(&text, Point::ZERO, &nothing.into()));
+
+    assert!(out.encoding().resources.glyph_runs.is_empty());
   }
 }

@@ -206,7 +206,7 @@ A brush per span of text (inline `Run`s, #47) can extend this later with a brush
 
 What a renderer may rely on is the same for fonts as for images in the [backends design](backends.md): shared data with a stable identity. A `FontData`'s `id` is unique and stays the same for as long as its bytes live, so a renderer may cache whatever it derives from a font (a typeface, outlines, an atlas) keyed by `id` and `index`, and decides itself when to drop it. artic's types carry nothing for any one renderer.
 
-`artic-vello` draws each run with one `draw_glyphs` call: the run's size and `coords`, the brush, and the transform moved by `origin`. `synthesis` becomes vello's `font_embolden` and a skewing `glyph_transform`. Hinting is off, since it depends on the device-pixel grid, which text doesn't snap to yet.
+`artic-vello` draws each run with one `draw_glyphs` call: the run's size and `coords`, the brush, and the current transform, with the glyphs moved by `origin`, so the brush resolves against the paragraph's box as a fill's does against its shape's. `synthesis` becomes vello's `font_embolden` and a skewing `glyph_transform`. Hinting is off, since it depends on the device-pixel grid, which text doesn't snap to yet.
 
 vello 0.11's renderer already caches glyph outlines between frames, keyed by the font blob's id, its index, the size and the variation coordinates, and drops entries left unused for 64 frames, checking every 64 frames or sooner once it holds more than 256 glyphs. So `artic-vello` keeps no cache and no map: it builds each run's blob with `Blob::from_raw_parts(bytes, id)` from the `FontData`, which clones an `Arc`, and the same id hits vello's cache in every frame. Every font vello draws carries an artic id, so ids can't collide in its cache.
 

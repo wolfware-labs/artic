@@ -1,6 +1,7 @@
 use crate::{BoxShadow, Brush, Shape, Stroke};
 use artic_core::tree::NodeId;
-use artic_layout::geometry::{RoundedRect, Transform};
+use artic_layout::geometry::{Point, RoundedRect, Transform};
+use artic_layout::text::Paragraph;
 use std::sync::Arc;
 
 /// Something that changes how what's drawn inside it appears, until the matching pop.
@@ -60,6 +61,16 @@ pub enum Command {
     rect: RoundedRect,
     /// How the shadow is grown, moved, blurred and colored.
     shadow: BoxShadow,
+  },
+  /// Draws `paragraph`'s glyphs with its top-left corner at `origin`, painted with `brush`.
+  Text {
+    /// The shaped text.
+    paragraph: Paragraph,
+    /// Where the paragraph's top-left corner goes, in the node's coordinates.
+    origin: Point,
+    /// The paint. Its relative points and radii resolve against the paragraph's box,
+    /// `Rect::new(origin, paragraph.size())`, so a gradient runs across the whole text.
+    brush: Brush,
   },
 }
 

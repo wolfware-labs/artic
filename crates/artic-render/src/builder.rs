@@ -1,5 +1,6 @@
 use crate::{BoxShadow, Brush, Command, Layer, Shape, Stroke, drawable_opacity};
-use artic_layout::geometry::{RoundedRect, Transform};
+use artic_layout::geometry::{Point, RoundedRect, Transform};
+use artic_layout::text::Paragraph;
 
 /// Records one node's drawing, in the node's own coordinates.
 ///
@@ -94,6 +95,32 @@ impl SceneBuilder {
     });
   }
 
+  /// Draws `paragraph` with its top-left corner at `origin`, painted with `brush`. The brush's
+  /// relative points resolve against the paragraph's box, so a gradient runs across the whole
+  /// text. A paragraph without glyphs records nothing.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use artic_layout::geometry::Point;
+  /// use artic_layout::text::Paragraph;
+  /// use artic_render::{Color, SceneBuilder};
+  ///
+  /// let paragraph = Paragraph::default();
+  /// let mut builder = SceneBuilder::default();
+  /// builder.text(&paragraph, Point::new(8.0, 8.0), Color::rgb(15, 23, 42));
+  /// ```
+  pub fn text(&mut self, paragraph: &Paragraph, origin: Point, brush: impl Into<Brush>) {
+    if paragraph.is_empty() {
+      return;
+    }
+    self.commands.push(Command::Text {
+      paragraph: paragraph.clone(),
+      origin,
+      brush: brush.into(),
+    });
+  }
+
   /// Records `draw` inside `transform`.
   ///
   /// # Examples
@@ -163,8 +190,45 @@ impl SceneBuilder {
 mod tests {
   use super::*;
   use crate::{BoxShadow, Color, Stroke, drawable_opacity};
-  use artic_layout::geometry::{CornerRadius, Path, Point, Rect, RoundedRect};
+  use artic_layout::geometry::{CornerRadius, Path, Point, Rect, RoundedRect, Size};
+  use artic_layout::text::{FontData, Glyph, GlyphRun, Line, Paragraph, Synthesis};
   use pretty_assertions::assert_eq;
+  use std::sync::Arc;
+
+  fn paragraph(runs: usize) -> Paragraph {
+    let font = FontData::new(Arc::new(vec![0_u8; 4]), 0);
+    let glyphs = [Glyph { id: 1, x: 0.0, y: 12.0 }];
+    let run = GlyphRun::new(font, 16.0, Vec::<i16>::new(), Synthesis::default(), glyphs);
+    Paragraph::new(Size::new(30.0, 20.0), Vec::<Line>::new(), vec![run; runs])
+  }
+
+  // A paragraph is recorded as one command, with its origin and brush.
+  #[test]
+  fn text_records_one_command() {
+    let mut builder = SceneBuilder::default();
+    let paragraph = paragraph(2);
+
+    builder.text(&paragraph, Point::new(4.0, 6.0), Color::rgb(1, 2, 3));
+
+    assert_eq!(
+      builder.take(),
+      [Command::Text {
+        paragraph,
+        origin: Point::new(4.0, 6.0),
+        brush: Color::rgb(1, 2, 3).into(),
+      }]
+    );
+  }
+
+  // A paragraph without runs draws nothing, so nothing is recorded.
+  #[test]
+  fn empty_paragraph_records_nothing() {
+    let mut builder = SceneBuilder::default();
+
+    builder.text(&paragraph(0), Point::ZERO, Color::rgb(1, 2, 3));
+
+    assert!(builder.take().is_empty());
+  }
 
   // Fills and strokes record their shape, brush and stroke, in order, whatever the shape.
   #[test]
