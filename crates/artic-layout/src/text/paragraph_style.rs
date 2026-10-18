@@ -67,8 +67,9 @@ pub enum TextAlignment {
   Left,
   /// The right edge, in either direction.
   Right,
-  /// Placed as `Start`, then stretched to the paragraph's width at its spaces, except the last
-  /// line and lines that end at a hard break.
+  /// Placed as `Start`, then stretched to the width limit at its spaces, except the last line,
+  /// lines that end at a hard break, lines without spaces and lines wider than the limit. A word
+  /// wider than the limit overflows on its own; the stretched lines stop at the limit.
   Justify,
 }
 
