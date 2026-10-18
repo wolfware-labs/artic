@@ -15,7 +15,8 @@ pub struct ParagraphStyle {
   pub alignment: TextAlignment,
   /// Whether and how lines break to fit `max_width`.
   pub wrapping: TextWrapping,
-  /// How a line that doesn't fit is cut.
+  /// How a line that doesn't fit, or that comes before lines dropped for the line count or the
+  /// height, is cut.
   pub trimming: TextTrimming,
   /// The number of lines kept, or `None` to keep every line.
   pub max_lines: Option<NonZeroU32>,
@@ -33,7 +34,8 @@ pub enum TextWrapping {
   WrapWithOverflow,
 }
 
-/// How a line that doesn't fit is cut, and where its ellipsis goes.
+/// How a line that doesn't fit, or that comes before dropped lines, is cut, and where its
+/// ellipsis goes.
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, XamlEnum)]
 pub enum TextTrimming {
   /// Lines aren't cut: what doesn't fit draws past the edge.
