@@ -2,7 +2,7 @@
 
 Issue: #305. Builds on: [naming review](naming-review.md) (#30, D20), [value objects](value-objects.md) (#32), [elements](element.md) (#42), [TextBlock](text-block.md) (#46). Unblocks: #43, #49.
 
-An app picks its host, its renderer and its UI language. Host and renderer already sit behind traits: no layer depends on winit or vello. The language is separate by dependency too, since nothing below the `artic` facade depends on `artic-xaml`, `artic-xaml-compiler` or `artic-xaml-runtime`. Its names, though, reach into the layers below it. Every UI type derives `XamlType`, states an XML namespace, and marks its fields `#[xaml(...)]`; layout enums derive `XamlEnum`; the registry's traits and lists are named after XAML.
+An app picks its host, its renderer and its UI language. Host and renderer already sit behind traits: no layer depends on winit or vello. The language is separate by dependency too: no crate that defines types, layout, drawing or controls depends on `artic-xaml`, `artic-xaml-compiler` or `artic-xaml-runtime`; only the XAML crates themselves, the facade's `runtime-xaml` feature, `artic-lsp` and `artic-cli` do. `docs/architecture.md` plans one more edge, `artic-style` → `artic-xaml`, for `Span` and `Diagnostic` in selector errors; this design drops it (section 5). Its names, though, reach into the layers below it. Every UI type derives `XamlType`, states an XML namespace, and marks its fields `#[xaml(...)]`; layout enums derive `XamlEnum`; the registry's traits and lists are named after XAML.
 
 D20 keeps WPF framing out of the APIs while the markup keeps the XAML name. This design extends it: the layers below a language describe types in neutral terms, and only the XAML crates speak XAML. A new spec, `docs/spec/dsl.md`, states the contract any language follows, so someone can write their own or plug in one that exists. It keeps XAML's ideas (attached properties, content, values written as text, markup extensions, namespaces) and names them neutrally. XAML is the first language that follows it.
 
@@ -93,9 +93,10 @@ It lives in `artic-xaml`, beside the parser, and depends on nothing:
 - `using:my_crate::views` keeps working as the spec describes, through the Rust path; it needs no entry.
 - Nothing is built in. The `artic` facade, which already depends on every artic crate with UI types and owns the `runtime-xaml` feature, adds `https://artic.rs/ui` → `artic_element`, `artic_controls` (and the style crates when they define types) through `alias`, the call an app uses for its own URIs, such as `https://acme.com/ui` → `acme_controls`. A new artic crate is added where the crates are composed.
 - A URI that maps to several crates finds a name in each; a name found in two of them is ambiguous, and the back end reports it.
+- The registry only knows the crates the app links: `UI_TYPES` is collected at link time, so a crate the app depends on but never references is left out, as `docs/architecture.md` notes. A crate named in an alias must therefore be linked. The facade's crates are, since it re-exports them; an app that aliases a crate it doesn't otherwise use references it with `use acme_controls as _;`. A back end that finds no type at all in a URI's crates says so, and names that line as the likely fix.
 - `https://artic.rs/markup`, the `x:` directives, stays XAML's own.
 
-A control library therefore never depends on or mentions XAML, and neither the parser nor the registry knows artic's crate layout. The loader (#43's builder path, #49's generated code) resolves a type as: prefix → URI → crates through the map → `Registry::type_by_name` in each crate.
+A control library therefore never depends on or mentions XAML, and neither the parser nor the registry knows artic's crate layout. The loader (#43's builder path, #49's generated code) resolves a type as: prefix → URI → crates through the map → one `Registry::type_by_name(crate, name)` call on the app's single registry for each of those crates. One `Found` across them is the type; two, or an `Ambiguous`, is ambiguous; none is missing.
 
 ## 4. The language spec
 
@@ -120,7 +121,8 @@ The goal goes into the spec and the architecture:
 - spec §1 gains a locked decision: host, renderer and UI language are each pluggable, and the layers below the language don't name it;
 - spec §2 and `docs/architecture.md` show the language layer beside the host and renderer adapters;
 - spec §3 describes the registry in neutral terms and points at `dsl.md`; its "Namespaces" subsection, which is about XAML, moves to §4, and "a back end reports a URI no registered type declares" becomes "a URI the namespace map doesn't know";
-- spec §4 stays XAML's.
+- spec §4 stays XAML's;
+- `docs/architecture.md` drops the planned `artic-style` → `artic-xaml` edge: when selector errors need a source span, the span and diagnostic types move to a crate below every language, so `artic-style` names no language.
 
 After the rename, every document is checked against the code and updated to it: `docs/spec/technical_spec.md`, `docs/architecture.md`, every file in `docs/design/` and `docs/spikes/`, and the crates' module docs. The pull request lists each file with what it needed, or that it was checked and needed nothing. Design documents describe the code as it is, so they use the new names too; the decisions they record keep their reasons.
 
@@ -140,7 +142,7 @@ Design documents keep their "Documents that change" tables.
 
 | Where | Tests |
 | --- | --- |
-| `artic-registry` | `namespace_is_the_first_segment_of_the_rust_path`, `same_name_in_one_crate_is_ambiguous_by_name_and_found_by_path`, `same_rust_path_twice_is_an_error`, `missing_name_is_missing`; `same_name_in_two_crates_is_found_in_each` in the real-crate fixtures (`fixtures/types-a`, `types-b`, `linking/tests`), whose URIs go |
+| `artic-registry` | `namespace_is_the_first_segment_of_the_rust_path`, `same_name_in_one_crate_is_ambiguous_by_name_and_found_by_path`, `same_rust_path_twice_is_an_error`, `missing_name_is_missing`; `same_name_in_two_crates_is_found_in_each` in the real-crate fixtures (`fixtures/types-a`, `types-b`, `linking/tests`): their `#[xaml(namespace = ...)]` attributes are removed, so their types' namespaces become `types_a` and `types_b`, and the test looks the shared name up in each |
 | `artic-macros` | the derive tests and trybuild cases under the new names; `derived_namespace_is_the_crate`; every new or renamed `.stderr` checked for `$RUST/` lines |
 | `artic-xaml` | `NamespaceMap`: `alias_maps_a_uri_to_crates`, `alias_adds_to_a_uri`, `unknown_uri_is_none`; the fixture corpus and its snapshots unchanged |
 | `artic` | `facade_maps_the_artic_uri` (with `runtime-xaml` on) |
