@@ -1,6 +1,6 @@
 use artic_layout::text::{
   FontFamily, FontStyle, FontWeight, GenericFamily, Line, Paragraph, ParagraphStyle, TextAlignment, TextEngine, TextLimits,
-  TextStyle, TextWrapping,
+  TextStyle, TextTrimming, TextWrapping,
 };
 use artic_test_fonts::{BOLD, REGULAR};
 use artic_text::Engine;
@@ -705,6 +705,11 @@ fn clamped_line_that_fits_is_not_limited_by_width() {
   };
 
   assert!(!laid_out(&mut engine(), "a\nb\nc", &style, TextLimits::width(100.0)).limited_width());
+  let trimmed = ParagraphStyle {
+    trimming: TextTrimming::CharacterEllipsis,
+    ..style
+  };
+  assert!(!laid_out(&mut engine(), "a\nb\nc", &trimmed, TextLimits::width(100.0)).limited_width());
 }
 
 fn aligned(alignment: TextAlignment) -> ParagraphStyle {
@@ -784,6 +789,15 @@ fn justify_skips_hard_breaks_and_trimmed_lines() {
   assert_eq!(justified.lines()[0].width, start.lines()[0].width);
   assert!(justified.lines()[0].width < justified.size().width);
   assert!(justified.lines()[1].width == justified.size().width);
+  let joined = "Super\u{a0}cali\u{a0}fragilistic\u{a0}expiali two three four five";
+  let cut = ParagraphStyle {
+    alignment: TextAlignment::Justify,
+    trimming: TextTrimming::CharacterEllipsis,
+    ..overflowing()
+  };
+  let paragraph = laid_out(&mut engine, joined, &cut, TextLimits::width(100.0));
+  assert!(line_ids(&paragraph, &paragraph.lines()[0]).contains(&ellipsis(&mut engine)));
+  assert!(paragraph.lines()[0].width < 100.0);
 }
 
 // A line without spaces, such as a piece of a word broken by Wrap, isn't stretched.
@@ -898,4 +912,403 @@ fn justified_lines_stop_at_max_width() {
     assert!(line.width <= 60.0, "{line:?}");
     assert!(right_glyph(&paragraph, line) < 60.0, "{line:?}");
   }
+}
+
+fn trimming(trimming: TextTrimming) -> ParagraphStyle {
+  ParagraphStyle {
+    trimming,
+    ..ParagraphStyle::default()
+  }
+}
+
+fn trimmed(engine: &mut Engine, text: &str, mode: TextTrimming, max_width: f32) -> Paragraph {
+  laid_out(engine, text, &trimming(mode), TextLimits::width(max_width))
+}
+
+fn ellipsis(engine: &mut Engine) -> u32 {
+  shape(engine, "\u{2026}", &style()).runs()[0].glyphs()[0].id
+}
+
+fn ids(paragraph: &Paragraph) -> Vec<u32> {
+  let mut glyphs = paragraph
+    .runs()
+    .iter()
+    .flat_map(|run| run.glyphs())
+    .copied()
+    .collect::<Vec<_>>();
+  glyphs.sort_by(|a, b| (a.y, a.x).partial_cmp(&(b.y, b.x)).unwrap());
+  glyphs.into_iter().map(|glyph| glyph.id).collect()
+}
+
+fn line_ids(paragraph: &Paragraph, line: &Line) -> Vec<u32> {
+  let mut glyphs = paragraph
+    .runs()
+    .iter()
+    .flat_map(|run| run.glyphs())
+    .filter(|glyph| (glyph.y - line.baseline).abs() < 0.01)
+    .copied()
+    .collect::<Vec<_>>();
+  glyphs.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap());
+  glyphs.into_iter().map(|glyph| glyph.id).collect()
+}
+
+const PATH: &str = r"C:\Users\ada\projects\artic\docs\design\text-block.md";
+const LETTERS: &str = "abcdefghijklmnopqrstuvwxyz0123456789";
+
+// CharacterEllipsis keeps the start, cut between clusters, then "…", within the width.
+#[test]
+fn character_ellipsis_cuts_between_clusters() {
+  let mut engine = engine();
+  let paragraph = trimmed(&mut engine, FOX, TextTrimming::CharacterEllipsis, 100.0);
+  let shown = ids(&paragraph);
+
+  assert_eq!(paragraph.lines().len(), 1);
+  assert!(paragraph.size().width <= 100.0);
+  assert_eq!(shown.last(), Some(&ellipsis(&mut engine)));
+  assert!((1..FOX.len()).any(|cut| shown == ids(&shape(&mut engine, &format!("{}\u{2026}", FOX[..cut].trim_end()), &style()))));
+  assert!(paragraph.limited_width());
+}
+
+// WordEllipsis cuts before a word.
+#[test]
+fn word_ellipsis_cuts_at_a_word_boundary() {
+  let mut engine = engine();
+  let shown = ids(&trimmed(&mut engine, FOX, TextTrimming::WordEllipsis, 100.0));
+  let word_ends = FOX.match_indices(' ').map(|(at, _)| at);
+
+  assert!(
+    word_ends
+      .into_iter()
+      .any(|end| shown == ids(&shape(&mut engine, &format!("{}\u{2026}", &FOX[..end]), &style())))
+  );
+}
+
+// A single word too long for the width is cut between characters.
+#[test]
+fn word_ellipsis_falls_back_to_characters() {
+  let mut engine = engine();
+  let paragraph = trimmed(&mut engine, LONG_WORD, TextTrimming::WordEllipsis, 100.0);
+  let shown = ids(&paragraph);
+
+  assert!(shown.len() > 1);
+  assert_eq!(shown.last(), Some(&ellipsis(&mut engine)));
+  assert!(paragraph.size().width <= 100.0);
+}
+
+// PrefixCharacterEllipsis keeps the first 8 clusters, "…", then the end.
+#[test]
+fn prefix_ellipsis_keeps_eight_clusters_and_the_end() {
+  let mut engine = engine();
+  let paragraph = trimmed(&mut engine, LETTERS, TextTrimming::PrefixCharacterEllipsis, 120.0);
+  let shown = ids(&paragraph);
+
+  assert_eq!(shown[8], ellipsis(&mut engine));
+  assert!(paragraph.size().width <= 120.0);
+  assert!(
+    (9..LETTERS.len()).any(|cut| shown == ids(&shape(&mut engine, &format!("abcdefgh\u{2026}{}", &LETTERS[cut..]), &style())))
+  );
+}
+
+// When 8 clusters and "…" don't fit, PrefixCharacterEllipsis cuts as CharacterEllipsis does.
+#[test]
+fn prefix_ellipsis_falls_back_to_characters() {
+  let mut engine = engine();
+  let paragraph = trimmed(&mut engine, LETTERS, TextTrimming::PrefixCharacterEllipsis, 40.0);
+
+  assert_eq!(ids(&paragraph).last(), Some(&ellipsis(&mut engine)));
+  assert!(paragraph.size().width <= 40.0);
+}
+
+// LeadingCharacterEllipsis puts "…" first and keeps the end.
+#[test]
+fn leading_ellipsis_keeps_the_end() {
+  let mut engine = engine();
+  let shown = ids(&trimmed(&mut engine, FOX, TextTrimming::LeadingCharacterEllipsis, 100.0));
+
+  assert_eq!(shown.first(), Some(&ellipsis(&mut engine)));
+  assert!(
+    (1..FOX.len()).any(|cut| shown == ids(&shape(&mut engine, &format!("\u{2026}{}", FOX[cut..].trim_start()), &style())))
+  );
+}
+
+// PathSegmentEllipsis keeps the first and last segments and replaces middle ones with "…".
+#[test]
+fn path_ellipsis_drops_middle_segments() {
+  let mut engine = engine();
+  let paragraph = trimmed(&mut engine, PATH, TextTrimming::PathSegmentEllipsis, 200.0);
+  let shown = ids(&paragraph);
+  let head = ids(&shape(&mut engine, r"C:\", &style()));
+  let tail = ids(&shape(&mut engine, r"\text-block.md", &style()));
+
+  assert!(paragraph.size().width <= 200.0);
+  assert!(shown.starts_with(&head) && shown.ends_with(&tail), "{shown:?}");
+  assert_eq!(shown.iter().filter(|&&id| id == ellipsis(&mut engine)).count(), 1);
+}
+
+// When even the first and last segments don't fit, PathSegmentEllipsis cuts as
+// LeadingCharacterEllipsis does.
+#[test]
+fn path_ellipsis_falls_back_to_leading() {
+  let mut engine = engine();
+  let paragraph = trimmed(&mut engine, PATH, TextTrimming::PathSegmentEllipsis, 60.0);
+
+  assert_eq!(ids(&paragraph).first(), Some(&ellipsis(&mut engine)));
+  assert!(paragraph.size().width <= 60.0);
+}
+
+// A clamped line's text is its own: nothing after its hard break shows.
+#[test]
+fn trimming_stops_at_a_hard_break() {
+  let mut engine = engine();
+  let clamp = ParagraphStyle {
+    max_lines: NonZeroU32::new(1),
+    ..trimming(TextTrimming::CharacterEllipsis)
+  };
+  let paragraph = laid_out(&mut engine, "The quick brown fox\njumps", &clamp, TextLimits::width(1000.0));
+
+  assert_eq!(
+    ids(&paragraph),
+    ids(&shape(&mut engine, "The quick brown fox\u{2026}", &style()))
+  );
+}
+
+// U+2028 LINE SEPARATOR is a hard break too.
+#[test]
+fn trimming_stops_at_a_line_separator() {
+  let mut engine = engine();
+  let clamp = ParagraphStyle {
+    max_lines: NonZeroU32::new(1),
+    ..trimming(TextTrimming::CharacterEllipsis)
+  };
+  let paragraph = laid_out(&mut engine, "abc\u{2028}def", &clamp, TextLimits::width(1000.0));
+
+  assert_eq!(ids(&paragraph), ids(&shape(&mut engine, "abc\u{2026}", &style())));
+}
+
+// A line that fits but is followed by dropped lines still gets "…".
+#[test]
+fn clamped_line_that_fits_still_gets_an_ellipsis() {
+  let mut engine = engine();
+  let clamp = ParagraphStyle {
+    max_lines: NonZeroU32::new(1),
+    ..trimming(TextTrimming::CharacterEllipsis)
+  };
+
+  assert_eq!(
+    ids(&laid_out(&mut engine, "a\nb\nc", &clamp, TextLimits::width(100.0))),
+    ids(&shape(&mut engine, "a\u{2026}", &style()))
+  );
+}
+
+// Text that ends in a line break leaves only whitespace after its last kept line: no "…".
+#[test]
+fn trailing_line_break_is_not_trimmed() {
+  let mut engine = engine();
+  let clamp = ParagraphStyle {
+    max_lines: NonZeroU32::new(1),
+    ..trimming(TextTrimming::CharacterEllipsis)
+  };
+
+  assert!(!ids(&laid_out(&mut engine, "abc\n", &clamp, TextLimits::width(100.0))).contains(&ellipsis(&mut engine)));
+}
+
+// With room for nothing, CharacterEllipsis and LeadingCharacterEllipsis draw "…" alone,
+// overhanging.
+#[test]
+fn ellipsis_alone_when_nothing_fits() {
+  let mut engine = engine();
+  let alone = vec![ellipsis(&mut engine)];
+
+  for mode in [TextTrimming::CharacterEllipsis, TextTrimming::LeadingCharacterEllipsis] {
+    assert_eq!(ids(&trimmed(&mut engine, FOX, mode, 1.0)), alone, "{mode:?}");
+  }
+}
+
+// TextTrimming::None draws the line whole.
+#[test]
+fn no_trimming_draws_no_ellipsis() {
+  let mut engine = engine();
+
+  assert_eq!(
+    trimmed(&mut engine, FOX, TextTrimming::None, 100.0),
+    shape(&mut engine, FOX, &style())
+  );
+}
+
+// A trimmed line keeps the top, height and baseline of the line it replaces.
+#[test]
+fn trimmed_line_keeps_its_metrics() {
+  let mut engine = engine();
+  let clamped = ParagraphStyle {
+    max_lines: NonZeroU32::new(2),
+    ..wrapping(TextWrapping::WrapWithOverflow)
+  };
+  let trimmed = ParagraphStyle {
+    trimming: TextTrimming::CharacterEllipsis,
+    ..clamped
+  };
+  let plain = laid_out(&mut engine, FOX, &clamped, TextLimits::width(100.0));
+  let cut = laid_out(&mut engine, FOX, &trimmed, TextLimits::width(100.0));
+
+  for (before, after) in plain.lines().iter().zip(cut.lines()) {
+    assert_eq!(
+      (before.top, before.height, before.baseline),
+      (after.top, after.height, after.baseline)
+    );
+  }
+}
+
+// A paragraph's size and placement describe the trimmed line: its width is the cut line's, and
+// no glyph lies past it.
+#[test]
+fn trimmed_size_matches_what_is_drawn() {
+  let paragraph = trimmed(&mut engine(), FOX, TextTrimming::CharacterEllipsis, 100.0);
+
+  assert_eq!(paragraph.size().width, paragraph.lines()[0].width);
+  assert_inside(&paragraph);
+}
+
+// In a right-to-left paragraph a Latin line is trimmed right to left: "…" on its left.
+#[test]
+fn trimmed_latin_line_in_rtl_paragraph() {
+  let mut engine = engine();
+  let paragraph = trimmed(
+    &mut engine,
+    "שלום\nHello world and more words",
+    TextTrimming::CharacterEllipsis,
+    60.0,
+  );
+  let latin = paragraph.lines()[1];
+
+  assert_eq!(line_ids(&paragraph, &latin).first(), Some(&ellipsis(&mut engine)));
+}
+
+// Trimmed right-to-left text keeps every glyph inside its size, "…" on the left.
+#[test]
+fn trimmed_right_to_left_text_stays_inside_its_size() {
+  let mut engine = engine();
+  let paragraph = trimmed(&mut engine, HEBREW, TextTrimming::CharacterEllipsis, 60.0);
+
+  assert!(paragraph.size().width <= 60.0);
+  assert_inside(&paragraph);
+  assert_eq!(ids(&paragraph).first(), Some(&ellipsis(&mut engine)));
+}
+
+// A cut never separates a base letter from its combining mark.
+#[test]
+fn combining_mark_stays_with_its_base() {
+  let mut engine = engine();
+  let text = "e\u{301}".repeat(12);
+  let shown = ids(&trimmed(&mut engine, &text, TextTrimming::CharacterEllipsis, 40.0));
+
+  assert!((0..=12).any(|kept| shown == ids(&shape(&mut engine, &format!("{}\u{2026}", "e\u{301}".repeat(kept)), &style()))));
+}
+
+// Center places a trimmed line by its cut width.
+#[test]
+fn trimmed_line_is_aligned_by_its_new_width() {
+  let clamp = ParagraphStyle {
+    alignment: TextAlignment::Center,
+    ..trimming(TextTrimming::CharacterEllipsis)
+  };
+  let paragraph = laid_out(&mut engine(), &format!("short\n{FOX}"), &clamp, TextLimits::width(100.0));
+
+  for line in paragraph.lines() {
+    assert_close(left_edge(&paragraph, line), (paragraph.size().width - line.width) / 2.0);
+  }
+}
+
+// A NaN width is no width limit, but MaxLines still trims the last kept line.
+#[test]
+fn unusable_max_width_still_trims_a_clamped_line() {
+  let mut engine = engine();
+  let clamp = ParagraphStyle {
+    max_lines: NonZeroU32::new(1),
+    ..trimming(TextTrimming::CharacterEllipsis)
+  };
+
+  assert_eq!(
+    ids(&laid_out(&mut engine, "abc\ndef", &clamp, TextLimits::width(f32::NAN))),
+    ids(&shape(&mut engine, "abc\u{2026}", &style()))
+  );
+}
+
+// Lines dropped by the height trim the last kept line, as MaxLines does.
+#[test]
+fn dropped_by_height_trims_the_last_line() {
+  let mut engine = engine();
+  let clamp = ParagraphStyle {
+    trimming: TextTrimming::CharacterEllipsis,
+    ..wrapping(TextWrapping::WrapWithOverflow)
+  };
+  let paragraph = laid_out(
+    &mut engine,
+    FOX,
+    &clamp,
+    TextLimits {
+      max_width: Some(100.0),
+      max_height: Some(2.5 * LINE),
+    },
+  );
+  let last = paragraph.lines()[1];
+
+  assert_eq!(paragraph.lines().len(), 2);
+  assert_eq!(line_ids(&paragraph, &last).last(), Some(&ellipsis(&mut engine)));
+}
+
+// Empty text with trimming in a tiny box draws nothing.
+#[test]
+fn trimming_empty_text_draws_nothing() {
+  let clamp = trimming(TextTrimming::CharacterEllipsis);
+  let paragraph = laid_out(
+    &mut engine(),
+    "",
+    &clamp,
+    TextLimits {
+      max_width: Some(1.0),
+      max_height: Some(-1.0),
+    },
+  );
+
+  assert!(paragraph.is_empty());
+}
+
+// A line cut because the lines after it were dropped keeps its whole text and gains "…", in every
+// mode, and isn't limited by the width.
+#[test]
+fn clamped_line_keeps_its_whole_text_in_every_mode() {
+  let mut engine = engine();
+  let expected = ids(&shape(&mut engine, "abcdefghijk\u{2026}", &style()));
+
+  for mode in [
+    TextTrimming::CharacterEllipsis,
+    TextTrimming::WordEllipsis,
+    TextTrimming::PrefixCharacterEllipsis,
+    TextTrimming::LeadingCharacterEllipsis,
+    TextTrimming::PathSegmentEllipsis,
+  ] {
+    let clamp = ParagraphStyle {
+      max_lines: NonZeroU32::new(1),
+      ..trimming(mode)
+    };
+    let paragraph = laid_out(&mut engine, "abcdefghijk\nmore", &clamp, TextLimits::width(1000.0));
+
+    assert_eq!(ids(&paragraph), expected, "{mode:?}");
+    assert!(!paragraph.limited_width(), "{mode:?}");
+  }
+}
+
+// A clamped line never shows text from the lines dropped after it, even with room for it.
+#[test]
+fn clamped_line_never_shows_dropped_text() {
+  let mut engine = engine();
+  let room = shape(&mut engine, "ab cd\u{2026}", &style()).size().width;
+  let clamp = ParagraphStyle {
+    max_lines: NonZeroU32::new(1),
+    trimming: TextTrimming::CharacterEllipsis,
+    ..overflowing()
+  };
+  let paragraph = laid_out(&mut engine, "ab cdefghij", &clamp, TextLimits::width(room));
+
+  assert_eq!(ids(&paragraph), ids(&shape(&mut engine, "ab\u{2026}", &style())));
 }
