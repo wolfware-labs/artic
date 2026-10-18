@@ -1138,12 +1138,13 @@ impl TextEngine for Recorder {
 }
 
 /// A test leaf, 50 by 10, that shapes "measure" in its measure and "arrange" in its arrange, keeps
-/// the results it's told to, and notes what its arrange read back.
+/// the results it's told to, and notes what its arrange read back of each.
 #[derive(Debug, Default)]
 struct Shaper {
   measured: Cell<Option<u32>>,
   arranged: Cell<Option<u32>>,
   read: Cell<Option<u32>>,
+  read_measured: Cell<Option<u32>>,
   twice: Cell<bool>,
   collapsed: Cell<bool>,
 }
@@ -1169,6 +1170,7 @@ impl Layoutable for Shaper {
     cx.text()
       .paragraph("arrange", &TextStyle::new(FontFamily::default(), 16.0), TextLimits::NONE);
     self.read.set(cx.arranged::<u32>().copied());
+    self.read_measured.set(cx.measured::<u32>().copied());
     if let Some(result) = self.arranged.get() {
       cx.set_arranged(result);
     }
@@ -1281,6 +1283,17 @@ fn measured_result_is_kept_with_the_size() {
 
   assert_eq!(result(&layout, node), Some(1));
   assert_eq!(layout.desired(node), Some(Size::new(50.0, 10.0)));
+}
+
+// Arrange reads back what the node's measure kept.
+#[test]
+fn arrange_reads_the_measured_result() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+
+  lay_out(&mut LayoutManager::default(), &mut tree, holder, WINDOW);
+
+  assert_eq!(shaper(&tree, node).read_measured.get(), Some(1));
 }
 
 // A measure answered from the cache doesn't run, so the result it set before stays.

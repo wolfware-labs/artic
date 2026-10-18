@@ -743,6 +743,17 @@ impl<'a> ArrangeCx<'a> {
     self.pass.results.arranged.get(&self.pass.node())?.downcast_ref()
   }
 
+  /// The result the node's last measure kept, if it's a `T`, so an arrange can tell whether the
+  /// box it got changes what it measured.
+  ///
+  /// # Panics
+  ///
+  /// Panics outside a node's `arrange`.
+  #[must_use]
+  pub fn measured<T: Any>(&self) -> Option<&T> {
+    self.pass.results.measured.get(&self.pass.node())?.downcast_ref()
+  }
+
   /// Sets the bounds of the node being arranged, in its parent's coordinates, when they aren't the
   /// rectangle its parent offered: after a margin and alignment, for instance. Its children are
   /// placed relative to these bounds. They're snapped like [`arrange`](ArrangeCx::arrange)'s, and
