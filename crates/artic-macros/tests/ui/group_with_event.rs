@@ -1,9 +1,9 @@
 use artic_core::event::Event;
-use artic_macros::XamlProperties;
+use artic_macros::UiProperties;
 
-#[derive(Debug, XamlProperties)]
+#[derive(Debug, UiProperties)]
 struct Common {
-  #[xaml]
+  #[ui]
   clicked: Event<()>,
 }
 

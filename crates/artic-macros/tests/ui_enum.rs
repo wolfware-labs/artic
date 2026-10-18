@@ -1,11 +1,11 @@
-// Integration tests for `#[derive(XamlEnum)]`: the generated `FromStr` matches variant names in
+// Integration tests for `#[derive(UiEnum)]`: the generated `FromStr` matches variant names in
 // any ASCII case and explains a miss.
 
 use artic_core::property::{ParseEnumError, Property};
-use artic_macros::{XamlEnum, XamlType};
+use artic_macros::{UiEnum, UiType};
 use pretty_assertions::assert_eq;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, XamlEnum)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, UiEnum)]
 enum Orientation {
   #[default]
   Horizontal,
@@ -14,10 +14,10 @@ enum Orientation {
 
 /// A XAML type with an enum-valued property, which only compiles if the enum passes the
 /// property value check.
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui")]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui")]
 struct StackPanel {
-  #[xaml(affects = layout)]
+  #[ui(affects = layout)]
   orientation: Property<Orientation>,
 }
 

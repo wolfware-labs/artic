@@ -1,6 +1,6 @@
 //! Font families, weights and styles, and parsing them from XAML text.
 
-use artic_macros::XamlEnum;
+use artic_macros::UiEnum;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -343,7 +343,7 @@ fn parse_weight(text: &str) -> Result<FontWeight, WeightProblem> {
 /// Whether a font's glyphs are upright or slanted.
 ///
 /// A family without an italic face slants its upright one.
-#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, XamlEnum)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, UiEnum)]
 pub enum FontStyle {
   /// Upright.
   #[default]
@@ -459,7 +459,7 @@ mod tests {
     );
   }
 
-  // `FontStyle` parses through `XamlEnum` ignoring case, and is normal by default.
+  // `FontStyle` parses through `UiEnum` ignoring case, and is normal by default.
   #[test]
   fn font_style_parses_ignoring_case() {
     assert_eq!("italic".parse::<FontStyle>(), Ok(FontStyle::Italic));

@@ -1,5 +1,5 @@
 use crate::crate_root::{ELEMENT, crate_root};
-use crate::xaml_type::attributes::parse_type_attributes;
+use crate::ui_type::attributes::parse_type_attributes;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::punctuated::Punctuated;
@@ -13,8 +13,8 @@ const GROUPS: [(&str, &str, &str); 4] = [
   ("identity", "Identity", "What style selectors and code find the element by."),
 ];
 
-/// Makes the struct an element: adds the four property groups and `#[derive(XamlType)]`, with the
-/// crate it found as `#[xaml(crate = ...)]` unless the struct names one, and writes `Layoutable`,
+/// Makes the struct an element: adds the four property groups and `#[derive(UiType)]`, with the
+/// crate it found as `#[ui(crate = ...)]` unless the struct names one, and writes `Layoutable`,
 /// `Element`, `HasState` for its state fields and its cast-table entry.
 pub fn expand(attribute: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
   if !attribute.is_empty() {
@@ -58,7 +58,7 @@ pub fn expand(attribute: TokenStream, item: TokenStream) -> syn::Result<TokenStr
     let groups = GROUPS.iter().map(|(name, ty, doc)| {
       let name = Ident::new(name, ident.span());
       let ty = Ident::new(ty, ident.span());
-      quote!(#[doc = #doc] #[xaml(flatten)] pub #name: #root::__private::#ty)
+      quote!(#[doc = #doc] #[ui(flatten)] pub #name: #root::__private::#ty)
     });
     parse_quote!({ #(#groups,)* })
   };
@@ -67,10 +67,10 @@ pub fn expand(attribute: TokenStream, item: TokenStream) -> syn::Result<TokenStr
   item.fields = Fields::Named(fields);
   item.semi_token = None;
 
-  item.attrs.insert(0, parse_quote!(#[derive(#root::__private::XamlType)]));
+  item.attrs.insert(0, parse_quote!(#[derive(#root::__private::UiType)]));
   if crate_path.is_none() {
     let root_text = root.to_string().replace(' ', "");
-    item.attrs.push(parse_quote!(#[xaml(crate = #root_text)]));
+    item.attrs.push(parse_quote!(#[ui(crate = #root_text)]));
   }
 
   strip_element_settings(&mut item);
@@ -145,7 +145,7 @@ pub fn expand(attribute: TokenStream, item: TokenStream) -> syn::Result<TokenStr
   })
 }
 
-/// Rejects `XamlType` and `Default` in the struct's derives, since `#[element]` writes both.
+/// Rejects `UiType` and `Default` in the struct's derives, since `#[element]` writes both.
 fn reject_written_derives(attributes: &[Attribute]) -> syn::Result<()> {
   for attribute in attributes.iter().filter(|attribute| attribute.path().is_ident("derive")) {
     let derives = attribute.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)?;
@@ -154,8 +154,8 @@ fn reject_written_derives(attributes: &[Attribute]) -> syn::Result<()> {
         continue;
       };
       let message = match name.as_str() {
-        "XamlType" => "`#[element]` writes `XamlType`; remove `XamlType` from this derive",
-        "Default" => "`#[element]`'s derive writes `Default`; remove it, and change defaults with `#[xaml(override_defaults)]`",
+        "UiType" => "`#[element]` writes `UiType`; remove `UiType` from this derive",
+        "Default" => "`#[element]`'s derive writes `Default`; remove it, and change defaults with `#[ui(override_defaults)]`",
         _ => continue,
       };
       return Err(Error::new_spanned(derive, message));
@@ -165,7 +165,7 @@ fn reject_written_derives(attributes: &[Attribute]) -> syn::Result<()> {
 }
 
 /// Removes the `element` attributes from the struct and its fields, which only `#[element]` reads;
-/// the `xaml` attributes stay for the derive.
+/// the `ui` attributes stay for the derive.
 fn strip_element_settings(item: &mut ItemStruct) {
   let is_setting = |attribute: &Attribute| attribute.path().is_ident("element");
   item.attrs.retain(|attribute| !is_setting(attribute));

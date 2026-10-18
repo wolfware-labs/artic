@@ -11,20 +11,20 @@ use artic_render::SceneBuilder;
 /// background under them.
 #[element]
 #[derive(Debug)]
-#[xaml(namespace = "https://artic.rs/ui")]
+#[ui(namespace = "https://artic.rs/ui")]
 pub struct StackPanel {
   /// The background.
-  #[xaml(flatten)]
+  #[ui(flatten)]
   pub panel: Panel,
   /// The children, in order.
-  #[xaml(content)]
+  #[ui(content)]
   pub children: Children,
   /// The axis the children are lined up along. Vertical by default.
-  #[xaml(affects = layout)]
+  #[ui(affects = layout)]
   pub orientation: Property<Orientation>,
   /// The space between two children that take part in layout. A value that isn't a finite
   /// number of 0 or more counts as 0.
-  #[xaml(affects = layout)]
+  #[ui(affects = layout)]
   pub spacing: Property<f32>,
 }
 

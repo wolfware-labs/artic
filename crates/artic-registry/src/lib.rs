@@ -1,6 +1,6 @@
 //! Type registry that maps XAML names to artic types and properties.
 //!
-//! Every crate that defines XAML types adds a [`TypeInfo`] to the [`XAML_TYPES`] slice, and
+//! Every crate that defines XAML types adds a [`TypeInfo`] to the [`UI_TYPES`] slice, and
 //! [`Registry::from_link_time`] indexes all of them for lookup. There is no registration call: the
 //! linker gathers the entries.
 
@@ -12,11 +12,11 @@ mod descriptors;
 mod registry;
 mod value_error;
 
-pub use collection::XamlCollection;
+pub use collection::UiCollection;
 pub use defaults::OverrideDefaults;
 pub use descriptors::{
-  ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, EventInfo, MarkupExtensionInfo, PropertyGroup, PropertyGroupInfo,
-  PropertyInfo, PropertyRef, TypeInfo, Whitespace, XamlType,
+  ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, EventInfo, PropertyGroup, PropertyGroupInfo, PropertyInfo,
+  PropertyRef, TypeInfo, UiType, ValueProviderInfo, Whitespace,
 };
 pub use registry::{Duplicate, Registry, RegistryError};
 pub use value_error::ValueError;
@@ -27,7 +27,7 @@ use linkme::distributed_slice;
 
 /// Every [`TypeInfo`] registered by the crates linked into the binary.
 ///
-/// The `XamlType` derive adds one entry per type. To add one by hand, use [`register_type!`]:
+/// The `UiType` derive adds one entry per type. To add one by hand, use [`register_type!`]:
 ///
 /// ```
 /// use artic_core::Object;
@@ -52,7 +52,7 @@ use linkme::distributed_slice;
 ///   groups: &[],
 ///   events: &[],
 ///   attached_properties: &[],
-///   markup_extension: None,
+///   value_provider: None,
 ///   whitespace: Whitespace::Collapse,
 /// };
 ///
@@ -77,13 +77,13 @@ use linkme::distributed_slice;
 /// Entries survive fat and thin LTO, `codegen-units = 1`, `--gc-sections` and `-dead_strip`, and an
 /// Android `cdylib` needs nothing extra.
 #[distributed_slice]
-pub static XAML_TYPES: [&'static TypeInfo];
+pub static UI_TYPES: [&'static TypeInfo];
 
-/// Adds a [`TypeInfo`] `static` to [`XAML_TYPES`].
+/// Adds a [`TypeInfo`] `static` to [`UI_TYPES`].
 ///
 /// The crate calling it needs no `linkme` dependency of its own, and one module can register
 /// several types. The entry only reaches the registry if the calling crate is linked; see the
-/// linking rules on [`XAML_TYPES`].
+/// linking rules on [`UI_TYPES`].
 ///
 /// # Examples
 ///
@@ -110,7 +110,7 @@ pub static XAML_TYPES: [&'static TypeInfo];
 ///   groups: &[],
 ///   events: &[],
 ///   attached_properties: &[],
-///   markup_extension: None,
+///   value_provider: None,
 ///   whitespace: Whitespace::Collapse,
 /// };
 ///
@@ -123,7 +123,7 @@ pub static XAML_TYPES: [&'static TypeInfo];
 macro_rules! register_type {
   ($info:path) => {
     const _: () = {
-      #[$crate::linkme::distributed_slice($crate::XAML_TYPES)]
+      #[$crate::linkme::distributed_slice($crate::UI_TYPES)]
       #[linkme(crate = $crate::linkme)]
       static ENTRY: &$crate::TypeInfo = &$info;
     };

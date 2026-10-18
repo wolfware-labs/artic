@@ -1,13 +1,12 @@
-// Integration tests for `#[derive(XamlType)]`: derived types reach the registry with the
+// Integration tests for `#[derive(UiType)]`: derived types reach the registry with the
 // descriptors their fields describe, and their generated `Default` and `Object` impls work.
 
 use artic_core::event::Event;
 use artic_core::property::{Affects, Inheritance, Precedence, Property, PropertyKey};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
-use artic_macros::{XamlProperties, XamlType};
+use artic_macros::{UiProperties, UiType};
 use artic_registry::{
-  AttachedTarget, ContentInfo, OverrideDefaults, PropertyRef, Registry, TypeInfo, ValueError, Whitespace, XamlCollection,
-  XamlType,
+  AttachedTarget, ContentInfo, OverrideDefaults, PropertyRef, Registry, TypeInfo, UiCollection, UiType, ValueError, Whitespace,
 };
 use pretty_assertions::assert_eq;
 use std::str::FromStr;
@@ -61,19 +60,19 @@ struct PointerEvent;
 struct Layout;
 
 /// The `Border` from the spec's §3, with `affects` added.
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui")]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui")]
 struct Border {
   _layout: Layout,
-  #[xaml(content)]
+  #[ui(content)]
   child: Property<Option<NodeId>>,
-  #[xaml(default = Thickness::ZERO, affects = layout)]
+  #[ui(default = Thickness::ZERO, affects = layout)]
   padding: Property<Thickness>,
-  #[xaml(affects = render)]
+  #[ui(affects = render)]
   background: Property<Option<Brush>>,
-  #[xaml(affects = render)]
+  #[ui(affects = render)]
   corner_radius: Property<CornerRadius>,
-  #[xaml]
+  #[ui]
   pointer_pressed: Event<PointerEvent>,
 }
 
@@ -81,7 +80,7 @@ struct Border {
 #[derive(Debug, Default)]
 struct Items(Vec<NodeId>);
 
-impl XamlCollection for Items {
+impl UiCollection for Items {
   fn push_child(
     tree: &mut UiTree,
     owner: NodeId,
@@ -93,33 +92,33 @@ impl XamlCollection for Items {
   }
 }
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui")]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui")]
 struct StackPanel {
-  #[xaml(content)]
+  #[ui(content)]
   children: Items,
 }
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui", whitespace = "significant")]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui", whitespace = "significant")]
 struct Run {
-  #[xaml(content)]
+  #[ui(content)]
   text: Property<String>,
 }
 
 static FONT_SIZE: PropertyKey<f32> = PropertyKey::new("FontSize", Affects::LAYOUT, Inheritance::Replace);
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui")]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui")]
 struct Window {
-  #[xaml(key = FONT_SIZE, default = 14.0)]
+  #[ui(key = FONT_SIZE, default = 14.0)]
   font_size: Property<f32>,
 }
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui")]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui")]
 struct TextBlock {
-  #[xaml(key = FONT_SIZE)]
+  #[ui(key = FONT_SIZE)]
   font_size: Property<f32>,
 }
 
@@ -214,12 +213,12 @@ fn shared_key_inherits_across_types() {
 }
 
 /// A panel owning two attached properties: `Row`, set on its children, and `Label`, set anywhere.
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui")]
-#[xaml(attached(name = "Row", ty = usize, affects = layout, target = children))]
-#[xaml(attached(name = "Label", ty = String, default = "unnamed".to_owned(), target = any))]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui")]
+#[ui(attached(name = "Row", ty = usize, affects = layout, target = children))]
+#[ui(attached(name = "Label", ty = String, default = "unnamed".to_owned(), target = any))]
 struct Grid {
-  #[xaml]
+  #[ui]
   columns: Property<usize>,
 }
 
@@ -266,9 +265,9 @@ fn attached_key_carries_its_metadata() {
 }
 
 /// An owner of one inheriting attached property, as a platform family owner is.
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui")]
-#[xaml(attached(name = "Accent", ty = u32, affects = render | surface, target = any, inherits))]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui")]
+#[ui(attached(name = "Accent", ty = u32, affects = render | surface, target = any, inherits))]
 struct Theme;
 
 // An inheriting attached property set on an element reaches its logical descendants, and its key
@@ -288,18 +287,18 @@ fn attached_property_inherits_through_the_logical_tree() {
 }
 
 /// A markup extension with one positional argument and an optional named one.
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui", markup_extension(positional(key)))]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui", value_provider(positional(key)))]
 struct Localize {
-  #[xaml]
+  #[ui]
   key: Property<String>,
-  #[xaml]
+  #[ui]
   fallback: Property<Option<String>>,
 }
 
 /// A markup extension without arguments.
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui", markup_extension)]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui", value_provider)]
 struct Nothing;
 
 // A markup extension's schema lists its positional arguments in order, and every property as a
@@ -307,7 +306,7 @@ struct Nothing;
 #[test]
 fn markup_extension_schema_is_registered() {
   let schema = |info: &TypeInfo| {
-    let extension = info.markup_extension.expect("a markup extension");
+    let extension = info.value_provider.expect("a markup extension");
     let arguments = |arguments: &[artic_registry::ArgInfo]| {
       arguments
         .iter()
@@ -325,40 +324,40 @@ fn markup_extension_schema_is_registered() {
     )
   );
   assert_eq!(schema(lookup("Nothing")), (vec![], vec![]));
-  assert!(lookup("Border").markup_extension.is_none());
+  assert!(lookup("Border").value_provider.is_none());
 }
 
 /// A property group two widgets share.
-#[derive(Debug, artic_macros::XamlProperties)]
+#[derive(Debug, artic_macros::UiProperties)]
 struct Common {
-  #[xaml(affects = layout)]
+  #[ui(affects = layout)]
   margin: Property<i32>,
-  #[xaml(default = true, inherits)]
+  #[ui(default = true, inherits)]
   enabled: Property<bool>,
 }
 
 /// A widget that flattens `Common` and adds a property of its own.
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/test")]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/test")]
 struct Widget {
-  #[xaml(flatten)]
+  #[ui(flatten)]
   common: Common,
-  #[xaml]
+  #[ui]
   size: Property<i32>,
 }
 
 /// Another widget, to check that a group's inheriting property crosses types.
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/test")]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/test")]
 struct Gadget {
-  #[xaml(flatten)]
+  #[ui(flatten)]
   common: Common,
 }
 
 // A flattened group's properties are registered as the type's, with its field, and visited.
 #[test]
 fn flattened_group_is_registered_and_visited() {
-  let info = <Widget as XamlType>::TYPE_INFO;
+  let info = <Widget as UiType>::TYPE_INFO;
   assert_eq!(info.groups[0].field, "common");
   assert_eq!(info.property("Margin").map(|found| found.group), Some(Some("common")));
   assert_eq!(info.property("Size").map(|found| found.group), Some(None));
@@ -382,10 +381,10 @@ fn group_property_inherits_across_types() {
 }
 
 /// A node whose enabled flag every ancestor must allow.
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/test")]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/test")]
 struct Switch {
-  #[xaml(default = true, inherits = and)]
+  #[ui(default = true, inherits = and)]
   enabled: Property<bool>,
 }
 
@@ -406,12 +405,12 @@ fn combining_property_ands_with_its_ancestor() {
   assert!(enabled(&tree));
 }
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/test", override_defaults)]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/test", override_defaults)]
 struct Gauge {
-  #[xaml(default = 1)]
+  #[ui(default = 1)]
   low: Property<i32>,
-  #[xaml(default = 2)]
+  #[ui(default = 2)]
   high: Property<i32>,
 }
 
@@ -447,16 +446,16 @@ fn content_children_on_a_field() {
   ));
 }
 
-#[derive(Debug, XamlProperties)]
+#[derive(Debug, UiProperties)]
 struct Labeled {
-  #[xaml(content)]
+  #[ui(content)]
   label: Property<String>,
 }
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/test")]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/test")]
 struct Tag {
-  #[xaml(flatten)]
+  #[ui(flatten)]
   labeled: Labeled,
 }
 
@@ -464,7 +463,7 @@ struct Tag {
 #[test]
 fn content_property_in_a_group() {
   assert!(matches!(
-    <Tag as XamlType>::TYPE_INFO.content,
+    <Tag as UiType>::TYPE_INFO.content,
     Some(ContentInfo::Property(PropertyRef { group: Some("labeled"), info })) if info.name == "Label"
   ));
 }
@@ -497,15 +496,15 @@ fn add_child_refuses_another_type() {
   assert_eq!(add_child(&mut tree, other, child), Err(ValueError::WrongNode));
 }
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui")]
-#[xaml(attached(name = "Size", ty = f32, default = 14.0, affects = layout, target = any, inherits))]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui")]
+#[ui(attached(name = "Size", ty = f32, default = 14.0, affects = layout, target = any, inherits))]
 struct Text;
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui")]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui")]
 struct Label {
-  #[xaml(key = Text::SIZE)]
+  #[ui(key = Text::SIZE)]
   size: Property<f32>,
 }
 
@@ -531,10 +530,10 @@ fn key_takes_an_attached_key() {
 static WIDTH: PropertyKey<f32> = PropertyKey::new("Width", Affects::LAYOUT, Inheritance::None);
 const WIDTH_KEY: &PropertyKey<f32> = &WIDTH;
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui")]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui")]
 struct Sized {
-  #[xaml(key = WIDTH_KEY, default = 3.0)]
+  #[ui(key = WIDTH_KEY, default = 3.0)]
   width: Property<f32>,
 }
 

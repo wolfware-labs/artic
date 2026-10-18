@@ -1,6 +1,6 @@
 error: `flatten` takes no other settings: the group's properties carry their own
   --> tests/ui/content_on_flatten.rs:13:3
    |
-13 | /   #[xaml(flatten, content)]
+13 | /   #[ui(flatten, content)]
 14 | |   common: Common,
    | |________________^

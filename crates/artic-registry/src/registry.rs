@@ -1,6 +1,6 @@
 mod error;
 
-use crate::{AttachedPropertyInfo, TypeInfo, XAML_TYPES};
+use crate::{AttachedPropertyInfo, TypeInfo, UI_TYPES};
 pub use error::{Duplicate, RegistryError};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
@@ -17,14 +17,14 @@ pub struct Registry {
 }
 
 impl Registry {
-  /// Builds a registry over every type in [`XAML_TYPES`]: the types registered by the crates linked
+  /// Builds a registry over every type in [`UI_TYPES`]: the types registered by the crates linked
   /// into the binary.
   ///
   /// # Errors
   ///
   /// Returns the duplicates, as [`from_types`](Registry::from_types) does.
   pub fn from_link_time() -> Result<Registry, RegistryError> {
-    Self::from_types(&XAML_TYPES)
+    Self::from_types(&UI_TYPES)
   }
 
   /// Builds a registry over `types`.
@@ -138,7 +138,7 @@ mod tests {
       groups: &[],
       events: &[],
       attached_properties: &[],
-      markup_extension: None,
+      value_provider: None,
       whitespace: Whitespace::Collapse,
     }
   }

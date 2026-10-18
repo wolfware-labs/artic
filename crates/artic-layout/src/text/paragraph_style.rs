@@ -1,6 +1,6 @@
 //! How a paragraph is laid out: its line spacing, alignment, wrapping, trimming and line count.
 
-use artic_macros::XamlEnum;
+use artic_macros::UiEnum;
 use std::num::NonZeroU32;
 
 /// How a paragraph is laid out, from the control's properties: one per paragraph.
@@ -23,7 +23,7 @@ pub struct ParagraphStyle {
 }
 
 /// Whether and how lines break to fit the width layout gives them.
-#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, XamlEnum)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, UiEnum)]
 pub enum TextWrapping {
   /// Lines break only at hard line breaks.
   #[default]
@@ -36,7 +36,7 @@ pub enum TextWrapping {
 
 /// How a line that doesn't fit, or that comes before dropped lines, is cut, and where its
 /// ellipsis goes.
-#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, XamlEnum)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, UiEnum)]
 pub enum TextTrimming {
   /// Lines aren't cut: what doesn't fit draws past the edge.
   #[default]
@@ -56,7 +56,7 @@ pub enum TextTrimming {
 /// Where each line sits in the paragraph's width.
 ///
 /// `Start` and `End` follow the paragraph's direction; `Left` and `Right` don't.
-#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, XamlEnum)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, UiEnum)]
 pub enum TextAlignment {
   /// The side the paragraph's text starts on: left in left-to-right text, right in right-to-left.
   #[default]

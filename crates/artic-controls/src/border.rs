@@ -10,30 +10,30 @@ use artic_render::{BoxShadow, Brush, SceneBuilder, Shape};
 /// inside of the outline.
 #[element]
 #[derive(Debug)]
-#[xaml(namespace = "https://artic.rs/ui")]
+#[ui(namespace = "https://artic.rs/ui")]
 pub struct Border {
   /// The child, drawn inside the padding and clipped to the inside of the outline.
-  #[xaml(content)]
+  #[ui(content)]
   pub child: Child,
   /// The space between the outline and the child. A side that isn't a finite number of 0 or more
   /// counts as 0.
-  #[xaml(affects = layout)]
+  #[ui(affects = layout)]
   pub padding: Property<Thickness>,
   /// The width of each side of the outline. A side that isn't a finite number of 0 or more counts
   /// as 0.
-  #[xaml(affects = layout | render)]
+  #[ui(affects = layout | render)]
   pub border_thickness: Property<Thickness>,
   /// The brush the box is filled with, under the outline, if any.
-  #[xaml(affects = render)]
+  #[ui(affects = render)]
   pub background: Property<Option<Brush>>,
   /// The brush the outline is filled with, if any.
-  #[xaml(affects = render)]
+  #[ui(affects = render)]
   pub border_brush: Property<Option<Brush>>,
   /// The radius of each corner of the outline.
-  #[xaml(affects = render)]
+  #[ui(affects = render)]
   pub corner_radius: Property<CornerRadius>,
   /// The shadow the box casts, if any.
-  #[xaml(affects = render)]
+  #[ui(affects = render)]
   pub box_shadow: Property<Option<BoxShadow>>,
 }
 

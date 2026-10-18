@@ -1,10 +1,10 @@
 use artic_core::property::Property;
-use artic_macros::XamlType;
+use artic_macros::UiType;
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/test", override_defaults)]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/test", override_defaults)]
 struct Gauge {
-  #[xaml]
+  #[ui]
   value: Property<i32>,
 }
 

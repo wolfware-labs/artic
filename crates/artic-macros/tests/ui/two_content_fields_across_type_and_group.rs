@@ -1,18 +1,18 @@
 use artic_core::property::Property;
-use artic_macros::{XamlProperties, XamlType};
+use artic_macros::{UiProperties, UiType};
 
-#[derive(Debug, XamlProperties)]
+#[derive(Debug, UiProperties)]
 struct Labeled {
-  #[xaml(content)]
+  #[ui(content)]
   label: Property<String>,
 }
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/test")]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/test")]
 struct Tag {
-  #[xaml(flatten)]
+  #[ui(flatten)]
   labeled: Labeled,
-  #[xaml(content)]
+  #[ui(content)]
   extra: Property<String>,
 }
 

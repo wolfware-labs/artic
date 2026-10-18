@@ -1,35 +1,31 @@
 use crate::crate_root::{REGISTRY, crate_root};
-use crate::xaml_type::attributes::{Affects, Attached, Inherits, Target, Whitespace};
-use crate::xaml_type::fields::{Analysis, Role, XamlField, generic_argument, snake_case, xaml_name};
+use crate::ui_type::attributes::{Affects, Attached, Inherits, Target, Whitespace};
+use crate::ui_type::fields::{Analysis, Role, UiField, generic_argument, snake_case, ui_name};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::Ident;
 use syn::spanned::Spanned;
 
-/// Writes the code for one derived struct: its property keys, `Default`, `Object` and `XamlType`
+/// Writes the code for one derived struct: its property keys, `Default`, `Object` and `UiType`
 /// impls, its registry descriptors and entry, and the checks on its field types.
 pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
   let root = crate_root(analysis.attributes.crate_path.as_ref(), analysis.ident, REGISTRY)?;
   let ident = analysis.ident;
-  let properties: Vec<&XamlField> = analysis.xaml_fields.iter().filter(|f| is_property(f)).collect();
-  let events: Vec<&XamlField> = analysis
-    .xaml_fields
+  let properties: Vec<&UiField> = analysis.ui_fields.iter().filter(|f| is_property(f)).collect();
+  let events: Vec<&UiField> = analysis
+    .ui_fields
     .iter()
     .filter(|f| matches!(f.role, Role::Event { .. }))
     .collect();
-  let collections: Vec<&XamlField> = analysis
-    .xaml_fields
+  let collections: Vec<&UiField> = analysis
+    .ui_fields
     .iter()
     .filter(|f| matches!(f.role, Role::Collection))
     .collect();
-  let groups: Vec<&XamlField> = analysis
-    .xaml_fields
-    .iter()
-    .filter(|f| matches!(f.role, Role::Group))
-    .collect();
+  let groups: Vec<&UiField> = analysis.ui_fields.iter().filter(|f| matches!(f.role, Role::Group)).collect();
 
   let keys = properties.iter().map(|field| key_static(field));
-  let default_fields = analysis.xaml_fields.iter().map(|field| default_field(field));
+  let default_fields = analysis.ui_fields.iter().map(|field| default_field(field));
   let other_fields = &analysis.other_fields;
   let visits = properties.iter().map(|field| {
     let field_ident = field.ident;
@@ -51,7 +47,7 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
   let group_count = groups.len();
   let property_infos = properties.iter().map(|field| property_info(field));
   let event_infos = events.iter().map(|field| {
-    let name = xaml_name(field);
+    let name = ui_name(field);
     let Role::Event { args } = field.role else {
       unreachable!("filtered to events")
     };
@@ -66,7 +62,7 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
   });
   let namespace = &analysis.attributes.namespace;
   let own_content = analysis
-    .xaml_fields
+    .ui_fields
     .iter()
     .find(|field| field.attributes.content.is_some())
     .map_or_else(
@@ -86,7 +82,7 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
       },
     );
   let content_functions = analysis
-    .xaml_fields
+    .ui_fields
     .iter()
     .find(|field| field.attributes.content.is_some() && matches!(field.role, Role::Collection))
     .map(|field| {
@@ -104,7 +100,7 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
           owner: __artic::NodeId,
           child: __artic::NodeId,
         ) -> ::core::result::Result<(), __artic::ValueError> {
-          <#ty as __artic::XamlCollection>::push_child(tree, owner, child, __content_field)
+          <#ty as __artic::UiCollection>::push_child(tree, owner, child, __content_field)
         }
       }
     });
@@ -120,9 +116,9 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
   let attached_helpers = attached.iter().map(|attached| attached_helpers(ident, attached));
   let attached_infos = attached.iter().map(attached_info);
   let attached_count = attached.len();
-  let markup_extension = markup_extension(analysis, &properties);
-  let markup_extension_info = if analysis.attributes.markup_extension.is_some() {
-    quote!(::core::option::Option::Some(&__MARKUP_EXTENSION))
+  let value_provider = value_provider(analysis, &properties);
+  let markup_extension_info = if analysis.attributes.value_provider.is_some() {
+    quote!(::core::option::Option::Some(&__VALUE_PROVIDER))
   } else {
     quote!(::core::option::Option::None)
   };
@@ -130,7 +126,7 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
     let ty = &attached.ty;
     let value = generic_argument(ty, "Option").unwrap_or(ty);
     quote_spanned!(ty.span()=>
-      (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_implement_fromstr_or_derive_xamltype();
+      (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_implement_fromstr_or_derive_uitype();
     )
   });
   let override_defaults = analysis
@@ -173,7 +169,7 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
 
       #(#attached_keys)*
 
-      #markup_extension
+      #value_provider
 
       #content_functions
 
@@ -196,11 +192,11 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
         groups: &__GROUPS,
         events: &__EVENTS,
         attached_properties: &__ATTACHED,
-        markup_extension: #markup_extension_info,
+        value_provider: #markup_extension_info,
         whitespace: #whitespace,
       };
 
-      impl __artic::XamlType for #ident {
+      impl __artic::UiType for #ident {
         const TYPE_INFO: &'static __artic::TypeInfo = &__TYPE_INFO;
       }
 
@@ -208,7 +204,7 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
 
       #[allow(dead_code, clippy::needless_borrow)]
       fn __checks() {
-        use __artic::{ViaChild as _, ViaFromStr as _, ViaXamlType as _};
+        use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
         #(#value_checks)*
         #(#collection_checks)*
         #(#group_checks)*
@@ -218,13 +214,13 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
   })
 }
 
-/// The `MarkupExtensionInfo` static of a markup extension, or nothing for another type. Every
+/// The `ValueProviderInfo` static of a markup extension, or nothing for another type. Every
 /// property is a named argument, and `positional(...)` lists those also set by position.
-fn markup_extension(analysis: &Analysis, properties: &[&XamlField]) -> TokenStream {
-  let Some(positional) = &analysis.attributes.markup_extension else {
+fn value_provider(analysis: &Analysis, properties: &[&UiField]) -> TokenStream {
+  let Some(positional) = &analysis.attributes.value_provider else {
     return TokenStream::new();
   };
-  let by_position: Vec<&XamlField> = positional
+  let by_position: Vec<&UiField> = positional
     .iter()
     .map(|argument| {
       *properties
@@ -239,7 +235,7 @@ fn markup_extension(analysis: &Analysis, properties: &[&XamlField]) -> TokenStre
   quote! {
     static __POSITIONAL: [__artic::ArgInfo; #positional_count] = [#(#positional),*];
     static __NAMED: [__artic::ArgInfo; #named_count] = [#(#named),*];
-    static __MARKUP_EXTENSION: __artic::MarkupExtensionInfo = __artic::MarkupExtensionInfo {
+    static __VALUE_PROVIDER: __artic::ValueProviderInfo = __artic::ValueProviderInfo {
       positional: &__POSITIONAL,
       named: &__NAMED,
     };
@@ -248,7 +244,7 @@ fn markup_extension(analysis: &Analysis, properties: &[&XamlField]) -> TokenStre
 
 /// The `ArgInfo` of a property used as a markup extension argument: its name and value type, as in
 /// its `PropertyInfo`.
-fn arg_info(field: &XamlField) -> TokenStream {
+fn arg_info(field: &UiField) -> TokenStream {
   let Role::Property { inner, .. } = field.role else {
     unreachable!("properties only")
   };
@@ -331,23 +327,23 @@ fn attached_info(attached: &Attached) -> TokenStream {
 }
 
 /// The check that a property's value type can be written in markup, pointing at the type.
-pub fn value_check(field: &XamlField) -> TokenStream {
+pub fn value_check(field: &UiField) -> TokenStream {
   let Role::Property { value, .. } = field.role else {
     unreachable!("properties only")
   };
   quote_spanned!(value.span()=>
-    (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_implement_fromstr_or_derive_xamltype();
+    (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_implement_fromstr_or_derive_uitype();
   )
 }
 
-fn is_property(field: &XamlField) -> bool {
+fn is_property(field: &UiField) -> bool {
   matches!(field.role, Role::Property { .. })
 }
 
 /// The key a property is stored under, as a `&'static PropertyKey` expression usable in const
 /// code: the derive's own static, or a shared key's `key()`, which a property key and an attached
 /// key both have.
-fn key_path(field: &XamlField) -> TokenStream {
+fn key_path(field: &UiField) -> TokenStream {
   match &field.attributes.key {
     Some(key) => quote!(#key.key()),
     None => {
@@ -362,7 +358,7 @@ fn generated_key(field: &Ident) -> Ident {
 }
 
 /// The `static PropertyKey` the derive writes for a property without a shared `key`.
-pub fn key_static(field: &XamlField) -> TokenStream {
+pub fn key_static(field: &UiField) -> TokenStream {
   if field.attributes.key.is_some() {
     return TokenStream::new();
   }
@@ -370,7 +366,7 @@ pub fn key_static(field: &XamlField) -> TokenStream {
     unreachable!("properties only")
   };
   let key = generated_key(field.ident);
-  let name = xaml_name(field);
+  let name = ui_name(field);
   let affects = affects_tokens(field.attributes.affects.unwrap_or_default());
   let inheritance = inheritance_tokens(field.attributes.inherits.as_ref());
   quote! {
@@ -405,8 +401,8 @@ fn inheritance_tokens(inherits: Option<&Inherits>) -> TokenStream {
   }
 }
 
-/// How `Default` creates one `#[xaml]` field.
-pub fn default_field(field: &XamlField) -> TokenStream {
+/// How `Default` creates one `#[ui]` field.
+pub fn default_field(field: &UiField) -> TokenStream {
   let field_ident = field.ident;
   match field.role {
     Role::Property { inner, .. } => {
@@ -429,7 +425,7 @@ pub fn default_field(field: &XamlField) -> TokenStream {
 }
 
 /// The `PropertyInfo` for one property, with its metadata read from the key.
-pub fn property_info(field: &XamlField) -> TokenStream {
+pub fn property_info(field: &UiField) -> TokenStream {
   let Role::Property { inner, .. } = field.role else {
     unreachable!("properties only")
   };

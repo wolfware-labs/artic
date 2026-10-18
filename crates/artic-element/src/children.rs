@@ -2,7 +2,7 @@
 //! the same element.
 
 use artic_core::tree::{LinkError, NodeId, TreeKind, UiTree};
-use artic_registry::{ValueError, XamlCollection};
+use artic_registry::{UiCollection, ValueError};
 
 /// Marks an element's XAML children: they become its logical and visual children, which the tree
 /// holds; the field itself holds nothing.
@@ -94,7 +94,7 @@ impl Children {
   }
 }
 
-impl XamlCollection for Children {
+impl UiCollection for Children {
   fn push_child(
     tree: &mut UiTree,
     owner: NodeId,
@@ -142,7 +142,7 @@ impl Child {
   }
 }
 
-impl XamlCollection for Child {
+impl UiCollection for Child {
   fn push_child(
     tree: &mut UiTree,
     owner: NodeId,

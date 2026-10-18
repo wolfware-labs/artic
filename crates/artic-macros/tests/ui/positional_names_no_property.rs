@@ -1,13 +1,13 @@
 use artic_core::event::Event;
 use artic_core::property::Property;
-use artic_macros::XamlType;
+use artic_macros::UiType;
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui", markup_extension(positional(key, changed)))]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui", value_provider(positional(key, changed)))]
 struct Localize {
-  #[xaml]
+  #[ui]
   key: Property<String>,
-  #[xaml]
+  #[ui]
   changed: Event<()>,
 }
 

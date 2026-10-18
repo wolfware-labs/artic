@@ -1,9 +1,9 @@
 //! How much of an element is shown, and the pointer over it.
 
-use artic_macros::XamlEnum;
+use artic_macros::UiEnum;
 
 /// How much of an element is shown.
-#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, XamlEnum)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, UiEnum)]
 pub enum Visibility {
   /// Drawn, hit-tested and laid out.
   #[default]
@@ -15,7 +15,7 @@ pub enum Visibility {
 }
 
 /// The pointer shown over an element.
-#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, XamlEnum)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, UiEnum)]
 pub enum Cursor {
   /// The usual arrow.
   #[default]

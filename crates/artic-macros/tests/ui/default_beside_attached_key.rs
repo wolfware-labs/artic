@@ -1,15 +1,15 @@
 use artic_core::property::Property;
-use artic_macros::XamlType;
+use artic_macros::UiType;
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui")]
-#[xaml(attached(name = "Size", ty = f32, default = 14.0, target = any))]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui")]
+#[ui(attached(name = "Size", ty = f32, default = 14.0, target = any))]
 struct Text;
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui")]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui")]
 struct Label {
-  #[xaml(key = Text::SIZE, default = 12.0)]
+  #[ui(key = Text::SIZE, default = 12.0)]
   size: Property<f32>,
 }
 

@@ -110,7 +110,7 @@ mod tests {
 
   // The defaults are WPF's and Avalonia's, and each `with_*` sets only its own field.
   #[test]
-  fn stroke_defaults_match_xaml() {
+  fn stroke_has_the_usual_defaults() {
     let stroke = Stroke::default();
 
     assert_eq!(

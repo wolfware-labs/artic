@@ -1,8 +1,8 @@
 //! The fields that receive an element's child elements.
 //!
-//! A `#[xaml]` field that is neither a `Property` nor an `Event` is a collection: when markup writes
+//! A `#[ui]` field that is neither a `Property` nor an `Event` is a collection: when markup writes
 //! elements inside the type's element, each child is added to it, in order, through
-//! [`XamlCollection`].
+//! [`UiCollection`].
 
 use crate::ValueError;
 use artic_core::tree::{NodeId, UiTree};
@@ -14,10 +14,10 @@ use artic_core::tree::{NodeId, UiTree};
 /// field, as a brush keeps its gradient stops; `field` reaches the field inside the owner node.
 #[diagnostic::on_unimplemented(
   message = "`{Self}` can't hold child elements",
-  label = "`#[xaml]` on a field that isn't a `Property` or an `Event` makes it a collection of children",
+  label = "`#[ui]` on a field that isn't a `Property` or an `Event` makes it a collection of children",
   note = "to make this field a XAML property, declare it as `Property<{Self}>`"
 )]
-pub trait XamlCollection: Sized {
+pub trait UiCollection: Sized {
   /// Adds `child` as content of `owner`. An implementation calls `field` first and returns
   /// [`ValueError::WrongNode`] when it gives `None`, before changing anything.
   ///

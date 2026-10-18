@@ -1,7 +1,7 @@
 //! Test fixture: derives one XAML type, `Alpha`, and nothing else.
 
-use artic_macros::XamlType;
+use artic_macros::UiType;
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://fixtures.artic.test/a")]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://fixtures.artic.test/a")]
 struct Alpha;

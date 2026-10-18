@@ -1,9 +1,9 @@
-use artic_macros::XamlType;
+use artic_macros::UiType;
 
-#[derive(Debug, XamlType)]
-#[xaml(namespace = "https://artic.rs/ui")]
-#[xaml(attached(name = "Row", ty = usize, target = children))]
-#[xaml(attached(name = "Row", ty = i32, target = children))]
+#[derive(Debug, UiType)]
+#[ui(namespace = "https://artic.rs/ui")]
+#[ui(attached(name = "Row", ty = usize, target = children))]
+#[ui(attached(name = "Row", ty = i32, target = children))]
 struct Grid;
 
 fn main() {}

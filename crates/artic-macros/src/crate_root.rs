@@ -6,7 +6,7 @@ use syn::{Error, Ident, Path};
 /// The crates the XAML derives reach artic through: (package, library).
 pub const REGISTRY: &[(&str, &str)] = &[("artic", "artic"), ("artic-registry", "artic_registry")];
 
-/// The crates `#[derive(XamlEnum)]` reaches artic through: (package, library). Its output names
+/// The crates `#[derive(UiEnum)]` reaches artic through: (package, library). Its output names
 /// only `ParseEnumError`, which lives in `artic-core`.
 pub const ENUM: &[(&str, &str)] = &[
   ("artic", "artic"),

@@ -1,4 +1,4 @@
-// Both fixture crates are named, so both are part of the link and their entries reach XAML_TYPES.
+// Both fixture crates are named, so both are part of the link and their entries reach UI_TYPES.
 
 use artic_registry::Registry;
 use artic_registry_fixture_a as _;

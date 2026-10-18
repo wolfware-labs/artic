@@ -13,7 +13,7 @@ use artic_element::{
 use artic_layout::geometry::{Point, Rect, Size, Thickness};
 use artic_layout::{ArrangeCx, LayoutManager, MeasureCx, PixelGrid};
 use artic_macros::element;
-use artic_registry::XamlType;
+use artic_registry::UiType;
 use artic_render::{SceneBuilder, Shape};
 use artic_text::Engine;
 use pretty_assertions::assert_eq;
@@ -23,7 +23,7 @@ use std::cell::Cell;
 /// arranges its content in, and adds a label and a clip.
 #[element]
 #[derive(Debug)]
-#[xaml(namespace = "https://artic.rs/test")]
+#[ui(namespace = "https://artic.rs/test")]
 struct Tile {
   measured: Cell<u32>,
   arranged: Cell<Option<Size>>,
@@ -234,7 +234,7 @@ impl<T: Element + HasState<Caption>> Captioned for T {}
 /// A control with two states.
 #[element]
 #[derive(Debug)]
-#[xaml(namespace = "https://artic.rs/test")]
+#[ui(namespace = "https://artic.rs/test")]
 struct Key {
   #[element(state)]
   presses: Presses,
@@ -257,7 +257,7 @@ fn state_fields_give_their_traits() {
 /// A control that is focusable and shows a hand by default.
 #[element]
 #[derive(Debug)]
-#[xaml(namespace = "https://artic.rs/test", override_defaults)]
+#[ui(namespace = "https://artic.rs/test", override_defaults)]
 struct Knob {}
 
 impl ElementImpl for Knob {}
@@ -278,7 +278,7 @@ fn knob_overrides_group_defaults() {
   assert_eq!(knob.interaction.cursor.get(), Cursor::Hand);
 
   let mut tree = UiTree::new();
-  let node = (<Knob as XamlType>::TYPE_INFO.new)(&mut tree);
+  let node = (<Knob as UiType>::TYPE_INFO.new)(&mut tree);
   assert!(tree.get_as::<Knob>(node).unwrap().interaction.focusable.get());
 }
 
@@ -292,12 +292,12 @@ fn style_setter_beats_control_default() {
   assert!(!knob.interaction.focusable.get());
 }
 
-// `#[element]` adds `derive(XamlType)`, so the control is registered and built like any XAML type.
+// `#[element]` adds `derive(UiType)`, so the control is registered and built like any XAML type.
 #[test]
 fn element_adds_derive_xaml_type() {
   let mut tree = UiTree::new();
 
-  let node = (<Knob as XamlType>::TYPE_INFO.new)(&mut tree);
+  let node = (<Knob as UiType>::TYPE_INFO.new)(&mut tree);
 
   assert!(tree.get_as::<Knob>(node).is_some());
 }
@@ -305,7 +305,7 @@ fn element_adds_derive_xaml_type() {
 /// A control that names its crate path itself.
 #[element]
 #[derive(Debug)]
-#[xaml(namespace = "https://artic.rs/test", crate = "element_crate")]
+#[ui(namespace = "https://artic.rs/test", crate = "element_crate")]
 struct Pinned {}
 
 impl ElementImpl for Pinned {}
@@ -313,13 +313,13 @@ impl ElementImpl for Pinned {}
 // A control that sets `crate` itself keeps it: `#[element]` adds the path only when it's missing.
 #[test]
 fn element_keeps_its_own_crate_path() {
-  assert_eq!(<Pinned as XamlType>::TYPE_INFO.name, "Pinned");
+  assert_eq!(<Pinned as UiType>::TYPE_INFO.name, "Pinned");
 }
 
 /// A control with nothing of its own.
 #[element]
 #[derive(Debug)]
-#[xaml(namespace = "https://artic.rs/test")]
+#[ui(namespace = "https://artic.rs/test")]
 struct Spacer;
 
 impl ElementImpl for Spacer {}
@@ -327,11 +327,7 @@ impl ElementImpl for Spacer {}
 // A unit struct gets the four groups, registered first and in order.
 #[test]
 fn unit_struct_gets_the_groups() {
-  let fields: Vec<&str> = <Spacer as XamlType>::TYPE_INFO
-    .groups
-    .iter()
-    .map(|group| group.field)
-    .collect();
+  let fields: Vec<&str> = <Spacer as UiType>::TYPE_INFO.groups.iter().map(|group| group.field).collect();
 
   assert_eq!(fields, ["layout", "appearance", "interaction", "identity"]);
 }
@@ -339,9 +335,9 @@ fn unit_struct_gets_the_groups() {
 /// A control with a property of its own, with its own default.
 #[element]
 #[derive(Debug)]
-#[xaml(namespace = "https://artic.rs/test")]
+#[ui(namespace = "https://artic.rs/test")]
 struct Dial {
-  #[xaml(default = 3)]
+  #[ui(default = 3)]
   turns: Property<i32>,
 }
 
@@ -350,7 +346,7 @@ impl ElementImpl for Dial {}
 // A control's own property is registered beside the groups' and built with its default.
 #[test]
 fn own_properties_register_beside_the_groups() {
-  let info = <Dial as XamlType>::TYPE_INFO;
+  let info = <Dial as UiType>::TYPE_INFO;
 
   assert_eq!(info.property("Turns").map(|found| found.group), Some(None));
   assert_eq!(info.property("Margin").map(|found| found.group), Some(Some("layout")));
@@ -367,7 +363,7 @@ mod shadowed {
   /// A control declared beside that constant.
   #[element]
   #[derive(Debug)]
-  #[xaml(namespace = "https://artic.rs/test")]
+  #[ui(namespace = "https://artic.rs/test")]
   pub struct Lamp;
 
   impl ElementImpl for Lamp {}

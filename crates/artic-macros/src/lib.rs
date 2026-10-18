@@ -2,9 +2,9 @@
 
 mod crate_root;
 mod element;
-mod xaml_enum;
-mod xaml_properties;
-mod xaml_type;
+mod ui_enum;
+mod ui_properties;
+mod ui_type;
 
 use proc_macro::TokenStream;
 use syn::{DeriveInput, parse_macro_input};
@@ -25,16 +25,16 @@ use syn::{DeriveInput, parse_macro_input};
 ///   of an element of this type, `target = any` anywhere. The value type is checked like a
 ///   property's. `inherits` or `inherits = f` works as on a property: a node that holds it follows
 ///   its nearest logical ancestor that does, and one that doesn't reads that ancestor's value.
-/// - `markup_extension`, or `markup_extension(positional(key, ...))`: the type is a markup
+/// - `value_provider`, or `value_provider(positional(key, ...))`: the type is a markup
 ///   extension like `{Localize greeting}`. Every property is a named argument; `positional` lists,
 ///   in order, the properties also set by position.
 ///
 /// # Fields
 ///
-/// Every `Property<T>` and `Event<A>` field must be marked `#[xaml]`:
+/// Every `Property<T>` and `Event<A>` field must be marked `#[ui]`:
 ///
 /// - `Property<T>` is a XAML property. `T`, or `X` in `Option<X>`, must implement `FromStr` or
-///   `XamlType`, or be a `NodeId` child slot. Its settings: `default = expr` for the `Default`
+///   `UiType`, or be a `NodeId` child slot. Its settings: `default = expr` for the `Default`
 ///   level (otherwise `T::default()`), `affects = layout | render | surface` and `inherits` for
 ///   its generated key, `key = KEY` to share a key with other types instead (inheritance across
 ///   types needs it): a `static PropertyKey`, or an attached property's key such as
@@ -46,11 +46,11 @@ use syn::{DeriveInput, parse_macro_input};
 ///   `artic_core::property::inherit`'s functions and a longer path names any
 ///   `fn(&T, &T) -> T`: write your own function as `self::my_fn` or `crate::my_fn`.
 /// - `Event<A>` is a XAML event named like a property.
-/// - `#[xaml(flatten)]` on a field whose type derives `XamlProperties`: its properties are
+/// - `#[ui(flatten)]` on a field whose type derives `UiProperties`: its properties are
 ///   listed and visited as the type's own. It takes no other settings.
-/// - Any other `#[xaml]` field is a collection of child elements and must implement
-///   `XamlCollection`.
-/// - `#[xaml(content)]` on one `Property` or collection field: it receives content written inside
+/// - Any other `#[ui]` field is a collection of child elements and must implement
+///   `UiCollection`.
+/// - `#[ui(content)]` on one `Property` or collection field: it receives content written inside
 ///   the element. A flattened group may mark one of its properties instead; a type has at most one
 ///   content member, counting its groups.
 ///
@@ -58,10 +58,10 @@ use syn::{DeriveInput, parse_macro_input};
 ///
 /// # Generated code
 ///
-/// The derive implements `Default`, `Object` (with `visit_properties`) and `XamlType`, writes the
+/// The derive implements `Default`, `Object` (with `visit_properties`) and `UiType`, writes the
 /// type's `TypeInfo` with its property, event, attached property and markup extension descriptors,
-/// and adds it to `XAML_TYPES`. So the struct derives `Debug` but not `Default`, and a crate's types
-/// only reach the registry if the crate is linked (see `XAML_TYPES`).
+/// and adds it to `UI_TYPES`. So the struct derives `Debug` but not `Default`, and a crate's types
+/// only reach the registry if the crate is linked (see `UI_TYPES`).
 ///
 /// For each attached property it also writes, on the owner, the key constant and the helper pair
 /// from the builder design, which read and write the value on any node:
@@ -73,26 +73,24 @@ use syn::{DeriveInput, parse_macro_input};
 /// ```
 ///
 /// A helper named like one of the type's properties is an error: rename one with `name = ...`.
-#[proc_macro_derive(XamlType, attributes(xaml))]
-pub fn derive_xaml_type(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(UiType, attributes(ui))]
+pub fn derive_ui_type(input: TokenStream) -> TokenStream {
   let input = parse_macro_input!(input as DeriveInput);
-  xaml_type::expand(&input)
-    .unwrap_or_else(syn::Error::into_compile_error)
-    .into()
+  ui_type::expand(&input).unwrap_or_else(syn::Error::into_compile_error).into()
 }
 
 /// Makes a struct a property group: a set of properties several XAML types share by embedding it
-/// in a field marked `#[xaml(flatten)]`, as controls embed `Layout`.
+/// in a field marked `#[ui(flatten)]`, as controls embed `Layout`.
 ///
-/// Fields follow `XamlType`'s rules for `Property` fields; a group holds no events or
+/// Fields follow `UiType`'s rules for `Property` fields; a group holds no events or
 /// collections, and takes no attributes on the struct. One property may be marked
-/// `#[xaml(content)]`, which makes it the content of every type that flattens the group. The derive implements `Default` and
+/// `#[ui(content)]`, which makes it the content of every type that flattens the group. The derive implements `Default` and
 /// `PropertyGroup`. A group's keys are its own, so every type that flattens it shares them, and
 /// an inheriting property inherits across those types.
-#[proc_macro_derive(XamlProperties, attributes(xaml))]
-pub fn derive_xaml_properties(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(UiProperties, attributes(ui))]
+pub fn derive_ui_properties(input: TokenStream) -> TokenStream {
   let input = parse_macro_input!(input as DeriveInput);
-  xaml_properties::expand(&input)
+  ui_properties::expand(&input)
     .unwrap_or_else(syn::Error::into_compile_error)
     .into()
 }
@@ -104,40 +102,38 @@ pub fn derive_xaml_properties(input: TokenStream) -> TokenStream {
 /// variant must be a unit variant, and no two names may differ only in case. The generated code
 /// reaches `ParseEnumError` through `artic`, `artic-registry` or `artic-core`, whichever the
 /// calling crate depends on first, so a crate that has only `artic-core` can derive it.
-#[proc_macro_derive(XamlEnum)]
-pub fn derive_xaml_enum(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(UiEnum)]
+pub fn derive_ui_enum(input: TokenStream) -> TokenStream {
   let input = parse_macro_input!(input as DeriveInput);
-  xaml_enum::expand(&input)
-    .unwrap_or_else(syn::Error::into_compile_error)
-    .into()
+  ui_enum::expand(&input).unwrap_or_else(syn::Error::into_compile_error).into()
 }
 
 /// Makes a struct an element: it adds the property groups every control has, writes what
-/// `#[derive(XamlType)]` writes, and writes `Layoutable` and `Element` around the struct's
+/// `#[derive(UiType)]` writes, and writes `Layoutable` and `Element` around the struct's
 /// `ElementImpl`. The struct reaches the cast table, so the frame pipeline finds it with no
 /// registration call.
 ///
 /// ```ignore
 /// #[element]
 /// #[derive(Debug)]
-/// #[xaml(namespace = "https://artic.rs/ui")]
+/// #[ui(namespace = "https://artic.rs/ui")]
 /// pub struct Border {
-///   #[xaml(content)] pub child: Property<Option<NodeId>>,
+///   #[ui(content)] pub child: Property<Option<NodeId>>,
 /// }
 ///
 /// impl ElementImpl for Border { /* measure_override, render, … */ }
 /// ```
 ///
-/// `#[element]` goes first, above the struct's `#[derive(...)]` and `#[xaml(...)]` attributes,
+/// `#[element]` goes first, above the struct's `#[derive(...)]` and `#[ui(...)]` attributes,
 /// and takes no settings. It adds four fields before the struct's own, each flattened into the
 /// struct's properties: `layout: Layout`, `appearance: Appearance`,
 /// `interaction: Interaction` and `identity: Identity`. A field of the
-/// struct with one of those names is an error, as are `XamlType` and `Default` in its derives,
+/// struct with one of those names is an error, as are `UiType` and `Default` in its derives,
 /// since `#[element]` adds a derive that writes both. A unit struct gets the four fields; a tuple struct or a generic
 /// one is an error.
 ///
-/// `#[element]` adds `#[derive(XamlType)]`, so the struct's `#[xaml(...)]` settings are the
-/// derive's: a control changes a group's default with `#[xaml(override_defaults)]` and an
+/// `#[element]` adds `#[derive(UiType)]`, so the struct's `#[ui(...)]` settings are the
+/// derive's: a control changes a group's default with `#[ui(override_defaults)]` and an
 /// `OverrideDefaults` impl that calls `Property::set_default`.
 ///
 /// Each `Element` method does the groups' shared work, then calls the matching `ElementImpl`
@@ -163,7 +159,7 @@ pub fn derive_xaml_enum(input: TokenStream) -> TokenStream {
 /// conflicting-implementations error (E0119).
 ///
 /// Generated code reaches artic through `artic`, or `artic-element` if the crate doesn't depend
-/// on `artic`; `#[xaml(crate = path)]` names another path.
+/// on `artic`; `#[ui(crate = path)]` names another path.
 #[proc_macro_attribute]
 pub fn element(attribute: TokenStream, item: TokenStream) -> TokenStream {
   element::expand(attribute.into(), item.into())
