@@ -324,7 +324,7 @@ fn attached_info(attached: &Attached) -> TokenStream {
   }
 }
 
-/// The check that a property's value type can be written in markup, pointing at the type.
+/// The check that a property's value type can be written in a UI language, pointing at the type.
 pub fn value_check(field: &UiField) -> TokenStream {
   let Role::Property { value, .. } = field.role else {
     unreachable!("properties only")

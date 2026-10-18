@@ -5,7 +5,7 @@ use artic_layout::geometry::{Rect, Size};
 use artic_layout::{ArrangeCx, MeasureCx};
 use artic_macros::element;
 
-/// The root of a view: a control an app builds from other controls, usually with its own markup
+/// The root of a view: a control an app builds from other controls, usually described in a UI language
 /// and view-model. Its content fills it, and it adds nothing to what assistive technology sees.
 #[element]
 #[derive(Debug)]

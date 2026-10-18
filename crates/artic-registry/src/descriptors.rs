@@ -8,7 +8,7 @@ use artic_core::tree::{NodeId, UiTree};
 /// the `UiType` derive emits one per type, and a type can also be described by hand.
 #[derive(Debug)]
 pub struct TypeInfo {
-  /// The name markup uses for the type, such as `Border`. Lookups are exact and case-sensitive.
+  /// The name UI languages use for the type, such as `Border`. Lookups are exact and case-sensitive.
   pub name: &'static str,
   /// The full Rust path where the type is defined, such as `artic_controls::border::Border`; a
   /// re-export doesn't change it.
@@ -97,7 +97,7 @@ impl TypeInfo {
 /// accessors, so the key stays the single source of that metadata.
 #[derive(Debug)]
 pub struct PropertyInfo {
-  /// The property's name in markup, such as `Padding`.
+  /// The property's name in UI languages, such as `Padding`.
   pub name: &'static str,
   /// The Rust field that holds the property, such as `padding`.
   pub field: &'static str,
@@ -161,7 +161,7 @@ pub struct PropertyRef {
 /// An event of a type.
 #[derive(Debug)]
 pub struct EventInfo {
-  /// The event's name in markup, such as `PointerPressed`.
+  /// The event's name in UI languages, such as `PointerPressed`.
   pub name: &'static str,
   /// The Rust path of the arguments handlers receive.
   pub args_type: &'static str,
