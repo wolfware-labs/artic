@@ -6,7 +6,7 @@ use artic_layout::text::{
   FontFamily, FontStyle, FontWeight, Paragraph, ParagraphStyle, TextAlignment, TextEngine, TextLimits, TextStyle, TextTrimming,
   TextWrapping,
 };
-use artic_layout::MeasureCx;
+use artic_layout::{ArrangeCx, MeasureCx};
 use artic_macros::element;
 use artic_render::{Brush, SceneBuilder};
 use std::num::NonZeroU32;
@@ -82,6 +82,31 @@ impl TextBlock {
     }
   }
 
+  fn shapes_again(&self, shaped: &Shaped, size: Size, device_pixel: f32) -> bool {
+    let wrapping = self.text_wrapping.get() != TextWrapping::NoWrap;
+    let trimming = self.text_trimming.get() != TextTrimming::None;
+    let paragraph = &shaped.paragraph;
+    let differs = |limit: Option<f32>, size: f32, limited: bool, extent: f32| {
+      let limit = limit.filter(|limit| limit.is_finite()).unwrap_or(f32::INFINITY);
+      (size - limit).abs() > device_pixel && (limited || extent - size > device_pixel)
+    };
+    let width = (wrapping || trimming)
+      && differs(
+        shaped.limits.max_width,
+        size.width,
+        paragraph.limited_width(),
+        paragraph.size().width,
+      );
+    let height = trimming
+      && differs(
+        shaped.limits.max_height,
+        size.height,
+        paragraph.limited_height(),
+        paragraph.size().height,
+      );
+    width || height
+  }
+
   fn limits(&self, size: Size) -> TextLimits {
     let trimming = self.text_trimming.get() != TextTrimming::None;
     TextLimits {
@@ -97,6 +122,18 @@ impl ElementImpl for TextBlock {
     let size = shaped.paragraph.size();
     cx.set_measured(shaped);
     size
+  }
+
+  fn arrange_override(&self, cx: &mut ArrangeCx<'_>, size: Size) {
+    let device_pixel = 1.0 / cx.scale();
+    let again = cx
+      .arranged::<Shaped>()
+      .or_else(|| cx.measured::<Shaped>())
+      .is_some_and(|current| self.shapes_again(current, size, device_pixel));
+    if again {
+      let shaped = self.shape(cx.text(), self.limits(size));
+      cx.set_arranged(shaped);
+    }
   }
 
   fn render(&self, cx: &mut RenderCx<'_>, scene: &mut SceneBuilder) {

@@ -2,14 +2,20 @@
 // aligned within the box layout gives it.
 
 use artic_controls::{StackPanel, TextBlock, TextElement};
+use artic_core::Object;
+use artic_core::property::AnyProperty;
 use artic_core::property::Precedence;
 use artic_core::tree::{NodeId, UiTree};
 use artic_element::{AccessCx, Children, ElementTypes};
 use artic_layout::geometry::{Point, Rect, Size};
 use artic_layout::text::{FontFamily, FontStyle, FontWeight, Paragraph, TextAlignment, TextTrimming, TextWrapping};
+use artic_layout::{ArrangeCx, MeasureCx};
 use artic_layout::{LayoutNodes, Layoutable, Orientation};
 use artic_render::{Brush, Color, Command};
 use artic_test::layout::{Boxes, Headless};
+use artic_test::layout::{Invariants, strategy};
+use proptest::prelude::*;
+use std::cell::Cell;
 use std::num::NonZeroU32;
 
 // TextElement's properties start at system-ui, 14, normal weight and style, and black, and a value
@@ -39,7 +45,11 @@ struct Nodes(ElementTypes);
 
 impl LayoutNodes for Nodes {
   fn layoutable<'a>(&self, tree: &'a UiTree, node: NodeId) -> Option<&'a dyn Layoutable> {
-    self.0.layoutable(tree, node).or_else(|| Boxes.layoutable(tree, node))
+    self
+      .0
+      .layoutable(tree, node)
+      .or_else(|| tree.get_as::<Frame>(node).map(|frame| frame as &dyn Layoutable))
+      .or_else(|| Boxes.layoutable(tree, node))
   }
 }
 
@@ -313,4 +323,152 @@ fn textblock_accesskit_node() {
   assert_eq!(access(&tree).value(), Some(SENTENCE));
   tree.get_as::<TextBlock>(node).expect("a text block").text.set(String::new());
   assert_eq!(access(&tree).value(), Some(""));
+}
+
+/// Measures its one child in `available` and arranges it in a box of `arranged`.
+#[derive(Debug)]
+struct Frame {
+  available: Cell<Size>,
+  arranged: Cell<Size>,
+}
+
+impl Object for Frame {
+  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+}
+
+impl Layoutable for Frame {
+  fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {
+    let child = cx.children().next().expect("a child");
+    cx.measure(child, self.available.get())
+  }
+
+  fn arrange(&self, cx: &mut ArrangeCx<'_>, _rect: Rect) {
+    let child = cx.children().next().expect("a child");
+    let size = self.arranged.get();
+    cx.arrange(child, Rect::new(0.0, 0.0, size.width, size.height));
+  }
+}
+
+/// A frame around a TextBlock of `text`, measured in `available`; the second run arranges it in
+/// `arranged` and returns whether that arrange shaped the text again.
+fn shapes_again(block: TextBlock, available: Size, arranged: Size, scale: f32) -> bool {
+  let mut layout = layout();
+  let text = layout.add("text", block);
+  let frame = layout.parent(
+    "frame",
+    Frame {
+      available: Cell::new(available),
+      arranged: Cell::new(available),
+    },
+    &[text],
+  );
+  layout.run(frame, WINDOW, scale);
+  layout.tree().get_as::<Frame>(frame).expect("a frame").arranged.set(arranged);
+  layout.manager().invalidate_arrange(frame);
+  let stats = layout.run(frame, WINDOW, scale);
+  stats.results.contains(&text)
+}
+
+fn wrapping(text: &str, wrapping: TextWrapping) -> TextBlock {
+  let block = text_block(text);
+  block.text_wrapping.set(wrapping);
+  block
+}
+
+// A box 0.6 px narrower than the measure, less than a device pixel at scale 1, shapes nothing.
+// The first run's box snaps to 101, so the second box (100) is a new rectangle and arrange runs.
+#[test]
+fn snapping_alone_does_not_shape_again() {
+  let block = wrapping(SENTENCE, TextWrapping::Wrap);
+
+  assert!(!shapes_again(block, Size::new(100.6, 300.0), Size::new(100.0, 300.0), 1.0));
+}
+
+// The same 0.6 px is more than a device pixel at scale 3, so it shapes again there.
+#[test]
+fn snapping_threshold_follows_the_scale() {
+  let block = wrapping(SENTENCE, TextWrapping::Wrap);
+
+  assert!(shapes_again(block, Size::new(100.6, 300.0), Size::new(100.0, 300.0), 3.0));
+}
+
+// Wrapped text in a clearly narrower box shapes again.
+#[test]
+fn narrower_box_shapes_again() {
+  let block = wrapping(SENTENCE, TextWrapping::Wrap);
+
+  assert!(shapes_again(block, Size::new(200.0, 300.0), Size::new(100.0, 300.0), 1.0));
+}
+
+// NoWrap text without trimming never shapes again, whatever the box.
+#[test]
+fn no_wrap_without_trimming_never_shapes_again() {
+  let block = text_block(SENTENCE);
+
+  assert!(!shapes_again(block, Size::new(400.0, 300.0), Size::new(50.0, 10.0), 1.0));
+}
+
+// Without trimming the height can't change the paragraph: a shorter box shapes nothing.
+#[test]
+fn shorter_box_without_trimming_does_not_shape_again() {
+  let block = wrapping(SENTENCE, TextWrapping::Wrap);
+
+  assert!(!shapes_again(block, Size::new(100.0, 300.0), Size::new(100.0, 10.0), 1.0));
+}
+
+// A wrapped paragraph wider than its box only because of a word that can't break, arranged in the
+// width it was shaped for, shapes nothing. The height changes so that arrange runs.
+#[test]
+fn limited_overflowing_word_does_not_shape_again() {
+  let block = wrapping("a Supercalifragilisticexpialidocious b", TextWrapping::WrapWithOverflow);
+
+  assert!(!shapes_again(block, Size::new(100.0, 300.0), Size::new(100.0, 250.0), 1.0));
+}
+
+// Wrapped text in a wider box than it was measured for shapes again to fill it.
+#[test]
+fn wider_box_wraps_again() {
+  let block = wrapping(SENTENCE, TextWrapping::Wrap);
+
+  assert!(shapes_again(block, Size::new(100.0, 300.0), Size::new(300.0, 300.0), 1.0));
+}
+
+fn wrappings() -> impl Strategy<Value = TextWrapping> {
+  prop_oneof![
+    Just(TextWrapping::NoWrap),
+    Just(TextWrapping::Wrap),
+    Just(TextWrapping::WrapWithOverflow)
+  ]
+}
+
+fn trimmings() -> impl Strategy<Value = TextTrimming> {
+  prop_oneof![
+    Just(TextTrimming::None),
+    Just(TextTrimming::CharacterEllipsis),
+    Just(TextTrimming::WordEllipsis),
+    Just(TextTrimming::PrefixCharacterEllipsis),
+    Just(TextTrimming::LeadingCharacterEllipsis),
+    Just(TextTrimming::PathSegmentEllipsis)
+  ]
+}
+
+proptest! {
+  // Layout's invariants hold for random text, sizes, scales and modes. Containment is off: text may
+  // overflow its box.
+  #[test]
+  fn textblock_invariants_hold(
+    text in "[a-z /]{0,40}",
+    wrapping in wrappings(),
+    trimming in trimmings(),
+    available in strategy::available(),
+    scale in strategy::scale(),
+  ) {
+    let mut layout = layout();
+    let block = text_block(&text);
+    block.text_wrapping.set(wrapping);
+    block.text_trimming.set(trimming);
+    let root = layout.add("text", block);
+
+    Invariants::default().assert(&mut layout, root, available, scale);
+  }
 }
