@@ -81,7 +81,8 @@ The XAML back ends that look types up, the loader and the compiler, aren't built
 pub struct NamespaceMap { /* URI -> crate names */ }
 
 impl NamespaceMap {
-  /// Adds `crates` to what `uri` stands for.
+  /// Adds `crates` to what `uri` stands for. A crate it already stands for is kept once, so
+  /// declaring an alias twice changes nothing.
   pub fn alias(&mut self, uri: &str, crates: &[&str]);
   /// The crates `uri` stands for, or `None` for a URI nobody declared.
   pub fn crates(&self, uri: &str) -> Option<&[String]>;
@@ -91,7 +92,8 @@ impl NamespaceMap {
 It lives in `artic-xaml`, beside the parser, and depends on nothing:
 
 - `using:my_crate::views` keeps working as the spec describes, and needs no entry: the back end joins the module and the local name into a Rust path, `my_crate::views::Gauge`, and calls `Registry::type_by_rust_path`, so it finds exactly the type in that module even when another module of the crate has one of the same name.
-- Nothing is built in. The `artic` facade, which already depends on every artic crate with UI types and owns the `runtime-xaml` feature, adds `https://artic.rs/ui` → `artic_element`, `artic_controls` (and the style crates when they define types) through `alias`, the call an app uses for its own URIs, such as `https://acme.com/ui` → `acme_controls`. A new artic crate is added where the crates are composed.
+- Nothing is built in. The `artic` facade, which already depends on every artic crate with UI types, owns artic's entry: `artic::xaml::namespaces() -> NamespaceMap` returns a map holding `https://artic.rs/ui` → `artic_element`, `artic_controls` (and the style crates when they define types), added through `alias`, the call an app uses for its own URIs, such as `https://acme.com/ui` → `acme_controls`. A new artic crate is added where the crates are composed.
+- Both back ends start from that map. The runtime loader takes it when the app sets it up. The compiler runs in the app's `build.rs`, which can't see anything the app does at run time, so the app passes it the same map there: `build.rs` calls `artic::xaml::namespaces()` through a build-dependency on `artic` with its `xaml` feature, which adds `artic-xaml` and nothing else to the facade, then adds its own aliases. One function gives both paths the same names.
 - A URI that maps to several crates finds a name in each; a name found in two of them is ambiguous, and the back end reports it.
 - The registry only knows the crates the app links: `UI_TYPES` is collected at link time, so a crate the app depends on but never references is left out, as `docs/architecture.md` notes. A crate named in an alias must therefore be linked. The facade's crates are, since it re-exports them; an app that aliases a crate it doesn't otherwise use references it with `use acme_controls as _;`. A back end that finds no type at all in a URI's crates says so, and names that line as the likely fix.
 - `https://artic.rs/markup`, the `x:` directives, stays XAML's own.
@@ -142,10 +144,10 @@ Design documents keep their "Documents that change" tables.
 
 | Where | Tests |
 | --- | --- |
-| `artic-registry` | `namespace_is_the_first_segment_of_the_rust_path`, `same_name_in_one_crate_is_ambiguous_by_name_and_found_by_path`, `same_rust_path_twice_is_an_error`, `missing_name_is_missing`; `same_name_in_two_crates_is_found_in_each` in the real-crate fixtures (`fixtures/types-a`, `types-b`, `linking/tests`): their `#[xaml(namespace = ...)]` attributes are removed, so their types' namespaces become their crate names, `artic_registry_fixture_a` and `artic_registry_fixture_b`, and the test looks the shared name up in each |
+| `artic-registry` | `namespace_is_the_first_segment_of_the_rust_path`, `same_name_in_one_crate_is_ambiguous_by_name_and_found_by_path`, `same_rust_path_twice_is_an_error`, `missing_name_is_missing`; `same_name_in_two_crates_is_found_in_each` in the real-crate fixtures (`fixtures/types-a`, `types-b`, `linking/tests`): their `#[xaml(namespace = ...)]` attributes are removed, so their types' namespaces become their crate names, `artic_registry_fixture_a` and `artic_registry_fixture_b`; each fixture also gains a type named `Twin`, beside its `Alpha` or `Beta`, and the test finds `Twin` in each crate by name and by Rust path |
 | `artic-macros` | the derive tests and trybuild cases under the new names; `derived_namespace_is_the_crate`; every new or renamed `.stderr` checked for `$RUST/` lines |
-| `artic-xaml` | `NamespaceMap`: `alias_maps_a_uri_to_crates`, `alias_adds_to_a_uri`, `unknown_uri_is_none`; the fixture corpus and its snapshots unchanged |
-| `artic` | `facade_maps_the_artic_uri` (with `runtime-xaml` on) |
+| `artic-xaml` | `NamespaceMap`: `alias_maps_a_uri_to_crates`, `alias_adds_to_a_uri`, `repeated_alias_is_kept_once`, `unknown_uri_is_none`; the fixture corpus and its snapshots unchanged |
+| `artic` | `facade_maps_the_artic_uri` (with the `xaml` feature on) |
 | workspace | every test and golden passes; nothing below the XAML layer names XAML: a `grep` over `crates/` whose allow-list is `artic-xaml*`, `artic-lsp`, `artic-cli` and the facade's `runtime-xaml` feature and its doc line |
 | `docs-check` | every Rust block in `docs/` compiles; lychee passes |
 
