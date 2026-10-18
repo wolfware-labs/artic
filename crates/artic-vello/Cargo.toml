@@ -12,6 +12,7 @@ repository.workspace = true
 artic-layout.workspace = true
 artic-render.workspace = true
 pollster.workspace = true
+skrifa.workspace = true
 thiserror.workspace = true
 vello.workspace = true
 

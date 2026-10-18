@@ -146,6 +146,9 @@ impl Translation<'_> {
     };
     for run in paragraph.runs() {
       let font = run.font();
+      if skrifa::FontRef::from_index((**font.bytes()).as_ref(), font.index()).is_err() {
+        continue;
+      }
       let blob = peniko::Blob::from_raw_parts(Arc::clone(font.bytes()), font.id());
       let synthesis = run.synthesis();
       let embolden = if synthesis.embolden {
@@ -913,5 +916,30 @@ mod tests {
     let out = encoded(|translation| translation.text(&text, Point::ZERO, &nothing.into()));
 
     assert!(out.encoding().resources.glyph_runs.is_empty());
+  }
+
+  // A face vello can't read, such as bytes that aren't a font or an index past a file's faces, is
+  // skipped instead of panicking the frame; the readable runs of the same paragraph still draw.
+  #[test]
+  fn unreadable_face_draws_nothing() {
+    let regular = face(artic_test_fonts::REGULAR);
+    let garbage = FontData::new(Arc::new(vec![0_u8; 4]), 0);
+    let missing = FontData::new(Arc::new(artic_test_fonts::REGULAR), 3);
+    let text = paragraph(vec![
+      run(&garbage, Synthesis::default()),
+      run(&missing, Synthesis::default()),
+      run(&regular, Synthesis::default()),
+    ]);
+
+    let out = encoded(|translation| translation.text(&text, Point::ZERO, &Color::rgb(0, 0, 0).into()));
+
+    let ids: Vec<u64> = out
+      .encoding()
+      .resources
+      .glyph_runs
+      .iter()
+      .map(|run| run.font.data.id())
+      .collect();
+    assert_eq!(ids, [regular.id()]);
   }
 }

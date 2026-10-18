@@ -328,6 +328,7 @@ dependencies = [
  "artic-text",
  "pollster",
  "pretty_assertions",
+ "skrifa",
  "thiserror 2.0.21",
  "vello",
  "winit",
