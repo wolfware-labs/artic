@@ -84,8 +84,15 @@ impl TextEngine for Engine {
     let mut builder = self.layouts.ranged_builder(&mut self.fonts, text, 1.0, false);
     properties::push(&mut builder, style, paragraph_style, &self.default_family);
     builder.build_into(&mut self.layout, text);
-    lines::break_lines(&mut self.layout, paragraph_style, limits);
-    paragraph::paragraph(text, &self.layout, &mut self.faces)
+    let kept = lines::break_lines(&mut self.layout, paragraph_style, limits);
+    paragraph::paragraph(
+      text,
+      &self.layout,
+      kept,
+      paragraph_style,
+      lines::usable_width(limits),
+      &mut self.faces,
+    )
   }
 }
 

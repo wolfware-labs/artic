@@ -564,3 +564,145 @@ fn negative_max_width_breaks_every_cluster_under_wrap() {
 
   assert_eq!(paragraph.lines().len(), 3);
 }
+
+fn limits(max_width: Option<f32>, max_height: Option<f32>) -> TextLimits {
+  TextLimits { max_width, max_height }
+}
+
+fn overflowing() -> ParagraphStyle {
+  wrapping(TextWrapping::WrapWithOverflow)
+}
+
+// A height of two and a half lines keeps two, and the paragraph is their height.
+#[test]
+fn max_height_drops_lines_that_do_not_fit() {
+  let paragraph = laid_out(&mut engine(), FOX, &overflowing(), limits(Some(100.0), Some(2.5 * LINE)));
+
+  assert_eq!(paragraph.lines().len(), 2);
+  assert_close(paragraph.size().height, 2.0 * LINE);
+}
+
+// A height below one line still keeps the first line.
+#[test]
+fn max_height_keeps_the_first_line() {
+  let paragraph = laid_out(&mut engine(), FOX, &overflowing(), limits(Some(100.0), Some(5.0)));
+
+  assert_eq!(paragraph.lines().len(), 1);
+}
+
+// A negative height keeps one line.
+#[test]
+fn negative_max_height_keeps_one_line() {
+  let paragraph = laid_out(&mut engine(), FOX, &overflowing(), limits(Some(100.0), Some(-10.0)));
+
+  assert_eq!(paragraph.lines().len(), 1);
+}
+
+// A height that is NaN or infinite is no limit.
+#[test]
+fn unusable_max_height_is_no_limit() {
+  let mut engine = engine();
+  let expected = wrapped(&mut engine, FOX, 100.0);
+
+  for max_height in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+    let paragraph = laid_out(&mut engine, FOX, &overflowing(), limits(Some(100.0), Some(max_height)));
+
+    assert_eq!(paragraph, expected, "{max_height}");
+  }
+}
+
+// A height exactly at a line's bottom keeps that line.
+#[test]
+fn max_height_at_a_line_bottom_keeps_that_line() {
+  let mut engine = engine();
+  let second = wrapped(&mut engine, FOX, 100.0).lines()[1];
+
+  let paragraph = laid_out(
+    &mut engine,
+    FOX,
+    &overflowing(),
+    limits(Some(100.0), Some(second.top + second.height)),
+  );
+
+  assert_eq!(paragraph.lines().len(), 2);
+}
+
+// MaxLines and the height together keep the fewer lines.
+#[test]
+fn max_lines_and_max_height_keep_the_fewer() {
+  let mut engine = engine();
+  let three = ParagraphStyle {
+    max_lines: NonZeroU32::new(3),
+    ..overflowing()
+  };
+  let one = ParagraphStyle {
+    max_lines: NonZeroU32::new(1),
+    ..overflowing()
+  };
+
+  assert_eq!(
+    laid_out(&mut engine, FOX, &three, limits(Some(100.0), Some(2.5 * LINE)))
+      .lines()
+      .len(),
+    2
+  );
+  assert_eq!(
+    laid_out(&mut engine, FOX, &one, limits(Some(100.0), Some(2.5 * LINE)))
+      .lines()
+      .len(),
+    1
+  );
+}
+
+// The paragraph reports the direction its first strong character gives it.
+#[test]
+fn paragraph_reports_its_direction() {
+  let mut engine = engine();
+
+  assert!(!shape(&mut engine, FOX, &style()).right_to_left());
+  assert!(shape(&mut engine, HEBREW, &style()).right_to_left());
+}
+
+// Lines that broke to fit the width mark the paragraph as limited by it.
+#[test]
+fn wrapped_paragraph_is_limited_by_width() {
+  let paragraph = wrapped(&mut engine(), FOX, 100.0);
+
+  assert!(paragraph.limited_width());
+  assert!(!paragraph.limited_height());
+}
+
+// Text that breaks only at hard breaks isn't limited, with or without a width.
+#[test]
+fn unwrapped_paragraph_is_not_limited() {
+  let mut engine = engine();
+
+  for paragraph in [
+    shape(&mut engine, FOX, &style()),
+    laid_out(&mut engine, "a\nb", &overflowing(), TextLimits::width(100.0)),
+    laid_out(&mut engine, FOX, &ParagraphStyle::default(), TextLimits::width(100.0)),
+  ] {
+    assert!(!paragraph.limited_width(), "{paragraph:?}");
+    assert!(!paragraph.limited_height(), "{paragraph:?}");
+  }
+}
+
+// Lines dropped for the height mark the paragraph as limited by it; a height they all fit doesn't.
+#[test]
+fn dropped_lines_limit_the_height() {
+  let mut engine = engine();
+
+  assert!(laid_out(&mut engine, FOX, &overflowing(), limits(Some(100.0), Some(2.5 * LINE))).limited_height());
+  assert!(!laid_out(&mut engine, FOX, &overflowing(), limits(Some(100.0), Some(10.0 * LINE))).limited_height());
+}
+
+// A line cut only because MaxLines dropped the ones after it isn't limited by the width.
+#[test]
+fn clamped_line_that_fits_is_not_limited_by_width() {
+  let style = ParagraphStyle {
+    max_lines: NonZeroU32::new(1),
+    ..overflowing()
+  };
+
+  assert!(!laid_out(&mut engine(), "a\nb\nc", &style, TextLimits::width(100.0)).limited_width());
+}

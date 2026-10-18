@@ -9,19 +9,33 @@
 //! character's.
 
 use crate::faces::Faces;
+use crate::lines::Kept;
 use artic_layout::geometry::Size;
-use artic_layout::text::{FontData, Glyph, GlyphRun, Line, Paragraph, Synthesis};
-use parley::Layout;
+use artic_layout::text::{FontData, Glyph, GlyphRun, Line, Paragraph, ParagraphStyle, Synthesis};
+use parley::{BreakReason, Layout};
 use std::sync::Arc;
 
-pub(crate) fn paragraph(text: &str, layout: &Layout<()>, faces: &mut Faces) -> Paragraph {
-  let shaped = layout.lines().map(|line| shape_line(text, &line, faces)).collect::<Vec<_>>();
+pub(crate) fn paragraph(
+  text: &str,
+  layout: &Layout<()>,
+  kept: Kept,
+  _style: &ParagraphStyle,
+  _max_width: Option<f32>,
+  faces: &mut Faces,
+) -> Paragraph {
+  let shaped = layout
+    .lines()
+    .take(kept.lines)
+    .map(|line| shape_line(text, &line, faces))
+    .collect::<Vec<_>>();
   let width = shaped.iter().map(ShapedLine::width).fold(0.0, f32::max);
   let height = shaped.iter().map(|line| line.height).sum::<f32>();
   if height <= 0.0 {
     return Paragraph::default();
   }
-  let factor = if layout.is_rtl() { 1.0 } else { 0.0 };
+  let right_to_left = layout.is_rtl();
+  let limited_width = shaped.iter().any(|line| line.soft_break);
+  let factor = if right_to_left { 1.0 } else { 0.0 };
   let mut top = 0.0;
   let mut lines = Vec::with_capacity(shaped.len());
   let mut runs = Vec::new();
@@ -37,10 +51,13 @@ pub(crate) fn paragraph(text: &str, layout: &Layout<()>, faces: &mut Faces) -> P
     runs.extend(line.runs.into_iter().map(|run| run.place(shift)));
   }
   Paragraph::new(Size::new(width, height), lines, runs)
+    .with_right_to_left(right_to_left)
+    .with_limited(limited_width, kept.limited_height)
 }
 
 struct ShapedLine {
   height: f32,
+  soft_break: bool,
   baseline: f32,
   start: f32,
   end: f32,
@@ -119,6 +136,7 @@ fn shape_line(text: &str, line: &parley::Line<'_, ()>, faces: &mut Faces) -> Sha
   let (start, end) = extent.unwrap_or((0.0, 0.0));
   ShapedLine {
     height: metrics.line_height,
+    soft_break: matches!(line.break_reason(), BreakReason::Regular | BreakReason::Emergency),
     baseline: metrics.baseline,
     start,
     end,
