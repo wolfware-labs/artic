@@ -1,7 +1,9 @@
 //! Cutting a line that doesn't fit, and putting "…" where its text was dropped.
 //!
-//! Every mode drops one run of the line's text and puts the ellipsis in its place, with the
-//! whitespace on either side of it dropped too. The modes differ only in which runs they try and
+//! A line's text is its own: trimming never shows another line's. Every mode drops one run of it
+//! and puts the ellipsis in its place, with the whitespace on either side of it dropped too, and
+//! every mode first tries dropping nothing, with the ellipsis after the text: that fits only for a
+//! line cut because the lines after it were dropped, which keeps its text and gains "…". The modes differ only in which runs they try and
 //! in what order: [`cut`] tries them, keeping the most text first, and returns the first that fits.
 //! Widths are only nearly monotonic, because of kerning and ligatures, so the binary search steps
 //! on toward keeping less while its pick doesn't fit: the result always fits, or is the mode's
@@ -32,7 +34,6 @@ pub(crate) struct Trimmed {
 pub(crate) fn trim_line(
   shaper: &mut Shaper<'_>,
   text: &str,
-  own: usize,
   mode: TextTrimming,
   max_width: f32,
   right_to_left: bool,
@@ -54,7 +55,7 @@ pub(crate) fn trim_line(
     .unwrap_or_else(|| shaper.line(&candidate(text, &dropped), right_to_left));
   Some(Trimmed {
     line,
-    lost: loses_own_text(text, own, &dropped),
+    lost: loses_text(text, &dropped),
   })
 }
 
@@ -66,9 +67,8 @@ pub(crate) fn candidate(text: &str, dropped: &Range<usize>) -> String {
   )
 }
 
-pub(crate) fn loses_own_text(text: &str, own: usize, dropped: &Range<usize>) -> bool {
-  let end = dropped.end.min(own);
-  dropped.start < end && !text[dropped.start..end].trim().is_empty()
+pub(crate) fn loses_text(text: &str, dropped: &Range<usize>) -> bool {
+  !text[dropped.clone()].trim().is_empty()
 }
 
 pub(crate) fn cut(
@@ -78,6 +78,13 @@ pub(crate) fn cut(
   fits: &mut dyn FnMut(&Range<usize>) -> bool,
 ) -> Option<Range<usize>> {
   let all = 0..text.len();
+  let whole = text.len()..text.len();
+  if mode == TextTrimming::None {
+    return None;
+  }
+  if fits(&whole) {
+    return Some(whole);
+  }
   Some(match mode {
     TextTrimming::None => return None,
     TextTrimming::CharacterEllipsis => trailing(text, &clusters.starts, fits).unwrap_or(all),
@@ -196,19 +203,34 @@ mod tests {
     assert_eq!(candidate("abc", &(0..3)), "…");
   }
 
-  // A line loses its own text when the dropped range covers some of it that isn't whitespace.
+  // A line loses text when the dropped range holds something other than whitespace.
   #[test]
-  fn losing_own_text_ignores_dropped_lines_and_whitespace() {
-    assert!(loses_own_text("abc def", 7, &(4..7)));
-    assert!(!loses_own_text("abc def", 3, &(3..7)));
-    assert!(!loses_own_text("abc def", 4, &(3..7)));
-    assert!(!loses_own_text("abc", 3, &(3..3)));
+  fn losing_text_ignores_whitespace() {
+    assert!(loses_text("abc def", &(4..7)));
+    assert!(!loses_text("abc def", &(3..4)));
+    assert!(!loses_text("abc", &(3..3)));
   }
 
   // No trimming cuts nothing.
   #[test]
   fn no_trimming_cuts_nothing() {
     assert_eq!(cut(TextTrimming::None, "abc", &clusters("abc"), &mut |_| true), None);
+  }
+
+  // Every mode first tries the whole text with "…" after it, so a line that fits, cut only for the
+  // lines dropped after it, keeps all its text.
+  #[test]
+  fn every_mode_first_keeps_the_whole_text() {
+    for mode in [
+      TextTrimming::CharacterEllipsis,
+      TextTrimming::WordEllipsis,
+      TextTrimming::PrefixCharacterEllipsis,
+      TextTrimming::LeadingCharacterEllipsis,
+      TextTrimming::PathSegmentEllipsis,
+    ] {
+      assert_eq!(shown(mode, "abcdefghijk", 100), "abcdefghijk…", "{mode:?}");
+      assert_eq!(shown(mode, "a/b/c", 100), "a/b/c…", "{mode:?}");
+    }
   }
 
   // CharacterEllipsis keeps the longest start that fits, and "…" alone when nothing does.

@@ -1056,7 +1056,7 @@ fn path_ellipsis_falls_back_to_leading() {
   assert!(paragraph.size().width <= 60.0);
 }
 
-// A clamped line's text ends at the next hard break: nothing after it shows.
+// A clamped line's text is its own: nothing after its hard break shows.
 #[test]
 fn trimming_stops_at_a_hard_break() {
   let mut engine = engine();
@@ -1271,4 +1271,44 @@ fn trimming_empty_text_draws_nothing() {
   );
 
   assert!(paragraph.is_empty());
+}
+
+// A line cut because the lines after it were dropped keeps its whole text and gains "…", in every
+// mode, and isn't limited by the width.
+#[test]
+fn clamped_line_keeps_its_whole_text_in_every_mode() {
+  let mut engine = engine();
+  let expected = ids(&shape(&mut engine, "abcdefghijk\u{2026}", &style()));
+
+  for mode in [
+    TextTrimming::CharacterEllipsis,
+    TextTrimming::WordEllipsis,
+    TextTrimming::PrefixCharacterEllipsis,
+    TextTrimming::LeadingCharacterEllipsis,
+    TextTrimming::PathSegmentEllipsis,
+  ] {
+    let clamp = ParagraphStyle {
+      max_lines: NonZeroU32::new(1),
+      ..trimming(mode)
+    };
+    let paragraph = laid_out(&mut engine, "abcdefghijk\nmore", &clamp, TextLimits::width(1000.0));
+
+    assert_eq!(ids(&paragraph), expected, "{mode:?}");
+    assert!(!paragraph.limited_width(), "{mode:?}");
+  }
+}
+
+// A clamped line never shows text from the lines dropped after it, even with room for it.
+#[test]
+fn clamped_line_never_shows_dropped_text() {
+  let mut engine = engine();
+  let room = shape(&mut engine, "ab cd\u{2026}", &style()).size().width;
+  let clamp = ParagraphStyle {
+    max_lines: NonZeroU32::new(1),
+    trimming: TextTrimming::CharacterEllipsis,
+    ..overflowing()
+  };
+  let paragraph = laid_out(&mut engine, "ab cdefghij", &clamp, TextLimits::width(room));
+
+  assert_eq!(ids(&paragraph), ids(&shape(&mut engine, "ab\u{2026}", &style())));
 }

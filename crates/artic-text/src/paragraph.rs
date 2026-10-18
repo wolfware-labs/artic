@@ -2,14 +2,14 @@
 //!
 //! The lines are placed here, not with `parley`'s `align`, which aligns against the break width
 //! rather than the widest kept line and measures trailing whitespace wrongly in right-to-left
-//! runs. Lines that don't fit are trimmed first, when the style asks, so the paragraph's size
-//! and the lines' placement describe what is drawn. Each line moves by its free width, the paragraph's width minus its own, times its
-//! alignment's factor; a justified line is first stretched to the width limit, sharing what it
-//! lacks of it among its spaces. A line is the visual span of its clusters, except the whitespace
-//! that ends its text: that whitespace hangs, taking no width and drawing nothing. In a left-to-right paragraph every line's
-//! span starts at 0, and in a right-to-left one every line's span ends at the paragraph's width,
-//! whatever direction the line's own text runs: the paragraph's direction is its first strong
-//! character's.
+//! runs. Lines that don't fit are trimmed first, when the style asks, so the paragraph's size and
+//! the lines' placement describe what is drawn. Each line moves by its free width, the
+//! paragraph's width minus its own, times its alignment's factor; a justified line is first
+//! stretched to the width limit, sharing what it lacks of it among its spaces. A line is the
+//! visual span of its clusters, except the whitespace that ends its text: that whitespace hangs,
+//! taking no width and drawing nothing. In a left-to-right paragraph every line's span starts at
+//! 0, and in a right-to-left one every line's span ends at the paragraph's width, whatever
+//! direction the line's own text runs: the paragraph's direction is its first strong character's.
 
 use crate::lines::Kept;
 use crate::shaped::{ShapedLine, shape_line};
@@ -98,23 +98,11 @@ fn trim(
     if !(clamped || wide) {
       continue;
     }
-    let end = if index == last {
-      hard_break_after(text, line.text.start)
-    } else {
-      line.hung
-    };
-    let own = line.hung - line.text.start;
     let limit = max_width.unwrap_or(f32::INFINITY);
-    if let Some(trimmed) = trim::trim_line(shaper, &text[line.text.start..end], own, mode, limit, right_to_left) {
+    if let Some(trimmed) = trim::trim_line(shaper, &text[line.text.start..line.hung], mode, limit, right_to_left) {
       lost |= trimmed.lost;
       *line = std::mem::take(line).replaced_by(trimmed.line);
     }
   }
   lost
-}
-
-fn hard_break_after(text: &str, from: usize) -> usize {
-  text[from..]
-    .find(['\n', '\r', '\u{b}', '\u{c}', '\u{85}', '\u{2028}', '\u{2029}'])
-    .map_or(text.len(), |at| from + at)
 }
