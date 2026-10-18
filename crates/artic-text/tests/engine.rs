@@ -502,3 +502,65 @@ fn lines_follow_the_paragraph_direction() {
     right_to_left.size().width - latin.width,
   );
 }
+
+const LONG_WORD: &str = "Supercalifragilisticexpialidocious";
+
+// NoWrap breaks only at hard breaks: one line wider than the width it was given.
+#[test]
+fn no_wrap_keeps_one_line() {
+  let paragraph = laid_out(&mut engine(), FOX, &wrapping(TextWrapping::NoWrap), TextLimits::width(100.0));
+
+  assert_eq!(paragraph.lines().len(), 1);
+  assert!(paragraph.size().width > 100.0);
+}
+
+// Wrap breaks inside a word wider than the width, so no line sticks out.
+#[test]
+fn wrap_breaks_a_long_word() {
+  let paragraph = laid_out(
+    &mut engine(),
+    LONG_WORD,
+    &wrapping(TextWrapping::Wrap),
+    TextLimits::width(100.0),
+  );
+
+  assert!(paragraph.lines().len() > 1);
+  assert!(
+    paragraph.lines().iter().all(|line| line.width <= 100.0),
+    "{:?}",
+    paragraph.lines()
+  );
+}
+
+// WrapWithOverflow breaks only between words, so a long word stays whole and sticks out.
+#[test]
+fn wrap_with_overflow_keeps_a_long_word() {
+  let paragraph = wrapped(&mut engine(), LONG_WORD, 100.0);
+
+  assert_eq!(paragraph.lines().len(), 1);
+  assert!(paragraph.size().width > 100.0);
+}
+
+// MaxLines applies to hard-broken lines too.
+#[test]
+fn max_lines_with_no_wrap() {
+  let style = ParagraphStyle {
+    max_lines: NonZeroU32::new(2),
+    ..ParagraphStyle::default()
+  };
+
+  assert_eq!(
+    laid_out(&mut engine(), "a\nb\nc", &style, TextLimits::width(100.0))
+      .lines()
+      .len(),
+    2
+  );
+}
+
+// A negative width is 0, so Wrap puts each cluster on its own line.
+#[test]
+fn negative_max_width_breaks_every_cluster_under_wrap() {
+  let paragraph = laid_out(&mut engine(), "abc", &wrapping(TextWrapping::Wrap), TextLimits::width(-5.0));
+
+  assert_eq!(paragraph.lines().len(), 3);
+}
