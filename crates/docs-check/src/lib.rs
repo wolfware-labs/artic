@@ -76,6 +76,9 @@ pub mod docs_design_text {}
 #[doc = include_str!("../../../docs/design/value-objects.md")]
 pub mod docs_design_value_objects {}
 
+#[doc = include_str!("../../../docs/design/xaml-compiler.md")]
+pub mod docs_design_xaml_compiler {}
+
 #[doc = include_str!("../../../docs/spec/dsl.md")]
 pub mod docs_spec_dsl {}
 
