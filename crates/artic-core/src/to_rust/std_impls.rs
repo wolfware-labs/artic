@@ -67,13 +67,15 @@ impl<T: ToRust> ToRust for [T] {
   /// Writes an array literal of the items.
   fn to_rust(&self, out: &mut RustExpr) {
     out.raw("[");
-    for (index, item) in self.iter().enumerate() {
-      if index > 0 {
-        out.raw(", ");
-      }
-      item.to_rust(out);
-    }
+    out.list(self, |out, item| item.to_rust(out));
     out.raw("]");
+  }
+}
+
+impl<T: ToRust + ?Sized> ToRust for &T {
+  /// Writes the value the reference points to.
+  fn to_rust(&self, out: &mut RustExpr) {
+    (**self).to_rust(out);
   }
 }
 
@@ -93,6 +95,13 @@ mod tests {
   fn floats_write_literals() {
     assert_eq!(written(&4.0_f32), "4.0_f32");
     assert_eq!(written(&-1.5_f64), "-1.5_f64");
+  }
+
+  // A reference writes what it points to, so a call can take a slice as one argument.
+  #[test]
+  fn reference_writes_its_target() {
+    let items: &[u8] = &[1, 2];
+    assert_eq!(written(&items), "[1_u8, 2_u8]");
   }
 
   // A `String` is built from its escaped text.

@@ -35,9 +35,7 @@ impl FromStr for Thickness {
 
 impl ToRust for Thickness {
   fn to_rust(&self, out: &mut RustExpr) {
-    out.type_path(env!("CARGO_CRATE_NAME"), "Thickness(");
-    self.0.to_rust(out);
-    out.raw(")");
+    out.call(env!("CARGO_CRATE_NAME"), "Thickness", &[&self.0]);
   }
 }
 
@@ -54,9 +52,7 @@ impl FromStr for CornerRadius {
 
 impl ToRust for CornerRadius {
   fn to_rust(&self, out: &mut RustExpr) {
-    out.type_path(env!("CARGO_CRATE_NAME"), "CornerRadius(");
-    self.0.to_rust(out);
-    out.raw(")");
+    out.call(env!("CARGO_CRATE_NAME"), "CornerRadius", &[&self.0]);
   }
 }
 
@@ -73,9 +69,7 @@ impl FromStr for Brush {
 
 impl ToRust for Brush {
   fn to_rust(&self, out: &mut RustExpr) {
-    out.type_path(env!("CARGO_CRATE_NAME"), "Brush(");
-    self.0.to_rust(out);
-    out.raw(")");
+    out.call(env!("CARGO_CRATE_NAME"), "Brush", &[&self.0]);
   }
 }
 

@@ -47,12 +47,7 @@ impl ToRust for Classes {
       return;
     }
     out.type_path(env!("CARGO_CRATE_NAME"), "Classes::from([");
-    for (index, name) in self.0.iter().enumerate() {
-      if index > 0 {
-        out.raw(", ");
-      }
-      out.str(name);
-    }
+    out.list(&self.0, |out, name| out.str(name));
     out.raw("])");
   }
 }

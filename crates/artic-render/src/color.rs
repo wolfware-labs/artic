@@ -67,14 +67,7 @@ impl FromStr for Color {
 
 impl ToRust for Color {
   fn to_rust(&self, out: &mut RustExpr) {
-    out.type_path(env!("CARGO_CRATE_NAME"), "Color::rgba(");
-    for (index, channel) in [self.r, self.g, self.b, self.a].into_iter().enumerate() {
-      if index > 0 {
-        out.raw(", ");
-      }
-      channel.to_rust(out);
-    }
-    out.raw(")");
+    out.call(env!("CARGO_CRATE_NAME"), "Color::rgba", &[&self.r, &self.g, &self.b, &self.a]);
   }
 }
 

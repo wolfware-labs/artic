@@ -1,3 +1,4 @@
+use crate::ToRust;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 
@@ -65,6 +66,43 @@ impl RustExpr {
       self.raw("f64::NEG_INFINITY");
     } else {
       self.suffixed(value, "f64");
+    }
+  }
+
+  /// Writes a call to the function at `path` in crate `krate`, each argument written through its
+  /// own [`ToRust`]: `::artic_layout::Point::new(1.5_f32, 2.0_f32)`.
+  pub fn call(&mut self, krate: &str, path: &str, args: &[&dyn ToRust]) {
+    self.type_path(krate, path);
+    self.raw("(");
+    self.list(args, |out, arg| arg.to_rust(out));
+    self.raw(")");
+  }
+
+  /// Writes a struct literal of the type at `path` in crate `krate`, each field written through
+  /// its own [`ToRust`]: `::artic_render::SolidColorBrush { color: …, opacity: 1.0_f32 }`.
+  pub fn struct_literal(&mut self, krate: &str, path: &str, fields: &[(&str, &dyn ToRust)]) {
+    self.type_path(krate, path);
+    if fields.is_empty() {
+      self.raw(" {}");
+      return;
+    }
+    self.raw(" { ");
+    self.list(fields, |out, (name, value)| {
+      out.raw(name);
+      out.raw(": ");
+      value.to_rust(out);
+    });
+    self.raw(" }");
+  }
+
+  /// Writes each item with `write`, separated by `, `: the inside of an argument list or an
+  /// array literal.
+  pub fn list<T>(&mut self, items: impl IntoIterator<Item = T>, mut write: impl FnMut(&mut RustExpr, T)) {
+    for (index, item) in items.into_iter().enumerate() {
+      if index > 0 {
+        self.raw(", ");
+      }
+      write(self, item);
     }
   }
 
@@ -171,6 +209,35 @@ mod tests {
       let literal = text.strip_suffix("_f32").expect("an f32 suffix");
       prop_assert_eq!(literal.parse::<f32>().expect("a float").to_bits(), bits);
     }
+  }
+
+  // A call writes its path and each argument through its own `ToRust`.
+  #[test]
+  fn call_writes_each_argument() {
+    let mut out = RustExpr::new();
+    out.path("artic_layout", "::artic::layout");
+    out.call("artic_layout", "Point::new", &[&1.5_f32, &-2_i32]);
+    assert_eq!(out.as_str(), "::artic::layout::Point::new(1.5_f32, -2_i32)");
+  }
+
+  // A struct literal writes each field by name, and an empty one writes empty braces.
+  #[test]
+  fn struct_literal_writes_each_field() {
+    let mut out = RustExpr::new();
+    out.struct_literal("artic_render", "Solid", &[("opacity", &1.0_f32), ("visible", &true)]);
+    assert_eq!(out.take(), "::artic_render::Solid { opacity: 1.0_f32, visible: true }");
+    out.struct_literal("artic_render", "Unit", &[]);
+    assert_eq!(out.as_str(), "::artic_render::Unit {}");
+  }
+
+  // A list separates its items with commas, and writes nothing for no items.
+  #[test]
+  fn list_separates_items() {
+    let mut out = RustExpr::new();
+    out.list(["a", "b"], |out, name| out.str(name));
+    assert_eq!(out.take(), r#""a", "b""#);
+    out.list([0_u8; 0], |out, item| item.to_rust(out));
+    assert_eq!(out.as_str(), "");
   }
 
   // Strings are escaped so quotes, backslashes and newlines survive.

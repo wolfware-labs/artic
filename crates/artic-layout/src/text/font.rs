@@ -172,9 +172,7 @@ impl FromStr for FontFamily {
 
 impl ToRust for FontFamily {
   fn to_rust(&self, out: &mut RustExpr) {
-    out.type_path(env!("CARGO_CRATE_NAME"), "FontFamily::from_names(");
-    self.names().to_rust(out);
-    out.raw(")");
+    out.call(env!("CARGO_CRATE_NAME"), "FontFamily::from_names", &[&self.names()]);
   }
 }
 
@@ -186,11 +184,7 @@ impl ToRust for FamilyName {
         out.str(name);
         out.raw("))");
       }
-      FamilyName::Generic(generic) => {
-        out.type_path(env!("CARGO_CRATE_NAME"), "FamilyName::Generic(");
-        generic.to_rust(out);
-        out.raw(")");
-      }
+      FamilyName::Generic(generic) => out.call(env!("CARGO_CRATE_NAME"), "FamilyName::Generic", &[generic]),
     }
   }
 }
@@ -396,9 +390,8 @@ impl ToRust for FontWeight {
         out.raw(name);
       }
       None => {
-        out.type_path(env!("CARGO_CRATE_NAME"), "FontWeight::new(");
-        self.0.to_rust(out);
-        out.raw(").unwrap()");
+        out.call(env!("CARGO_CRATE_NAME"), "FontWeight::new", &[&self.0]);
+        out.raw(".unwrap()");
       }
     }
   }

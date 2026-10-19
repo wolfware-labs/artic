@@ -183,18 +183,6 @@ impl GradientStop {
   }
 }
 
-/// Writes a struct literal of the type at `path` in this crate, field by field.
-fn write_struct(out: &mut RustExpr, path: &str, fields: &[(&str, &dyn ToRust)]) {
-  out.type_path(env!("CARGO_CRATE_NAME"), path);
-  for (index, (name, value)) in fields.iter().enumerate() {
-    out.raw(if index == 0 { " { " } else { ", " });
-    out.raw(name);
-    out.raw(": ");
-    value.to_rust(out);
-  }
-  out.raw(" }");
-}
-
 /// A gradient's stops, written as the `Arc` the field holds.
 struct Stops<'a>(&'a [GradientStop]);
 
@@ -209,48 +197,59 @@ impl ToRust for Stops<'_> {
 impl ToRust for Brush {
   fn to_rust(&self, out: &mut RustExpr) {
     let (variant, brush): (&str, &dyn ToRust) = match self {
-      Brush::Solid(brush) => ("Brush::Solid(", brush),
-      Brush::Linear(brush) => ("Brush::Linear(", brush),
-      Brush::Radial(brush) => ("Brush::Radial(", brush),
+      Brush::Solid(brush) => ("Brush::Solid", brush),
+      Brush::Linear(brush) => ("Brush::Linear", brush),
+      Brush::Radial(brush) => ("Brush::Radial", brush),
     };
-    out.type_path(env!("CARGO_CRATE_NAME"), variant);
-    brush.to_rust(out);
-    out.raw(")");
+    out.call(env!("CARGO_CRATE_NAME"), variant, &[brush]);
   }
 }
 
 impl ToRust for SolidColorBrush {
   fn to_rust(&self, out: &mut RustExpr) {
-    write_struct(out, "SolidColorBrush", &[("color", &self.color), ("opacity", &self.opacity)]);
+    let SolidColorBrush { color, opacity } = self;
+    out.struct_literal(
+      env!("CARGO_CRATE_NAME"),
+      "SolidColorBrush",
+      &[("color", color), ("opacity", opacity)],
+    );
   }
 }
 
 impl ToRust for LinearGradientBrush {
   fn to_rust(&self, out: &mut RustExpr) {
-    write_struct(
-      out,
+    let LinearGradientBrush {
+      start,
+      end,
+      stops,
+      opacity,
+    } = self;
+    out.struct_literal(
+      env!("CARGO_CRATE_NAME"),
       "LinearGradientBrush",
-      &[
-        ("start", &self.start),
-        ("end", &self.end),
-        ("stops", &Stops(&self.stops)),
-        ("opacity", &self.opacity),
-      ],
+      &[("start", start), ("end", end), ("stops", &Stops(stops)), ("opacity", opacity)],
     );
   }
 }
 
 impl ToRust for RadialGradientBrush {
   fn to_rust(&self, out: &mut RustExpr) {
-    write_struct(
-      out,
+    let RadialGradientBrush {
+      center,
+      radius_x,
+      radius_y,
+      stops,
+      opacity,
+    } = self;
+    out.struct_literal(
+      env!("CARGO_CRATE_NAME"),
       "RadialGradientBrush",
       &[
-        ("center", &self.center),
-        ("radius_x", &self.radius_x),
-        ("radius_y", &self.radius_y),
-        ("stops", &Stops(&self.stops)),
-        ("opacity", &self.opacity),
+        ("center", center),
+        ("radius_x", radius_x),
+        ("radius_y", radius_y),
+        ("stops", &Stops(stops)),
+        ("opacity", opacity),
       ],
     );
   }
@@ -258,11 +257,7 @@ impl ToRust for RadialGradientBrush {
 
 impl ToRust for GradientStop {
   fn to_rust(&self, out: &mut RustExpr) {
-    out.type_path(env!("CARGO_CRATE_NAME"), "GradientStop::new(");
-    self.offset.to_rust(out);
-    out.raw(", ");
-    self.color.to_rust(out);
-    out.raw(")");
+    out.call(env!("CARGO_CRATE_NAME"), "GradientStop::new", &[&self.offset, &self.color]);
   }
 }
 

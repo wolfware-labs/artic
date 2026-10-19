@@ -162,13 +162,12 @@ impl FromStr for BoxShadow {
 impl ToRust for BoxShadow {
   /// Writes `new` and `with_spread`: the struct is `#[non_exhaustive]`, so no literal.
   fn to_rust(&self, out: &mut RustExpr) {
-    out.type_path(env!("CARGO_CRATE_NAME"), "BoxShadow::new(");
-    self.offset.to_rust(out);
-    out.raw(", ");
-    self.blur.to_rust(out);
-    out.raw(", ");
-    self.color.to_rust(out);
-    out.raw(").with_spread(");
+    out.call(
+      env!("CARGO_CRATE_NAME"),
+      "BoxShadow::new",
+      &[&self.offset, &self.blur, &self.color],
+    );
+    out.raw(".with_spread(");
     self.spread.to_rust(out);
     out.raw(")");
   }
