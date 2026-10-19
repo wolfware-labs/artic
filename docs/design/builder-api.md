@@ -272,7 +272,7 @@ fn resource_accent() -> SolidColorBrush {
 impl LoginView {
   fn build_view(&mut self, tree: &mut UiTree) -> Handle<UserControl> {
     let email = TextBox::new()
-      .watermark("Email")
+      .placeholder("Email")
       .build(tree);
     self.email = email;                                            // x:Name="email"
     bind_two_way(tree, email, |vm: &LoginVm| &vm.email, |text_box: &TextBox| &text_box.text);

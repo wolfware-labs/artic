@@ -69,7 +69,7 @@ Each layer builds on the ones below it. The exact dependency edges and the rules
 | `artic-registry` | Type descriptors any UI language uses: type name → constructor, properties, content, attached properties, events, value providers; a type's namespace is its crate | `TypeInfo`, `PropertyInfo`, `Registry`, `Lookup` |
 | `artic-macros` | `#[derive(UiType)]`, `#[element]`, `#[derive(UiProperties)]`, `#[derive(UiEnum)]`, `#[derive(ViewModel)]`, `#[ui_class]` | proc macros |
 | `artic-xaml` | Parser: XML → XAML Infoset (MS-XAML §5), markup-extension grammar, diagnostics with spans | `XamlDocument`, `XamlNode`, `MarkupExtensionAst`, `Diagnostic` |
-| `artic-xaml-compiler` | Infoset → Rust source (`build.rs` API and `cargo artic` CLI) | `compile_dir()`, `CompileOptions` |
+| `artic-xaml-compiler` | Infoset → Rust source (`build.rs` API and `cargo artic` CLI), reached through the facade's `xaml-compiler` feature | `compile_str()`, `compile_dir()` |
 | `artic-xaml-runtime` | Infoset → live object tree using the registry; file watcher and hot-swap | `XamlLoader`, `HotReload` |
 | `artic-xaml-macros` (planned) | `xaml!`: a view written inline in XAML, compiled like a `.xaml` file. It sits beside the XAML compiler, so no generic crate names XAML | proc macro |
 | `artic-layout` | Measure/arrange protocol, invalidation; the text values layout and renderers share, and the `TextEngine` seam | `Layoutable`, `MeasureCx`, `ArrangeCx`, `LayoutManager`, `Size`, `Rect`, `Thickness`, `TextEngine`, `FontFamily`, `TextStyle`, `Paragraph` |
@@ -275,7 +275,7 @@ flowchart LR
 
 ### Build-time compiler (release path)
 
-1. `build.rs` calls `artic_xaml_compiler::compile_dir("src/views", &namespaces)`, with the namespace map from `artic::xaml::namespaces()` and the app's own aliases; every `.xaml` becomes `$OUT_DIR/views/<name>.rs`, included via `include!` by the `#[ui_class]` macro.
+1. `build.rs` calls `artic::xaml::compile_dir("src/views", &namespaces)` (the facade's `xaml-compiler` feature), with the namespace map from `artic::xaml::namespaces()` and the app's own aliases; every `.xaml` becomes `$OUT_DIR/views/<name>.rs`, included via `include!` by the `#[ui_class]` macro.
 2. Type and property names resolve against the registry of all dependency crates. Because the registry is link-time, the compiler runs in a build script that links `artic-controls` and the app's own control crates as build-dependencies.
 3. Output is plain Rust in the [builder shape](../design/builder-api.md): `let sign_in = Button::new().content("Sign in").build(tree);`, one statement per element, children before their parents. No string lookups survive to runtime.
 4. Bindings compile to typed closures (`|vm: &LoginVm| vm.email.get()`) over the `x:DataType` in scope, whether declared, inherited or inferred (§6, D2). A binding with no resolvable `x:DataType` is a compile error that names the attribute to add and where. Unknown property on a known `x:DataType` is a compile error. There is no reflective fallback (D1).

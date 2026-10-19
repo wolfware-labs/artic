@@ -109,7 +109,7 @@ The compiled path knows every type at build time, so it stages nothing and never
 ```rust,ignore
 border.background.set(Some(
   SolidColorBrush::new()
-    .color(COLOR_3B82F6)   // validated at build time; how the constant is emitted is #49's design
+    .color(::artic::render::Color::rgb(0x3B, 0x82, 0xF6))   // parsed at build time and written by `ToRust` (#49)
     .into(),               // SolidColorBrush → Brush through `From`
 ));
 ```
