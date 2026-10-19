@@ -1,0 +1,5 @@
+error[E0080]: evaluation panicked: the property `type` has the name of a field of a group this type flattens; its method would hide the group's
+  --> tests/ui/own_raw_field_named_like_a_group_field.rs:10:17
+   |
+10 | #[derive(Debug, UiType)]
+   |                 ^^^^^^ evaluation of `_::_` failed here

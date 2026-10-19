@@ -57,12 +57,14 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
     }
   });
   let own_field_checks = properties.iter().flat_map(|field| {
-    let name = field.ident.unraw().to_string();
-    let message =
-      format!("the property `{name}` has the name of a field of a group this type flattens; its method would hide the group's");
+    let field_name = field.ident.to_string();
+    let message = format!(
+      "the property `{}` has the name of a field of a group this type flattens; its method would hide the group's",
+      field.ident.unraw()
+    );
     groups.iter().map(move |group| {
       let ty = group.ty;
-      quote!(::core::assert!(!__artic::group_has_field(<#ty as __artic::PropertyGroup>::PROPERTIES, #name), #message);)
+      quote!(::core::assert!(!__artic::group_has_field(<#ty as __artic::PropertyGroup>::PROPERTIES, #field_name), #message);)
     })
   });
   let group_pair_checks = groups.iter().enumerate().flat_map(|(index, first)| {

@@ -121,7 +121,9 @@ pub trait PropertyGroup {
   const CONTENT: Option<&'static PropertyInfo> = None;
 
   /// The path of the group's methods trait, such as `artic_element::properties::LayoutMethods`,
-  /// built like `TypeInfo::rust_path`, for generated code that imports it.
+  /// built like [`TypeInfo::rust_path`]: the module the trait is defined in, which a re-export
+  /// doesn't change, so it may name a private module. Generated code turns it into a path it can
+  /// import the same way it does a type's `rust_path`.
   const METHODS: &'static str;
 
   /// Lists the group's properties, as [`Object::visit_properties`](artic_core::Object::visit_properties)
