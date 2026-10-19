@@ -5,6 +5,7 @@ use crate::ui_type::fields::{Role, UiField, check_content, classify, reject_unma
 use crate::ui_type::generate::{default_field, key_static, property_info, value_check};
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
+use syn::ext::IdentExt;
 use syn::{Data, DeriveInput, Error, Fields, Visibility};
 
 /// Writes a property group: its keys and their public constants, `Default`, `PropertyGroup` with
@@ -51,6 +52,15 @@ pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
     }
   }
   check_content(&properties)?;
+  for field in &properties {
+    let name = field.ident.unraw().to_string();
+    if ["new", "build", "child", "children"].contains(&name.as_str()) {
+      return Err(Error::new_spanned(
+        field.ident,
+        format_args!("a group field can't be named `{name}`: every type that flattens the group has its own `{name}`"),
+      ));
+    }
+  }
   let content = properties
     .iter()
     .position(|field| field.attributes.content.is_some())
@@ -191,5 +201,18 @@ mod tests {
     let expanded = expand_trait(&input);
 
     assert!(expanded.contains("fn width(") && !expanded.contains("fn cache("));
+  }
+
+  // A group field named like a builder method every type has is rejected.
+  #[test]
+  fn group_fields_with_builder_names_are_an_error() {
+    let input: DeriveInput = parse_quote! { struct Sizing { #[ui] build: Property<f32> } };
+
+    let error = expand(&input).expect_err("a reserved name").to_string();
+
+    assert_eq!(
+      error,
+      "a group field can't be named `build`: every type that flattens the group has its own `build`"
+    );
   }
 }

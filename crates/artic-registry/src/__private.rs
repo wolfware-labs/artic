@@ -46,6 +46,46 @@ pub trait ViaChild {
 
 impl ViaChild for &&ValueCheck<NodeId> {}
 
+/// Whether `a` and `b` are the same text, in const code.
+const fn same_text(a: &str, b: &str) -> bool {
+  let (a, b) = (a.as_bytes(), b.as_bytes());
+  if a.len() != b.len() {
+    return false;
+  }
+  let mut index = 0;
+  while index < a.len() {
+    if a[index] != b[index] {
+      return false;
+    }
+    index += 1;
+  }
+  true
+}
+
+/// Whether a group's `properties` hold a field named `name`.
+pub const fn group_has_field(properties: &[PropertyInfo], name: &str) -> bool {
+  let mut index = 0;
+  while index < properties.len() {
+    if same_text(properties[index].field, name) {
+      return true;
+    }
+    index += 1;
+  }
+  false
+}
+
+/// Whether two groups' `properties` hold a field of one name.
+pub const fn groups_share_field(a: &[PropertyInfo], b: &[PropertyInfo]) -> bool {
+  let mut index = 0;
+  while index < a.len() {
+    if group_has_field(b, a[index].field) {
+      return true;
+    }
+    index += 1;
+  }
+  false
+}
+
 /// Compiles only if `T` is a collection of child elements.
 pub const fn assert_collection<T: UiCollection>() {}
 

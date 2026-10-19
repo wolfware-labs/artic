@@ -56,6 +56,25 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
       }
     }
   });
+  let own_field_checks = properties.iter().flat_map(|field| {
+    let name = field.ident.unraw().to_string();
+    let message =
+      format!("the property `{name}` has the name of a field of a group this type flattens; its method would hide the group's");
+    groups.iter().map(move |group| {
+      let ty = group.ty;
+      quote!(::core::assert!(!__artic::group_has_field(<#ty as __artic::PropertyGroup>::PROPERTIES, #name), #message);)
+    })
+  });
+  let group_pair_checks = groups.iter().enumerate().flat_map(|(index, first)| {
+    groups[index + 1..].iter().map(move |second| {
+      let (a, b) = (first.ty, second.ty);
+      let message = format!(
+        "the groups in `{}` and `{}` have a field of one name; their methods would clash",
+        first.ident, second.ident
+      );
+      quote!(::core::assert!(!__artic::groups_share_field(<#a as __artic::PropertyGroup>::PROPERTIES, <#b as __artic::PropertyGroup>::PROPERTIES), #message);)
+    })
+  });
   let group_count = groups.len();
   let property_infos = properties.iter().map(|field| property_info(field));
   let event_infos = events.iter().map(|field| {
@@ -175,6 +194,11 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
       }
 
       #(#group_impls)*
+
+      const _: () = {
+        #(#own_field_checks)*
+        #(#group_pair_checks)*
+      };
 
       static __PROPERTIES: [__artic::PropertyInfo; #property_count] = [#(#property_infos),*];
       static __EVENTS: [__artic::EventInfo; #event_count] = [#(#event_infos),*];
