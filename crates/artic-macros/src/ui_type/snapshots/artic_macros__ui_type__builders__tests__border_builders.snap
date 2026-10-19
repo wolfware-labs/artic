@@ -1,0 +1,34 @@
+---
+source: crates/artic-macros/src/ui_type/builders.rs
+expression: expand(&input)
+---
+impl Border {
+    ///Creates a `Border` with each property at its default.
+    #[must_use]
+    pub fn new() -> Self {
+        <Self as ::core::default::Default>::default()
+    }
+    ///Adds this `Border` to `tree` and returns its handle.
+    pub fn build(self, tree: &mut __artic::UiTree) -> __artic::Handle<Self> {
+        tree.alloc_typed(self)
+    }
+    ///Sets `Padding`, the local value.
+    #[must_use]
+    pub fn padding(self, value: impl ::core::convert::Into<Thickness>) -> Self {
+        self.padding.set(::core::convert::Into::into(value));
+        self
+    }
+    ///Sets `Background` to `Some(value)`, the local value.
+    #[must_use]
+    pub fn background(self, value: impl ::core::convert::Into<Brush>) -> Self {
+        self.background
+            .set(::core::option::Option::Some(::core::convert::Into::into(value)));
+        self
+    }
+    ///Sets `Opacity`, the local value.
+    #[must_use]
+    pub fn opacity(self, value: f32) -> Self {
+        self.opacity.set(value);
+        self
+    }
+}

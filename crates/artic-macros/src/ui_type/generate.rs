@@ -1,9 +1,11 @@
 use crate::crate_root::{REGISTRY, crate_root};
 use crate::ui_type::attributes::{Affects, Attached, Inherits, Target, Whitespace};
+use crate::ui_type::builders::builders;
 use crate::ui_type::fields::{Analysis, Role, UiField, generic_argument, snake_case, ui_name};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::Ident;
+use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 
 /// Writes the code for one derived struct: its property keys, `Default`, `Object` and `UiType`
@@ -112,6 +114,7 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
   let is_collection = !collections.is_empty();
   let attached = &analysis.attributes.attached;
   let attached_keys = attached.iter().map(attached_key);
+  let builders = builders(analysis);
   let attached_helpers = attached.iter().map(|attached| attached_helpers(ident, attached));
   let attached_infos = attached.iter().map(attached_info);
   let attached_count = attached.len();
@@ -173,6 +176,8 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
       #content_functions
 
       impl #ident {
+        #builders
+
         #(#attached_helpers)*
       }
 
@@ -352,7 +357,7 @@ fn key_path(field: &UiField) -> TokenStream {
 }
 
 fn generated_key(field: &Ident) -> Ident {
-  format_ident!("__KEY_{}", field.to_string().to_uppercase())
+  format_ident!("__KEY_{}", field.unraw().to_string().to_uppercase())
 }
 
 /// The `static PropertyKey` the derive writes for a property without a shared `key`.

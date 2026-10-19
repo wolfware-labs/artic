@@ -1,4 +1,5 @@
 pub(crate) mod attributes;
+pub(crate) mod builders;
 pub(crate) mod fields;
 pub(crate) mod generate;
 

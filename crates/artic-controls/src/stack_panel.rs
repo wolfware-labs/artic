@@ -58,7 +58,7 @@ fn sum(a: f32, b: f32) -> f32 {
 }
 
 impl StackPanel {
-  fn spacing(&self) -> f32 {
+  fn usable_spacing(&self) -> f32 {
     let spacing = self.spacing.get();
     if spacing.is_finite() && spacing >= 0.0 { spacing } else { 0.0 }
   }
@@ -73,7 +73,7 @@ impl ElementImpl for StackPanel {
     let mut widest = 0.0_f32;
     for (index, child) in children.into_iter().enumerate() {
       if index > 0 {
-        along = sum(along, self.spacing());
+        along = sum(along, self.usable_spacing());
       }
       let (child_along, child_across) = axis.split(cx.measure(child, axis.join(f32::INFINITY, across)));
       along = sum(along, child_along);
@@ -89,7 +89,7 @@ impl ElementImpl for StackPanel {
     let mut start = 0.0;
     for (index, child) in children.into_iter().enumerate() {
       if index > 0 {
-        start = sum(start, self.spacing());
+        start = sum(start, self.usable_spacing());
       }
       let (along, _) = axis.split(cx.desired(child));
       let along = along.min(f32::MAX - start);
