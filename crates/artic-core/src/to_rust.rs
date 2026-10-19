@@ -54,11 +54,13 @@ impl RustExpr {
     self.text.push_str(path);
   }
 
-  /// Writes `value` as a literal that reads back exactly: `4.0_f32`, `-0.0_f32`, `f32::NAN`,
-  /// `f32::INFINITY`.
+  /// Writes `value` as a literal that reads back to the same bits: `4.0_f32`, `-0.0_f32`,
+  /// `f32::INFINITY`, `f32::NAN`, and any other NaN as `f32::from_bits(…)`.
   pub fn f32(&mut self, value: f32) {
-    if value.is_nan() {
+    if value.to_bits() == f32::NAN.to_bits() {
       self.raw("f32::NAN");
+    } else if value.is_nan() {
+      self.raw(&format!("f32::from_bits({}_u32)", value.to_bits()));
     } else if value == f32::INFINITY {
       self.raw("f32::INFINITY");
     } else if value == f32::NEG_INFINITY {
@@ -68,10 +70,13 @@ impl RustExpr {
     }
   }
 
-  /// Writes `value` as a literal that reads back exactly, as [`f32`](RustExpr::f32) does.
+  /// Writes `value` as a literal that reads back to the same bits, as [`f32`](RustExpr::f32)
+  /// does.
   pub fn f64(&mut self, value: f64) {
-    if value.is_nan() {
+    if value.to_bits() == f64::NAN.to_bits() {
       self.raw("f64::NAN");
+    } else if value.is_nan() {
+      self.raw(&format!("f64::from_bits({}_u64)", value.to_bits()));
     } else if value == f64::INFINITY {
       self.raw("f64::INFINITY");
     } else if value == f64::NEG_INFINITY {
@@ -231,6 +236,15 @@ mod tests {
     assert_eq!(written(&-0.0_f32), "-0.0_f32");
     assert_eq!(written(&4.0_f32), "4.0_f32");
     assert_eq!(written(&-1.5_f64), "-1.5_f64");
+  }
+
+  // A NaN other than the constant, such as the one `"-NaN"` parses to, keeps its bits.
+  #[test]
+  fn other_nans_write_their_bits() {
+    let negative = "-NaN".parse::<f32>().expect("a float");
+    assert_eq!(written(&negative), format!("f32::from_bits({}_u32)", negative.to_bits()));
+    let negative = "-NaN".parse::<f64>().expect("a float");
+    assert_eq!(written(&negative), format!("f64::from_bits({}_u64)", negative.to_bits()));
   }
 
   proptest! {
