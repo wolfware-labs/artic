@@ -2,7 +2,7 @@
 
 Issue: #305. Builds on: [naming review](naming-review.md) (#30, D20), [value objects](value-objects.md) (#32), [elements](element.md) (#42), [TextBlock](text-block.md) (#46). Unblocks: #43, #49.
 
-An app picks its host, its renderer and its UI language. Host and renderer already sit behind traits: no layer depends on winit or vello. The language is separate by dependency too: no crate that defines types, layout, drawing or controls depends on `artic-xaml`, `artic-xaml-compiler` or `artic-xaml-runtime`; only the XAML crates themselves, the facade's `runtime-xaml` feature, `artic-lsp` and `artic-cli` do. `docs/architecture.md` plans one more edge, `artic-style` → `artic-xaml`, for `Span` and `Diagnostic` in selector errors; this design drops it (section 5). Its names, though, reach into the layers below it. Every UI type derives `XamlType`, states an XML namespace, and marks its fields `#[xaml(...)]`; layout enums derive `XamlEnum`; the registry's traits and lists are named after XAML.
+An app picks its host, its renderer and its UI language. Host and renderer already sit behind traits: no layer depends on winit or vello. The language is separate by dependency too: no crate that defines types, layout, drawing or controls depends on `artic-xaml`, `artic-xaml-compiler` or `artic-xaml-runtime`; only the XAML crates themselves, the facade's `runtime-xaml` and `xaml-compiler` features, `artic-lsp` and `artic-cli` do. `docs/architecture.md` plans one more edge, `artic-style` → `artic-xaml`, for `Span` and `Diagnostic` in selector errors; this design drops it (section 5). Its names, though, reach into the layers below it. Every UI type derives `XamlType`, states an XML namespace, and marks its fields `#[xaml(...)]`; layout enums derive `XamlEnum`; the registry's traits and lists are named after XAML.
 
 D20 keeps WPF framing out of the APIs while the markup keeps the XAML name. This design extends it: the layers below a language describe types in neutral terms, and only the XAML crates speak XAML. A new spec, `docs/spec/dsl.md`, states the contract any language follows, so someone can write their own or plug in one that exists. It keeps XAML's ideas (attached properties, content, values written as text, markup extensions, namespaces) and names them neutrally. XAML is the first language that follows it.
 
@@ -41,7 +41,7 @@ XAML's concepts keep their names where they already say what they do without XAM
 | type converter | a value written as text, through `FromStr` |
 | collection element | `UiCollection` |
 
-`#[element]`, `.xaml` files, MS-XAML syntax, the `x:` directives, the XAML crates' names, and `artic-lsp`, `artic-cli` and the facade's `runtime-xaml` feature, which are about XAML, don't change.
+`#[element]`, `.xaml` files, MS-XAML syntax, the `x:` directives, the XAML crates' names, and `artic-lsp`, `artic-cli` and the facade's `runtime-xaml` and `xaml-compiler` features, which are about XAML, don't change.
 
 A glossary at the top of `dsl.md` keeps neighboring names apart: `UiType` (a type a language can name) and `UiTree` (the node tree), `UI_TYPES` (types for languages) and `ELEMENT_TYPES` (how layout and rendering reach an element), a value provider (computes a property's value) and a value object (a type written as a value, [value objects](value-objects.md)).
 

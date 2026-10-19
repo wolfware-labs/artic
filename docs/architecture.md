@@ -40,6 +40,7 @@ flowchart TD
   artic -. planned .-> text[artic-text]
   artic -. hot-reload / runtime-xaml .-> runtime[artic-xaml-runtime]
   artic -. xaml .-> xaml
+  artic -. xaml-compiler .-> compiler
 
   theme --> controls
   theme --> styles[artic-style]
@@ -103,7 +104,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-test` | `artic-core`, `artic-layout`, `artic-render`, `artic-text`, `artic-test-fonts`, `artic-element`, `artic-platform`; planned: `artic-registry`, `artic-style` |
 | `artic-winit` | `artic-core`, `artic-render`, `artic-platform` |
 | `artic-vello` | `artic-layout`, `artic-render` |
-| `artic` | every app-facing crate; `artic-xaml` with the `xaml` feature, which `hot-reload` and `runtime-xaml` turn on; `artic-xaml-runtime` only with `hot-reload` or `runtime-xaml` |
+| `artic` | every app-facing crate; `artic-xaml` with the `xaml` feature, which `hot-reload`, `runtime-xaml` and `xaml-compiler` turn on; `artic-xaml-runtime` only with `hot-reload` or `runtime-xaml`; `artic-xaml-compiler` only with `xaml-compiler`, which an app enables on its build-dependency on the facade |
 
 ## Rules
 
