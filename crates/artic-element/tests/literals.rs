@@ -3,6 +3,7 @@
 // artic-layout and artic-render, so one file covers every crate's value types.
 
 use artic_core::{RustExpr, ToRust};
+use artic_element::{Classes, Visibility};
 use artic_layout::{
   CornerRadius, FontFamily, FontStyle, FontWeight, Orientation, Point, Rect, RelativePoint, RelativeScalar, Size, TextWrapping,
   Thickness, Transform,
@@ -148,4 +149,17 @@ fn box_shadow() {
     8.0_f32,
     ::artic_render::Color::rgba(0_u8, 0_u8, 0_u8, 128_u8)
   ).with_spread(1.0_f32));
+}
+
+// Classes write the list `From` takes; none write `default`.
+#[test]
+fn classes() {
+  assert_writes!(parse::<Classes>(" primary  large ") => ::artic_element::Classes::from(["primary", "large"]));
+  assert_writes!(parse::<Classes>("") => ::artic_element::Classes::default());
+}
+
+// Element enums write their variant's path.
+#[test]
+fn element_enums() {
+  assert_writes!(parse::<Visibility>("Collapsed") => ::artic_element::Visibility::Collapsed);
 }

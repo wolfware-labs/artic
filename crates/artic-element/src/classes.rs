@@ -1,5 +1,6 @@
 //! The style classes an element has.
 
+use artic_core::{RustExpr, ToRust};
 use std::convert::Infallible;
 use std::str::FromStr;
 
@@ -35,5 +36,23 @@ impl<const N: usize> From<[&str; N]> for Classes {
         .map(str::to_owned)
         .collect(),
     )
+  }
+}
+
+impl ToRust for Classes {
+  /// Writes `Classes::from([...])` with each name, or `Classes::default()` when there are none.
+  fn to_rust(&self, out: &mut RustExpr) {
+    if self.0.is_empty() {
+      out.type_path(env!("CARGO_CRATE_NAME"), "Classes::default()");
+      return;
+    }
+    out.type_path(env!("CARGO_CRATE_NAME"), "Classes::from([");
+    for (index, name) in self.0.iter().enumerate() {
+      if index > 0 {
+        out.raw(", ");
+      }
+      out.str(name);
+    }
+    out.raw("])");
   }
 }
