@@ -2,7 +2,7 @@
 
 Issue: #35. Builds on: [value objects](value-objects.md) (#32), the [frame pipeline](frame.md) (#40), geometry parsing (#22). Unblocks: #36 (shapes, clips and shadows), #46 (`TextBlock`), #37, #116.
 
-A brush is the paint behind `Background="#3B82F6"`, `BorderBrush="Red"` or a gradient. This design gives `Color` its XAML text forms, adds `Brush` with solid and gradient variants, and carries brushes through the scene to vello, so a control's `Background` reaches pixels.
+A brush is the paint behind `Background="#3B82F6"`, `BorderBrush="Red"` or a gradient. This design gives `Color` its text forms, adds `Brush` with solid and gradient variants, and carries brushes through the scene to vello, so a control's `Background` reaches pixels.
 
 ```xml
 <Border Background="#3B82F6" BorderBrush="SteelBlue"/>
@@ -42,7 +42,7 @@ invalid Color 'redd': 'redd' is not a color name; expected "#RGB", "#ARGB", "#RR
 
 ## 2. Brushes
 
-One type per markup element, and `Brush` as the family a property holds:
+One struct per kind of brush, and `Brush` as the family a property holds:
 
 ```rust,ignore
 pub enum Brush {

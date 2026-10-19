@@ -67,10 +67,11 @@ Each layer builds on the ones below it. The exact dependency edges and the rules
 | --- | --- | --- |
 | `artic-core` | Signals, effects, `Property<T>`, styled-property metadata, visual/logical tree, `Object` trait, resources, dispatcher | `Signal`, `effect`, `Property`, `Node`, `UiTree`, `Dispatcher` |
 | `artic-registry` | Type descriptors any UI language uses: type name → constructor, properties, content, attached properties, events, value providers; a type's namespace is its crate | `TypeInfo`, `PropertyInfo`, `Registry`, `Lookup` |
-| `artic-macros` | `#[derive(UiType)]`, `#[element]`, `#[derive(UiProperties)]`, `#[derive(UiEnum)]`, `#[derive(ViewModel)]`, `#[ui_class]`, `xaml!` (inline) | proc macros |
+| `artic-macros` | `#[derive(UiType)]`, `#[element]`, `#[derive(UiProperties)]`, `#[derive(UiEnum)]`, `#[derive(ViewModel)]`, `#[ui_class]` | proc macros |
 | `artic-xaml` | Parser: XML → XAML Infoset (MS-XAML §5), markup-extension grammar, diagnostics with spans | `XamlDocument`, `XamlNode`, `MarkupExtensionAst`, `Diagnostic` |
 | `artic-xaml-compiler` | Infoset → Rust source (`build.rs` API and `cargo artic` CLI) | `compile_dir()`, `CompileOptions` |
 | `artic-xaml-runtime` | Infoset → live object tree using the registry; file watcher and hot-swap | `XamlLoader`, `HotReload` |
+| `artic-xaml-macros` (planned) | `xaml!`: a view written inline in XAML, compiled like a `.xaml` file. It sits beside the XAML compiler, so no generic crate names XAML | proc macro |
 | `artic-layout` | Measure/arrange protocol, invalidation; the text values layout and renderers share, and the `TextEngine` seam | `Layoutable`, `MeasureCx`, `ArrangeCx`, `LayoutManager`, `Size`, `Rect`, `Thickness`, `TextEngine`, `FontFamily`, `TextStyle`, `Paragraph` |
 | `artic-element` | The `Element` trait and its render, hit-test, event and accessibility contexts; the property groups every control has; gesture recognizers. Shared by controls and the platform host (D25) | `Element`, `Layout`, `RenderCx`, `EventCx`, `AccessCx` |
 | `artic-controls` | Templated controls, primitives, panels, default `ControlTemplate`s | `Button`, `TextBox`, `ItemsControl`, … |
@@ -136,7 +137,7 @@ pub struct Border {
 }
 ```
 
-The derive emits a `TypeInfo` static and registers it with `linkme` (distributed slice) so the registry is assembled at link time. It also writes the type's `Default` (each property created with its key and default) and `Object` impls, so the struct derives `Debug` but not `Default`. Field types decide everything: a `Property<T>` is a settable property if `T: FromStr` or `T: UiType` (looking through `Option`, and `NodeId` marks a child slot); an `Event<A>` is an event; a `#[ui(flatten)]` field is a property group (`#[derive(UiProperties)]`, such as `Layout`) whose properties are listed as the type's; any other `#[ui]` field must implement `UiCollection` and accepts child elements. `#[ui(content)]` marks the one property or collection field that receives content written inside the element (a flattened group may mark one of its properties instead), and `#[ui(override_defaults)]` on the struct makes `Default` call the type's `OverrideDefaults` impl after building the fields.
+The derive emits a `TypeInfo` static and registers it with `linkme` (distributed slice) so the registry is assembled at link time. It also writes the type's `Default` (each property created with its key and default) and `Object` impls, so the struct derives `Debug` but not `Default`. With them come the builder methods: `Border::new()`, one method per property, and `build(tree)`, which returns a `Handle<Border>` ([builder API](../design/builder-api.md)). Field types decide everything: a `Property<T>` is a settable property if `T: FromStr` or `T: UiType` (looking through `Option`, and `NodeId` marks a child slot); an `Event<A>` is an event; a `#[ui(flatten)]` field is a property group (`#[derive(UiProperties)]`, such as `Layout`) whose properties are listed as the type's; any other `#[ui]` field must implement `UiCollection` and accepts child elements. `#[ui(content)]` marks the one property or collection field that receives content written inside the element (a flattened group may mark one of its properties instead), and `#[ui(override_defaults)]` on the struct makes `Default` call the type's `OverrideDefaults` impl after building the fields.
 
 Each property gets its own `PropertyKey` unless `#[ui(key = FONT_SIZE)]` names a shared one; properties that inherit across types share their key. `affects = layout | render` and `inherits` set the metadata of a generated key.
 
@@ -395,7 +396,7 @@ impl LoginVm {
 
 ## 7. Visual tree, layout, and controls
 
-Two trees, as in WPF/Avalonia: the **logical tree** (what the XAML declared; scope for `DataContext`, resources, names) and the **visual tree** (what is measured and drawn, including template expansions). Both live in the same tree; each node stores its logical parent and visual parent separately.
+Two trees, as in WPF/Avalonia: the **logical tree** (what the view declared; scope for `DataContext`, resources, names) and the **visual tree** (what is measured and drawn, including template expansions). Both live in the same tree; each node stores its logical parent and visual parent separately.
 
 ### Element traits and composition
 
@@ -486,9 +487,9 @@ WPF two-pass measure/arrange with these rules:
 | `ComboBox` | as ListBox + `PopupState` | `PART_Popup`, `PART_Toggle` | popup rendered in the window's overlay layer |
 | `TabControl` | ItemsControl's parts + `SelectionState` | `PART_TabStrip`, `PART_Content` | `TabItem` header/content |
 | `Popup` | groups | — | overlay-layer primitive used by ComboBox, ToolTip |
-| `UserControl` | groups + children | — | root for app views |
+| `UserControl` | groups + child | — | root for app views |
 | `Application` | groups + surfaces | — | root of the tree; `Resources` and `Styles` (#122) |
-| `Surface` | groups + children | — | a root the host presents: `Title`, `IsOpen`; platform settings are attached (`Desktop.Width`, `.Height`, `.SizeToContent`, `.Chrome`), see the [surface design](../design/surface.md) |
+| `Surface` | groups + child | — | a root the host presents: `Title`, `IsOpen`; platform settings are attached (`Desktop.Width`, `.Height`, `.SizeToContent`, `.Chrome`), see the [surface design](../design/surface.md) |
 
 Every `TemplatedControl` ships a default `ControlTemplate` in the theme dictionary (§8) and looks up `PART_*` names after the template is applied (`on_apply_template`). Missing required parts are an error in debug.
 
@@ -498,7 +499,7 @@ Every `TemplatedControl` ships a default `ControlTemplate` in the theme dictiona
 
 ### Open questions
 
-- [x] `Grid` short syntax only, or also the `<Grid.ColumnDefinitions>` element form? Decided: both (the element form is what the spec allows; the string form is a type converter) (D6).
+- [x] `Grid` short syntax only, or also the `<Grid.ColumnDefinitions>` element form? Decided: both (the element form is what the spec allows; the string form is the collection written as text, through `FromStr`) (D6).
 - [x] Ship `SplitView`/`Expander` in v1 or defer? Decided: defer to v2 (D6).
 
 ## 8. Styling, resources, templates, themes
@@ -765,15 +766,15 @@ Accessibility, text editing, and input are cross-cutting: every control implemen
 - Pointer capture (`cx.capture_pointer()`) routes subsequent events to the capturing element until release; required for `Slider` and `ScrollViewer` drags.
 - Touch targets: when the input mode artic tracks (the most recently used input) is touch, `TouchInflate` (default 8 px) expands hit rects of `Focusable` elements; the touch theme variant (§8) raises minimum sizes.
 - Scrolling: `ScrollViewer` handles wheel, precise trackpad deltas, touch pan with inertia and overscroll bounce (iOS style, off by default on desktop), and keyboard.
-- Keyboard shortcuts: `KeyGesture` type converter parses `"Ctrl+Shift+S"`; `Cmd` is written `Ctrl` in XAML and mapped per platform unless the gesture uses the explicit `Meta` modifier.
+- Keyboard shortcuts: `KeyGesture` parses from text such as `"Ctrl+Shift+S"` (`FromStr`); `Cmd` is written `Ctrl` and mapped per platform unless the gesture uses the explicit `Meta` modifier.
 
 ### Localization
 
-- `x:Uid` reserved for it; v1 offers `{Localize Key}` markup extension backed by a `Localizer` trait and RTL flow (`FlowDirection`) that mirrors layout in panels and `Margin`. The fluent-rs implementation (`.ftl` files) ships in the optional `artic-i18n` crate (D6).
+- `x:Uid` reserved for it; v1 offers a `Localize` value provider (`{Localize Key}` in XAML) backed by a `Localizer` trait and RTL flow (`FlowDirection`) that mirrors layout in panels and `Margin`. The fluent-rs implementation (`.ftl` files) ships in the optional `artic-i18n` crate (D6).
 
 ### Open question
 
-- [x] Ship the fluent-rs localizer in v1, or only the trait and the markup extension? Decided: trait + extension in core, the fluent-rs implementation as the optional `artic-i18n` crate (D6).
+- [x] Ship the fluent-rs localizer in v1, or only the trait and the value provider? Decided: trait + value provider in core, the fluent-rs implementation as the optional `artic-i18n` crate (D6).
 
 ## 13. Tooling, testing, milestones, open questions
 

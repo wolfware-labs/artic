@@ -6,7 +6,7 @@ Some XAML elements aren't UI nodes. `<SolidColorBrush Color="#3B82F6"/>` is a va
 
 ## Inventory
 
-A type is a **node** if it lives in the tree: it has a parent, takes part in layout, input or rendering, or needs a `Named<T>` handle. It is a **value** if it is only data that a property holds, copied into each place that uses it.
+A type is a **node** if it lives in the tree: it has a parent, takes part in layout, input or rendering, or needs a `Handle<T>`. It is a **value** if it is only data that a property holds, copied into each place that uses it.
 
 | Type | Spec | Kind | Why |
 | --- | --- | --- | --- |
@@ -138,7 +138,7 @@ A node written as a resource (`<Button x:Key="…"/>`) is built anew at each use
 
 ## `x:Name` on values
 
-`x:Name` on a value is an error in both paths: a `Named<T>` handle (§9) points at a node, and a value has none once it is moved into its property. Both report ``x:Name names an element; `SolidColorBrush` is a value`` at the attribute's span. `x:Key` remains the way to refer to a value.
+`x:Name` on a value is an error in both paths: a `Handle<T>` (§9) points at a node, and a value has none once it is moved into its property. Both report ``x:Name names an element; `SolidColorBrush` is a value`` at the attribute's span. `x:Key` remains the way to refer to a value.
 
 ## Walkthrough: the §4 brush resource
 
