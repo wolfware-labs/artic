@@ -107,7 +107,7 @@ pub fn build(tree: &mut UiTree) -> View {
 - One `let` per element, in post-order, named `__e0`, `__e1`, … in that order, so no name in the view can shadow `tree` or another local.
 - A property becomes its builder method, named after the field (`PropertyInfo::field`). A group's property uses the same name through the group's methods trait. `PropertyGroupInfo` gains `methods: &'static str`, the trait's defining path from `PropertyGroup::METHODS`. The compiler never writes that path, which may name a private module: it takes the crate (first segment) and the trait's name (last segment), and since the trait sits at its crate's root, imports it once per file as `use <crate path>::<Trait> as _;` with the crate's path from the map, such as `use ::artic::element::LayoutMethods as _;`.
 - Content comes last, after the property methods, because `.child` and `.children` return a `WithChildren` that has only `build`. `ContentInfo::Collection` gains `method: Option<&'static str>`, the method the derive generated (`"child"`, `"children"`) or `None` for a collection of values; a `ContentInfo::Property` content is that property's method, given text or a literal. Text content takes the node's `text`, or its `raw` text for a type marked `whitespace = "significant"`.
-- `x:Name` adds a field to `View`, typed by the element. The name must be a Rust identifier; a keyword becomes a raw identifier (`r#type`). `#[allow(non_snake_case)]` keeps `x:Name="Email"` warning-free.
+- `x:Name` adds a field to `View`, typed by the element. The name must be a Rust identifier; a keyword becomes a raw identifier (`r#type`), except `self`, `Self`, `crate` and `super`, which can't be raw and are rejected. `#[allow(non_snake_case)]` keeps `x:Name="Email"` warning-free.
 - `x:Class` and `x:FieldModifier` are recorded for #52, which includes the file in the code-behind module, calls `build` and keeps the `View`; `x:DataType` is recorded for #94; `x:Uid` is accepted and ignored until localization (#168).
 - The file references every crate the namespace map names, with `use <path> as _;`, so their types stay in the app's link (below).
 
@@ -133,7 +133,7 @@ The builder design's sample, `impl LoginView { fn build_view(&mut self, tree) }`
 | A second child for a `Child` content | the type takes one child |
 | A collection content of values, such as gradient stops | "value collections come with #57" |
 | A root that is a value object or a value provider | the root must be an element |
-| An `x:Name` that isn't an identifier, is used twice, or is `root` | invalid or duplicate name |
+| An `x:Name` that isn't an identifier, is `self`, `Self`, `crate` or `super`, is used twice, or is `root` | invalid or duplicate name |
 
 Rendering them as `file:line:col` lines in `cargo build` output is #51. Here `compile_dir` stops on the first file with errors and returns them; its error's `Display` renders them plainly.
 
