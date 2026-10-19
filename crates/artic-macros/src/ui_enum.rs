@@ -3,13 +3,15 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Error, Fields, Ident};
 
-/// Writes a `FromStr` impl that matches the enum's variant names, ignoring ASCII case.
+/// Writes a `FromStr` impl that matches the enum's variant names, ignoring ASCII case, and a
+/// `ToRust` impl that writes the variant's path.
 pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
   let variants = unit_variants(input)?;
   let root = crate_root(None, &input.ident, ENUM)?;
   let ident = &input.ident;
   let type_name = ident.to_string();
   let names: Vec<String> = variants.iter().map(ToString::to_string).collect();
+  let paths: Vec<String> = names.iter().map(|name| format!("::{name}")).collect();
   Ok(quote! {
     impl ::core::str::FromStr for #ident {
       type Err = #root::__private::ParseEnumError;
@@ -25,6 +27,15 @@ pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
           type_name: #type_name,
           expected: &[#(#names),*],
         })
+      }
+    }
+
+    impl #root::__private::ToRust for #ident {
+      fn to_rust(&self, out: &mut #root::__private::RustExpr) {
+        out.type_path(::core::env!("CARGO_CRATE_NAME"), #type_name);
+        out.raw(match self {
+          #(Self::#variants => #paths,)*
+        });
       }
     }
   })
