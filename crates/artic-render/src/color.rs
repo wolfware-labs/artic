@@ -1,5 +1,6 @@
 mod names;
 
+use artic_core::{RustExpr, ToRust};
 use std::str::FromStr;
 
 /// An sRGB color with straight (not premultiplied) alpha, 8 bits per channel.
@@ -61,6 +62,19 @@ impl FromStr for Color {
       problem,
       forms: FORMS,
     })
+  }
+}
+
+impl ToRust for Color {
+  fn to_rust(&self, out: &mut RustExpr) {
+    out.type_path(env!("CARGO_CRATE_NAME"), "Color::rgba(");
+    for (index, channel) in [self.r, self.g, self.b, self.a].into_iter().enumerate() {
+      if index > 0 {
+        out.raw(", ");
+      }
+      channel.to_rust(out);
+    }
+    out.raw(")");
   }
 }
 

@@ -7,6 +7,7 @@ use artic_layout::{
   CornerRadius, FontFamily, FontStyle, FontWeight, Orientation, Point, Rect, RelativePoint, RelativeScalar, Size, TextWrapping,
   Thickness, Transform,
 };
+use artic_render::{BoxShadow, Brush, Color, GradientStop, LinearGradientBrush, RadialGradientBrush};
 use pretty_assertions::assert_eq;
 use std::fmt::Debug;
 use std::num::NonZeroU32;
@@ -88,4 +89,63 @@ fn layout_enums() {
   assert_writes!(parse::<Orientation>("vertical") => ::artic_layout::Orientation::Vertical);
   assert_writes!(parse::<TextWrapping>("Wrap") => ::artic_layout::TextWrapping::Wrap);
   assert_writes!(parse::<FontStyle>("Italic") => ::artic_layout::FontStyle::Italic);
+}
+
+// A color writes its channels.
+#[test]
+fn color() {
+  assert_writes!(parse::<Color>("#3AF") => ::artic_render::Color::rgba(51_u8, 170_u8, 255_u8, 255_u8));
+}
+
+// A brush parsed from text is solid, written as a struct literal.
+#[test]
+fn solid_brush() {
+  assert_writes!(parse::<Brush>("SteelBlue") => ::artic_render::Brush::Solid(::artic_render::SolidColorBrush {
+    color: ::artic_render::Color::rgba(70_u8, 130_u8, 180_u8, 255_u8),
+    opacity: 1.0_f32
+  }));
+}
+
+// A linear gradient writes its points, its stops as an array and its opacity.
+#[test]
+fn linear_gradient() {
+  let gradient = LinearGradientBrush::new(
+    RelativePoint::relative(0.0, 0.0),
+    RelativePoint::fixed(10.0, 0.0),
+    [
+      GradientStop::new(0.0, Color::rgb(255, 0, 0)),
+      GradientStop::new(1.0, Color::rgb(0, 0, 255)),
+    ],
+  );
+  assert_writes!(Brush::from(gradient) => ::artic_render::Brush::Linear(::artic_render::LinearGradientBrush {
+    start: ::artic_layout::RelativePoint::relative(0.0_f32, 0.0_f32),
+    end: ::artic_layout::RelativePoint::fixed(10.0_f32, 0.0_f32),
+    stops: ::std::sync::Arc::from([
+      ::artic_render::GradientStop::new(0.0_f32, ::artic_render::Color::rgba(255_u8, 0_u8, 0_u8, 255_u8)),
+      ::artic_render::GradientStop::new(1.0_f32, ::artic_render::Color::rgba(0_u8, 0_u8, 255_u8, 255_u8))
+    ]),
+    opacity: 1.0_f32
+  }));
+}
+
+// A radial gradient with no stops writes an empty array.
+#[test]
+fn radial_gradient() {
+  assert_writes!(Brush::from(RadialGradientBrush::default()) => ::artic_render::Brush::Radial(::artic_render::RadialGradientBrush {
+    center: ::artic_layout::RelativePoint::relative(0.5_f32, 0.5_f32),
+    radius_x: ::artic_layout::RelativeScalar::relative(0.5_f32),
+    radius_y: ::artic_layout::RelativeScalar::relative(0.5_f32),
+    stops: ::std::sync::Arc::from([]),
+    opacity: 1.0_f32
+  }));
+}
+
+// A shadow writes `new` and its spread.
+#[test]
+fn box_shadow() {
+  assert_writes!(parse::<BoxShadow>("2 4 8 1 #80000000") => ::artic_render::BoxShadow::new(
+    ::artic_layout::Point::new(2.0_f32, 4.0_f32),
+    8.0_f32,
+    ::artic_render::Color::rgba(0_u8, 0_u8, 0_u8, 128_u8)
+  ).with_spread(1.0_f32));
 }

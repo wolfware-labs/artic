@@ -1,4 +1,5 @@
 use crate::{Color, ParseColorError};
+use artic_core::{RustExpr, ToRust};
 use artic_layout::geometry::{RelativePoint, RelativeScalar};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -179,6 +180,89 @@ impl GradientStop {
   #[must_use]
   pub const fn new(offset: f32, color: Color) -> GradientStop {
     GradientStop { offset, color }
+  }
+}
+
+/// Writes a struct literal of the type at `path` in this crate, field by field.
+fn write_struct(out: &mut RustExpr, path: &str, fields: &[(&str, &dyn ToRust)]) {
+  out.type_path(env!("CARGO_CRATE_NAME"), path);
+  for (index, (name, value)) in fields.iter().enumerate() {
+    out.raw(if index == 0 { " { " } else { ", " });
+    out.raw(name);
+    out.raw(": ");
+    value.to_rust(out);
+  }
+  out.raw(" }");
+}
+
+/// A gradient's stops, written as the `Arc` the field holds.
+struct Stops<'a>(&'a [GradientStop]);
+
+impl ToRust for Stops<'_> {
+  fn to_rust(&self, out: &mut RustExpr) {
+    out.raw("::std::sync::Arc::from(");
+    self.0.to_rust(out);
+    out.raw(")");
+  }
+}
+
+impl ToRust for Brush {
+  fn to_rust(&self, out: &mut RustExpr) {
+    let (variant, brush): (&str, &dyn ToRust) = match self {
+      Brush::Solid(brush) => ("Brush::Solid(", brush),
+      Brush::Linear(brush) => ("Brush::Linear(", brush),
+      Brush::Radial(brush) => ("Brush::Radial(", brush),
+    };
+    out.type_path(env!("CARGO_CRATE_NAME"), variant);
+    brush.to_rust(out);
+    out.raw(")");
+  }
+}
+
+impl ToRust for SolidColorBrush {
+  fn to_rust(&self, out: &mut RustExpr) {
+    write_struct(out, "SolidColorBrush", &[("color", &self.color), ("opacity", &self.opacity)]);
+  }
+}
+
+impl ToRust for LinearGradientBrush {
+  fn to_rust(&self, out: &mut RustExpr) {
+    write_struct(
+      out,
+      "LinearGradientBrush",
+      &[
+        ("start", &self.start),
+        ("end", &self.end),
+        ("stops", &Stops(&self.stops)),
+        ("opacity", &self.opacity),
+      ],
+    );
+  }
+}
+
+impl ToRust for RadialGradientBrush {
+  fn to_rust(&self, out: &mut RustExpr) {
+    write_struct(
+      out,
+      "RadialGradientBrush",
+      &[
+        ("center", &self.center),
+        ("radius_x", &self.radius_x),
+        ("radius_y", &self.radius_y),
+        ("stops", &Stops(&self.stops)),
+        ("opacity", &self.opacity),
+      ],
+    );
+  }
+}
+
+impl ToRust for GradientStop {
+  fn to_rust(&self, out: &mut RustExpr) {
+    out.type_path(env!("CARGO_CRATE_NAME"), "GradientStop::new(");
+    self.offset.to_rust(out);
+    out.raw(", ");
+    self.color.to_rust(out);
+    out.raw(")");
   }
 }
 

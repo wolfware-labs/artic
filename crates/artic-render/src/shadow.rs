@@ -1,4 +1,5 @@
 use crate::{Color, ParseColorError, Shape};
+use artic_core::{RustExpr, ToRust};
 use artic_layout::geometry::{CornerRadius, Point, Rect, RoundedRect};
 use std::str::FromStr;
 
@@ -155,6 +156,21 @@ impl FromStr for BoxShadow {
       text: text.to_owned(),
       problem,
     })
+  }
+}
+
+impl ToRust for BoxShadow {
+  /// Writes `new` and `with_spread`: the struct is `#[non_exhaustive]`, so no literal.
+  fn to_rust(&self, out: &mut RustExpr) {
+    out.type_path(env!("CARGO_CRATE_NAME"), "BoxShadow::new(");
+    self.offset.to_rust(out);
+    out.raw(", ");
+    self.blur.to_rust(out);
+    out.raw(", ");
+    self.color.to_rust(out);
+    out.raw(").with_spread(");
+    self.spread.to_rust(out);
+    out.raw(")");
   }
 }
 
