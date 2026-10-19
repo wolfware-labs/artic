@@ -495,6 +495,21 @@ mod tests {
     );
   }
 
+  // Two attached properties whose names differ but give the same helpers are rejected.
+  #[test]
+  fn attached_names_with_the_same_helpers_are_an_error() {
+    let input: DeriveInput = parse_quote! {
+      #[ui(attached(name = "FooBar", ty = usize, target = any))]
+      #[ui(attached(name = "fooBar", ty = usize, target = any))]
+      struct Grid;
+    };
+
+    assert_eq!(
+      error(&input),
+      "`foo_bar` would be both the getter of the attached property `FooBar` and the getter of the attached property `fooBar`; rename one"
+    );
+  }
+
   // A property's key constant and an attached property's constant with one name are rejected.
   #[test]
   fn key_constant_clashing_with_an_attached_constant_is_an_error() {
