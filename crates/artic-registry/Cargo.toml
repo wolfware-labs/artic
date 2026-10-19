@@ -13,7 +13,12 @@ artic-core.workspace = true
 linkme.workspace = true
 thiserror.workspace = true
 
+[features]
+# Fills `PropertyInfo::literal`, for a build-time code generator. Apps leave it off.
+literals = []
+
 [dev-dependencies]
+artic-macros.workspace = true
 pretty_assertions.workspace = true
 static_assertions.workspace = true
 

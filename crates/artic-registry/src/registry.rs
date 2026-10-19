@@ -176,6 +176,7 @@ mod tests {
     value_type: "Thickness",
     affects: Affects::LAYOUT,
     inherits: false,
+    literal: None,
   }];
   static GROUPS: [PropertyGroupInfo; 1] = [PropertyGroupInfo {
     field: "layout",
@@ -204,6 +205,7 @@ mod tests {
       value_type: "f32",
       affects: Affects::NONE,
       inherits: false,
+      literal: None,
     }];
     static BORDER: TypeInfo = TypeInfo {
       properties: &OWN,

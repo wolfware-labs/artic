@@ -159,7 +159,7 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
     let ty = &attached.ty;
     let value = generic_argument(ty, "Option").unwrap_or(ty);
     quote_spanned!(ty.span()=>
-      (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_implement_fromstr_or_derive_uitype();
+      (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
     )
   });
   let override_defaults = analysis
@@ -373,7 +373,7 @@ pub fn value_check(field: &UiField) -> TokenStream {
     unreachable!("properties only")
   };
   quote_spanned!(value.span()=>
-    (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_implement_fromstr_or_derive_uitype();
+    (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
   )
 }
 
@@ -467,7 +467,7 @@ pub fn default_field(field: &UiField) -> TokenStream {
 
 /// The `PropertyInfo` for one property, with its metadata read from the key.
 pub fn property_info(field: &UiField) -> TokenStream {
-  let Role::Property { inner, .. } = field.role else {
+  let Role::Property { inner, value } = field.role else {
     unreachable!("properties only")
   };
   let key = key_path(field);
@@ -479,6 +479,7 @@ pub fn property_info(field: &UiField) -> TokenStream {
       value_type: ::core::stringify!(#inner),
       affects: #key.affects(),
       inherits: #key.inherits(),
+      literal: __artic::literal!(#value),
     }
   }
 }

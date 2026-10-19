@@ -3,6 +3,8 @@
 //! Every crate that defines UI types adds a [`TypeInfo`] to the [`UI_TYPES`] slice, and
 //! [`Registry::from_link_time`] indexes all of them for lookup. There is no registration call: the
 //! linker gathers the entries.
+//!
+//! The `literals` feature fills [`PropertyInfo::literal`], for a code generator in a build script.
 
 #[doc(hidden)]
 pub mod __private;

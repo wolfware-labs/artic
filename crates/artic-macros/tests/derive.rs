@@ -4,6 +4,7 @@
 use artic_core::event::Event;
 use artic_core::property::{Affects, Inheritance, Precedence, Property, PropertyKey};
 use artic_core::tree::{Handle, NodeId, TreeKind, UiTree};
+use artic_core::{RustExpr, ToRust};
 use artic_element::{Child, Children};
 use artic_macros::{UiProperties, UiType};
 use artic_registry::{
@@ -32,6 +33,14 @@ impl FromStr for Thickness {
   }
 }
 
+impl ToRust for Thickness {
+  fn to_rust(&self, out: &mut RustExpr) {
+    out.type_path(env!("CARGO_CRATE_NAME"), "Thickness(");
+    self.0.to_rust(out);
+    out.raw(")");
+  }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 struct CornerRadius(f32);
 
@@ -43,6 +52,14 @@ impl FromStr for CornerRadius {
   }
 }
 
+impl ToRust for CornerRadius {
+  fn to_rust(&self, out: &mut RustExpr) {
+    out.type_path(env!("CARGO_CRATE_NAME"), "CornerRadius(");
+    self.0.to_rust(out);
+    out.raw(")");
+  }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 struct Brush(String);
 
@@ -51,6 +68,14 @@ impl FromStr for Brush {
 
   fn from_str(text: &str) -> Result<Self, Self::Err> {
     Ok(Brush(text.to_owned()))
+  }
+}
+
+impl ToRust for Brush {
+  fn to_rust(&self, out: &mut RustExpr) {
+    out.type_path(env!("CARGO_CRATE_NAME"), "Brush(");
+    self.0.to_rust(out);
+    out.raw(")");
   }
 }
 

@@ -1,0 +1,29 @@
+error[E0599]: the method `value_must_parse_from_text_and_implement_torust_or_derive_uitype` exists for reference `&&artic_registry::__private::ValueCheck<Telemetry>`, but its trait bounds were not satisfied
+  --> tests/ui/value_without_to_rust.rs:20:21
+   |
+ 7 | struct Telemetry;
+   | ---------------- doesn't satisfy `Telemetry: ToRust` or `Telemetry: UiType`
+...
+20 |   reading: Property<Telemetry>,
+   |                     ^^^^^^^^^ method cannot be called on `&&artic_registry::__private::ValueCheck<Telemetry>` due to unsatisfied trait bounds
+   |
+  ::: $WORKSPACE/crates/artic-registry/src/__private.rs
+   |
+   | pub struct ValueCheck<T>(pub PhantomData<T>);
+   | ------------------------ doesn't satisfy `_: ViaFromStr`
+   |
+   = note: the following trait bounds were not satisfied:
+           `Telemetry: UiType`
+           which is required by `&artic_registry::__private::ValueCheck<Telemetry>: artic_registry::__private::ViaUiType`
+           `Telemetry: ToRust`
+           which is required by `artic_registry::__private::ValueCheck<Telemetry>: artic_registry::__private::ViaFromStr`
+note: the traits `ToRust` and `UiType` must be implemented
+  --> $WORKSPACE/crates/artic-registry/src/descriptors.rs
+   |
+   | pub trait UiType {
+   | ^^^^^^^^^^^^^^^^
+   |
+  ::: $WORKSPACE/crates/artic-core/src/to_rust.rs
+   |
+   | pub trait ToRust {
+   | ^^^^^^^^^^^^^^^^
