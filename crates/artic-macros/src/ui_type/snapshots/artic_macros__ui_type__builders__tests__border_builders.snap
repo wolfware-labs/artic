@@ -15,6 +15,7 @@ impl Border {
         <Self as ::core::default::Default>::default()
     }
     ///Adds this `Border` to `tree` and returns its handle.
+    #[must_use = "the handle is needed to link or reach the node"]
     pub fn build(self, tree: &mut __artic::UiTree) -> __artic::Handle<Self> {
         tree.alloc_typed(self)
     }

@@ -37,15 +37,23 @@ fn handle_converts_to_its_id() {
   assert_eq!(id, label.id());
 }
 
-// After its node is freed, a handle finds nothing, even once the slot holds another node.
+/// The slot part of an id's debug text, which a reused slot shares with the id it replaced.
+fn slot(id: NodeId) -> String {
+  let text = format!("{id:?}");
+  text.split("generation").next().expect("split yields one part").to_owned()
+}
+
+// After its node is freed, a handle finds nothing, even once its slot holds another node of the
+// same type.
 #[test]
 fn handle_to_a_freed_node_is_none() {
   let mut tree = UiTree::new();
   let label = tree.alloc_typed(Label("old"));
 
   tree.free(label.id());
-  let _reused = tree.alloc_typed(Label("new"));
+  let reused = tree.alloc_typed(Label("new"));
 
+  assert_eq!(slot(reused.id()), slot(label.id()));
   assert_eq!(label.try_get(&tree), None);
 }
 
@@ -71,4 +79,15 @@ fn handles_compare_by_node() {
 
   assert_eq!(first, copy);
   assert!(first != second);
+}
+
+// Writing through a handle whose node was freed is a bug, and panics.
+#[test]
+#[should_panic(expected = "freed")]
+fn get_mut_on_a_freed_node_panics() {
+  let mut tree = UiTree::new();
+  let label = tree.alloc_typed(Label("old"));
+  tree.free(label.id());
+
+  let _ = label.get_mut(&mut tree);
 }

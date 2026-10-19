@@ -65,10 +65,12 @@ use syn::{DeriveInput, parse_macro_input};
 ///
 /// It also writes the builder from the builder design: `new()`, the `Default`; one method per
 /// `Property` field, named after the field, which sets the `Local` level and takes
-/// `impl Into<T>` (the `X` of `Option<X>`), or the number itself for a number type, so a literal
-/// such as `8.0` needs no suffix; and `build(tree)`, which adds the node and returns a `Handle`.
-/// Each property with its own key gets a public constant for it, such as `Border::PADDING`; a
-/// shared key is named by its owner. Fields named `new`, `build` or `type_info` are errors.
+/// `impl Into<T>` (the `X` of `Option<X>`), or the number itself for a number type written as
+/// `f32` or `core::primitive::f32`, so a literal such as `8.0` needs no suffix; and `build(tree)`,
+/// which adds the node and returns a `Handle`. A type alias of a number isn't seen through, so a
+/// literal passed to its property needs a suffix (`8.0_f32`). Each property with its own key gets
+/// a constant for it, such as `Border::PADDING`; a shared key is named by its owner. A method and
+/// a constant have their field's visibility. Fields named `new`, `build` or `type_info` are errors.
 ///
 /// ```
 /// # use artic_core::property::Property;

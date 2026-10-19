@@ -1,7 +1,7 @@
 use crate::ui_type::attributes::{FieldAttributes, TypeAttributes, parse_field_attributes, parse_type_attributes};
 use crate::ui_type::builders::key_constant_name;
 use syn::ext::IdentExt;
-use syn::{Data, DeriveInput, Error, Field, Fields, GenericArgument, Ident, PathArguments, Type};
+use syn::{Data, DeriveInput, Error, Field, Fields, GenericArgument, Ident, PathArguments, Type, Visibility};
 
 /// A struct read for the derive: its attributes and its fields, sorted by role.
 pub struct Analysis<'a> {
@@ -14,6 +14,8 @@ pub struct Analysis<'a> {
 /// A field marked `#[ui]`.
 pub struct UiField<'a> {
   pub ident: &'a Ident,
+  /// The field's visibility, which its generated method and key constant share.
+  pub vis: &'a Visibility,
   pub ty: &'a Type,
   pub role: Role<'a>,
   pub attributes: FieldAttributes,
@@ -216,6 +218,7 @@ pub fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttribu
   }
   Ok(UiField {
     ident,
+    vis: &field.vis,
     ty: &field.ty,
     role,
     attributes,

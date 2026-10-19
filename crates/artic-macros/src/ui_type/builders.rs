@@ -24,6 +24,7 @@ pub fn builders(analysis: &Analysis) -> TokenStream {
     }
 
     #[doc = #build_doc]
+    #[must_use = "the handle is needed to link or reach the node"]
     pub fn build(self, tree: &mut __artic::UiTree) -> __artic::Handle<Self> {
       tree.alloc_typed(self)
     }
@@ -41,7 +42,7 @@ fn property_method(field: &UiField) -> Option<TokenStream> {
   let Role::Property { inner, value } = field.role else {
     return None;
   };
-  let field_ident = field.ident;
+  let (field_ident, vis) = (field.ident, field.vis);
   let name = ui_name(field);
   let optional = generic_argument(inner, "Option").is_some();
   let argument = if optional { value } else { inner };
@@ -64,14 +65,16 @@ fn property_method(field: &UiField) -> Option<TokenStream> {
   Some(quote! {
     #[doc = #doc]
     #[must_use]
-    pub fn #field_ident(self, value: #parameter) -> Self {
+    #vis fn #field_ident(self, value: #parameter) -> Self {
       self.#field_ident.set(#stored);
       self
     }
   })
 }
 
-/// Whether `ty` is written as one of Rust's number types, such as `f32` or `u32`.
+/// Whether `ty` is written as one of Rust's number types: `f32`, or a path to it through
+/// `core::primitive` or `std::primitive`. A type alias isn't seen through; a property of one takes
+/// `impl Into<T>`, so a literal passed to it needs a suffix, as in `8.0_f32`.
 fn is_number(ty: &Type) -> bool {
   const NUMBERS: &[&str] = &[
     "f32", "f64", "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64", "u128", "usize",
@@ -79,11 +82,15 @@ fn is_number(ty: &Type) -> bool {
   let Type::Path(path) = ty else {
     return false;
   };
+  let segments: Vec<String> = path.path.segments.iter().map(|segment| segment.ident.to_string()).collect();
+  let name = match segments.as_slice() {
+    [name] if path.path.leading_colon.is_none() => name,
+    [krate, primitive, name] if (krate == "core" || krate == "std") && primitive == "primitive" => name,
+    _ => return false,
+  };
   path.qself.is_none()
-    && path
-      .path
-      .get_ident()
-      .is_some_and(|ident| NUMBERS.iter().any(|number| ident == number))
+    && path.path.segments.iter().all(|segment| segment.arguments.is_none())
+    && NUMBERS.contains(&name.as_str())
 }
 
 /// The public name of a property's key: the field name without `r#`, in SCREAMING_SNAKE_CASE.
@@ -100,12 +107,13 @@ fn key_constant(field: &UiField) -> Option<TokenStream> {
   if field.attributes.key.is_some() {
     return None;
   }
+  let vis = field.vis;
   let constant = key_constant_name(field.ident);
   let key = generated_key(field.ident);
   let doc = format!("The key of `{}`, for styles.", ui_name(field));
   Some(quote! {
     #[doc = #doc]
-    pub const #constant: &'static __artic::PropertyKey<#inner> = &#key;
+    #vis const #constant: &'static __artic::PropertyKey<#inner> = &#key;
   })
 }
 
@@ -130,11 +138,11 @@ mod tests {
   fn border_builders() {
     let input: DeriveInput = parse_quote! {
       struct Border {
-        #[ui(content)] child: Child,
-        #[ui(default = Thickness::ZERO, affects = layout)] padding: Property<Thickness>,
-        #[ui(affects = render)] background: Property<Option<Brush>>,
-        #[ui] opacity: Property<f32>,
-        #[ui] pointer_pressed: Event<PointerEvent>,
+        #[ui(content)] pub child: Child,
+        #[ui(default = Thickness::ZERO, affects = layout)] pub padding: Property<Thickness>,
+        #[ui(affects = render)] pub background: Property<Option<Brush>>,
+        #[ui] pub opacity: Property<f32>,
+        #[ui] pub pointer_pressed: Event<PointerEvent>,
       }
     };
 
@@ -146,11 +154,45 @@ mod tests {
   fn shared_key_field_has_a_method_and_no_constant() {
     let input: DeriveInput = parse_quote! {
       struct TextBlock {
-        #[ui(key = TextElement::FONT_SIZE)] font_size: Property<f32>,
-        #[ui] text: Property<String>,
+        #[ui(key = TextElement::FONT_SIZE)] pub font_size: Property<f32>,
+        #[ui] pub text: Property<String>,
       }
     };
 
     insta::assert_snapshot!(expand(&input));
+  }
+
+  // A private field's method and key constant are as private as the field, so a public type
+  // doesn't expose them, or its field's private type, through its builder.
+  #[test]
+  fn builder_items_take_the_field_visibility() {
+    let input: DeriveInput = parse_quote! {
+      pub struct Card {
+        #[ui] pub title: Property<String>,
+        #[ui] secret: Property<Secret>,
+      }
+    };
+
+    let expanded = expand(&input);
+
+    assert!(expanded.contains("pub fn title(") && expanded.contains("pub const TITLE:"));
+    assert!(expanded.contains("    fn secret(") && !expanded.contains("pub fn secret("));
+    assert!(expanded.contains("    const SECRET:") && !expanded.contains("pub const SECRET:"));
+  }
+
+  // A number type written through `core::primitive` or `std::primitive` is still a number.
+  #[test]
+  fn primitive_paths_are_numbers() {
+    let input: DeriveInput = parse_quote! {
+      pub struct Gauge {
+        #[ui] pub low: Property<core::primitive::f32>,
+        #[ui] pub high: Property<::std::primitive::u32>,
+      }
+    };
+
+    let expanded = expand(&input);
+
+    assert!(expanded.contains("pub fn low(self, value: core::primitive::f32)"));
+    assert!(expanded.contains("pub fn high(self, value: ::std::primitive::u32)"));
   }
 }
