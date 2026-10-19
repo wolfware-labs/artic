@@ -102,6 +102,7 @@ pub fn build(tree: &mut UiTree) -> View {
 }
 ```
 
+- The sample compiles spec §4's example view, whose root element is a `UserControl`; the compiler adds no wrapper, and `View::root` is typed by whatever the document's root element is, such as `Handle<StackPanel>` for a view rooted in a panel.
 - `TextBox` and `Button` aren't built yet; the sample shows the shape once they are.
 - One `let` per element, in post-order, named `__e0`, `__e1`, … in that order, so no name in the view can shadow `tree` or another local.
 - A property becomes its builder method, named after the field (`PropertyInfo::field`). A group's property uses the same name through the group's methods trait. `PropertyGroupInfo` gains `methods: &'static str`, the trait's defining path from `PropertyGroup::METHODS`. The compiler never writes that path, which may name a private module: it takes the crate (first segment) and the trait's name (last segment), and since the trait sits at its crate's root, imports it once per file as `use <crate path>::<Trait> as _;` with the crate's path from the map, such as `use ::artic::element::LayoutMethods as _;`.
