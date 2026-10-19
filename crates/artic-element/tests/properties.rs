@@ -473,3 +473,11 @@ fn accessibility_node_is_disabled_under_a_disabled_ancestor() {
       .is_disabled()
   );
 }
+
+// Class names convert from a list, each item split at whitespace as `Classes="…"` is.
+#[test]
+fn classes_from_names_split_at_whitespace() {
+  let classes = Classes::from(["primary large", "wide"]);
+
+  assert_eq!(classes, "primary large wide".parse().unwrap());
+}
