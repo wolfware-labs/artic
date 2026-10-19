@@ -90,8 +90,8 @@ Keep `linkme` (D11). No fallback mechanism is needed, but two rules must hold, a
 
 1. Every crate that contributes registry entries must be linked.
    - The `artic` facade's `xaml` module references artic's control crates, so built-in controls are present in every app that uses it.
-   - For app and third-party crates, the XAML compiler's `build.rs` (#49) finds every dependency that depends on `artic-registry` through `cargo metadata` and emits a `use name as _;` line for each into the generated code. Library authors still write only the derive.
-   - Cost: a `cargo metadata` call in the build script, and crates that register types but are never used stay in the binary. Only crates that depend on the registry are affected.
+   - For app and third-party crates, the XAML compiler's generated code (#49) emits a `use name as _;` line for each crate the app's namespace map names. Library authors still write only the derive. This recommendation first used `cargo metadata` to find every dependency on `artic-registry`; the [XAML compiler design](../design/xaml-compiler.md#the-build-script) replaced that with the map, so no cargo call runs inside the build.
+   - Cost: crates the map names but no view uses stay in the binary. A crate the map doesn't name is linked only if the app references it itself.
    - Without this, a control that only appears in hot-reloaded or `runtime-xaml` views would be missing from the registry, and the loader would report it as an unknown type.
 
 2. iOS static libraries must be linked with `-force_load`.

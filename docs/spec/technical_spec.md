@@ -597,7 +597,7 @@ impl LoginView {
 }
 ```
 
-- The macro generates: the struct's element wrapper (a `UserControl` node owning `Self`), a `build(&mut UiTree) -> NodeId` from the compiled XAML, typed `Handle<T>` handles for every `x:Name`, and a handler table `name → fn` used by both paths.
+- The macro generates: the struct's element wrapper (a `UserControl` node owning `Self`), a `build(&mut UiTree) -> NodeId` that calls the compiled view's `build(tree) -> View` and keeps its typed `Handle<T>` for every `x:Name` ([XAML compiler design](../design/xaml-compiler.md#what-a-compiled-view-gives-the-app)), and a handler table `name → fn` used by both paths.
 - Handler signature is `fn(&mut self, &mut ViewCx, &Args)`; `ViewCx` gives tree access and the dispatcher. Handlers are `&mut self`, so no interior mutability in code-behind.
 - A handler name that does not exist is a compile error in the compiled path, a load error in the runtime path.
 - Code-behind and view-model are both available: `self.view_model::<LoginVm>()` returns the `DataContext` downcast.
