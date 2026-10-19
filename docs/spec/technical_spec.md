@@ -81,7 +81,7 @@ Each layer builds on the ones below it. The exact dependency edges and the rules
 | `artic-platform` | `Host`, `AppHandler` and `HostContext` with its capabilities, `artic::run`, frame pipeline (with facade-registered hooks). No backend dependencies | `Host`, `AppHandler`, `HostContext`, `SurfaceInfo` |
 | `artic-winit` | Adapter: the desktop and mobile `Host` on `winit`, with `muda`, `rfd`, `arboard`, `accesskit_winit` | `Host` |
 | `artic-vello` | Adapter: the default `Renderer`, `vello` on `wgpu` | `Renderer` |
-| `artic` | Facade re-exporting the public API with feature flags (`xaml`, `hot-reload`, `runtime-xaml`) | `App`, `prelude`, `run`, `xaml::namespaces` |
+| `artic` | Facade re-exporting the public API with feature flags (`xaml`, `xaml-compiler`, `hot-reload`, `runtime-xaml`) | `App`, `prelude`, `run`, `xaml::namespaces`, `xaml::compile_dir` |
 | `artic-theme` | Default theme: token dictionaries (light, dark, touch density) and the default `ControlTemplate` for every v1 control (D18) | `ArticTheme` |
 | `artic-i18n` | Optional fluent-rs implementation of the `Localizer` trait (D6) | `FluentLocalizer` |
 | `artic-test` | Dev-dependency test utilities: `TestHost`, headless tree helpers, tree serializer (D14) | `TestHost` |
