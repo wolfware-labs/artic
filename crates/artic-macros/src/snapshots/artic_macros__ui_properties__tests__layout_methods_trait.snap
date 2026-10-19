@@ -1,0 +1,26 @@
+---
+source: crates/artic-macros/src/ui_properties.rs
+expression: expand_trait(&input)
+---
+///The builder methods of the `Layout` group, on every type that flattens it.
+pub trait LayoutMethods: ::artic_registry::__private::HasGroup<
+        Layout,
+    > + ::core::marker::Sized {
+    ///Sets `Width` to `Some(value)`, the local value.
+    #[must_use]
+    fn width(self, value: f32) -> Self {
+        <Self as ::artic_registry::__private::HasGroup<Layout>>::group(&self)
+            .width
+            .set(::core::option::Option::Some(value));
+        self
+    }
+    ///Sets `Margin`, the local value.
+    #[must_use]
+    fn margin(self, value: impl ::core::convert::Into<Thickness>) -> Self {
+        <Self as ::artic_registry::__private::HasGroup<Layout>>::group(&self)
+            .margin
+            .set(::core::convert::Into::into(value));
+        self
+    }
+}
+impl<T: ::artic_registry::__private::HasGroup<Layout>> LayoutMethods for T {}

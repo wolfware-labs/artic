@@ -32,7 +32,9 @@ pub use children::{Child, Children};
 pub use classes::Classes;
 pub use context::{AccessCx, EventCx, Handled, HitTestCx, HitTestResult, RenderCx};
 pub use element::{Element, ElementImpl, HasState};
-pub use properties::{Appearance, Identity, Interaction, Layout};
+pub use properties::{
+  Appearance, AppearanceMethods, Identity, IdentityMethods, Interaction, InteractionMethods, Layout, LayoutMethods,
+};
 pub use surface::{Application, Chrome, Desktop, SizeToContent, Surface};
 pub use types::{ELEMENT_TYPES, ElementType, ElementTypes};
 pub use visibility::{Cursor, Visibility};

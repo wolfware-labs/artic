@@ -46,6 +46,16 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
     let ty = field.ty;
     quote_spanned!(ty.span()=> __artic::assert_property_group::<#ty>();)
   });
+  let group_impls = groups.iter().map(|field| {
+    let (ty, field_ident) = (field.ty, field.ident);
+    quote! {
+      impl __artic::HasGroup<#ty> for #ident {
+        fn group(&self) -> &#ty {
+          &self.#field_ident
+        }
+      }
+    }
+  });
   let group_count = groups.len();
   let property_infos = properties.iter().map(|field| property_info(field));
   let event_infos = events.iter().map(|field| {
@@ -163,6 +173,8 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
           #(#group_visits)*
         }
       }
+
+      #(#group_impls)*
 
       static __PROPERTIES: [__artic::PropertyInfo; #property_count] = [#(#property_infos),*];
       static __EVENTS: [__artic::EventInfo; #event_count] = [#(#event_infos),*];
