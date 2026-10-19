@@ -1,4 +1,5 @@
 use crate::{Color, ParseColorError};
+use artic_core::{RustExpr, ToRust};
 use artic_layout::geometry::{RelativePoint, RelativeScalar};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -179,6 +180,84 @@ impl GradientStop {
   #[must_use]
   pub const fn new(offset: f32, color: Color) -> GradientStop {
     GradientStop { offset, color }
+  }
+}
+
+/// A gradient's stops, written as the `Arc` the field holds.
+struct Stops<'a>(&'a [GradientStop]);
+
+impl ToRust for Stops<'_> {
+  fn to_rust(&self, out: &mut RustExpr) {
+    out.raw("::std::sync::Arc::from(");
+    self.0.to_rust(out);
+    out.raw(")");
+  }
+}
+
+impl ToRust for Brush {
+  fn to_rust(&self, out: &mut RustExpr) {
+    let (variant, brush): (&str, &dyn ToRust) = match self {
+      Brush::Solid(brush) => ("Brush::Solid", brush),
+      Brush::Linear(brush) => ("Brush::Linear", brush),
+      Brush::Radial(brush) => ("Brush::Radial", brush),
+    };
+    out.call(env!("CARGO_CRATE_NAME"), variant, &[brush]);
+  }
+}
+
+impl ToRust for SolidColorBrush {
+  fn to_rust(&self, out: &mut RustExpr) {
+    let SolidColorBrush { color, opacity } = self;
+    out.struct_literal(
+      env!("CARGO_CRATE_NAME"),
+      "SolidColorBrush",
+      &[("color", color), ("opacity", opacity)],
+    );
+  }
+}
+
+impl ToRust for LinearGradientBrush {
+  fn to_rust(&self, out: &mut RustExpr) {
+    let LinearGradientBrush {
+      start,
+      end,
+      stops,
+      opacity,
+    } = self;
+    out.struct_literal(
+      env!("CARGO_CRATE_NAME"),
+      "LinearGradientBrush",
+      &[("start", start), ("end", end), ("stops", &Stops(stops)), ("opacity", opacity)],
+    );
+  }
+}
+
+impl ToRust for RadialGradientBrush {
+  fn to_rust(&self, out: &mut RustExpr) {
+    let RadialGradientBrush {
+      center,
+      radius_x,
+      radius_y,
+      stops,
+      opacity,
+    } = self;
+    out.struct_literal(
+      env!("CARGO_CRATE_NAME"),
+      "RadialGradientBrush",
+      &[
+        ("center", center),
+        ("radius_x", radius_x),
+        ("radius_y", radius_y),
+        ("stops", &Stops(stops)),
+        ("opacity", opacity),
+      ],
+    );
+  }
+}
+
+impl ToRust for GradientStop {
+  fn to_rust(&self, out: &mut RustExpr) {
+    out.call(env!("CARGO_CRATE_NAME"), "GradientStop::new", &[&self.offset, &self.color]);
   }
 }
 

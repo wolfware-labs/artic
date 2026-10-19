@@ -7,7 +7,7 @@ use syn::{Error, Ident, Path};
 pub const REGISTRY: &[(&str, &str)] = &[("artic", "artic"), ("artic-registry", "artic_registry")];
 
 /// The crates `#[derive(UiEnum)]` reaches artic through: (package, library). Its output names
-/// only `ParseEnumError`, which lives in `artic-core`.
+/// `ParseEnumError`, `ToRust` and `RustExpr`, which live in `artic-core`.
 pub const ENUM: &[(&str, &str)] = &[
   ("artic", "artic"),
   ("artic-registry", "artic_registry"),

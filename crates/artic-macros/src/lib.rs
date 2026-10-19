@@ -33,8 +33,8 @@ use syn::{DeriveInput, parse_macro_input};
 ///
 /// Every `Property<T>` and `Event<A>` field must be marked `#[ui]`:
 ///
-/// - `Property<T>` is a property. `T`, or `X` in `Option<X>`, must implement `FromStr` or
-///   `UiType`, or be a `NodeId`, a property that names a node, such as a data context. Its
+/// - `Property<T>` is a property. `T`, or `X` in `Option<X>`, must implement `FromStr` (with a
+///   `Display` error) and `ToRust`, or `UiType`, or be a `NodeId`, a property that names a node, such as a data context. Its
 ///   settings: `default = expr` for the `Default` level (otherwise `T::default()`),
 ///   `affects = layout | render | surface` and `inherits` for its generated key, `key = KEY` to
 ///   share a key with other types instead (inheritance across types needs it): a
@@ -134,9 +134,10 @@ pub fn derive_ui_properties(input: TokenStream) -> TokenStream {
 /// Parses a fieldless enum from its variant names, ignoring ASCII case, so a UI language can set it from
 /// text: `Orientation="horizontal"` becomes `Orientation::Horizontal`.
 ///
-/// It implements `FromStr` with `Err = ParseEnumError`, whose message lists every valid name. Every
-/// variant must be a unit variant, and no two names may differ only in case. The generated code
-/// reaches `ParseEnumError` through `artic`, `artic-registry` or `artic-core`, whichever the
+/// It implements `FromStr` with `Err = ParseEnumError`, whose message lists every valid name, and
+/// `ToRust`, which writes the variant's path at the crate root. Every variant must be a unit
+/// variant, and no two names may differ only in case. The generated code reaches `ParseEnumError`
+/// and `ToRust` through `artic`, `artic-registry` or `artic-core`, whichever the
 /// calling crate depends on first, so a crate that has only `artic-core` can derive it.
 #[proc_macro_derive(UiEnum)]
 pub fn derive_ui_enum(input: TokenStream) -> TokenStream {

@@ -1,5 +1,6 @@
 //! Font families, weights and styles, and parsing them from text.
 
+use artic_core::{RustExpr, ToRust};
 use artic_macros::UiEnum;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -29,6 +30,17 @@ impl FontFamily {
   #[must_use]
   pub fn names(&self) -> &[FamilyName] {
     &self.0
+  }
+
+  /// The family of `names`, tried in order. No names is the default family, `system-ui`.
+  #[must_use]
+  pub fn from_names(names: impl IntoIterator<Item = FamilyName>) -> FontFamily {
+    let names: Arc<[FamilyName]> = names.into_iter().collect();
+    if names.is_empty() {
+      FontFamily::default()
+    } else {
+      FontFamily(names)
+    }
   }
 }
 
@@ -155,6 +167,41 @@ impl FromStr for FontFamily {
         text: text.to_owned(),
         problem,
       })
+  }
+}
+
+impl ToRust for FontFamily {
+  fn to_rust(&self, out: &mut RustExpr) {
+    out.call(env!("CARGO_CRATE_NAME"), "FontFamily::from_names", &[&self.names()]);
+  }
+}
+
+impl ToRust for FamilyName {
+  fn to_rust(&self, out: &mut RustExpr) {
+    match self {
+      FamilyName::Named(name) => {
+        out.type_path(env!("CARGO_CRATE_NAME"), "FamilyName::Named(::std::sync::Arc::from(");
+        out.str(name);
+        out.raw("))");
+      }
+      FamilyName::Generic(generic) => out.call(env!("CARGO_CRATE_NAME"), "FamilyName::Generic", &[generic]),
+    }
+  }
+}
+
+impl ToRust for GenericFamily {
+  fn to_rust(&self, out: &mut RustExpr) {
+    let path = match self {
+      GenericFamily::Serif => "GenericFamily::Serif",
+      GenericFamily::SansSerif => "GenericFamily::SansSerif",
+      GenericFamily::Monospace => "GenericFamily::Monospace",
+      GenericFamily::Cursive => "GenericFamily::Cursive",
+      GenericFamily::Fantasy => "GenericFamily::Fantasy",
+      GenericFamily::SystemUi => "GenericFamily::SystemUi",
+      GenericFamily::Emoji => "GenericFamily::Emoji",
+      GenericFamily::Math => "GenericFamily::Math",
+    };
+    out.type_path(env!("CARGO_CRATE_NAME"), path);
   }
 }
 
@@ -317,6 +364,36 @@ impl FromStr for FontWeight {
       text: text.to_owned(),
       problem,
     })
+  }
+}
+
+/// The weights that have a constant, with the constant's name.
+const WEIGHT_CONSTANTS: [(FontWeight, &str); 10] = [
+  (FontWeight::THIN, "THIN"),
+  (FontWeight::EXTRA_LIGHT, "EXTRA_LIGHT"),
+  (FontWeight::LIGHT, "LIGHT"),
+  (FontWeight::NORMAL, "NORMAL"),
+  (FontWeight::MEDIUM, "MEDIUM"),
+  (FontWeight::SEMI_BOLD, "SEMI_BOLD"),
+  (FontWeight::BOLD, "BOLD"),
+  (FontWeight::EXTRA_BOLD, "EXTRA_BOLD"),
+  (FontWeight::BLACK, "BLACK"),
+  (FontWeight::EXTRA_BLACK, "EXTRA_BLACK"),
+];
+
+impl ToRust for FontWeight {
+  /// Writes the weight's constant, or `FontWeight::new(…).unwrap()` for a weight without one.
+  fn to_rust(&self, out: &mut RustExpr) {
+    match WEIGHT_CONSTANTS.iter().find(|(weight, _)| weight == self) {
+      Some((_, name)) => {
+        out.type_path(env!("CARGO_CRATE_NAME"), "FontWeight::");
+        out.raw(name);
+      }
+      None => {
+        out.call(env!("CARGO_CRATE_NAME"), "FontWeight::new", &[&self.0]);
+        out.raw(".unwrap()");
+      }
+    }
   }
 }
 

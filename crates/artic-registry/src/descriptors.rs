@@ -1,4 +1,5 @@
 use crate::ValueError;
+use artic_core::RustExpr;
 use artic_core::property::{Affects, AnyProperty};
 use artic_core::tree::{NodeId, UiTree};
 
@@ -107,7 +108,16 @@ pub struct PropertyInfo {
   pub affects: Affects,
   /// Whether the property takes its value from a logical ancestor when it has none of its own.
   pub inherits: bool,
+  /// Parses text for the property and writes the Rust expression that builds the value, or
+  /// returns why the text doesn't parse. For a `Property<Option<V>>` it writes a `V`, which is
+  /// what the builder method takes. `Some` only when this crate's `literals` feature is on, which
+  /// a build-time code generator turns on; an app's registry holds `None`.
+  pub literal: Option<WriteLiteral>,
 }
+
+/// Parses a property's text and writes the Rust expression that builds the value, or returns why
+/// the text doesn't parse. [`PropertyInfo::literal`] holds one.
+pub type WriteLiteral = fn(&str, &mut RustExpr) -> Result<(), String>;
 
 /// Properties several types share by embedding one struct, such as `Layout`.
 ///
@@ -259,6 +269,7 @@ mod tests {
       value_type: "f32",
       affects: PADDING.affects(),
       inherits: PADDING.inherits(),
+      literal: None,
     }],
     groups: &[],
     events: &[EventInfo {

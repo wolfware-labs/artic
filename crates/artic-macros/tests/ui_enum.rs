@@ -2,6 +2,7 @@
 // any ASCII case and explains a miss.
 
 use artic_core::property::{ParseEnumError, Property};
+use artic_core::{RustExpr, ToRust};
 use artic_macros::{UiEnum, UiType};
 use pretty_assertions::assert_eq;
 
@@ -63,4 +64,21 @@ fn enum_can_be_a_property_value() {
   panel.orientation.set("VERTICAL".parse().expect("a variant"));
 
   assert_eq!(panel.orientation.get(), Orientation::Vertical);
+}
+
+// A variant writes its enum's path at its crate's root, then its own name.
+#[test]
+fn writes_its_path() {
+  let mut out = RustExpr::new();
+  Orientation::Vertical.to_rust(&mut out);
+  assert_eq!(out.as_str(), "::ui_enum::Orientation::Vertical");
+}
+
+// The enum's crate is reached by the path the expression maps it to.
+#[test]
+fn writes_a_mapped_crate_path() {
+  let mut out = RustExpr::new();
+  out.path("ui_enum", "crate");
+  Orientation::Horizontal.to_rust(&mut out);
+  assert_eq!(out.as_str(), "crate::Orientation::Horizontal");
 }

@@ -159,6 +159,7 @@ dependencies = [
  "linkme",
  "pretty_assertions",
  "static_assertions",
+ "syn 3.0.9",
 ]
 
 [[package]]
@@ -225,6 +226,7 @@ name = "artic-registry"
 version = "0.1.0"
 dependencies = [
  "artic-core",
+ "artic-macros",
  "linkme",
  "pretty_assertions",
  "static_assertions",

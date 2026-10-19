@@ -3,6 +3,8 @@
 //! Every crate that defines UI types adds a [`TypeInfo`] to the [`UI_TYPES`] slice, and
 //! [`Registry::from_link_time`] indexes all of them for lookup. There is no registration call: the
 //! linker gathers the entries.
+//!
+//! The `literals` feature fills [`PropertyInfo::literal`], for a code generator in a build script.
 
 #[doc(hidden)]
 pub mod __private;
@@ -13,11 +15,13 @@ mod registry;
 mod value_error;
 mod with_children;
 
+/// What [`PropertyInfo::literal`] writes with, re-exported so a code generator needs only this crate.
+pub use artic_core::{RustExpr, ToRust};
 pub use collection::UiCollection;
 pub use defaults::OverrideDefaults;
 pub use descriptors::{
   ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, EventInfo, HasGroup, PropertyGroup, PropertyGroupInfo,
-  PropertyInfo, PropertyRef, TypeInfo, UiType, ValueProviderInfo, Whitespace,
+  PropertyInfo, PropertyRef, TypeInfo, UiType, ValueProviderInfo, Whitespace, WriteLiteral,
 };
 pub use registry::{Duplicate, Lookup, Registry, RegistryError};
 pub use value_error::ValueError;
