@@ -70,7 +70,7 @@ use syn::{DeriveInput, parse_macro_input};
 /// which adds the node and returns a `Handle`. A type alias of a number isn't seen through, so a
 /// literal passed to its property needs a suffix (`8.0_f32`). Each property with its own key gets
 /// a constant for it, such as `Border::PADDING`; a shared key is named by its owner. A method and
-/// a constant have their field's visibility. Fields named `new`, `build` or `type_info` are errors.
+/// a constant have their field's visibility.
 ///
 /// ```
 /// # use artic_core::property::Property;
@@ -97,7 +97,8 @@ use syn::{DeriveInput, parse_macro_input};
 /// pub fn row(tree: &UiTree, node: impl Into<NodeId>) -> usize;
 /// ```
 ///
-/// A helper named like one of the type's properties is an error: rename one with `name = ...`.
+/// Two of these items with one name are an error, as is a property named `new`, `build` or
+/// `type_info`: rename the field, or the attached property with `name = ...`.
 #[proc_macro_derive(UiType, attributes(ui))]
 pub fn derive_ui_type(input: TokenStream) -> TokenStream {
   let input = parse_macro_input!(input as DeriveInput);

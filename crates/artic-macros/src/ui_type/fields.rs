@@ -1,5 +1,6 @@
 use crate::ui_type::attributes::{FieldAttributes, TypeAttributes, parse_field_attributes, parse_type_attributes};
 use crate::ui_type::builders::key_constant_name;
+use quote::ToTokens;
 use syn::ext::IdentExt;
 use syn::{Data, DeriveInput, Error, Field, Fields, GenericArgument, Ident, PathArguments, Type, Visibility};
 
@@ -65,8 +66,8 @@ pub fn analyze(input: &DeriveInput) -> syn::Result<Analysis<'_>> {
       }
     }
   }
-  check_reserved(&ui_fields)?;
-  check_attached(&attributes, &ui_fields)?;
+  check_attached(&attributes)?;
+  check_generated_names(&attributes, &ui_fields)?;
   check_positional(&input.ident, &attributes, &ui_fields)?;
   check_content(&ui_fields)?;
   Ok(Analysis {
@@ -96,25 +97,8 @@ pub fn check_content(ui_fields: &[UiField]) -> syn::Result<()> {
   Ok(())
 }
 
-/// Rejects a `#[ui]` field whose generated member would clash with another one: `new` and
-/// `build` are the builder's start and finish, and `type_info`'s key constant would hide
-/// `UiType::TYPE_INFO`.
-fn check_reserved(ui_fields: &[UiField]) -> syn::Result<()> {
-  for field in ui_fields {
-    let message = match field.ident.unraw().to_string().as_str() {
-      "new" => "`new` is the builder's start; rename this field",
-      "build" => "`build` is the builder's finish; rename this field",
-      "type_info" => "`type_info`'s key constant would hide `UiType::TYPE_INFO`; rename this field",
-      _ => continue,
-    };
-    return Err(Error::new_spanned(field.ident, message));
-  }
-  Ok(())
-}
-
-/// Rejects two attached properties with one name, and an attached property whose helpers or constant
-/// would clash with a property's method or key constant, which are named after its field.
-fn check_attached(attributes: &TypeAttributes, ui_fields: &[UiField]) -> syn::Result<()> {
+/// Rejects two attached properties with one name.
+fn check_attached(attributes: &TypeAttributes) -> syn::Result<()> {
   for (index, attached) in attributes.attached.iter().enumerate() {
     let name = attached.name.value();
     if attributes.attached[..index]
@@ -126,36 +110,75 @@ fn check_attached(attributes: &TypeAttributes, ui_fields: &[UiField]) -> syn::Re
         format_args!("this type already declares the attached property `{name}`"),
       ));
     }
-    let getter = snake_case(&name);
-    let setter = format!("set_{getter}");
-    let clash = ui_fields
-      .iter()
-      .filter(|field| matches!(field.role, Role::Property { .. }))
-      .find(|field| field.ident == getter.as_str() || field.ident == setter.as_str());
-    if let Some(field) = clash {
-      return Err(Error::new_spanned(
-        &attached.name,
-        format_args!(
-          "the attached property `{name}`'s helpers `{getter}` and `{setter}` clash with the property `{}`; rename one with `name = ...`",
-          field.ident
-        ),
-      ));
+  }
+  Ok(())
+}
+
+/// Rejects two items of one name in the inherent `impl` the derive writes: the builder's `new`
+/// and `build`, each property's method and key constant, and each attached property's getter,
+/// setter and constant. `TYPE_INFO` is taken too, since a constant of that name would hide
+/// `UiType::TYPE_INFO`. The error points at the second item's source.
+fn check_generated_names(attributes: &TypeAttributes, ui_fields: &[UiField]) -> syn::Result<()> {
+  let mut taken: Vec<(String, String)> = [
+    ("new", "the builder's start"),
+    ("build", "the builder's finish"),
+    ("TYPE_INFO", "`UiType::TYPE_INFO`"),
+  ]
+  .into_iter()
+  .map(|(name, what)| (name.to_owned(), what.to_owned()))
+  .collect();
+  for field in ui_fields {
+    if !matches!(field.role, Role::Property { .. }) {
+      continue;
     }
-    let constant = snake_case(&name).to_uppercase();
-    let constant_clash = ui_fields
-      .iter()
-      .filter(|field| matches!(field.role, Role::Property { .. }) && field.attributes.key.is_none())
-      .find(|field| key_constant_name(field.ident) == constant.as_str());
-    if let Some(field) = constant_clash {
-      return Err(Error::new_spanned(
-        &attached.name,
-        format_args!(
-          "the attached property `{name}`'s constant `{constant}` clashes with the key constant of the property `{}`; rename one with `name = ...`",
-          field.ident
-        ),
-      ));
+    let ident = field.ident;
+    take(
+      &mut taken,
+      ident.unraw().to_string(),
+      format!("the method of the property `{ident}`"),
+      ident,
+    )?;
+    if field.attributes.key.is_none() {
+      let constant = key_constant_name(ident).to_string();
+      take(
+        &mut taken,
+        constant,
+        format!("the key constant of the property `{ident}`"),
+        ident,
+      )?;
     }
   }
+  for attached in &attributes.attached {
+    let name = attached.name.value();
+    let getter = snake_case(&name);
+    let items = [(format!("set_{getter}"), "setter"), (getter.to_uppercase(), "constant")];
+    take(
+      &mut taken,
+      getter,
+      format!("the getter of the attached property `{name}`"),
+      &attached.name,
+    )?;
+    for (item, role) in items {
+      take(
+        &mut taken,
+        item,
+        format!("the {role} of the attached property `{name}`"),
+        &attached.name,
+      )?;
+    }
+  }
+  Ok(())
+}
+
+/// Records that `what` is named `name`, or fails if an earlier item already is.
+fn take(taken: &mut Vec<(String, String)>, name: String, what: String, source: &impl ToTokens) -> syn::Result<()> {
+  if let Some((_, earlier)) = taken.iter().find(|(other, _)| *other == name) {
+    return Err(Error::new_spanned(
+      source,
+      format_args!("`{name}` would be both {earlier} and {what}; rename one"),
+    ));
+  }
+  taken.push((name, what));
   Ok(())
 }
 
@@ -400,29 +423,66 @@ mod tests {
     assert!(error.to_string().contains("only apply to `Property` fields"));
   }
 
-  // A field named like the builder's start or finish is rejected: its method would clash.
+  /// The error `analyze` gives for `input`.
+  fn error(input: &DeriveInput) -> String {
+    analyze(input).err().expect("a name clash").to_string()
+  }
+
+  // A property named like the builder's start or finish is rejected: its method would clash.
   #[test]
   fn builder_names_are_reserved() {
     for (field, words) in [("new", "the builder's start"), ("build", "the builder's finish")] {
       let field = Ident::new(field, proc_macro2::Span::call_site());
       let input: DeriveInput = parse_quote! { struct Border { #[ui] #field: Property<f32> } };
 
-      let error = analyze(&input).err().expect("reserved name");
-
-      assert_eq!(error.to_string(), format!("`{field}` is {words}; rename this field"));
+      assert_eq!(
+        error(&input),
+        format!("`{field}` would be both {words} and the method of the property `{field}`; rename one")
+      );
     }
   }
 
-  // A field named `type_info` is rejected: its key constant would hide `UiType::TYPE_INFO`.
+  // A field that generates no member may use a builder name.
+  #[test]
+  fn builder_names_are_free_for_members_without_methods() {
+    let input: DeriveInput = parse_quote! { struct Button { #[ui] new: Event<ClickArgs> } };
+
+    assert!(analyze(&input).is_ok());
+  }
+
+  // A property named `type_info` is rejected: its key constant would hide `UiType::TYPE_INFO`.
   #[test]
   fn type_info_is_reserved() {
     let input: DeriveInput = parse_quote! { struct Border { #[ui] type_info: Property<f32> } };
 
-    let error = analyze(&input).err().expect("reserved name");
+    assert_eq!(
+      error(&input),
+      "`TYPE_INFO` would be both `UiType::TYPE_INFO` and the key constant of the property `type_info`; rename one"
+    );
+  }
+
+  // A property written in SCREAMING_SNAKE_CASE would get a method and a key constant of one name.
+  #[test]
+  fn method_clashing_with_its_own_key_constant_is_an_error() {
+    let input: DeriveInput = parse_quote! { struct Border { #[ui] PADDING: Property<f32> } };
 
     assert_eq!(
-      error.to_string(),
-      "`type_info`'s key constant would hide `UiType::TYPE_INFO`; rename this field"
+      error(&input),
+      "`PADDING` would be both the method of the property `PADDING` and the key constant of the property `PADDING`; rename one"
+    );
+  }
+
+  // An attached property whose getter would be `new` or `build` is rejected.
+  #[test]
+  fn attached_getter_named_like_a_builder_method_is_an_error() {
+    let input: DeriveInput = parse_quote! {
+      #[ui(attached(name = "Build", ty = usize, target = children))]
+      struct Grid;
+    };
+
+    assert_eq!(
+      error(&input),
+      "`build` would be both the builder's finish and the getter of the attached property `Build`; rename one"
     );
   }
 
@@ -431,15 +491,12 @@ mod tests {
   fn key_constant_clashing_with_an_attached_constant_is_an_error() {
     let input: DeriveInput = parse_quote! {
       #[ui(attached(name = "Row", ty = usize, target = children))]
-      #[allow(non_snake_case)]
       struct Grid { #[ui] Row: Property<usize> }
     };
 
-    let error = analyze(&input).err().expect("constant clash");
-
     assert_eq!(
-      error.to_string(),
-      "the attached property `Row`'s constant `ROW` clashes with the key constant of the property `Row`; rename one with `name = ...`"
+      error(&input),
+      "`ROW` would be both the key constant of the property `Row` and the constant of the attached property `Row`; rename one"
     );
   }
 }
