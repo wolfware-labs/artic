@@ -67,10 +67,11 @@ Each layer builds on the ones below it. The exact dependency edges and the rules
 | --- | --- | --- |
 | `artic-core` | Signals, effects, `Property<T>`, styled-property metadata, visual/logical tree, `Object` trait, resources, dispatcher | `Signal`, `effect`, `Property`, `Node`, `UiTree`, `Dispatcher` |
 | `artic-registry` | Type descriptors any UI language uses: type name → constructor, properties, content, attached properties, events, value providers; a type's namespace is its crate | `TypeInfo`, `PropertyInfo`, `Registry`, `Lookup` |
-| `artic-macros` | `#[derive(UiType)]`, `#[element]`, `#[derive(UiProperties)]`, `#[derive(UiEnum)]`, `#[derive(ViewModel)]`, `#[ui_class]`, `xaml!` (inline) | proc macros |
+| `artic-macros` | `#[derive(UiType)]`, `#[element]`, `#[derive(UiProperties)]`, `#[derive(UiEnum)]`, `#[derive(ViewModel)]`, `#[ui_class]` | proc macros |
 | `artic-xaml` | Parser: XML → XAML Infoset (MS-XAML §5), markup-extension grammar, diagnostics with spans | `XamlDocument`, `XamlNode`, `MarkupExtensionAst`, `Diagnostic` |
 | `artic-xaml-compiler` | Infoset → Rust source (`build.rs` API and `cargo artic` CLI) | `compile_dir()`, `CompileOptions` |
 | `artic-xaml-runtime` | Infoset → live object tree using the registry; file watcher and hot-swap | `XamlLoader`, `HotReload` |
+| `artic-xaml-macros` (planned) | `xaml!`: a view written inline in XAML, compiled like a `.xaml` file. It sits beside the XAML compiler, so no generic crate names XAML | proc macro |
 | `artic-layout` | Measure/arrange protocol, invalidation; the text values layout and renderers share, and the `TextEngine` seam | `Layoutable`, `MeasureCx`, `ArrangeCx`, `LayoutManager`, `Size`, `Rect`, `Thickness`, `TextEngine`, `FontFamily`, `TextStyle`, `Paragraph` |
 | `artic-element` | The `Element` trait and its render, hit-test, event and accessibility contexts; the property groups every control has; gesture recognizers. Shared by controls and the platform host (D25) | `Element`, `Layout`, `RenderCx`, `EventCx`, `AccessCx` |
 | `artic-controls` | Templated controls, primitives, panels, default `ControlTemplate`s | `Button`, `TextBox`, `ItemsControl`, … |
