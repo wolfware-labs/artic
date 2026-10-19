@@ -4,11 +4,13 @@
 use artic_core::event::Event;
 use artic_core::property::{Affects, Inheritance, Precedence, Property, PropertyKey};
 use artic_core::tree::{Handle, NodeId, TreeKind, UiTree};
+use artic_element::Child;
 use artic_macros::{UiProperties, UiType};
 use artic_registry::{
   AttachedTarget, ContentInfo, OverrideDefaults, PropertyRef, Registry, TypeInfo, UiCollection, UiType, ValueError, Whitespace,
 };
 use pretty_assertions::assert_eq;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::str::FromStr;
 
 // Placeholders for value types that later issues add: geometry (#22), brushes (#35), pointer input
@@ -614,4 +616,70 @@ fn own_key_has_a_public_constant() {
   assert!(std::ptr::eq(Border::PADDING, border.padding.key()));
   assert_eq!(Border::CORNER_RADIUS.name(), "CornerRadius");
   assert_eq!(Input::TYPE.name(), "Type");
+}
+
+/// A single-child element, as `Border` holds its child.
+#[derive(Debug, UiType)]
+struct Frame {
+  #[ui(content)]
+  child: Child,
+}
+
+// `.children` builds the node, then pushes each child through its content collection, in order.
+#[test]
+fn children_builder_pushes_through_a_custom_collection() {
+  let mut tree = UiTree::new();
+  let first = Frame::new().build(&mut tree);
+  let second = Frame::new().build(&mut tree);
+
+  let panel = StackPanel::new().children([first.id(), second.id()]).build(&mut tree);
+
+  assert_eq!(panel.get(&tree).children.0, [first.id(), second.id()]);
+}
+
+// `.child` links the one child in both trees.
+#[test]
+fn child_builder_links_in_both_trees() {
+  let mut tree = UiTree::new();
+  let leaf = Frame::new().build(&mut tree);
+
+  let frame = Frame::new().child(leaf).build(&mut tree);
+
+  for kind in [TreeKind::Logical, TreeKind::Visual] {
+    assert_eq!(tree.children(kind, frame.id()).collect::<Vec<_>>(), [leaf.id()]);
+  }
+}
+
+// A child that isn't in the tree is a bug in the calling code, and `build` panics.
+#[test]
+#[should_panic(expected = "isn't in the tree")]
+fn build_panics_on_a_child_not_in_the_tree() {
+  let mut tree = UiTree::new();
+  let leaf = Frame::new().build(&mut tree);
+  tree.free(leaf.id());
+
+  let _ = Frame::new().child(leaf).build(&mut tree);
+}
+
+// A child listed twice would be linked twice and end up once, so `build` panics.
+#[test]
+#[should_panic(expected = "listed twice")]
+fn build_panics_on_a_repeated_child() {
+  let mut tree = UiTree::new();
+  let leaf = Frame::new().build(&mut tree);
+
+  let _ = StackPanel::new().children([leaf, leaf]).build(&mut tree);
+}
+
+// The checks run before the node is allocated, so a failed build leaves the tree as it was.
+#[test]
+fn failed_build_allocates_nothing() {
+  let mut tree = UiTree::new();
+  let leaf = Frame::new().build(&mut tree);
+  let before = tree.len();
+
+  let result = catch_unwind(AssertUnwindSafe(|| StackPanel::new().children([leaf, leaf]).build(&mut tree)));
+
+  assert!(result.is_err());
+  assert_eq!(tree.len(), before);
 }

@@ -11,6 +11,7 @@ mod defaults;
 mod descriptors;
 mod registry;
 mod value_error;
+mod with_children;
 
 pub use collection::UiCollection;
 pub use defaults::OverrideDefaults;
@@ -20,6 +21,7 @@ pub use descriptors::{
 };
 pub use registry::{Duplicate, Lookup, Registry, RegistryError};
 pub use value_error::ValueError;
+pub use with_children::WithChildren;
 
 #[doc(hidden)]
 pub use linkme;
