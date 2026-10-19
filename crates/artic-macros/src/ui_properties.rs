@@ -127,22 +127,18 @@ fn methods_trait(input: &DeriveInput, properties: &[UiField], root: &TokenStream
   let (ident, vis) = (&input.ident, &input.vis);
   let name = format_ident!("{ident}Methods");
   let doc = format!("The builder methods of the `{ident}` group, on every type that flattens it.");
-  let group_vis = vis.to_token_stream().to_string();
-  let methods = properties
-    .iter()
-    .filter(|field| matches!(field.vis, Visibility::Public(_)) || field.vis.to_token_stream().to_string() == group_vis)
-    .filter_map(|field| {
-      let Setter { parameter, stored, doc } = setter(field)?;
-      let field_ident = field.ident;
-      Some(quote! {
-        #[doc = #doc]
-        #[must_use]
-        fn #field_ident(self, value: #parameter) -> Self {
-          <Self as #root::__private::HasGroup<#ident>>::group(&self).#field_ident.set(#stored);
-          self
-        }
-      })
-    });
+  let methods = properties.iter().filter(|field| exposed(field.vis, vis)).filter_map(|field| {
+    let Setter { parameter, stored, doc } = setter(field)?;
+    let field_ident = field.ident;
+    Some(quote! {
+      #[doc = #doc]
+      #[must_use]
+      fn #field_ident(self, value: #parameter) -> Self {
+        <Self as #root::__private::HasGroup<#ident>>::group(&self).#field_ident.set(#stored);
+        self
+      }
+    })
+  });
   quote! {
     #[doc = #doc]
     #vis trait #name: #root::__private::HasGroup<#ident> + ::core::marker::Sized {
@@ -150,6 +146,31 @@ fn methods_trait(input: &DeriveInput, properties: &[UiField], root: &TokenStream
     }
 
     impl<T: #root::__private::HasGroup<#ident>> #name for T {}
+  }
+}
+
+/// How far a visibility reaches, for the scopes every module has: private or `self`, the parent
+/// module, the crate, or everywhere. `None` for `pub(in path)` with any other path.
+fn reach(vis: &Visibility) -> Option<u8> {
+  match vis {
+    Visibility::Inherited => Some(0),
+    Visibility::Public(_) => Some(3),
+    Visibility::Restricted(restricted) => match restricted.path.get_ident()?.to_string().as_str() {
+      "self" => Some(0),
+      "super" => Some(1),
+      "crate" => Some(2),
+      _ => None,
+    },
+  }
+}
+
+/// Whether a field is at least as visible as its group, so a method of the group's trait, which
+/// is as visible as the group, exposes nothing the field hides. A scope with another path counts
+/// only when it is written the same as the group's.
+fn exposed(field: &Visibility, group: &Visibility) -> bool {
+  match (reach(field), reach(group)) {
+    (Some(field), Some(group)) => field >= group,
+    _ => matches!(field, Visibility::Public(_)) || field.to_token_stream().to_string() == group.to_token_stream().to_string(),
   }
 }
 
@@ -201,6 +222,24 @@ mod tests {
     let expanded = expand_trait(&input);
 
     assert!(expanded.contains("fn width(") && !expanded.contains("fn cache("));
+  }
+
+  // A field at least as visible as its group gets a method however its scope is spelled, and a
+  // field more private than the group doesn't.
+  #[test]
+  fn restricted_scopes_compare_by_reach() {
+    let input: DeriveInput = parse_quote! {
+      pub(super) struct Layout {
+        #[ui] pub(crate) wide: Property<f32>,
+        #[ui] pub(in super) same: Property<f32>,
+        #[ui] pub(self) narrow: Property<f32>,
+      }
+    };
+
+    let expanded = expand_trait(&input);
+
+    assert!(expanded.contains("fn wide(") && expanded.contains("fn same("));
+    assert!(!expanded.contains("fn narrow("));
   }
 
   // A group field named like a builder method every type has is rejected.

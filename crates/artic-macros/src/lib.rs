@@ -119,10 +119,10 @@ pub fn derive_ui_type(input: TokenStream) -> TokenStream {
 /// `#[ui(content)]`, which makes it the content of every type that flattens the group. The
 /// derive implements `Default` and `PropertyGroup`, gives each property with its own key a
 /// constant such as `Layout::MARGIN`, and writes beside the group a `{Group}Methods` trait
-/// (`LayoutMethods`) with a builder method per field as visible as the group, implemented for
-/// every type that flattens it. A group field named `new`, `build`, `child` or `children` is an
-/// error. A group's keys are its own, so every type that flattens it shares them, and an
-/// inheriting property inherits across those types.
+/// (`LayoutMethods`) with a builder method per field at least as visible as the group,
+/// implemented for every type that flattens it. A group field named `new`, `build`, `child` or
+/// `children` is an error. A group's keys are its own, so every type that flattens it shares
+/// them, and an inheriting property inherits across those types.
 #[proc_macro_derive(UiProperties, attributes(ui))]
 pub fn derive_ui_properties(input: TokenStream) -> TokenStream {
   let input = parse_macro_input!(input as DeriveInput);
