@@ -42,10 +42,10 @@ flowchart TD
   artic -. xaml .-> xaml
 
   theme --> controls
-  theme --> style[artic-style]
+  theme --> styles[artic-style]
 
   controls --> element[artic-element]
-  controls --> style
+  controls --> styles
 
   platform --> element
 
@@ -54,7 +54,7 @@ flowchart TD
   element --> macros[artic-macros]
 
   test[artic-test] --> platform
-  test -. planned .-> style
+  test -. planned .-> styles
   test --> text
   test --> fonts[artic-test-fonts]
 
@@ -66,7 +66,7 @@ flowchart TD
 
   render --> layout[artic-layout]
   text --> layout
-  style --> registry
+  styles --> registry
   compiler --> registry
   compiler --> xaml[artic-xaml]
   runtime --> registry
