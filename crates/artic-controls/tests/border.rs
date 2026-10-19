@@ -132,12 +132,16 @@ fn collapsed_child_leaves_the_chrome() {
   layout.assert_desired(root, Size::new(10.0, 10.0));
 }
 
-// The child field is the type's content.
+// The child field is the type's content, taken by the `child` method.
 #[test]
 fn border_child_is_its_content() {
   assert!(matches!(
     <Border as UiType>::TYPE_INFO.content,
-    Some(ContentInfo::Collection { field: "child", .. })
+    Some(ContentInfo::Collection {
+      field: "child",
+      method: Some("child"),
+      ..
+    })
   ));
 }
 

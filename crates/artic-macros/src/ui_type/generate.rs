@@ -1,6 +1,6 @@
 use crate::crate_root::{REGISTRY, crate_root};
 use crate::ui_type::attributes::{Affects, Attached, Inherits, Target, Whitespace};
-use crate::ui_type::builders::builders;
+use crate::ui_type::builders::{builders, content_method_name};
 use crate::ui_type::fields::{Analysis, Role, UiField, generic_argument, snake_case, ui_name};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
@@ -40,7 +40,11 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
   let group_infos = groups.iter().map(|field| {
     let ty = field.ty;
     let field_name = field.ident.to_string();
-    quote!(__artic::PropertyGroupInfo { field: #field_name, properties: <#ty as __artic::PropertyGroup>::PROPERTIES })
+    quote!(__artic::PropertyGroupInfo {
+      field: #field_name,
+      properties: <#ty as __artic::PropertyGroup>::PROPERTIES,
+      methods: <#ty as __artic::PropertyGroup>::METHODS,
+    })
   });
   let group_checks = groups.iter().map(|field| {
     let ty = field.ty;
@@ -106,10 +110,17 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
             group: ::core::option::Option::None,
             info: &__PROPERTIES[#index],
           }))),
-          None => quote!(::core::option::Option::Some(__artic::ContentInfo::Collection {
-            field: #name,
-            add_child: __add_child,
-          })),
+          None => {
+            let method = match content_method_name(field.ty) {
+              Some(method) => quote!(::core::option::Option::Some(#method)),
+              None => quote!(::core::option::Option::None),
+            };
+            quote!(::core::option::Option::Some(__artic::ContentInfo::Collection {
+              field: #name,
+              method: #method,
+              add_child: __add_child,
+            }))
+          }
         }
       },
     );

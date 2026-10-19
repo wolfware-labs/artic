@@ -173,12 +173,16 @@ fn huge_spacing_stays_finite() {
   );
 }
 
-// The children field is the type's content.
+// The children field is the type's content, taken by the `children` method.
 #[test]
 fn stack_children_are_its_content() {
   assert!(matches!(
     <StackPanel as UiType>::TYPE_INFO.content,
-    Some(ContentInfo::Collection { field: "children", .. })
+    Some(ContentInfo::Collection {
+      field: "children",
+      method: Some("children"),
+      ..
+    })
   ));
 }
 

@@ -379,6 +379,12 @@ fn flattened_group_is_registered_and_visited() {
   assert_eq!(visited, 3);
 }
 
+// A group names its methods trait by the module it's defined in.
+#[test]
+fn group_names_its_methods_trait() {
+  assert_eq!(<Widget as UiType>::TYPE_INFO.groups[0].methods, "derive::CommonMethods");
+}
+
 // A group's inheriting property uses one key, so it inherits across the types that flatten it.
 #[test]
 fn group_property_inherits_across_types() {
@@ -454,6 +460,15 @@ fn content_children_on_a_field() {
   assert!(matches!(
     lookup("StackPanel").content,
     Some(ContentInfo::Collection { field: "children", .. })
+  ));
+}
+
+// A collection of values has no builder method for its content.
+#[test]
+fn value_collection_content_has_no_method() {
+  assert!(matches!(
+    lookup("StackPanel").content,
+    Some(ContentInfo::Collection { method: None, .. })
   ));
 }
 

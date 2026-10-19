@@ -181,6 +181,7 @@ mod tests {
   static GROUPS: [PropertyGroupInfo; 1] = [PropertyGroupInfo {
     field: "layout",
     properties: &GROUP,
+    methods: "artic_element::LayoutMethods",
   }];
 
   // A type's properties include its groups', each with the field of the group it lives in.
