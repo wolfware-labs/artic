@@ -47,3 +47,16 @@ fn user_control_lays_out_its_content() {
   assert_eq!(layout.desired(view), Some(Size::new(40.0, 30.0)));
   assert_eq!(layout.rect(content), Some(Rect::new(0.0, 0.0, 40.0, 30.0)));
 }
+
+// A user control takes one child as content, linked in both trees.
+#[test]
+fn user_control_builder_takes_one_child() {
+  let mut tree = UiTree::new();
+  let content = UserControl::new().build(&mut tree);
+
+  let view = UserControl::new().child(content).build(&mut tree);
+
+  for kind in [TreeKind::Logical, TreeKind::Visual] {
+    assert_eq!(tree.children(kind, view.id()).collect::<Vec<_>>(), [content.id()]);
+  }
+}

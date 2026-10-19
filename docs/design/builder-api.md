@@ -291,7 +291,7 @@ impl LoginView {
       .build(tree);
 
     UserControl::new()
-      .content(panel)
+      .child(panel)
       .build(tree)
   }
 }
@@ -301,7 +301,7 @@ impl LoginView {
 - Elements are emitted in post-order: each child is built before the element that holds it.
 - `Accent` isn't used in the example. A use such as `Background="{StaticResource Accent}"` would emit `.background(resource_accent())`.
 - How a code-behind method becomes a click handler belongs to the code-behind design (§9); the comment marks that spot.
-- `TextBox` and `Button` aren't built yet, `UserControl` has no content field yet, and `SolidColorBrush::new().color(…)` is a value-type builder, which comes with #57. The example shows the shape the compiler emits once they exist.
+- `TextBox` and `Button` aren't built yet, and `SolidColorBrush::new().color(…)` is a value-type builder, which comes with #57. The example shows the shape the compiler emits once they exist.
 
 ## Changes to other issues and to the spec
 
