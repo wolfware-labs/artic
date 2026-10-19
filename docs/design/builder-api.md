@@ -272,7 +272,7 @@ fn resource_accent() -> SolidColorBrush {
 impl LoginView {
   fn build_view(&mut self, tree: &mut UiTree) -> Handle<UserControl> {
     let email = TextBox::new()
-      .watermark("Email")
+      .placeholder("Email")
       .build(tree);
     self.email = email;                                            // x:Name="email"
     bind_two_way(tree, email, |vm: &LoginVm| &vm.email, |text_box: &TextBox| &text_box.text);
@@ -297,7 +297,8 @@ impl LoginView {
 }
 ```
 
-- Text literals are parsed when the view is compiled, so the output constructs values (`Thickness::uniform(16.0)`) and never parses at runtime.
+- Text literals are parsed when the view is compiled, so the output constructs values (`Thickness::uniform(16.0)`) and never parses at runtime. The [XAML compiler design](xaml-compiler.md#literals) gives the `ToRust` trait that writes them.
+- The compiler's files wrap this body differently: a `View` struct with the root and the `x:Name` handles, and a `build` function returning it, which `#[ui_class]` (#52) wraps ([XAML compiler design](xaml-compiler.md#what-a-compiled-view-gives-the-app)).
 - Elements are emitted in post-order: each child is built before the element that holds it.
 - `Accent` isn't used in the example. A use such as `Background="{StaticResource Accent}"` would emit `.background(resource_accent())`.
 - How a code-behind method becomes a click handler belongs to the code-behind design (§9); the comment marks that spot.
@@ -312,6 +313,6 @@ impl LoginView {
 | #75 Routed events | Handler storage in `Event<A>` and the `on_<event>` methods |
 | #42 `#[element]` | None: the group methods come from the group traits (#43) |
 | #31 Attached properties | The `set_<name>` / `<name>` helper pair on the owner, called after `build` |
-| #49 Compiler emission | Post-order `let` statements, build-time literals, resource functions, binding calls after `build`; imports of the group traits from `PropertyGroup::METHODS` |
+| #49 Compiler emission | Post-order `let` statements, build-time literals through `ToRust`, the `View` struct and `build` function, imports of the group traits from `PropertyGroup::METHODS`; resource functions with #112 and binding calls with #94 ([XAML compiler design](xaml-compiler.md)) |
 | Spec §5 | Step 3's sample output becomes the builder shape |
 | Spec §9 | `Named<T>` becomes `Handle<T>` |

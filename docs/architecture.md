@@ -12,7 +12,7 @@ An app picks three things. Each sits behind an interface no layer below it knows
 | Renderer | `Renderer` in `artic-render` | `artic-vello` |
 | UI language | the registry and the tree, as [the contract](spec/dsl.md) states | XAML: `artic-xaml`, `artic-xaml-compiler`, `artic-xaml-runtime` |
 
-No crate below a UI language depends on it or names it. Only the XAML crates, `artic-lsp`, `artic-cli` and the facade's `xaml` module say XAML; `scripts/check-ui-neutral.sh` checks this in CI.
+No crate below a UI language depends on it or names it. Only the XAML crates, `artic-lsp`, `artic-cli`, the facade's `xaml` module and `docs-check`'s list of documents say XAML; `scripts/check-ui-neutral.sh` checks this in CI.
 
 ## Layers
 
@@ -40,6 +40,7 @@ flowchart TD
   artic -. planned .-> text[artic-text]
   artic -. hot-reload / runtime-xaml .-> runtime[artic-xaml-runtime]
   artic -. xaml .-> xaml
+  artic -. xaml-compiler .-> compiler
 
   theme --> controls
   theme --> styles[artic-style]
@@ -103,7 +104,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-test` | `artic-core`, `artic-layout`, `artic-render`, `artic-text`, `artic-test-fonts`, `artic-element`, `artic-platform`; planned: `artic-registry`, `artic-style` |
 | `artic-winit` | `artic-core`, `artic-render`, `artic-platform` |
 | `artic-vello` | `artic-layout`, `artic-render` |
-| `artic` | every app-facing crate; `artic-xaml` with the `xaml` feature, which `hot-reload` and `runtime-xaml` turn on; `artic-xaml-runtime` only with `hot-reload` or `runtime-xaml` |
+| `artic` | every app-facing crate; `artic-xaml` with the `xaml` feature, which `hot-reload`, `runtime-xaml` and `xaml-compiler` turn on; `artic-xaml-runtime` only with `hot-reload` or `runtime-xaml`; `artic-xaml-compiler` only with `xaml-compiler`, which an app enables on its build-dependency on the facade |
 
 ## Rules
 
