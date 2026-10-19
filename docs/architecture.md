@@ -12,7 +12,7 @@ An app picks three things. Each sits behind an interface no layer below it knows
 | Renderer | `Renderer` in `artic-render` | `artic-vello` |
 | UI language | the registry and the tree, as [the contract](spec/dsl.md) states | XAML: `artic-xaml`, `artic-xaml-compiler`, `artic-xaml-runtime` |
 
-No crate below a UI language depends on it or names it. Only the XAML crates, `artic-lsp`, `artic-cli` and the facade's `xaml` module say XAML; `scripts/check-ui-neutral.sh` checks this in CI.
+No crate below a UI language depends on it or names it. Only the XAML crates, `artic-lsp`, `artic-cli`, the facade's `xaml` module and `docs-check`'s list of documents say XAML; `scripts/check-ui-neutral.sh` checks this in CI.
 
 ## Layers
 
