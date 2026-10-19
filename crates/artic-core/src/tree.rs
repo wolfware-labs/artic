@@ -37,6 +37,7 @@
 
 mod attached;
 mod dirty;
+mod handle;
 mod hierarchy;
 mod inheritance;
 mod objects;
@@ -47,6 +48,7 @@ use crate::property::{Affects, AnyProperty, AttachedKey, Inheritance, KeyId, Pro
 use attached::AttachedValues;
 use dirty::DirtyFlags;
 pub use dirty::DirtyHandle;
+pub use handle::Handle;
 use hierarchy::Tree;
 use objects::Objects;
 use std::any::Any;
@@ -217,6 +219,13 @@ impl UiTree {
       .object(id)
       .visit_properties(&mut |property| property.attach(dirty.clone()));
     id
+  }
+
+  /// Adds `node` to the tree, as [`alloc`](UiTree::alloc) does, and returns a handle that knows
+  /// its type.
+  #[must_use = "the handle is needed to get or free the node"]
+  pub fn alloc_typed<T: Object>(&mut self, node: T) -> Handle<T> {
+    Handle::new(self.alloc(Box::new(node)))
   }
 
   /// Removes the node referred to by `node_id` and returns it.

@@ -12,7 +12,7 @@ pub use artic_core::event::Event;
 pub use artic_core::property::{
   Affects, AnyProperty, AttachedKey, Inheritance, ParseEnumError, Property, PropertyKey, SharedKey, inherit,
 };
-pub use artic_core::tree::{NodeId, UiTree};
+pub use artic_core::tree::{Handle, NodeId, UiTree};
 pub use std::marker::PhantomData;
 
 /// Wraps a property's value type for the check below.
