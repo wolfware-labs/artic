@@ -199,7 +199,7 @@ impl<T: UiType + Object, I: IntoIterator<Item: Into<NodeId>>> WithChildren<T, I>
 | A property constant and an attached constant with one name, such as two `ROW`s | Derive error naming both. A field `row` beside an attached `Row` reports this once, as the getter clash above |
 | A field named like a field of a flattened group, such as an own `width` | Compile error naming both, from a `const` check against the group's `PROPERTIES`; otherwise the inherent method would hide the group's |
 | Two flattened groups with a field of the same name | The same `const` check, naming the two groups |
-| A field named `type_info` | Derive error: its constant would hide `UiType::TYPE_INFO` |
+| A property named `type_info` with its own key | Derive error: its constant would hide `UiType::TYPE_INFO`. With a shared key it gets no constant, so the name is free |
 | Any other two generated items with one name, such as a field `PADDING`'s method and constant, or an attached `Build`'s getter and `build` | Derive error naming both |
 
 ## Bindings, resources, classes and styles

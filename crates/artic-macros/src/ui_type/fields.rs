@@ -450,7 +450,8 @@ mod tests {
     assert!(analyze(&input).is_ok());
   }
 
-  // A property named `type_info` is rejected: its key constant would hide `UiType::TYPE_INFO`.
+  // A property named `type_info` with its own key is rejected: its key constant would hide
+  // `UiType::TYPE_INFO`.
   #[test]
   fn type_info_is_reserved() {
     let input: DeriveInput = parse_quote! { struct Border { #[ui] type_info: Property<f32> } };
@@ -459,6 +460,14 @@ mod tests {
       error(&input),
       "`TYPE_INFO` would be both `UiType::TYPE_INFO` and the key constant of the property `type_info`; rename one"
     );
+  }
+
+  // A property with a shared key gets no constant, so it may be named `type_info`.
+  #[test]
+  fn type_info_is_free_with_a_shared_key() {
+    let input: DeriveInput = parse_quote! { struct Border { #[ui(key = INFO)] type_info: Property<f32> } };
+
+    assert!(analyze(&input).is_ok());
   }
 
   // A property written in SCREAMING_SNAKE_CASE would get a method and a key constant of one name.

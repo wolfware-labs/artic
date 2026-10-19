@@ -97,8 +97,9 @@ use syn::{DeriveInput, parse_macro_input};
 /// pub fn row(tree: &UiTree, node: impl Into<NodeId>) -> usize;
 /// ```
 ///
-/// Two of these items with one name are an error, as is a property named `new`, `build` or
-/// `type_info`: rename the field, or the attached property with `name = ...`.
+/// Two of these items with one name are an error, as is a property named `new` or `build`, or a
+/// property with its own key named `type_info`, whose constant would hide `UiType::TYPE_INFO`:
+/// rename the field, or the attached property with `name = ...`.
 #[proc_macro_derive(UiType, attributes(ui))]
 pub fn derive_ui_type(input: TokenStream) -> TokenStream {
   let input = parse_macro_input!(input as DeriveInput);
