@@ -605,3 +605,13 @@ fn raw_identifier_field_gets_a_method() {
 
   assert_eq!(input.r#type.get(), "password");
 }
+
+// A property with its own key gets a public constant for that key, named after the field.
+#[test]
+fn own_key_has_a_public_constant() {
+  let border = Border::new();
+
+  assert!(std::ptr::eq(Border::PADDING, border.padding.key()));
+  assert_eq!(Border::CORNER_RADIUS.name(), "CornerRadius");
+  assert_eq!(Input::TYPE.name(), "Type");
+}

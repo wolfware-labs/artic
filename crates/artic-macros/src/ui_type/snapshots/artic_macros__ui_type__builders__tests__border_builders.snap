@@ -3,6 +3,12 @@ source: crates/artic-macros/src/ui_type/builders.rs
 expression: expand(&input)
 ---
 impl Border {
+    ///The key of `Padding`, for styles.
+    pub const PADDING: &'static __artic::PropertyKey<Thickness> = &__KEY_PADDING;
+    ///The key of `Background`, for styles.
+    pub const BACKGROUND: &'static __artic::PropertyKey<Option<Brush>> = &__KEY_BACKGROUND;
+    ///The key of `Opacity`, for styles.
+    pub const OPACITY: &'static __artic::PropertyKey<f32> = &__KEY_OPACITY;
     ///Creates a `Border` with each property at its default.
     #[must_use]
     pub fn new() -> Self {

@@ -356,7 +356,7 @@ fn key_path(field: &UiField) -> TokenStream {
   }
 }
 
-fn generated_key(field: &Ident) -> Ident {
+pub(crate) fn generated_key(field: &Ident) -> Ident {
   format_ident!("__KEY_{}", field.unraw().to_string().to_uppercase())
 }
 

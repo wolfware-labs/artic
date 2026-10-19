@@ -1,16 +1,22 @@
 use crate::ui_type::fields::{Analysis, Role, UiField, generic_argument, ui_name};
+use crate::ui_type::generate::generated_key;
 use proc_macro2::TokenStream;
-use quote::quote;
-use syn::Type;
+use quote::{format_ident, quote};
+use syn::ext::IdentExt;
+use syn::{Ident, Type};
 
-/// The builder items a derived type gets, written inside its inherent `impl`: `new`, `build` and
-/// one method per `Property` field, which sets the field's `Local` level.
+/// The builder items a derived type gets, written inside its inherent `impl`: `new`, `build`, one
+/// method per `Property` field, which sets the field's `Local` level, and a constant per property
+/// key the type owns.
 pub fn builders(analysis: &Analysis) -> TokenStream {
   let ident = analysis.ident;
   let new_doc = format!("Creates a `{ident}` with each property at its default.");
   let build_doc = format!("Adds this `{ident}` to `tree` and returns its handle.");
+  let constants = analysis.ui_fields.iter().filter_map(key_constant);
   let methods = analysis.ui_fields.iter().filter_map(property_method);
   quote! {
+    #(#constants)*
+
     #[doc = #new_doc]
     #[must_use]
     pub fn new() -> Self {
@@ -80,6 +86,29 @@ fn is_number(ty: &Type) -> bool {
       .is_some_and(|ident| NUMBERS.iter().any(|number| ident == number))
 }
 
+/// The public name of a property's key: the field name without `r#`, in SCREAMING_SNAKE_CASE.
+pub fn key_constant_name(field: &Ident) -> Ident {
+  format_ident!("{}", field.unraw().to_string().to_uppercase())
+}
+
+/// The public constant for a property's own key, or `None` for a field that shares a key, whose
+/// owner already names it.
+fn key_constant(field: &UiField) -> Option<TokenStream> {
+  let Role::Property { inner, .. } = field.role else {
+    return None;
+  };
+  if field.attributes.key.is_some() {
+    return None;
+  }
+  let constant = key_constant_name(field.ident);
+  let key = generated_key(field.ident);
+  let doc = format!("The key of `{}`, for styles.", ui_name(field));
+  Some(quote! {
+    #[doc = #doc]
+    pub const #constant: &'static __artic::PropertyKey<#inner> = &#key;
+  })
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -106,6 +135,19 @@ mod tests {
         #[ui(affects = render)] background: Property<Option<Brush>>,
         #[ui] opacity: Property<f32>,
         #[ui] pointer_pressed: Event<PointerEvent>,
+      }
+    };
+
+    insta::assert_snapshot!(expand(&input));
+  }
+
+  // A field with a shared key gets a method but no constant: the key's owner names it.
+  #[test]
+  fn shared_key_field_has_a_method_and_no_constant() {
+    let input: DeriveInput = parse_quote! {
+      struct TextBlock {
+        #[ui(key = TextElement::FONT_SIZE)] font_size: Property<f32>,
+        #[ui] text: Property<String>,
       }
     };
 

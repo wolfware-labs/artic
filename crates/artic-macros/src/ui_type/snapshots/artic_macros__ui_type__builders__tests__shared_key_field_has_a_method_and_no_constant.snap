@@ -1,0 +1,29 @@
+---
+source: crates/artic-macros/src/ui_type/builders.rs
+expression: expand(&input)
+---
+impl TextBlock {
+    ///The key of `Text`, for styles.
+    pub const TEXT: &'static __artic::PropertyKey<String> = &__KEY_TEXT;
+    ///Creates a `TextBlock` with each property at its default.
+    #[must_use]
+    pub fn new() -> Self {
+        <Self as ::core::default::Default>::default()
+    }
+    ///Adds this `TextBlock` to `tree` and returns its handle.
+    pub fn build(self, tree: &mut __artic::UiTree) -> __artic::Handle<Self> {
+        tree.alloc_typed(self)
+    }
+    ///Sets `FontSize`, the local value.
+    #[must_use]
+    pub fn font_size(self, value: f32) -> Self {
+        self.font_size.set(value);
+        self
+    }
+    ///Sets `Text`, the local value.
+    #[must_use]
+    pub fn text(self, value: impl ::core::convert::Into<String>) -> Self {
+        self.text.set(::core::convert::Into::into(value));
+        self
+    }
+}
