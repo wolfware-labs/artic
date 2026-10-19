@@ -2,7 +2,7 @@
 
 Issue: #48. Builds on: the [host seam](host.md) (#39), the [frame pipeline](frame.md) (#40), attached properties (M0-30), `Element` and its property groups ([element design](element.md), #42). Unblocks: #52 (`UserControl` views), #55 (`artic` facade), #122 (`Application` resources and styles), #174 (multiple windows), the mobile hosts (#141, #142).
 
-A **surface** is a root the app asks the host to present: an OS window on a desktop, the whole screen on a phone, a canvas on the web. The app declares its surfaces in the tree, under one `Application` node, and the runner makes the host match the tree: a surface added or reopened is presented, one closed is taken down, and one whose title or size changed is updated. App code never opens, updates or closes anything itself, and the same markup runs on every platform.
+A **surface** is a root the app asks the host to present: an OS window on a desktop, the whole screen on a phone, a canvas on the web. The app declares its surfaces in the tree, under one `Application` node, and the runner makes the host match the tree: a surface added or reopened is presented, one closed is taken down, and one whose title or size changed is updated. App code never opens, updates or closes anything itself, and the same view runs on every platform.
 
 ```xml
 <Application x:Class="Notes.App"
@@ -54,7 +54,7 @@ The vocabulary splits by layer. App code says `Surface`, with platform settings 
 
 `Surface` and `Application` are `#[element]`s like any other, so they carry the four property groups and styles, names and inheritance work on them unchanged. A surface's `layout` group acts inside the surface, as on any element: `Margin` insets its content, `MaxWidth` caps it. The window's own size comes only from `Desktop`.
 
-`Desktop` lives in `artic-element`, not in a desktop crate, so markup that sets `Desktop.Width` compiles on every target. The owner is a set of property keys with no platform code behind it; a host that isn't a desktop never reads them.
+`Desktop` lives in `artic-element`, not in a desktop crate, so a view that sets `Desktop.Width` compiles on every target. The owner is a set of property keys with no platform code behind it; a host that isn't a desktop never reads them.
 
 ## 3. Platform settings
 

@@ -63,7 +63,7 @@ impl<T> From<Handle<T>> for NodeId { /* … */ }
 - `Clone`, `Copy`, `PartialEq`, `Eq`, `Hash` and `Debug` are written by hand: derived, they would require `T` to implement them too, and `Handle<Border>` wouldn't be `Copy`.
 - `Handle<T>` is `Copy` and the size of `NodeId`. Like `NodeId` it is `Send` and `Sync`, but every method needs the tree, which isn't.
 - Using a handle to a freed node is a bug and panics, as disposed signals do (#11); `try_get` is for code that expects nodes to go away.
-- `x:Name` gives the code-behind a `Handle<T>` field. Spec §9's `Named<T>` is this type.
+- `x:Name` gives the code-behind a `Handle<T>` field, as spec §9 shows.
 - Child parameters take `impl Into<NodeId>`, so a `Handle<Button>` or a raw `NodeId` both work.
 
 ## Member methods

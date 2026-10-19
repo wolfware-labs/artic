@@ -1,6 +1,6 @@
 # Design: typed values in the runtime loader
 
-Issue: #20. Implemented by: #57. Related designs: #32 (value objects), #31 (attached properties and markup extensions), #21 (builder API).
+Issue: #20. Implemented by: #57. Related designs: #32 (value objects), #31 (attached properties and value providers), #21 (builder API).
 
 The runtime loader (spec §5, hot reload and `runtime-xaml`) reads XAML text and builds the same tree the compiled path builds. The compiled path knows every type while it generates code. The loader knows only strings and registry entries, yet it must end up calling a typed `Property<T>::set_at`. This document decides where the type `T` is known, without `Box<dyn Any>` and without `TypeId`-keyed downcasts in any public API (D9).
 
@@ -147,7 +147,7 @@ Template content is deferred markup too: a `ControlTemplate` keeps its infoset a
 
 ### Markup extension contract
 
-Every markup extension resolves to one of the four inputs (text, child node, object, null), and the loader then uses the thunks above. `{StaticResource}` and `{x:Null}` are specified here; `{x:Static}`, other extensions and attached property storage are #31; `{Binding}` is #96.
+Every markup extension, a value provider in [the UI language contract](../spec/dsl.md#8-value-providers), resolves to one of the four inputs (text, child node, object, null), and the loader then uses the thunks above. `{StaticResource}` and `{x:Null}` are specified here; `{x:Static}`, other extensions and attached property storage are #31; `{Binding}` is #96.
 
 ## Worked examples
 

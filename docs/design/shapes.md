@@ -78,7 +78,7 @@ pub enum LineCap { Flat, Round, Square }
 Stroke::new(2.0).with_join(LineJoin::Round).with_cap(LineCap::Round)
 ```
 
-The defaults are WPF's and Avalonia's: width `1`, `Miter`, `Flat`, miter limit `10`. The names are the XAML ones (`Flat`, not SVG's `Butt`), since UI languages will set them once shapes become elements. A stroke is centered on the outline. `Border` draws its outline as a filled even-odd ring instead, so its sides can differ in width ([border design](border.md)).
+The defaults are WPF's and Avalonia's: width `1`, `Miter`, `Flat`, miter limit `10`. The names are WPF's and Avalonia's (`Flat`, not SVG's `Butt`), since UI languages will set them once shapes become elements. A stroke is centered on the outline. `Border` draws its outline as a filled even-odd ring instead, so its sides can differ in width ([border design](border.md)).
 
 `Stroke` is `#[non_exhaustive]` and built with `new` and `with_*` methods, so code outside `artic-render` can't write it as a literal, and adding fields (dashes, below) breaks no caller.
 

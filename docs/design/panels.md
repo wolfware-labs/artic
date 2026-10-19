@@ -2,7 +2,7 @@
 
 Issue: #44. Builds on: layout (#41), [elements](element.md) (#42), [layout tests](layout-tests.md) (#56), `UiEnum` (#19), [golden images](golden-images.md) (#38). Unblocks: `Grid` (#67), `DockPanel` (#68), `WrapPanel` and `UniformGrid` (#69), `Canvas` (#70), the accesskit adapter (#54), #49.
 
-`StackPanel` is the first layout container: it holds children and lines them up in a row or a column, with a background drawn under them. Building it the way the rest of the panels will be built needs a few changes underneath first: how `#[element]` and `#[derive(UiType)]` share work, where a type's XAML content is declared, what the property groups are called, how layout treats `Collapsed`, and where children live.
+`StackPanel` is the first layout container: it holds children and lines them up in a row or a column, with a background drawn under them. Building it the way the rest of the panels will be built needs a few changes underneath first: how `#[element]` and `#[derive(UiType)]` share work, where a type's content is declared, what the property groups are called, how layout treats `Collapsed`, and where children live.
 
 ```rust,ignore
 #[element]
@@ -203,7 +203,7 @@ impl<T: UiType + Object, I: IntoIterator<Item: Into<NodeId>>> WithChildren<T, I>
 
 `build` checks that every item is in the tree and appears once before it allocates the node, and panics if not, since a repeated item would be linked twice and end up once: in code that is a bug, as for `Children::add`. Once those checks pass no link can fail, because a node that was just allocated has no ancestors to make a cycle and no children to collide with, so a failed build never leaves a parent or some of its children in the tree.
 
-`WithChildren` is only for child elements, which are tree data. A value collection such as `Vec<GradientStop>` is node data, so its builder method writes the field directly, as a property's does: `LinearGradientBrush::new().gradient_stops([a, b])`, with the values built inline as the [value objects](value-objects.md) design builds them. The derive generates `.children(items)` for a `Children` field and `.child(item)` for a `Child` field, which wraps `Some(item)` in the same `WithChildren`; a leaf gets neither. `WithChildren::build` adds each item through the type's content field, the path a UI language takes, so a second child for a `Child` field is refused the same way in both. `WithChildren` has no property methods, so `.children` comes last before `.build`, as children come after attributes in XAML. It is one generic type, unlike the per-type builder types `builder-api.md` rejects, and that document's "`build` links its children" becomes "`WithChildren::build` links them". The builder methods don't exist yet, so `WithChildren` and the generated `.children` come with #43; this design fixes their shape.
+`WithChildren` is only for child elements, which are tree data. A value collection such as `Vec<GradientStop>` is node data, so its builder method writes the field directly, as a property's does: `LinearGradientBrush::new().gradient_stops([a, b])`, with the values built inline as the [value objects](value-objects.md) design builds them. The derive generates `.children(items)` for a `Children` field and `.child(item)` for a `Child` field, which wraps `Some(item)` in the same `WithChildren`; a leaf gets neither. `WithChildren::build` adds each item through the type's content field, the path a UI language takes, so a second child for a `Child` field is refused the same way in both. `WithChildren` has no property methods, so `.children` comes last before `.build`, as children come after attributes in XAML. It is one generic type, unlike the per-type builder types `builder-api.md` rejects, and that document's "`build` links its children" becomes "`WithChildren::build` links them". #43 built `WithChildren` and the generated `.children` in this shape.
 
 ## 5. `Panel` and `StackPanel`
 
@@ -261,7 +261,6 @@ Elements return their own node; the tree of nodes is built by #54's walk, which 
 | --- | --- | --- |
 | `Grid`, `DockPanel`, `WrapPanel`, `UniformGrid`, `Canvas` | each flattens `Panel`, declares `Children` and writes measure and arrange | #67 to #70 |
 | Child order in the accesskit tree | the walk in section 6 | #54 |
-| `.children(…)` on the builder, through `WithChildren` | comes beside the other builder methods | #43 |
 | Filling `Children` from a UI language | the loader calls `UiCollection::push_child` | the XAML runtime and compiler |
 | Virtualization | a different panel over the same `Children` | #131 |
 
