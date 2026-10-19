@@ -66,6 +66,7 @@ impl RustExpr {
 - `PropertyInfo` gains `literal: Option<fn(&str, &mut RustExpr) -> Result<(), String>>`. For a `Property<Option<V>>` it parses and writes `V`, which is what the builder method takes. The derive writes it beside the value check, with the same dispatch: a value type that parses from text gets "parse with `FromStr`, then `to_rust`"; a `NodeId` or a `UiType` value, which never comes from text, gets a function that returns the error "this property takes an element, not text".
 - A value type set from text must implement `ToRust`. The value check's bound becomes `FromStr + ToRust`, and its method, whose name is the error message, becomes `value_must_parse_from_text_and_implement_torust_or_derive_uitype`.
 - The registry exposes a `literal!` macro to the derive, defined as `Some($f)` when `artic-registry`'s `literals` feature is on and `None` when it's off. `artic-xaml-compiler` turns the feature on; Cargo's resolver keeps build-dependency features apart from the app's, so only the build script's registry holds the functions, and a release app keeps neither them nor the `ToRust` code they reach.
+- `artic-registry` re-exports `ToRust` and `RustExpr` at its root, since `PropertyInfo::literal` names them, so the compiler builds a `RustExpr` through the registry and keeps its two dependencies, `artic-xaml` and `artic-registry` ([architecture](../architecture.md)).
 - `RustExpr` is a string builder, so `artic-core` stays free of `syn`. The compiler parses every expression it gets with `syn::parse_str::<syn::Expr>`; an impl that writes invalid Rust fails the build naming the property, never the app.
 - A literal is checked on the host. A `usize` that fits the host and not a 32-bit target fails to compile in the generated file, where rustc reports the literal out of range.
 
@@ -197,7 +198,7 @@ fn main() {
 | PR | Contents |
 | --- | --- |
 | 1 | this document and the changes above |
-| 2 | `ToRust` and `RustExpr` in `artic-core`; the impls and the constructors they call; `UiEnum` writes it; `PropertyInfo::literal`, the `literals` feature and `literal!`; the value check's new bound and message |
+| 2 | `ToRust` and `RustExpr` in `artic-core`, re-exported by `artic-registry`; the impls and the constructors they call; `UiEnum` writes it; `PropertyInfo::literal`, the `literals` feature and `literal!`; the value check's new bound and message |
 | 3 | root re-exports and their tests; `NamespaceMap::path`, `path_of`, `crates_named`; the facade's crate modules and `UiTree` in the prelude; `PropertyGroupInfo::methods`, `ContentInfo::Collection::method` |
 | 4 | `compile_str`: resolving, the `View` struct and post-order builder calls, literals, content and collections, the diagnostics above, snapshots and `output_is_deterministic` |
 | 5 | `compile_dir`, `rerun-if-changed`, linking through the map, the facade's `xaml-compiler` feature, and the integration crate; closes #49 |
