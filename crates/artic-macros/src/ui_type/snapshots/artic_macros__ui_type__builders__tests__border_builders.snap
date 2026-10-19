@@ -19,6 +19,17 @@ impl Border {
     pub fn build(self, tree: &mut __artic::UiTree) -> __artic::Handle<Self> {
         tree.alloc_typed(self)
     }
+    /// Sets the child, linked when the node is built.
+    #[must_use]
+    pub fn child(
+        self,
+        child: impl ::core::convert::Into<__artic::NodeId>,
+    ) -> __artic::WithChildren<Self, ::core::option::Option<__artic::NodeId>> {
+        __artic::WithChildren::new(
+            self,
+            ::core::option::Option::Some(::core::convert::Into::into(child)),
+        )
+    }
     ///Sets `Padding`, the local value.
     #[must_use]
     pub fn padding(self, value: impl ::core::convert::Into<Thickness>) -> Self {

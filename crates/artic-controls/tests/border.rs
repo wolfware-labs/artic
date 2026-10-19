@@ -1,7 +1,7 @@
 // Border puts its one child inside its padding and outline, and draws its chrome around it.
 
 use artic_controls::{Border, StackPanel};
-use artic_core::tree::{NodeId, UiTree};
+use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{AccessCx, Child, ElementTypes, RenderCx, Visibility};
 use artic_layout::LayoutNodes;
 use artic_layout::Layoutable;
@@ -306,4 +306,28 @@ proptest! {
 
     Invariants::default().contained().assert(&mut layout, root, available, scale);
   }
+}
+
+// The builder gives a border its one child.
+#[test]
+fn child_builder_sets_the_child() {
+  let mut tree = UiTree::new();
+  let leaf = Border::new().build(&mut tree);
+
+  let border = Border::new().padding(Thickness::uniform(2.0)).child(leaf).build(&mut tree);
+
+  assert_eq!(Child::get(&tree, border.id()), Some(leaf.id()));
+}
+
+// A child that already has a parent moves to the border being built, as it does for a panel.
+#[test]
+fn child_builder_moves_a_child_from_its_parent() {
+  let mut tree = UiTree::new();
+  let leaf = Border::new().build(&mut tree);
+  let old = Border::new().child(leaf).build(&mut tree);
+
+  let new = Border::new().child(leaf).build(&mut tree);
+
+  assert_eq!(Child::get(&tree, old.id()), None);
+  assert_eq!(tree.parent(TreeKind::Visual, leaf.id()), Some(new.id()));
 }

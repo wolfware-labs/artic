@@ -1,0 +1,33 @@
+---
+source: crates/artic-macros/src/ui_type/builders.rs
+expression: expand(&input)
+---
+impl StackPanel {
+    ///The key of `Spacing`, for styles.
+    pub const SPACING: &'static __artic::PropertyKey<f32> = &__KEY_SPACING;
+    ///Creates a `StackPanel` with each property at its default.
+    #[must_use]
+    pub fn new() -> Self {
+        <Self as ::core::default::Default>::default()
+    }
+    ///Adds this `StackPanel` to `tree` and returns its handle.
+    #[must_use = "the handle is needed to link or reach the node"]
+    pub fn build(self, tree: &mut __artic::UiTree) -> __artic::Handle<Self> {
+        tree.alloc_typed(self)
+    }
+    /// Sets the children, linked in order when the node is built.
+    #[must_use]
+    pub fn children<I>(self, children: I) -> __artic::WithChildren<Self, I>
+    where
+        I: ::core::iter::IntoIterator,
+        I::Item: ::core::convert::Into<__artic::NodeId>,
+    {
+        __artic::WithChildren::new(self, children)
+    }
+    ///Sets `Spacing`, the local value.
+    #[must_use]
+    pub fn spacing(self, value: f32) -> Self {
+        self.spacing.set(value);
+        self
+    }
+}

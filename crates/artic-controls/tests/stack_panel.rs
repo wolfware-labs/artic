@@ -2,7 +2,7 @@
 // part in layout.
 
 use artic_controls::StackPanel;
-use artic_core::tree::{NodeId, UiTree};
+use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{AccessCx, ElementTypes, Visibility};
 use artic_layout::geometry::{Rect, Size};
 use artic_layout::{LayoutNodes, Layoutable, Orientation};
@@ -216,4 +216,32 @@ proptest! {
 
     Invariants::default().assert(&mut layout, root, available, scale);
   }
+}
+
+// The builder links a panel's children in order, in both trees.
+#[test]
+fn children_builder_links_in_order_in_both_trees() {
+  let mut tree = UiTree::new();
+  let first = StackPanel::new().build(&mut tree);
+  let second = StackPanel::new().build(&mut tree);
+
+  let panel = StackPanel::new().spacing(4.0).children([first, second]).build(&mut tree);
+
+  for kind in [TreeKind::Logical, TreeKind::Visual] {
+    assert_eq!(tree.children(kind, panel.id()).collect::<Vec<_>>(), [first.id(), second.id()]);
+  }
+  assert_eq!(panel.get(&tree).spacing.get(), 4.0);
+}
+
+// A child that already has a parent moves to the panel being built, as `Children::add` moves it.
+#[test]
+fn children_builder_moves_a_child_from_its_parent() {
+  let mut tree = UiTree::new();
+  let child = StackPanel::new().build(&mut tree);
+  let old = StackPanel::new().children([child]).build(&mut tree);
+
+  let new = StackPanel::new().children([child]).build(&mut tree);
+
+  assert_eq!(tree.children(TreeKind::Logical, old.id()).count(), 0);
+  assert_eq!(tree.parent(TreeKind::Logical, child.id()), Some(new.id()));
 }

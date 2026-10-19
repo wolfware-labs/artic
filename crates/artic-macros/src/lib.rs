@@ -34,13 +34,13 @@ use syn::{DeriveInput, parse_macro_input};
 /// Every `Property<T>` and `Event<A>` field must be marked `#[ui]`:
 ///
 /// - `Property<T>` is a property. `T`, or `X` in `Option<X>`, must implement `FromStr` or
-///   `UiType`, or be a `NodeId` child slot. Its settings: `default = expr` for the `Default`
-///   level (otherwise `T::default()`), `affects = layout | render | surface` and `inherits` for
-///   its generated key, `key = KEY` to share a key with other types instead (inheritance across
-///   types needs it): a `static PropertyKey`, or an attached property's key such as
-///   `TextElement::FONT_SIZE`, which also gives the field its default, so `default` can't go
-///   beside it, and `name = "..."` to rename it (the field name in
-///   PascalCase otherwise).
+///   `UiType`, or be a `NodeId`, a property that names a node, such as a data context. Its
+///   settings: `default = expr` for the `Default` level (otherwise `T::default()`),
+///   `affects = layout | render | surface` and `inherits` for its generated key, `key = KEY` to
+///   share a key with other types instead (inheritance across types needs it): a
+///   `static PropertyKey`, or an attached property's key such as `TextElement::FONT_SIZE`, which
+///   also gives the field its default, so `default` can't go beside it, and `name = "..."` to
+///   rename it (the field name in PascalCase otherwise).
 ///   A bare `inherits` replaces what the property inherits with its own value; `inherits = f`
 ///   combines the two through `f(own, inherited)`, where a single name such as `and` is one of
 ///   `artic_core::property::inherit`'s functions and a longer path names any
@@ -64,13 +64,16 @@ use syn::{DeriveInput, parse_macro_input};
 /// only reach the registry if the crate is linked (see `UI_TYPES`).
 ///
 /// It also writes the builder from the builder design: `new()`, the `Default`; one method per
-/// `Property` field, named after the field, which sets the `Local` level and takes
-/// `impl Into<T>` (the `X` of `Option<X>`), or the number itself for a number type written as
-/// `f32` or `core::primitive::f32`, so a literal such as `8.0` needs no suffix; and `build(tree)`,
-/// which adds the node and returns a `Handle`. A type alias of a number isn't seen through, so a
-/// literal passed to its property needs a suffix (`8.0_f32`). Each property with its own key gets
-/// a constant for it, such as `Border::PADDING`; a shared key is named by its owner. A method and
-/// a constant have their field's visibility.
+/// `Property` field, named after the field, which sets the `Local` level and takes `impl Into<T>`
+/// (the `X` of `Option<X>`), or the number itself for a number type written as `f32` or
+/// `core::primitive::f32`, so a literal such as `8.0` needs no suffix; and `build(tree)`, which
+/// adds the node and returns a `Handle`. A type whose content is a field written `Child` gets
+/// `.child(node)`, and one written `Children` gets `.children(nodes)`; both return a
+/// `WithChildren`, whose `build` adds the node and links them in order, moving a child that has a
+/// parent. Any other content collection holds values, not child elements, and gets neither. A
+/// type alias of a number isn't seen through, so a literal passed to its property needs a suffix
+/// (`8.0_f32`). Each property with its own key gets a constant for it, such as `Border::PADDING`;
+/// a shared key is named by its owner. A method and a constant have their field's visibility.
 ///
 /// ```
 /// # use artic_core::property::Property;
@@ -144,7 +147,7 @@ pub fn derive_ui_enum(input: TokenStream) -> TokenStream {
 /// #[element]
 /// #[derive(Debug)]
 /// pub struct Border {
-///   #[ui(content)] pub child: Property<Option<NodeId>>,
+///   #[ui(content)] pub child: Child,
 /// }
 ///
 /// impl ElementImpl for Border { /* measure_override, render, … */ }

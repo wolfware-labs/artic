@@ -69,7 +69,7 @@ pub struct PropertyInfo {
 pub struct PropertyAccess {
   /// Parses `text` with the value type's `FromStr` and sets it at `level`.
   pub set_text: fn(&mut UiTree, NodeId, &str, Precedence) -> Result<(), ValueError>,
-  /// Sets a child node, for child slots (`Property<NodeId>` / `Property<Option<NodeId>>`).
+  /// Sets a node, for properties that name one (`Property<NodeId>` / `Property<Option<NodeId>>`, such as `DataContext`).
   pub set_node: Option<fn(&mut UiTree, NodeId, NodeId, Precedence) -> Result<(), ValueError>>,
   /// Converts a built object into the value type with `FromUiObject` and sets it. Present for
   /// every property; types that can't come from an object return `ValueError::WrongType`.

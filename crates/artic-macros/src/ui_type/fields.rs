@@ -1,5 +1,5 @@
 use crate::ui_type::attributes::{FieldAttributes, TypeAttributes, parse_field_attributes, parse_type_attributes};
-use crate::ui_type::builders::key_constant_name;
+use crate::ui_type::builders::{content_method_name, key_constant_name};
 use quote::ToTokens;
 use syn::ext::IdentExt;
 use syn::{Data, DeriveInput, Error, Field, Fields, GenericArgument, Ident, PathArguments, Type, Visibility};
@@ -70,6 +70,7 @@ pub fn analyze(input: &DeriveInput) -> syn::Result<Analysis<'_>> {
   check_generated_names(&attributes, &ui_fields)?;
   check_positional(&input.ident, &attributes, &ui_fields)?;
   check_content(&ui_fields)?;
+  check_child_fields(&ui_fields)?;
   Ok(Analysis {
     ident: &input.ident,
     attributes,
@@ -97,6 +98,26 @@ pub fn check_content(ui_fields: &[UiField]) -> syn::Result<()> {
   Ok(())
 }
 
+/// Rejects a `Child` or `Children` field that isn't the content: a type's children are linked
+/// through its content, by a UI language and by `WithChildren` alike.
+fn check_child_fields(ui_fields: &[UiField]) -> syn::Result<()> {
+  for field in ui_fields {
+    let Type::Path(path) = field.ty else { continue };
+    let Some(last) = path.path.segments.last() else { continue };
+    let is_child_field = last.ident == "Child" || last.ident == "Children";
+    if is_child_field && field.attributes.content.is_none() {
+      return Err(Error::new_spanned(
+        field.ty,
+        format_args!(
+          "a `{}` field must be the type's content: mark it `#[ui(content)]`",
+          last.ident
+        ),
+      ));
+    }
+  }
+  Ok(())
+}
+
 /// Rejects two attached properties with one name.
 fn check_attached(attributes: &TypeAttributes) -> syn::Result<()> {
   for (index, attached) in attributes.attached.iter().enumerate() {
@@ -115,9 +136,9 @@ fn check_attached(attributes: &TypeAttributes) -> syn::Result<()> {
 }
 
 /// Rejects two items of one name in the inherent `impl` the derive writes: the builder's `new`
-/// and `build`, each property's method and key constant, and each attached property's getter,
-/// setter and constant. `TYPE_INFO` is taken too, since a constant of that name would hide
-/// `UiType::TYPE_INFO`. The error points at the second item's source.
+/// and `build`, the content method, each property's method and key constant, and each attached
+/// property's getter, setter and constant. `TYPE_INFO` is taken too, since a constant of that name
+/// would hide `UiType::TYPE_INFO`. The error points at the second item's source.
 fn check_generated_names(attributes: &TypeAttributes, ui_fields: &[UiField]) -> syn::Result<()> {
   let mut taken: Vec<(String, String)> = [
     ("new", "the builder's start"),
@@ -127,6 +148,18 @@ fn check_generated_names(attributes: &TypeAttributes, ui_fields: &[UiField]) -> 
   .into_iter()
   .map(|(name, what)| (name.to_owned(), what.to_owned()))
   .collect();
+  let content = ui_fields
+    .iter()
+    .find(|field| field.attributes.content.is_some() && matches!(field.role, Role::Collection));
+  if let Some((field, name)) = content.and_then(|field| Some((field, content_method_name(field.ty)?))) {
+    let name = name.to_owned();
+    take(
+      &mut taken,
+      name,
+      format!("the content method of `{}`", field.ident),
+      field.ident,
+    )?;
+  }
   for field in ui_fields {
     if !matches!(field.role, Role::Property { .. }) {
       continue;
@@ -249,8 +282,21 @@ pub fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttribu
 }
 
 /// A `Property` or `Event` field must be marked `#[ui]`: the derive builds properties with their
-/// keys, and an unmarked one would have none.
+/// keys, and an unmarked one would have none. A `Child` or `Children` field must be marked
+/// `#[ui(content)]`, since children reach a type only through its content.
 pub fn reject_unmarked_member(field: &Field) -> syn::Result<()> {
+  if let Type::Path(path) = &field.ty
+    && let Some(last) = path.path.segments.last()
+    && (last.ident == "Child" || last.ident == "Children")
+  {
+    return Err(Error::new_spanned(
+      &field.ty,
+      format_args!(
+        "add `#[ui(content)]` to this `{}` field so it holds the type's children",
+        last.ident
+      ),
+    ));
+  }
   for wrapper in ["Property", "Event"] {
     if generic_argument(&field.ty, wrapper).is_some() {
       return Err(Error::new_spanned(
@@ -522,5 +568,47 @@ mod tests {
       error(&input),
       "`ROW` would be both the key constant of the property `Row` and the constant of the attached property `Row`; rename one"
     );
+  }
+
+  // The content method takes part in the name check, so a property can't share its name.
+  #[test]
+  fn content_method_clashing_with_a_property_is_an_error() {
+    let input: DeriveInput = parse_quote! {
+      struct Panel {
+        #[ui(content)] items: Children,
+        #[ui] children: Property<f32>,
+      }
+    };
+
+    assert_eq!(
+      error(&input),
+      "`children` would be both the content method of `items` and the method of the property `children`; rename one"
+    );
+  }
+
+  // A `Child` or `Children` field without `#[ui]` is rejected too, rather than left as plain data
+  // that no child ever reaches.
+  #[test]
+  fn unmarked_child_fields_are_an_error() {
+    let input: DeriveInput = parse_quote! { struct Panel { items: Children } };
+
+    assert_eq!(
+      error(&input),
+      "add `#[ui(content)]` to this `Children` field so it holds the type's children"
+    );
+  }
+
+  // A `Child` or `Children` field that isn't the content is rejected: children are linked only
+  // through the content.
+  #[test]
+  fn child_fields_must_be_the_content() {
+    for (ty, name) in [(quote::quote!(Child), "Child"), (quote::quote!(artic::Children), "Children")] {
+      let input: DeriveInput = parse_quote! { struct Panel { #[ui] items: #ty } };
+
+      assert_eq!(
+        error(&input),
+        format!("a `{name}` field must be the type's content: mark it `#[ui(content)]`")
+      );
+    }
   }
 }

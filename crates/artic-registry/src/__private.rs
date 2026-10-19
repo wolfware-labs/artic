@@ -5,7 +5,8 @@ use std::str::FromStr;
 
 pub use crate::{
   ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, EventInfo, OverrideDefaults, PropertyGroup, PropertyGroupInfo,
-  PropertyInfo, PropertyRef, TypeInfo, UiCollection, UiType, ValueError, ValueProviderInfo, Whitespace, register_type,
+  PropertyInfo, PropertyRef, TypeInfo, UiCollection, UiType, ValueError, ValueProviderInfo, Whitespace, WithChildren,
+  register_type,
 };
 pub use artic_core::Object;
 pub use artic_core::event::Event;
