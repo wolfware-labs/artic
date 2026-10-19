@@ -73,6 +73,7 @@ A method is named after its field, which is already snake_case: the name UI lang
 | Member | Generated method | What it does |
 | --- | --- | --- |
 | `Property<T>` | `fn padding(self, value: impl Into<Thickness>) -> Self` | `self.padding.set(value.into())`, the `Local` level |
+| `Property<f32>` and the other number types | `fn spacing(self, value: f32) -> Self` | `self.spacing.set(value)`. A number is taken as is: a literal such as `8.0` is an `f64` until something fixes its type, and `impl Into<f32>` doesn't |
 | `Property<Option<V>>` | `fn background(self, value: impl Into<Brush>) -> Self` | `set(Some(value.into()))`. It takes `V`, so a family conversion (`SolidColorBrush` → `Brush`) still applies; `None` is the default |
 | `Child` field | `fn child(self, child: impl Into<NodeId>) -> WithChildren<Self, Option<NodeId>>` | Wraps the node; `WithChildren::build` links the child in both trees ([children](#children)) |
 | `Children` field | `fn children<I: IntoIterator<Item: Into<NodeId>>>(self, items: I) -> WithChildren<Self, I>` | Wraps the node: the ids wait in `WithChildren`, not in the node, and `WithChildren::build` links them in order in both trees ([children](#children)) |
@@ -138,7 +139,7 @@ impl HasGroup<Layout> for Border {
 
 ### Conversions
 
-Property methods take `impl Into<T>`. With #43, a value type converts from the one value that already means the same thing in a UI language's text:
+Property methods take `impl Into<T>`, numbers aside. With #43, a value type converts from the one value that already means the same thing in a UI language's text:
 
 | Conversion | Same as |
 | --- | --- |

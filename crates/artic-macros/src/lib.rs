@@ -63,6 +63,29 @@ use syn::{DeriveInput, parse_macro_input};
 /// and adds it to `UI_TYPES`. So the struct derives `Debug` but not `Default`, and a crate's types
 /// only reach the registry if the crate is linked (see `UI_TYPES`).
 ///
+/// It also writes the builder from the builder design: `new()`, the `Default`; one method per
+/// `Property` field, named after the field, which sets the `Local` level and takes
+/// `impl Into<T>` (the `X` of `Option<X>`), or the number itself for a number type, so a literal
+/// such as `8.0` needs no suffix; and `build(tree)`, which adds the node and returns a `Handle`.
+/// Each property with its own key gets a public constant for it, such as `Border::PADDING`; a
+/// shared key is named by its owner. Fields named `new`, `build` or `type_info` are errors.
+///
+/// ```
+/// # use artic_core::property::Property;
+/// # use artic_core::tree::UiTree;
+/// # use artic_macros::UiType;
+/// #[derive(Debug, UiType)]
+/// struct Card {
+///   #[ui(default = 1.0)]
+///   width: Property<f32>,
+/// }
+///
+/// let mut tree = UiTree::new();
+/// let card = Card::new().width(2.0).build(&mut tree);
+/// assert_eq!(card.get(&tree).width.get(), 2.0);
+/// assert_eq!(Card::WIDTH.name(), "Width");
+/// ```
+///
 /// For each attached property it also writes, on the owner, the key constant and the helper pair
 /// from the builder design, which read and write the value on any node:
 ///
