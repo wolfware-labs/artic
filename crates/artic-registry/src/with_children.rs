@@ -6,8 +6,8 @@ use artic_core::tree::{Handle, NodeId, UiTree};
 /// and `.children` return.
 ///
 /// [`build`](WithChildren::build) links the children through the type's content collection, the
-/// path a UI language takes, so the collection's own rules apply, such as one child for a `Child`
-/// field.
+/// path a UI language takes, so the collection's own rules apply: a child that has a parent moves
+/// to the new node, as `Children::add` moves it.
 #[derive(Debug)]
 pub struct WithChildren<T, I> {
   node: T,
@@ -15,7 +15,9 @@ pub struct WithChildren<T, I> {
 }
 
 impl<T, I> WithChildren<T, I> {
-  /// Holds `node` and the `children` to link when it is built.
+  /// Holds `node` and the `children` to link when it is built. The generated `.child` and
+  /// `.children` call it, so a `Child` field is given one child at most.
+  #[doc(hidden)]
   pub const fn new(node: T, children: I) -> Self {
     Self { node, children }
   }
@@ -45,7 +47,8 @@ impl<T: UiType + Object, I: IntoIterator<Item: Into<NodeId>>> WithChildren<T, I>
     }
     let node = tree.alloc_typed(self.node);
     for child in children {
-      add_child(tree, node.id(), child).expect("a node just allocated has no ancestors or children to refuse a checked child");
+      add_child(tree, node.id(), child)
+        .unwrap_or_else(|error| panic!("`{name}`'s content refused a child that passed the checks: {error}"));
     }
     node
   }

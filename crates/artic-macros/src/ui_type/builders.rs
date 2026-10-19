@@ -36,11 +36,18 @@ pub fn builders(analysis: &Analysis) -> TokenStream {
   }
 }
 
-/// The name of the method that takes a type's children: `child` for a `Child` field, `children`
-/// for any other collection.
-pub fn content_method_name(ty: &Type) -> &'static str {
-  let single = matches!(ty, Type::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "Child"));
-  if single { "child" } else { "children" }
+/// The name of the method that takes a type's child elements: `child` for a field written
+/// `Child`, `children` for one written `Children`, and `None` for any other collection, whose
+/// values aren't child elements.
+pub fn content_method_name(ty: &Type) -> Option<&'static str> {
+  let Type::Path(path) = ty else {
+    return None;
+  };
+  match path.path.segments.last()?.ident.to_string().as_str() {
+    "Child" => Some("child"),
+    "Children" => Some("children"),
+    _ => None,
+  }
 }
 
 /// The method that takes the children of a type whose content is a collection, or `None`. It
@@ -50,9 +57,10 @@ fn content_method(analysis: &Analysis) -> Option<TokenStream> {
     .ui_fields
     .iter()
     .find(|field| field.attributes.content.is_some() && matches!(field.role, Role::Collection))?;
+  let name = content_method_name(field.ty)?;
   let vis = field.vis;
-  let method = format_ident!("{}", content_method_name(field.ty));
-  Some(if content_method_name(field.ty) == "child" {
+  let method = format_ident!("{name}");
+  Some(if name == "child" {
     quote! {
       /// Sets the child, linked when the node is built.
       #[must_use]
@@ -249,5 +257,20 @@ mod tests {
     };
 
     insta::assert_snapshot!(expand(&input));
+  }
+
+  // A content collection of values, such as gradient stops, gets no content method: its values
+  // aren't child elements, so they don't go through `WithChildren`.
+  #[test]
+  fn value_collection_gets_no_content_method() {
+    let input: DeriveInput = parse_quote! {
+      pub struct LinearGradientBrush {
+        #[ui(content)] pub gradient_stops: Vec<GradientStop>,
+      }
+    };
+
+    let expanded = expand(&input);
+
+    assert!(!expanded.contains("fn children") && !expanded.contains("fn child("));
   }
 }

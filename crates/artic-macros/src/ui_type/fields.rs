@@ -148,11 +148,11 @@ fn check_generated_names(attributes: &TypeAttributes, ui_fields: &[UiField]) -> 
   .into_iter()
   .map(|(name, what)| (name.to_owned(), what.to_owned()))
   .collect();
-  if let Some(field) = ui_fields
+  let content = ui_fields
     .iter()
-    .find(|field| field.attributes.content.is_some() && matches!(field.role, Role::Collection))
-  {
-    let name = content_method_name(field.ty).to_owned();
+    .find(|field| field.attributes.content.is_some() && matches!(field.role, Role::Collection));
+  if let Some((field, name)) = content.and_then(|field| Some((field, content_method_name(field.ty)?))) {
+    let name = name.to_owned();
     take(
       &mut taken,
       name,

@@ -4,7 +4,7 @@
 use artic_core::event::Event;
 use artic_core::property::{Affects, Inheritance, Precedence, Property, PropertyKey};
 use artic_core::tree::{Handle, NodeId, TreeKind, UiTree};
-use artic_element::Child;
+use artic_element::{Child, Children};
 use artic_macros::{UiProperties, UiType};
 use artic_registry::{
   AttachedTarget, ContentInfo, OverrideDefaults, PropertyRef, Registry, TypeInfo, UiCollection, UiType, ValueError, Whitespace,
@@ -625,16 +625,26 @@ struct Frame {
   child: Child,
 }
 
-// `.children` builds the node, then pushes each child through its content collection, in order.
+/// A panel, as `StackPanel` holds its children.
+#[derive(Debug, UiType)]
+struct Panel {
+  #[ui(content)]
+  children: Children,
+}
+
+// `.children` builds the node, then links each child in order.
 #[test]
-fn children_builder_pushes_through_a_custom_collection() {
+fn children_builder_links_in_order() {
   let mut tree = UiTree::new();
   let first = Frame::new().build(&mut tree);
   let second = Frame::new().build(&mut tree);
 
-  let panel = StackPanel::new().children([first.id(), second.id()]).build(&mut tree);
+  let panel = Panel::new().children([first.id(), second.id()]).build(&mut tree);
 
-  assert_eq!(panel.get(&tree).children.0, [first.id(), second.id()]);
+  assert_eq!(
+    tree.children(TreeKind::Logical, panel.id()).collect::<Vec<_>>(),
+    [first.id(), second.id()]
+  );
 }
 
 // `.child` links the one child in both trees.
@@ -668,7 +678,7 @@ fn build_panics_on_a_repeated_child() {
   let mut tree = UiTree::new();
   let leaf = Frame::new().build(&mut tree);
 
-  let _ = StackPanel::new().children([leaf, leaf]).build(&mut tree);
+  let _ = Panel::new().children([leaf, leaf]).build(&mut tree);
 }
 
 // The checks run before the node is allocated, so a failed build leaves the tree as it was.
@@ -678,7 +688,7 @@ fn failed_build_allocates_nothing() {
   let leaf = Frame::new().build(&mut tree);
   let before = tree.len();
 
-  let result = catch_unwind(AssertUnwindSafe(|| StackPanel::new().children([leaf, leaf]).build(&mut tree)));
+  let result = catch_unwind(AssertUnwindSafe(|| Panel::new().children([leaf, leaf]).build(&mut tree)));
 
   assert!(result.is_err());
   assert_eq!(tree.len(), before);
