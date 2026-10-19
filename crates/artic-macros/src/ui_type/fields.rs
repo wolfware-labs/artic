@@ -282,8 +282,21 @@ pub fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttribu
 }
 
 /// A `Property` or `Event` field must be marked `#[ui]`: the derive builds properties with their
-/// keys, and an unmarked one would have none.
+/// keys, and an unmarked one would have none. A `Child` or `Children` field must be marked
+/// `#[ui(content)]`, since children reach a type only through its content.
 pub fn reject_unmarked_member(field: &Field) -> syn::Result<()> {
+  if let Type::Path(path) = &field.ty
+    && let Some(last) = path.path.segments.last()
+    && (last.ident == "Child" || last.ident == "Children")
+  {
+    return Err(Error::new_spanned(
+      &field.ty,
+      format_args!(
+        "add `#[ui(content)]` to this `{}` field so it holds the type's children",
+        last.ident
+      ),
+    ));
+  }
   for wrapper in ["Property", "Event"] {
     if generic_argument(&field.ty, wrapper).is_some() {
       return Err(Error::new_spanned(
@@ -570,6 +583,18 @@ mod tests {
     assert_eq!(
       error(&input),
       "`children` would be both the content method of `items` and the method of the property `children`; rename one"
+    );
+  }
+
+  // A `Child` or `Children` field without `#[ui]` is rejected too, rather than left as plain data
+  // that no child ever reaches.
+  #[test]
+  fn unmarked_child_fields_are_an_error() {
+    let input: DeriveInput = parse_quote! { struct Panel { items: Children } };
+
+    assert_eq!(
+      error(&input),
+      "add `#[ui(content)]` to this `Children` field so it holds the type's children"
     );
   }
 
