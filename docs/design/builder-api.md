@@ -68,11 +68,12 @@ impl<T> From<Handle<T>> for NodeId { /* … */ }
 
 ## Member methods
 
-A method is named after its field, which is already snake_case: the name UI languages use, `CornerRadius`, comes from the field `corner_radius`, whose method is `.corner_radius(…)`. Event methods, with routed events (#75), add the prefix `on_`.
+A method is named after its field, which is already snake_case: the name UI languages use, `CornerRadius`, comes from the field `corner_radius`, whose method is `.corner_radius(…)`. Event methods, with routed events (#75), add the prefix `on_`. A method and a key constant have their field's visibility, so a private field's setter and key stay private.
 
 | Member | Generated method | What it does |
 | --- | --- | --- |
 | `Property<T>` | `fn padding(self, value: impl Into<Thickness>) -> Self` | `self.padding.set(value.into())`, the `Local` level |
+| `Property<f32>` and the other number types | `fn spacing(self, value: f32) -> Self` | `self.spacing.set(value)`. A number is taken as is: a literal such as `8.0` is an `f64` until something fixes its type, and `impl Into<f32>` doesn't. The type must be written `f32` or `core::primitive::f32`; a type alias isn't seen through, so its property takes `impl Into<T>` and a literal needs a suffix (`8.0_f32`) |
 | `Property<Option<V>>` | `fn background(self, value: impl Into<Brush>) -> Self` | `set(Some(value.into()))`. It takes `V`, so a family conversion (`SolidColorBrush` → `Brush`) still applies; `None` is the default |
 | `Child` field | `fn child(self, child: impl Into<NodeId>) -> WithChildren<Self, Option<NodeId>>` | Wraps the node; `WithChildren::build` links the child in both trees ([children](#children)) |
 | `Children` field | `fn children<I: IntoIterator<Item: Into<NodeId>>>(self, items: I) -> WithChildren<Self, I>` | Wraps the node: the ids wait in `WithChildren`, not in the node, and `WithChildren::build` links them in order in both trees ([children](#children)) |
@@ -138,7 +139,7 @@ impl HasGroup<Layout> for Border {
 
 ### Conversions
 
-Property methods take `impl Into<T>`. With #43, a value type converts from the one value that already means the same thing in a UI language's text:
+Property methods take `impl Into<T>`, numbers aside. With #43, a value type converts from the one value that already means the same thing in a UI language's text:
 
 | Conversion | Same as |
 | --- | --- |
@@ -198,7 +199,8 @@ impl<T: UiType + Object, I: IntoIterator<Item: Into<NodeId>>> WithChildren<T, I>
 | A property constant and an attached constant with one name, such as two `ROW`s | Derive error naming both. A field `row` beside an attached `Row` reports this once, as the getter clash above |
 | A field named like a field of a flattened group, such as an own `width` | Compile error naming both, from a `const` check against the group's `PROPERTIES`; otherwise the inherent method would hide the group's |
 | Two flattened groups with a field of the same name | The same `const` check, naming the two groups |
-| A field named `type_info` | Derive error: its constant would hide `UiType::TYPE_INFO` |
+| A property named `type_info` with its own key | Derive error: its constant would hide `UiType::TYPE_INFO`. With a shared key it gets no constant, so the name is free |
+| Any other two generated items with one name, such as a field `PADDING`'s method and constant, or an attached `Build`'s getter and `build` | Derive error naming both |
 
 ## Bindings, resources, classes and styles
 

@@ -72,7 +72,7 @@ let node = (border.new)(&mut tree);
 assert!(tree.get_as::<artic_controls::Border>(node).is_some());
 ```
 
-A build-time language writes the constructor instead: `Border::default()`, or the builder from [the builder API](../design/builder-api.md).
+A build-time language writes the constructor instead: `Border::new()` and the builder methods from [the builder API](../design/builder-api.md), finished by `build(tree)`.
 
 ## 4. Properties
 

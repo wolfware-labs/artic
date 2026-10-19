@@ -1,4 +1,4 @@
-error: the attached property `Row`'s helpers `row` and `set_row` clash with the property `row`; rename one with `name = ...`
+error: `row` would be both the method of the property `row` and the getter of the attached property `Row`; rename one
  --> tests/ui/attached_getter_clash.rs:5:22
   |
 5 | #[ui(attached(name = "Row", ty = usize, target = children))]

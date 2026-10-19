@@ -3,7 +3,7 @@
 
 use artic_core::event::Event;
 use artic_core::property::{Affects, Inheritance, Precedence, Property, PropertyKey};
-use artic_core::tree::{NodeId, TreeKind, UiTree};
+use artic_core::tree::{Handle, NodeId, TreeKind, UiTree};
 use artic_macros::{UiProperties, UiType};
 use artic_registry::{
   AttachedTarget, ContentInfo, OverrideDefaults, PropertyRef, Registry, TypeInfo, UiCollection, UiType, ValueError, Whitespace,
@@ -532,4 +532,86 @@ fn key_through_a_reference_takes_a_default() {
 #[test]
 fn derived_namespace_is_the_crate() {
   assert_eq!(<Border as artic_registry::UiType>::TYPE_INFO.namespace(), "derive");
+}
+
+// Builder calls write the same values, at the same precedence, as setting the fields directly.
+#[test]
+fn builder_matches_direct_set() {
+  let built = Border::new()
+    .padding(Thickness(4.0))
+    .background(Brush("red".to_owned()))
+    .corner_radius(CornerRadius(2.0));
+
+  let direct = Border::default();
+  direct.padding.set(Thickness(4.0));
+  direct.background.set(Some(Brush("red".to_owned())));
+  direct.corner_radius.set(CornerRadius(2.0));
+
+  assert_eq!(built.padding.get(), direct.padding.get());
+  assert_eq!(built.background.get(), direct.background.get());
+  assert_eq!(built.corner_radius.get(), direct.corner_radius.get());
+  for (built, direct) in [
+    (built.padding.effective_source(), direct.padding.effective_source()),
+    (built.background.effective_source(), direct.background.effective_source()),
+    (
+      built.corner_radius.effective_source(),
+      direct.corner_radius.effective_source(),
+    ),
+  ] {
+    assert_eq!((built, direct), (Precedence::Local, Precedence::Local));
+  }
+}
+
+// `new` gives every property its default, as `Default` does.
+#[test]
+fn new_is_the_default() {
+  let border = Border::new();
+
+  assert_eq!(border.padding.get(), Thickness::ZERO);
+  assert_eq!(border.padding.effective_source(), Precedence::Default);
+}
+
+// `build` adds the node to the tree and returns a handle to it, values included.
+#[test]
+fn build_adds_the_node_to_the_tree() {
+  let mut tree = UiTree::new();
+
+  let border: Handle<Border> = Border::new().padding(Thickness(8.0)).build(&mut tree);
+
+  assert_eq!(border.get(&tree).padding.get(), Thickness(8.0));
+  assert!(tree.get_as::<Border>(border.id()).is_some());
+}
+
+// A field with a shared key gets a method that writes its own property at the local level.
+#[test]
+fn shared_key_method_sets_local() {
+  let block = TextBlock::new().font_size(20.0);
+
+  assert_eq!(block.font_size.get(), 20.0);
+  assert_eq!(block.font_size.effective_source(), Precedence::Local);
+}
+
+/// A type with a raw-identifier field, as a UI language's `Type` property would be.
+#[derive(Debug, UiType)]
+struct Input {
+  #[ui]
+  r#type: Property<String>,
+}
+
+// A raw-identifier field keeps its raw name as a method.
+#[test]
+fn raw_identifier_field_gets_a_method() {
+  let input = Input::new().r#type("password");
+
+  assert_eq!(input.r#type.get(), "password");
+}
+
+// A property with its own key gets a public constant for that key, named after the field.
+#[test]
+fn own_key_has_a_public_constant() {
+  let border = Border::new();
+
+  assert!(std::ptr::eq(Border::PADDING, border.padding.key()));
+  assert_eq!(Border::CORNER_RADIUS.name(), "CornerRadius");
+  assert_eq!(Input::TYPE.name(), "Type");
 }

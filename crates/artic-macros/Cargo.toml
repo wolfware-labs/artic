@@ -21,7 +21,9 @@ syn.workspace = true
 artic-core.workspace = true
 artic-element.workspace = true
 artic-registry.workspace = true
+insta.workspace = true
 pretty_assertions.workspace = true
+prettyplease.workspace = true
 syn = { workspace = true, features = ["extra-traits"] }
 trybuild.workspace = true
 
