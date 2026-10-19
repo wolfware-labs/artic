@@ -6,6 +6,7 @@
 //! by the relative values, such as `RelativePoint`; the rest reject them.
 
 use crate::geometry::{CornerRadius, Point, Rect, RelativePoint, RelativeScalar, Scaling, Size, Thickness, Transform};
+use artic_core::{RustExpr, ToRust};
 use std::str::FromStr;
 
 /// The error returned when text isn't a valid geometry value.
@@ -212,6 +213,95 @@ impl FromStr for RelativeScalar {
       [value] => Ok(RelativeScalar { value, scaling }),
       _ => Err(fail(GeometryProblem::Count(numbers.len()))),
     }
+  }
+}
+
+/// Writes `::artic_layout::<path>(<args>)`, each argument an `f32`.
+fn write_call(out: &mut RustExpr, path: &str, args: &[f32]) {
+  out.type_path(env!("CARGO_CRATE_NAME"), path);
+  out.raw("(");
+  for (index, arg) in args.iter().enumerate() {
+    if index > 0 {
+      out.raw(", ");
+    }
+    out.f32(*arg);
+  }
+  out.raw(")");
+}
+
+impl ToRust for Thickness {
+  fn to_rust(&self, out: &mut RustExpr) {
+    write_call(out, "Thickness::new", &[self.left, self.top, self.right, self.bottom]);
+  }
+}
+
+impl ToRust for CornerRadius {
+  fn to_rust(&self, out: &mut RustExpr) {
+    write_call(
+      out,
+      "CornerRadius::new",
+      &[self.top_left, self.top_right, self.bottom_right, self.bottom_left],
+    );
+  }
+}
+
+impl ToRust for Point {
+  fn to_rust(&self, out: &mut RustExpr) {
+    write_call(out, "Point::new", &[self.x, self.y]);
+  }
+}
+
+impl ToRust for Size {
+  fn to_rust(&self, out: &mut RustExpr) {
+    write_call(out, "Size::new", &[self.width, self.height]);
+  }
+}
+
+impl ToRust for Rect {
+  fn to_rust(&self, out: &mut RustExpr) {
+    write_call(out, "Rect::new", &[self.x, self.y, self.width, self.height]);
+  }
+}
+
+impl ToRust for Transform {
+  /// Writes a struct literal: a rotation's matrix has no shorter constructor.
+  fn to_rust(&self, out: &mut RustExpr) {
+    out.type_path(env!("CARGO_CRATE_NAME"), "Transform");
+    let fields = [
+      ("xx", self.xx),
+      ("yx", self.yx),
+      ("xy", self.xy),
+      ("yy", self.yy),
+      ("dx", self.dx),
+      ("dy", self.dy),
+    ];
+    for (index, (name, value)) in fields.into_iter().enumerate() {
+      out.raw(if index == 0 { " { " } else { ", " });
+      out.raw(name);
+      out.raw(": ");
+      out.f32(value);
+    }
+    out.raw(" }");
+  }
+}
+
+impl ToRust for RelativePoint {
+  fn to_rust(&self, out: &mut RustExpr) {
+    let path = match self.scaling {
+      Scaling::Relative => "RelativePoint::relative",
+      Scaling::Fixed => "RelativePoint::fixed",
+    };
+    write_call(out, path, &[self.point.x, self.point.y]);
+  }
+}
+
+impl ToRust for RelativeScalar {
+  fn to_rust(&self, out: &mut RustExpr) {
+    let path = match self.scaling {
+      Scaling::Relative => "RelativeScalar::relative",
+      Scaling::Fixed => "RelativeScalar::fixed",
+    };
+    write_call(out, path, &[self.value]);
   }
 }
 

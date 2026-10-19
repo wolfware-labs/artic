@@ -21,6 +21,7 @@ linkme.workspace = true
 artic-text.workspace = true
 pretty_assertions.workspace = true
 static_assertions.workspace = true
+syn = { workspace = true, features = ["extra-traits"] }
 
 [lints]
 workspace = true
