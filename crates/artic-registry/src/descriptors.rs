@@ -112,8 +112,12 @@ pub struct PropertyInfo {
   /// returns why the text doesn't parse. For a `Property<Option<V>>` it writes a `V`, which is
   /// what the builder method takes. `Some` only when this crate's `literals` feature is on, which
   /// a build-time code generator turns on; an app's registry holds `None`.
-  pub literal: Option<fn(&str, &mut RustExpr) -> Result<(), String>>,
+  pub literal: Option<WriteLiteral>,
 }
+
+/// Parses a property's text and writes the Rust expression that builds the value, or returns why
+/// the text doesn't parse. [`PropertyInfo::literal`] holds one.
+pub type WriteLiteral = fn(&str, &mut RustExpr) -> Result<(), String>;
 
 /// Properties several types share by embedding one struct, such as `Layout`.
 ///

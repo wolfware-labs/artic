@@ -21,7 +21,7 @@ pub use collection::UiCollection;
 pub use defaults::OverrideDefaults;
 pub use descriptors::{
   ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, EventInfo, HasGroup, PropertyGroup, PropertyGroupInfo,
-  PropertyInfo, PropertyRef, TypeInfo, UiType, ValueProviderInfo, Whitespace,
+  PropertyInfo, PropertyRef, TypeInfo, UiType, ValueProviderInfo, Whitespace, WriteLiteral,
 };
 pub use registry::{Duplicate, Lookup, Registry, RegistryError};
 pub use value_error::ValueError;

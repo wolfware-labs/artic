@@ -84,7 +84,7 @@ macro_rules! __literal {
         use $crate::__private::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
         (&&$crate::__private::ValueCheck::<$value>($crate::__private::PhantomData)).write_literal(text, out)
       }
-      literal as fn(&str, &mut $crate::RustExpr) -> ::core::result::Result<(), ::std::string::String>
+      literal as $crate::WriteLiteral
     })
   };
 }
