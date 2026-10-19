@@ -107,3 +107,33 @@ fn surface_lays_out_its_content() {
 
   assert_eq!(layout.rect(content), Some(Rect::new(0.0, 0.0, 200.0, 100.0)));
 }
+
+// An application takes its surfaces as content, each linked in both trees.
+#[test]
+fn application_builder_takes_surfaces() {
+  let mut tree = UiTree::new();
+  let main = Surface::new().title("Main").build(&mut tree);
+  let tools = Surface::new().title("Tools").build(&mut tree);
+
+  let application = Application::new().children([main, tools]).build(&mut tree);
+
+  for kind in [TreeKind::Logical, TreeKind::Visual] {
+    assert_eq!(
+      tree.children(kind, application.id()).collect::<Vec<NodeId>>(),
+      [main.id(), tools.id()]
+    );
+  }
+}
+
+// A surface takes one child as content, linked in both trees.
+#[test]
+fn surface_builder_takes_one_child() {
+  let mut tree = UiTree::new();
+  let content = Surface::new().build(&mut tree);
+
+  let surface = Surface::new().child(content).build(&mut tree);
+
+  for kind in [TreeKind::Logical, TreeKind::Visual] {
+    assert_eq!(tree.children(kind, surface.id()).collect::<Vec<NodeId>>(), [content.id()]);
+  }
+}

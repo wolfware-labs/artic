@@ -47,7 +47,9 @@ use syn::{DeriveInput, parse_macro_input};
 ///   `fn(&T, &T) -> T`: write your own function as `self::my_fn` or `crate::my_fn`.
 /// - `Event<A>` is an event named like a property.
 /// - `#[ui(flatten)]` on a field whose type derives `UiProperties`: its properties are
-///   listed and visited as the type's own. It takes no other settings.
+///   listed and visited as the type's own, and the type gets the group's builder methods through
+///   the group's `Methods` trait. It takes no other settings. An own property named like a field
+///   of a flattened group, or two groups sharing a field name, is an error.
 /// - Any other `#[ui]` field is a collection of child elements and must implement
 ///   `UiCollection`.
 /// - `#[ui(content)]` on one `Property` or collection field: it receives content written inside
@@ -114,9 +116,13 @@ pub fn derive_ui_type(input: TokenStream) -> TokenStream {
 ///
 /// Fields follow `UiType`'s rules for `Property` fields; a group holds no events or
 /// collections, and takes no attributes on the struct. One property may be marked
-/// `#[ui(content)]`, which makes it the content of every type that flattens the group. The derive implements `Default` and
-/// `PropertyGroup`. A group's keys are its own, so every type that flattens it shares them, and
-/// an inheriting property inherits across those types.
+/// `#[ui(content)]`, which makes it the content of every type that flattens the group. The
+/// derive implements `Default` and `PropertyGroup`, gives each property with its own key a
+/// constant such as `Layout::MARGIN`, and writes beside the group a `{Group}Methods` trait
+/// (`LayoutMethods`) with a builder method per field at least as visible as the group,
+/// implemented for every type that flattens it. A group field named `new`, `build`, `child` or
+/// `children` is an error. A group's keys are its own, so every type that flattens it shares
+/// them, and an inheriting property inherits across those types.
 #[proc_macro_derive(UiProperties, attributes(ui))]
 pub fn derive_ui_properties(input: TokenStream) -> TokenStream {
   let input = parse_macro_input!(input as DeriveInput);

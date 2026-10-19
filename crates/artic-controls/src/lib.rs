@@ -9,7 +9,7 @@ mod text_element;
 mod user_control;
 
 pub use border::Border;
-pub use panel::Panel;
+pub use panel::{Panel, PanelMethods};
 pub use stack_panel::StackPanel;
 pub use text_block::TextBlock;
 pub use text_element::TextElement;

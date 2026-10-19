@@ -1,6 +1,6 @@
 //! [`UserControl`], the root of a view an app composes from other controls.
 
-use artic_element::ElementImpl;
+use artic_element::{Child, ElementImpl};
 use artic_layout::geometry::{Rect, Size};
 use artic_layout::{ArrangeCx, MeasureCx};
 use artic_macros::element;
@@ -9,7 +9,11 @@ use artic_macros::element;
 /// and view-model. Its content fills it, and it adds nothing to what assistive technology sees.
 #[element]
 #[derive(Debug)]
-pub struct UserControl;
+pub struct UserControl {
+  /// The content, which fills the view.
+  #[ui(content)]
+  pub child: Child,
+}
 
 impl ElementImpl for UserControl {
   fn measure_override(&self, cx: &mut MeasureCx<'_>, available: Size) -> Size {

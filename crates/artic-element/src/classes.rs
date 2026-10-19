@@ -24,3 +24,16 @@ impl FromStr for Classes {
     Ok(Self(text.split_whitespace().map(str::to_owned).collect()))
   }
 }
+
+impl<const N: usize> From<[&str; N]> for Classes {
+  /// Each item split at whitespace, as `FromStr` splits the text.
+  fn from(names: [&str; N]) -> Self {
+    Self(
+      names
+        .iter()
+        .flat_map(|names| names.split_whitespace())
+        .map(str::to_owned)
+        .collect(),
+    )
+  }
+}

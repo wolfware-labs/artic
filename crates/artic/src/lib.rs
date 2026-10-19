@@ -11,5 +11,13 @@
 #[doc(hidden)]
 pub use artic_element::__private;
 
+/// What a view needs in scope: typed handles and the builder methods of the property groups
+/// every element has, such as `.margin(…)` and `.width(…)`.
+pub mod prelude {
+  pub use artic_controls::PanelMethods;
+  pub use artic_core::tree::Handle;
+  pub use artic_element::{AppearanceMethods, IdentityMethods, InteractionMethods, LayoutMethods};
+}
+
 #[cfg(feature = "xaml")]
 pub mod xaml;

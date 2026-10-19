@@ -131,11 +131,11 @@ impl HasGroup<Layout> for Border {
 ```
 
 - `derive(UiType)` writes `HasGroup<T>` with the field's type as written, so it needs no trait name, and a type alias or a renamed import works.
-- `derive(UiProperties)` names the trait after the group, with the suffix `Methods`; it's exported wherever the group is.
+- `derive(UiProperties)` names the trait after the group, with the suffix `Methods`, and writes it beside the group with the group's visibility. A crate that re-exports the group re-exports the trait with it, as `artic-element` does for `Layout` and `LayoutMethods`.
 - The group stays the only list of its fields, so a group defined by an app works the same as `Layout`, and so does `Panel`'s `background`.
 - A type that flattens the same group twice gets Rust's conflicting-implementations error, since one group per type is what the registry describes.
 - Callers bring the traits into scope. The facade's `artic::prelude` exports `Handle` and the built-in group traits (`LayoutMethods`, `AppearanceMethods`, `InteractionMethods`, `IdentityMethods`, `PanelMethods`).
-- `derive(UiProperties)` also writes `PropertyGroup::METHODS`, the trait's path, built from `module_path!()` as `TypeInfo::rust_path` is. Generated code imports a group's trait from it, an app's groups included, the same way it names a type from `rust_path`.
+- `derive(UiProperties)` also writes `PropertyGroup::METHODS`, the trait's path, built from `module_path!()` as `TypeInfo::rust_path` is: the defining module, which may be private (`artic_element::properties::LayoutMethods`). Generated code turns it into an importable path the same way it does a type's `rust_path` (#49), an app's groups included.
 
 ### Conversions
 
@@ -291,7 +291,7 @@ impl LoginView {
       .build(tree);
 
     UserControl::new()
-      .content(panel)
+      .child(panel)
       .build(tree)
   }
 }
@@ -301,7 +301,7 @@ impl LoginView {
 - Elements are emitted in post-order: each child is built before the element that holds it.
 - `Accent` isn't used in the example. A use such as `Background="{StaticResource Accent}"` would emit `.background(resource_accent())`.
 - How a code-behind method becomes a click handler belongs to the code-behind design (§9); the comment marks that spot.
-- `TextBox` and `Button` aren't built yet, `UserControl` has no content field yet, and `SolidColorBrush::new().color(…)` is a value-type builder, which comes with #57. The example shows the shape the compiler emits once they exist.
+- `TextBox` and `Button` aren't built yet, and `SolidColorBrush::new().color(…)` is a value-type builder, which comes with #57. The example shows the shape the compiler emits once they exist.
 
 ## Changes to other issues and to the spec
 

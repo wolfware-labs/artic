@@ -7,7 +7,8 @@ use artic_core::tree::{Handle, NodeId, TreeKind, UiTree};
 use artic_element::{Child, Children};
 use artic_macros::{UiProperties, UiType};
 use artic_registry::{
-  AttachedTarget, ContentInfo, OverrideDefaults, PropertyRef, Registry, TypeInfo, UiCollection, UiType, ValueError, Whitespace,
+  AttachedTarget, ContentInfo, OverrideDefaults, PropertyGroup, PropertyRef, Registry, TypeInfo, UiCollection, UiType,
+  ValueError, Whitespace,
 };
 use pretty_assertions::assert_eq;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -692,4 +693,22 @@ fn failed_build_allocates_nothing() {
 
   assert!(result.is_err());
   assert_eq!(tree.len(), before);
+}
+
+// A flattened group's methods set its properties at the local level, beside the type's own.
+#[test]
+fn group_methods_set_local() {
+  let widget = Widget::new().margin(3).enabled(false).size(2);
+
+  assert_eq!(widget.common.margin.get(), 3);
+  assert!(!widget.common.enabled.get());
+  assert_eq!(widget.common.margin.effective_source(), Precedence::Local);
+  assert_eq!(widget.size.get(), 2);
+}
+
+// A group names its methods trait, and its keys have public names on it.
+#[test]
+fn group_describes_its_trait_and_keys() {
+  assert!(<Common as PropertyGroup>::METHODS.ends_with("::CommonMethods"));
+  assert_eq!(Common::MARGIN.name(), "Margin");
 }

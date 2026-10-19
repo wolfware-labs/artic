@@ -1,7 +1,7 @@
 //! The roots a host presents: an [`Application`] and its [`Surface`]s, and the [`Desktop`] settings
 //! a desktop host applies to them.
 
-use crate::{AccessCx, ElementImpl};
+use crate::{AccessCx, Child, Children, ElementImpl};
 use artic_core::property::Property;
 use artic_layout::geometry::{Rect, Size};
 use artic_layout::{ArrangeCx, MeasureCx};
@@ -11,7 +11,11 @@ use artic_macros::{UiEnum, UiType, element};
 /// [`Desktop`] setting on it reaches every one of them.
 #[element]
 #[derive(Debug)]
-pub struct Application;
+pub struct Application {
+  /// The surfaces, in order.
+  #[ui(content)]
+  pub surfaces: Children,
+}
 
 impl ElementImpl for Application {}
 
@@ -23,6 +27,9 @@ impl ElementImpl for Application {}
 #[element]
 #[derive(Debug)]
 pub struct Surface {
+  /// The content, which fills the surface.
+  #[ui(content)]
+  pub child: Child,
   /// What the surface is called: its window's title, and its name to assistive technology.
   #[ui(affects = surface | render)]
   pub title: Property<String>,

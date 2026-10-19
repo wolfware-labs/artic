@@ -16,8 +16,8 @@ mod with_children;
 pub use collection::UiCollection;
 pub use defaults::OverrideDefaults;
 pub use descriptors::{
-  ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, EventInfo, PropertyGroup, PropertyGroupInfo, PropertyInfo,
-  PropertyRef, TypeInfo, UiType, ValueProviderInfo, Whitespace,
+  ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, EventInfo, HasGroup, PropertyGroup, PropertyGroupInfo,
+  PropertyInfo, PropertyRef, TypeInfo, UiType, ValueProviderInfo, Whitespace,
 };
 pub use registry::{Duplicate, Lookup, Registry, RegistryError};
 pub use value_error::ValueError;

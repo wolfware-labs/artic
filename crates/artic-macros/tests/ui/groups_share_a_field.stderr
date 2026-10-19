@@ -1,0 +1,5 @@
+error[E0080]: evaluation panicked: the groups in `first` and `second` have a field of one name; their methods would clash
+  --> tests/ui/groups_share_a_field.rs:16:17
+   |
+16 | #[derive(Debug, UiType)]
+   |                 ^^^^^^ evaluation of `_::_` failed here

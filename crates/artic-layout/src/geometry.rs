@@ -210,6 +210,13 @@ impl Sub<Thickness> for Size {
   }
 }
 
+impl From<f32> for Thickness {
+  /// The same width on every side, as one number in text is.
+  fn from(width: f32) -> Thickness {
+    Thickness::uniform(width)
+  }
+}
+
 /// The radius of each corner of a box, clockwise from the top-left.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct CornerRadius {
@@ -242,6 +249,13 @@ impl CornerRadius {
   #[must_use]
   pub const fn uniform(radius: f32) -> CornerRadius {
     CornerRadius::new(radius, radius, radius, radius)
+  }
+}
+
+impl From<f32> for CornerRadius {
+  /// The same radius on every corner, as one number in text is.
+  fn from(radius: f32) -> CornerRadius {
+    CornerRadius::uniform(radius)
   }
 }
 
@@ -886,5 +900,12 @@ mod tests {
       Rect::new(11.0, 12.0, 16.0, 14.0)
     );
     assert_eq!(Rect::new(0.0, 0.0, 2.0, 2.0).deflate(padding), Rect::new(1.0, 2.0, 0.0, 0.0));
+  }
+
+  // One number is every side or corner, as `Padding="8"` and `CornerRadius="4"` are.
+  #[test]
+  fn one_number_converts_to_every_side_and_corner() {
+    assert_eq!(Thickness::from(8.0), Thickness::uniform(8.0));
+    assert_eq!(CornerRadius::from(4.0), CornerRadius::uniform(4.0));
   }
 }

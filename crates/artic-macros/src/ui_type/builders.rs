@@ -83,16 +83,22 @@ fn content_method(analysis: &Analysis) -> Option<TokenStream> {
   })
 }
 
-/// The builder method of a `Property` field, or `None` for another field. A `Property<Option<V>>`
+/// How a builder method sets a `Property` field: its parameter, the value it stores and its doc.
+pub(crate) struct Setter {
+  pub parameter: TokenStream,
+  pub stored: TokenStream,
+  pub doc: String,
+}
+
+/// The `Setter` of a `Property` field, or `None` for another field. A `Property<Option<V>>`
 /// takes a `V`: `None` is the default, so a builder only ever sets a value.
 ///
 /// The method takes `impl Into<T>`, except for a number type, which it takes as is: a literal
 /// such as `8.0` is an `f64` until something fixes its type, and `impl Into<f32>` doesn't.
-fn property_method(field: &UiField) -> Option<TokenStream> {
+pub(crate) fn setter(field: &UiField) -> Option<Setter> {
   let Role::Property { inner, value } = field.role else {
     return None;
   };
-  let (field_ident, vis) = (field.ident, field.vis);
   let name = ui_name(field);
   let optional = generic_argument(inner, "Option").is_some();
   let argument = if optional { value } else { inner };
@@ -112,6 +118,13 @@ fn property_method(field: &UiField) -> Option<TokenStream> {
   } else {
     (converted, format!("Sets `{name}`, the local value."))
   };
+  Some(Setter { parameter, stored, doc })
+}
+
+/// The inherent builder method of a `Property` field, or `None` for another field.
+fn property_method(field: &UiField) -> Option<TokenStream> {
+  let Setter { parameter, stored, doc } = setter(field)?;
+  let (field_ident, vis) = (field.ident, field.vis);
   Some(quote! {
     #[doc = #doc]
     #[must_use]
@@ -150,7 +163,7 @@ pub fn key_constant_name(field: &Ident) -> Ident {
 
 /// The public constant for a property's own key, or `None` for a field that shares a key, whose
 /// owner already names it.
-fn key_constant(field: &UiField) -> Option<TokenStream> {
+pub(crate) fn key_constant(field: &UiField) -> Option<TokenStream> {
   let Role::Property { inner, .. } = field.role else {
     return None;
   };
