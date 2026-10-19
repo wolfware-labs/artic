@@ -31,7 +31,7 @@ impl NamespaceMap {
 ```
 
 - The facade re-exports `artic_controls`, `artic_element`, `artic_layout` and `artic_render` as `artic::controls`, `artic::element`, `artic::layout` and `artic::render`, and `artic::xaml::namespaces()` sets those paths beside artic's URI. `Handle` and `UiTree`, which every generated file names, come through `artic::prelude`, which gains `UiTree`. An app adds its control crates with `alias` for the URI and `path` when its `Cargo.toml` renames the crate.
-- The compiler takes a UI type's crate from the first segment of `TypeInfo::rust_path` and its name from `TypeInfo::name`. A type off its crate's root fails to compile in the generated file, with the path in the error.
+- A type found through a URI is written as `<crate path>::<Name>`: the crate from the first segment of `TypeInfo::rust_path`, the name from `TypeInfo::name`. A type found through `using:my_crate::views` is written with the module path the document gave, its crate segment translated through the map: `<path of my_crate>::views::Gauge`, since the author named that module and `type_by_rust_path` found the type there. A type off the written path fails to compile in the generated file, with the path in the error.
 
 ## Literals
 
@@ -160,7 +160,9 @@ The compiler builds `quote!` tokens, parses the file with `syn` and formats it w
 ## The build script
 
 ```rust,ignore
-// The app's build.rs, with artic (feature "xaml-compiler") and acme_controls as build-dependencies.
+// The app's build.rs. artic (feature "xaml-compiler") and acme_controls are build-dependencies, so the
+// compiler's registry has their types, and also normal dependencies, since the generated code compiles
+// in the app and names them.
 use acme_controls as _;
 
 fn main() {
@@ -171,7 +173,7 @@ fn main() {
 ```
 
 - `compile_dir` walks the directory in sorted order, writes one file per view under `$OUT_DIR/views/` mirroring the source layout, and prints `cargo:rerun-if-changed` for the directory and each file.
-- Linking: each generated file references every crate in `namespaces.crates_named()` through its path, so a control crate the map names keeps its types in the app's registry even when no view uses them. A crate the map doesn't name can't be reached by a view; an app that wants its types for the runtime loader references it itself, as `dsl-neutral.md` §3 says. No `cargo metadata` runs inside the build.
+- Linking: each generated file references every crate in `namespaces.crates_named()` through its path, so a control crate the map names keeps its types in the app's registry even when no view uses them. Every crate the map names is therefore a normal dependency of the app as well as a build-dependency; one that isn't fails to compile in the generated file, at its `use` line. A crate the map doesn't name can't be reached by a view; an app that wants its types for the runtime loader references it itself, as `dsl-neutral.md` §3 says. No `cargo metadata` runs inside the build.
 - The facade's `xaml-compiler` feature adds `artic-xaml-compiler` and re-exports `compile_dir`; apps don't name the compiler crate. A build-dependency on the facade compiles it once more for the host, the usual cost of a code generator.
 
 ## Testing
