@@ -196,7 +196,7 @@ Whether an element and all its ancestors are visible is computed when needed, fo
 #[derive(Debug)]
 pub struct Border {
   // #[element] adds: #[ui(flatten)] pub layout: Layout, and the other three groups
-  #[ui(content)] pub child: Property<Option<NodeId>>,
+  #[ui(content)] pub child: Child,
 }
 ```
 

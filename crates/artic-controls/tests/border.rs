@@ -307,3 +307,14 @@ proptest! {
     Invariants::default().contained().assert(&mut layout, root, available, scale);
   }
 }
+
+// The builder gives a border its one child.
+#[test]
+fn child_builder_sets_the_child() {
+  let mut tree = UiTree::new();
+  let leaf = Border::new().build(&mut tree);
+
+  let border = Border::new().padding(Thickness::uniform(2.0)).child(leaf).build(&mut tree);
+
+  assert_eq!(Child::get(&tree, border.id()), Some(leaf.id()));
+}
