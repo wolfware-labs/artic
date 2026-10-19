@@ -86,6 +86,12 @@ impl NamespaceMap {
   pub fn alias(&mut self, uri: &str, crates: &[&str]);
   /// The crates `uri` stands for, or `None` for a URI nobody declared.
   pub fn crates(&self, uri: &str) -> Option<&[String]>;
+  /// Generated code reaches `krate` as `path`, such as `artic_controls` as `::artic::controls`.
+  pub fn path(&mut self, krate: &str, path: &str);
+  /// The path for `krate`: the one set with `path`, or `::krate`.
+  pub fn path_of(&self, krate: &str) -> String;
+  /// Every crate the map names, through a URI or a path, each once and sorted.
+  pub fn crates_named(&self) -> impl Iterator<Item = &str>;
 }
 ```
 
