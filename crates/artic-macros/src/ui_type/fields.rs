@@ -1,4 +1,6 @@
 use crate::ui_type::attributes::{FieldAttributes, TypeAttributes, parse_field_attributes, parse_type_attributes};
+use crate::ui_type::builders::key_constant_name;
+use syn::ext::IdentExt;
 use syn::{Data, DeriveInput, Error, Field, Fields, GenericArgument, Ident, PathArguments, Type};
 
 /// A struct read for the derive: its attributes and its fields, sorted by role.
@@ -61,6 +63,7 @@ pub fn analyze(input: &DeriveInput) -> syn::Result<Analysis<'_>> {
       }
     }
   }
+  check_reserved(&ui_fields)?;
   check_attached(&attributes, &ui_fields)?;
   check_positional(&input.ident, &attributes, &ui_fields)?;
   check_content(&ui_fields)?;
@@ -91,8 +94,24 @@ pub fn check_content(ui_fields: &[UiField]) -> syn::Result<()> {
   Ok(())
 }
 
-/// Rejects two attached properties with one name, and an attached property whose helpers would
-/// clash with a property's methods, which are named after its field.
+/// Rejects a `#[ui]` field whose generated member would clash with another one: `new` and
+/// `build` are the builder's start and finish, and `type_info`'s key constant would hide
+/// `UiType::TYPE_INFO`.
+fn check_reserved(ui_fields: &[UiField]) -> syn::Result<()> {
+  for field in ui_fields {
+    let message = match field.ident.unraw().to_string().as_str() {
+      "new" => "`new` is the builder's start; rename this field",
+      "build" => "`build` is the builder's finish; rename this field",
+      "type_info" => "`type_info`'s key constant would hide `UiType::TYPE_INFO`; rename this field",
+      _ => continue,
+    };
+    return Err(Error::new_spanned(field.ident, message));
+  }
+  Ok(())
+}
+
+/// Rejects two attached properties with one name, and an attached property whose helpers or constant
+/// would clash with a property's method or key constant, which are named after its field.
 fn check_attached(attributes: &TypeAttributes, ui_fields: &[UiField]) -> syn::Result<()> {
   for (index, attached) in attributes.attached.iter().enumerate() {
     let name = attached.name.value();
@@ -116,6 +135,20 @@ fn check_attached(attributes: &TypeAttributes, ui_fields: &[UiField]) -> syn::Re
         &attached.name,
         format_args!(
           "the attached property `{name}`'s helpers `{getter}` and `{setter}` clash with the property `{}`; rename one with `name = ...`",
+          field.ident
+        ),
+      ));
+    }
+    let constant = snake_case(&name).to_uppercase();
+    let constant_clash = ui_fields
+      .iter()
+      .filter(|field| matches!(field.role, Role::Property { .. }) && field.attributes.key.is_none())
+      .find(|field| key_constant_name(field.ident) == constant.as_str());
+    if let Some(field) = constant_clash {
+      return Err(Error::new_spanned(
+        &attached.name,
+        format_args!(
+          "the attached property `{name}`'s constant `{constant}` clashes with the key constant of the property `{}`; rename one with `name = ...`",
           field.ident
         ),
       ));
@@ -362,5 +395,48 @@ mod tests {
     let error = analyze(&input).err().expect("affects on an event");
 
     assert!(error.to_string().contains("only apply to `Property` fields"));
+  }
+
+  // A field named like the builder's start or finish is rejected: its method would clash.
+  #[test]
+  fn builder_names_are_reserved() {
+    for (field, words) in [("new", "the builder's start"), ("build", "the builder's finish")] {
+      let field = Ident::new(field, proc_macro2::Span::call_site());
+      let input: DeriveInput = parse_quote! { struct Border { #[ui] #field: Property<f32> } };
+
+      let error = analyze(&input).err().expect("reserved name");
+
+      assert_eq!(error.to_string(), format!("`{field}` is {words}; rename this field"));
+    }
+  }
+
+  // A field named `type_info` is rejected: its key constant would hide `UiType::TYPE_INFO`.
+  #[test]
+  fn type_info_is_reserved() {
+    let input: DeriveInput = parse_quote! { struct Border { #[ui] type_info: Property<f32> } };
+
+    let error = analyze(&input).err().expect("reserved name");
+
+    assert_eq!(
+      error.to_string(),
+      "`type_info`'s key constant would hide `UiType::TYPE_INFO`; rename this field"
+    );
+  }
+
+  // A property's key constant and an attached property's constant with one name are rejected.
+  #[test]
+  fn key_constant_clashing_with_an_attached_constant_is_an_error() {
+    let input: DeriveInput = parse_quote! {
+      #[ui(attached(name = "Row", ty = usize, target = children))]
+      #[allow(non_snake_case)]
+      struct Grid { #[ui] Row: Property<usize> }
+    };
+
+    let error = analyze(&input).err().expect("constant clash");
+
+    assert_eq!(
+      error.to_string(),
+      "the attached property `Row`'s constant `ROW` clashes with the key constant of the property `Row`; rename one with `name = ...`"
+    );
   }
 }
