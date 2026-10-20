@@ -38,8 +38,9 @@ use artic_xaml::namespaces::NamespaceMap;
 ///
 /// # Errors
 ///
-/// Returns every problem found: the parser's, then every unknown type or property, every literal
-/// its type refuses and every construct the compiler doesn't support yet.
+/// Returns the parser's errors if the document doesn't parse. Otherwise returns every problem
+/// found, in source order: every unknown type or property, every literal its type refuses and
+/// every construct the compiler doesn't support yet.
 pub fn compile_str(
   sources: &SourceMap,
   file: SourceId,

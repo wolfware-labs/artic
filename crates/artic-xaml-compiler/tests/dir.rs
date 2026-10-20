@@ -77,3 +77,26 @@ fn absolute_dir_is_shown_relative() {
   let rust = fs::read_to_string(root.join("out/a.rs")).expect("written");
   assert!(rust.starts_with("// Generated from a.xaml.\n"), "{rust}");
 }
+
+// A view that's gone leaves no output behind, so an `include!` of it fails instead of building
+// the old view.
+#[test]
+fn removed_view_leaves_no_output() {
+  let root = setup("removed", &[("a.xaml", BORDER)]);
+  run(&root, &root.join("views")).expect("a valid view");
+  fs::remove_file(root.join("views/a.xaml")).expect("removable");
+  fs::write(root.join("views/b.xaml"), BORDER).expect("writable");
+  run(&root, &root.join("views")).expect("a valid view");
+  assert!(!root.join("out/a.rs").exists());
+  assert!(root.join("out/b.rs").is_file());
+}
+
+// `Debug` shows the rendered diagnostics, so a build script that unwraps the error prints them
+// rather than the source map.
+#[test]
+fn debug_renders_the_diagnostics() {
+  let root = setup("debug", &[("a.xaml", r#"<Gauge xmlns="https://artic.rs/ui"/>"#)]);
+  let error = run(&root, &root.join("views")).expect_err("a has errors");
+  let shown = format!("{error:?}");
+  assert!(shown.contains("no type `Gauge`") && !shown.contains("SourceMap"), "{shown}");
+}
