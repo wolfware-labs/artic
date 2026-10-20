@@ -70,7 +70,7 @@ accesskit = "0.25.1"
 fontique = { version = "=0.11.1", features = ["fontconfig-dlopen"] }
 insta = "1.49.0"
 linkme = "0.3.37"
-parley = "=0.11.1"
+parley = "=0.12.0"
 png = "0.18.1"
 pollster = "1.0.1"
 pretty_assertions = "1.4.1"
