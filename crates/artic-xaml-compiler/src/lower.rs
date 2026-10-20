@@ -23,6 +23,8 @@ pub(crate) struct View {
   pub names: Vec<(Ident, usize)>,
   /// The methods traits the setters call through, keyed by their text so they're written sorted.
   pub traits: BTreeMap<String, Path>,
+  /// Every crate the map names, by its path, so the app links them.
+  pub links: Vec<Path>,
 }
 
 /// One element: its type, the builder methods that set its properties, and its children.
@@ -80,6 +82,7 @@ pub(crate) fn lower(document: &XamlDocument, registry: &Registry, namespaces: &N
       elements: Vec::new(),
       names: Vec::new(),
       traits: BTreeMap::new(),
+      links: Vec::new(),
     },
     diagnostics: Diagnostics::new(),
     named: HashMap::new(),
@@ -90,6 +93,10 @@ pub(crate) fn lower(document: &XamlDocument, registry: &Registry, namespaces: &N
   if let Some(prelude) = parse_path(&prelude, document.root.span(), &mut lower.diagnostics) {
     lower.view.prelude = prelude;
   }
+  lower.view.links = namespaces
+    .crates_named()
+    .filter_map(|krate| parse_path(&namespaces.path_of(krate), document.root.span(), &mut lower.diagnostics))
+    .collect();
   let mut diagnostics: Vec<Diagnostic> = lower.diagnostics.into_iter().collect();
   diagnostics.sort_by_key(|diagnostic| diagnostic.span.start);
   let mut sorted = Diagnostics::new();

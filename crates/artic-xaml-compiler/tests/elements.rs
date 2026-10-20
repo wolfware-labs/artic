@@ -28,6 +28,11 @@ fn bare_element_builds_its_root() {
   // Generated from view.xaml.
 
   use ::artic::prelude::{Handle, UiTree};
+  use ::artic::controls as _;
+  use ::artic::element as _;
+  use ::artic::layout as _;
+  use ::artic::render as _;
+  use ::elements as _;
   /// The nodes of `view.xaml`: its root and one handle per `x:Name`.
   #[allow(non_snake_case)]
   #[derive(Clone, Copy, Debug)]
@@ -178,4 +183,24 @@ fn prelude_follows_the_map() {
   })
   .expect("a valid view");
   assert!(rust.contains("use ::ui::prelude::{Handle, UiTree};"), "{rust}");
+}
+
+// Every crate the map names is referenced, sorted, so its types stay in the app's link.
+#[test]
+fn every_named_crate_is_linked() {
+  let rust = compile(r#"<Border xmlns="https://artic.rs/ui"/>"#).expect("a valid view");
+  let links: Vec<&str> = rust
+    .lines()
+    .filter(|line| line.starts_with("use ") && line.ends_with(" as _;") && !line.contains("Methods"))
+    .collect();
+  assert_eq!(
+    links,
+    [
+      "use ::artic::controls as _;",
+      "use ::artic::element as _;",
+      "use ::artic::layout as _;",
+      "use ::artic::render as _;",
+      "use ::elements as _;",
+    ]
+  );
 }

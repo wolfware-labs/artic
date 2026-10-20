@@ -13,6 +13,7 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
   let root_local = local(root);
   let prelude = &view.prelude;
   let traits = view.traits.values();
+  let links = &view.links;
   let fields = view.names.iter().map(|(name, index)| {
     let ty = &view.elements[*index].ty;
     quote!(pub #name: Handle<#ty>)
@@ -36,6 +37,7 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
   let tokens = quote! {
     use #prelude::{Handle, UiTree};
     #(use #traits as _;)*
+    #(use #links as _;)*
 
     #[doc = #view_doc]
     #[allow(non_snake_case)]
