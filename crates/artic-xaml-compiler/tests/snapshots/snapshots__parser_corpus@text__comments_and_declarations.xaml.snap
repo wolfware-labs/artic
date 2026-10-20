@@ -1,0 +1,12 @@
+---
+source: crates/artic-xaml-compiler/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/text/comments_and_declarations.xaml
+---
+valid/text/comments_and_declarations.xaml:3:2: error: no type `Panel` in `https://artic.rs/ui`
+3 | <Panel xmlns="https://artic.rs/ui"><!-- inside --><?pi data?><Image/></Panel>
+  |  ^^^^^ unknown type
+
+valid/text/comments_and_declarations.xaml:3:63: error: no type `Image` in `https://artic.rs/ui`
+3 | <Panel xmlns="https://artic.rs/ui"><!-- inside --><?pi data?><Image/></Panel>
+  |                                                               ^^^^^ unknown type

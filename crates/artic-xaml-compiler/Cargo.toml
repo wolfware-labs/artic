@@ -10,7 +10,19 @@ repository.workspace = true
 
 [dependencies]
 artic-xaml.workspace = true
-artic-registry.workspace = true
+artic-registry = { workspace = true, features = ["literals"] }
+prettyplease.workspace = true
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
+
+[dev-dependencies]
+artic = { workspace = true, features = ["xaml"] }
+artic-core.workspace = true
+artic-macros.workspace = true
+insta = { workspace = true, features = ["glob"] }
+pretty_assertions.workspace = true
+syn = { workspace = true, features = ["visit"] }
 
 [lints]
 workspace = true

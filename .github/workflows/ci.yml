@@ -74,8 +74,8 @@ jobs:
         run: cargo test --workspace
       - name: Test the facade's features
         run: cargo test -p artic --all-features
-      - name: Test the registry's literals
-        run: cargo test -p artic-registry --features literals
+      - name: Test the registry without literals
+        run: cargo test -p artic-registry
 
   test-windows:
     name: Test (windows-latest)

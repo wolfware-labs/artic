@@ -369,8 +369,17 @@ dependencies = [
 name = "artic-xaml-compiler"
 version = "0.1.0"
 dependencies = [
+ "artic",
+ "artic-core",
+ "artic-macros",
  "artic-registry",
  "artic-xaml",
+ "insta",
+ "pretty_assertions",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
 ]
 
 [[package]]
