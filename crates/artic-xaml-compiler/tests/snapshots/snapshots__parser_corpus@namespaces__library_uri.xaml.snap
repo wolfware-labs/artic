@@ -7,6 +7,7 @@ valid/namespaces/library_uri.xaml:2:2: error: no type `Panel` in `https://artic.
 2 | <Panel xmlns="https://artic.rs/ui" xmlns:charts="https://acme.dev/charts">
   |  ^^^^^ unknown type
 
-valid/namespaces/library_uri.xaml:3:4: error: no type `PieChart` in `https://acme.dev/charts`
+valid/namespaces/library_uri.xaml:3:4: error: no namespace `https://acme.dev/charts`
 3 |   <charts:PieChart/>
-  |    ^^^^^^^^^^^^^^^ unknown type
+  |    ^^^^^^^^^^^^^^^ undeclared namespace
+help: declare it with `NamespaceMap::alias`, or check its spelling

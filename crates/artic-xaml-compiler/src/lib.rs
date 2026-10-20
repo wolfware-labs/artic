@@ -29,6 +29,9 @@ use artic_xaml::namespaces::NamespaceMap;
 
 /// Compiles one document to the Rust module body for it.
 ///
+/// The file's path in `sources` is written into the output's header and doc comments, so pass a
+/// path relative to the crate, such as `src/views/login.xaml`.
+///
 /// # Errors
 ///
 /// Returns every problem found: the parser's, then every unknown type or property, every literal

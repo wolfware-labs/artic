@@ -6,15 +6,16 @@ use crate::resolve::{parse_path, resolve};
 use crate::unsupported;
 use artic_registry::{ContentInfo, ContentMethod, PropertyInfo, PropertyRef, Registry, RustExpr, TypeInfo, Whitespace};
 use artic_xaml::diagnostics::{Diagnostic, Diagnostics, Span};
-use artic_xaml::infoset::{Directive, Member, MemberKey, XamlDocument, XamlNode};
+use artic_xaml::infoset::{Directive, Member, MemberKey, TypeRef, XamlDocument, XamlNamespace, XamlNode};
 use artic_xaml::namespaces::NamespaceMap;
 use std::collections::hash_map::Entry;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use syn::{Expr, Ident, Path};
 
 /// A view ready to be written.
-#[derive(Default)]
 pub(crate) struct View {
+  /// The path of the facade's prelude, from the map's path for `artic`.
+  pub prelude: Path,
   /// Every element, children before their parent, so element `i` is the local `__e{i}` and the
   /// root is the last.
   pub elements: Vec<Element>,
@@ -74,12 +75,26 @@ pub(crate) fn lower(document: &XamlDocument, registry: &Registry, namespaces: &N
     registry,
     namespaces,
     paths,
-    view: View::default(),
+    view: View {
+      prelude: syn::parse_quote!(::artic::prelude),
+      elements: Vec::new(),
+      names: Vec::new(),
+      traits: BTreeMap::new(),
+    },
     diagnostics: Diagnostics::new(),
     named: HashMap::new(),
+    undeclared: HashSet::new(),
   };
   lower.element(&document.root);
-  lower.diagnostics.into_result(lower.view)
+  let prelude = format!("{}::prelude", namespaces.path_of("artic"));
+  if let Some(prelude) = parse_path(&prelude, document.root.span(), &mut lower.diagnostics) {
+    lower.view.prelude = prelude;
+  }
+  let mut diagnostics: Vec<Diagnostic> = lower.diagnostics.into_iter().collect();
+  diagnostics.sort_by_key(|diagnostic| diagnostic.span.start);
+  let mut sorted = Diagnostics::new();
+  sorted.extend(diagnostics);
+  sorted.into_result(lower.view)
 }
 
 /// The walk's state.
@@ -92,6 +107,8 @@ struct Lower<'a> {
   diagnostics: Diagnostics,
   /// Where each `x:Name` field was first given.
   named: HashMap<String, Span>,
+  /// The undeclared URIs already reported.
+  undeclared: HashSet<String>,
 }
 
 /// What lowering one element's members gathers.
@@ -111,12 +128,16 @@ impl Lower<'_> {
     let XamlNode::Object { ty, members, .. } = node else {
       unreachable!("only object elements are lowered as elements")
     };
-    let resolved = match resolve(ty, self.registry, self.namespaces, &mut self.diagnostics) {
-      Some(resolved) if resolved.info.is_value_provider() => {
-        self.diagnostics.push(unsupported::provider_as_element(ty));
-        None
+    let resolved = if self.declared(ty) {
+      match resolve(ty, self.registry, self.namespaces, &mut self.diagnostics) {
+        Some(resolved) if resolved.info.is_value_provider() => {
+          self.diagnostics.push(unsupported::provider_as_element(ty));
+          None
+        }
+        resolved => resolved,
       }
-      resolved => resolved,
+    } else {
+      None
     };
     let info = resolved.as_ref().map(|resolved| resolved.info);
     let mut gathered = Members::default();
@@ -143,6 +164,25 @@ impl Lower<'_> {
       self.view.names.push((name, index));
     }
     Some(index)
+  }
+
+  /// Whether `ty`'s namespace is one the map declares, reporting an undeclared URI the first
+  /// time it's used.
+  fn declared(&mut self, ty: &TypeRef) -> bool {
+    let XamlNamespace::Uri(uri) = &ty.namespace else {
+      return true;
+    };
+    if self.namespaces.crates(uri).is_some() {
+      return true;
+    }
+    if self.undeclared.insert(uri.clone()) {
+      self.diagnostics.push(
+        Diagnostic::error(ty.span, format!("no namespace `{uri}`"))
+          .with_label("undeclared namespace")
+          .with_help("declare it with `NamespaceMap::alias`, or check its spelling"),
+      );
+    }
+    false
   }
 
   /// Sets the property `name` of `info` from an attribute or a property element.
@@ -337,6 +377,7 @@ impl Lower<'_> {
           self
             .diagnostics
             .push(Diagnostic::error(*span, format!("`{}` takes no child elements", info.name)));
+          self.element(node);
         }
         XamlNode::Value { .. } | XamlNode::MarkupExtension { .. } => {}
       }

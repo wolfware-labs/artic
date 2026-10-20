@@ -142,3 +142,40 @@ fn generic_crate_path_reports_error() {
     "{errors}"
   );
 }
+
+// Diagnostics come in source order, whatever order the walk finds them in.
+#[test]
+fn diagnostics_are_in_source_order() {
+  let errors = compile(
+    "<StackPanel xmlns=\"https://artic.rs/ui\">\n  <Gauge/>\n  <StackPanel.Colour>1</StackPanel.Colour>\n</StackPanel>",
+  )
+  .expect_err("two errors");
+  let gauge = errors.find("no type `Gauge`").expect("the type error");
+  let colour = errors.find("no property `Colour`").expect("the property error");
+  assert!(gauge < colour, "{errors}");
+}
+
+// A URI the map doesn't declare is reported once, however many elements use it.
+#[test]
+fn undeclared_namespace_is_reported_once() {
+  let errors = compile(r#"<Border xmlns="https://artic.rs/UI"><Border/></Border>"#).expect_err("undeclared");
+  assert_eq!(errors.matches("no namespace `https://artic.rs/UI`").count(), 1, "{errors}");
+  assert!(!errors.contains("no type"), "{errors}");
+}
+
+// An absolute path gives a header without a doubled separator.
+#[test]
+fn absolute_path_has_one_separator() {
+  let rust = compile_with(r#"<Border xmlns="https://artic.rs/ui"/>"#, "/src/views/a.xaml", |_| {}).expect("a valid view");
+  assert!(rust.starts_with("// Generated from src/views/a.xaml.\n"), "{rust}");
+}
+
+// The prelude is reached through the map's path for `artic`, so an app that renames it can map it.
+#[test]
+fn prelude_follows_the_map() {
+  let rust = compile_with(r#"<Border xmlns="https://artic.rs/ui"/>"#, "view.xaml", |map| {
+    map.path("artic", "::ui");
+  })
+  .expect("a valid view");
+  assert!(rust.contains("use ::ui::prelude::{Handle, UiTree};"), "{rust}");
+}

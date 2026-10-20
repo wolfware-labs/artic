@@ -162,3 +162,11 @@ fn object_in_content_property_reports_error() {
   let errors = compile(&format!(r#"<Label xmlns="{TEST_UI}"><Label/></Label>"#)).expect_err("a value object");
   assert!(errors.contains("value objects come with #57"), "{errors}");
 }
+
+// Elements inside a type with no content are still checked.
+#[test]
+fn elements_in_type_without_content_are_checked() {
+  let errors = compile(r#"<TextBlock xmlns="https://artic.rs/ui"><Bogus/></TextBlock>"#).expect_err("two errors");
+  assert!(errors.contains("`TextBlock` takes no child elements"), "{errors}");
+  assert!(errors.contains("no type `Bogus`"), "{errors}");
+}

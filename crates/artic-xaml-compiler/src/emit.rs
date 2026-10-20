@@ -3,7 +3,7 @@
 use crate::lower::{Content, Setter, View};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use std::path::Path;
+use std::path::{Component, Path};
 
 /// The module body for `view`, compiled from the file at `path`.
 pub(crate) fn emit(view: &View, path: &Path) -> String {
@@ -11,6 +11,7 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
   let root = view.elements.len() - 1;
   let root_ty = &view.elements[root].ty;
   let root_local = local(root);
+  let prelude = &view.prelude;
   let traits = view.traits.values();
   let fields = view.names.iter().map(|(name, index)| {
     let ty = &view.elements[*index].ty;
@@ -33,7 +34,7 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
   let view_doc = format!(" The nodes of `{file}`: its root and one handle per `x:Name`.");
   let build_doc = format!(" Builds `{file}` in `tree` and returns its nodes.");
   let tokens = quote! {
-    use ::artic::prelude::{Handle, UiTree};
+    use #prelude::{Handle, UiTree};
     #(use #traits as _;)*
 
     #[doc = #view_doc]
@@ -74,7 +75,13 @@ fn local(index: usize) -> proc_macro2::Ident {
   format_ident!("__e{index}")
 }
 
-/// `path` with `/` separators, so the output is the same on every platform.
+/// `path` with `/` separators and without a root, so the output is the same on every platform.
+/// A caller passes a relative path; an absolute one at least writes no doubled separator.
 fn display(path: &Path) -> String {
-  path.iter().map(|part| part.to_string_lossy()).collect::<Vec<_>>().join("/")
+  path
+    .components()
+    .filter(|component| !matches!(component, Component::RootDir | Component::Prefix(_)))
+    .map(|component| component.as_os_str().to_string_lossy())
+    .collect::<Vec<_>>()
+    .join("/")
 }
