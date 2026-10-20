@@ -4,6 +4,7 @@
 //! parses every literal, and returns the module body that builds the view: a `View` struct that
 //! holds the root and one handle per `x:Name`, and a `build` function that creates each element
 //! with its builder, children first. Every problem in the document is reported in one pass.
+//! [`compile_dir`] does it for every view of a directory, from a build script.
 //!
 //! ```
 //! use artic_registry::Registry;
@@ -17,11 +18,14 @@
 //! assert!(rust.contains("::artic::controls::Border::new()"));
 //! ```
 
+mod dir;
 mod emit;
 mod lower;
 mod names;
 mod resolve;
 mod unsupported;
+
+pub use dir::{CompileError, compile_dir, compile_into};
 
 use artic_registry::Registry;
 use artic_xaml::diagnostics::{Diagnostics, SourceId, SourceMap};
