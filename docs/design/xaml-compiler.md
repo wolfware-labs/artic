@@ -31,7 +31,7 @@ impl NamespaceMap {
 ```
 
 - The facade re-exports `artic_controls`, `artic_element`, `artic_layout` and `artic_render` as `artic::controls`, `artic::element`, `artic::layout` and `artic::render`, and `artic::xaml::namespaces()` sets those paths beside artic's URI. `Handle` and `UiTree`, which every generated file names, come through `artic::prelude`, which gains `UiTree`. An app adds its control crates with `alias` for the URI and `path` when its `Cargo.toml` renames the crate.
-- A type found through a URI is written as `<crate path>::<Name>`: the crate from the first segment of `TypeInfo::rust_path`, the name from `TypeInfo::name`. A type found through `using:my_crate::views` is written with the module path the document gave, its crate segment translated through the map: `<path of my_crate>::views::Gauge`, since the author named that module and `type_by_rust_path` found the type there. A type off the written path fails to compile in the generated file, with the path in the error.
+- A type found through a URI is written as `<crate path>::<Name>`: the crate from the first segment of `TypeInfo::rust_path`, the name from `TypeInfo::name`. A type found through `using:my_crate::views` is written with the module path the document gave, its crate segment translated through the map: `<path of my_crate>::views::Gauge`, since the author named that module and `type_by_rust_path` found the type there. A type off the written path fails to compile in the generated file, with the path in the error. The crate that defines a type or a group's methods trait is the one written, so an app maps it with `path` when it reaches that crate through another, such as a control crate that flattens a group from its core crate.
 
 ## Literals
 
@@ -185,7 +185,7 @@ fn main() {
 | value-type crates | for each value type, text parsed and written with `to_rust` gives an expression that `syn` parses; a trybuild pass case compiles a few and compares them with the parsed values |
 | `artic-macros` | a `UiEnum` writes its variant's path; a property whose value type lacks `ToRust` fails with the message above; `literal` is `None` without the feature |
 | `artic-xaml` | `NamespaceMap::path`, `path_of`, `crates_named` |
-| `artic` | every UI type, methods trait and property value type in the registry is reachable at its crate's root; the facade's paths build a control |
+| `artic` | every UI type, methods trait and property value type in the registry is reachable at its crate's root; every crate defining a UI type or group has a facade path; the facade's paths build a control |
 | `artic-xaml-compiler` | `insta` snapshots of the generated Rust for every #28 fixture that uses only supported constructs; `output_is_deterministic`; `unknown_element_reports_error`, `unknown_property_reports_error`, `bad_literal_reports_error` and one test per row of the table above; a `syn` walk of each output finding no `Registry`, as #57's `compiled_output_has_no_loader_values` does |
 | integration crate | a `build.rs` compiles a `Border` / `StackPanel` / `TextBlock` view; a test builds it and checks the tree and the `View` handles; a control crate the map names and no view uses still has its types in the registry |
 

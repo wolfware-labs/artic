@@ -14,9 +14,9 @@
 #[doc(hidden)]
 pub use artic_element::__private;
 
-/// The UI types: `Border`, `StackPanel`, `TextBlock`, `UserControl` and the panel group.
+/// The controls and the panel group.
 pub use artic_controls as controls;
-/// The element contract, the property groups every element has, and `Surface`.
+/// The element contract, the property groups every element has, and the surfaces.
 pub use artic_element as element;
 /// Layout and the geometry and text values properties take, such as `Thickness`.
 pub use artic_layout as layout;

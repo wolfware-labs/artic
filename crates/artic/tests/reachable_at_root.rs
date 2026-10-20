@@ -1,7 +1,8 @@
 // Generated code names a UI type, a group's methods trait and a property's value type as
 // `<crate>::<Name>`, so each one must be reachable at its crate's root. `reachable!` imports every
 // listed path, which compiles only if it is, and the tests check the list against the registry, so
-// a new type that isn't re-exported or listed fails here by name.
+// a new type that isn't re-exported or listed fails here by name. A value type is matched by name
+// alone, since a property's `value_type` has no crate.
 
 use artic_registry::{PropertyInfo, UI_TYPES};
 use std::collections::BTreeSet;

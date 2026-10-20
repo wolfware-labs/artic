@@ -463,7 +463,7 @@ fn content_children_on_a_field() {
   ));
 }
 
-// A collection of values has no builder method for its content.
+// A collection that isn't `Child` or `Children` has no builder method for its content.
 #[test]
 fn value_collection_content_has_no_method() {
   assert!(matches!(
