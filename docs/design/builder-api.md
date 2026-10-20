@@ -298,7 +298,7 @@ impl LoginView {
 ```
 
 - Text literals are parsed when the view is compiled, so the output constructs values (`Thickness::uniform(16.0)`) and never parses at runtime. The [XAML compiler design](xaml-compiler.md#literals) gives the `ToRust` trait that writes them.
-- The compiler's files wrap this body differently: a `View` struct with the root and the `x:Name` handles, and a `build` function returning it, which `#[ui_class]` (#52) wraps ([XAML compiler design](xaml-compiler.md#what-a-compiled-view-gives-the-app)).
+- The compiler's files wrap this body differently: a `View` struct with the root and the `x:Name` handles, and a `build` function returning it ([XAML compiler design](xaml-compiler.md#what-a-compiled-view-gives-the-app)). With a code type, the struct takes `UserControl`'s place at the root and keeps the handles in its `ui` field, and `build_view` becomes its `create` ([code type design](ui-class.md)).
 - Elements are emitted in post-order: each child is built before the element that holds it.
 - `Accent` isn't used in the example. A use such as `Background="{StaticResource Accent}"` would emit `.background(resource_accent())`.
 - How a code-behind method becomes a click handler belongs to the code-behind design (§9); the comment marks that spot.

@@ -72,7 +72,7 @@ impl RustExpr {
 
 ## What a compiled view gives the app
 
-Each `views/<name>.xaml` becomes `$OUT_DIR/views/<name>.rs`, a module body with one struct and one function:
+Each `src/views/<name>.xaml` becomes `$OUT_DIR/views/src/views/<name>.rs`, at its path in the crate, a module body with one struct and one function:
 
 ```rust,ignore
 // Generated from views/login_view.xaml.
@@ -108,10 +108,10 @@ pub fn build(tree: &mut UiTree) -> View {
 - A property becomes its builder method, named after the field (`PropertyInfo::field`). A group's property uses the same name through the group's methods trait. `PropertyGroupInfo` gains `methods: &'static str`, the trait's defining path from `PropertyGroup::METHODS`. The compiler never writes that path, which may name a private module: it takes the crate (first segment) and the trait's name (last segment), and since the trait sits at its crate's root, imports it once per file as `use <crate path>::<Trait> as _;` with the crate's path from the map, such as `use ::artic::element::LayoutMethods as _;`.
 - Content comes last, after the property methods, because `.child` and `.children` return a `WithChildren` that has only `build`. `ContentInfo::Collection` gains `method: Option<ContentMethod>`, the method the derive generated (`ContentMethod::Child` or `ContentMethod::Children`) or `None` for a collection of values; a `ContentInfo::Property` content is that property's method, given text or a literal. Text content takes the node's `text`, or its `raw` text for a type marked `whitespace = "significant"`.
 - `x:Name` adds a field to `View`, typed by the element. The name must be a Rust identifier; a keyword becomes a raw identifier (`r#type`), except `self`, `Self`, `crate` and `super`, which can't be raw and are rejected. `#[allow(non_snake_case)]` keeps `x:Name="Email"` warning-free.
-- `x:Class` and `x:FieldModifier` are recorded for #52, which includes the file in the code-behind module, calls `build` and keeps the `View`; `x:DataType` is recorded for #94; `x:Uid` is accepted and ignored until localization (#168).
+- `x:Class` makes the view's root its code type, and `x:FieldModifier` sets a named node's field visibility ([code type design](ui-class.md)); `x:DataType` is recorded for #94; `x:Uid` is accepted and ignored until localization (#168).
 - The file references every crate the namespace map names, with `use <path> as _;`, so their types stay in the app's link (below).
 
-The builder design's sample, `impl LoginView { fn build_view(&mut self, tree) }`, becomes this `View` and `build` pair. Spec §9 has `#[ui_class]` make its own `UserControl` wrapper; when the view's root is already a `UserControl`, #52 decides whether the wrapper is that root.
+The builder design's sample, `impl LoginView { fn build_view(&mut self, tree) }`, becomes this `View` and `build` pair. With a code type, `build` returns the code type at the root instead, and `View` holds only the named nodes ([code type design](ui-class.md#building-it)).
 
 ## What the compiler reports
 
@@ -178,7 +178,7 @@ fn main() {
 }
 ```
 
-- `compile_dir` walks the directory in sorted order, writes one file per view under `$OUT_DIR/views/` mirroring the source layout, and prints `cargo:rerun-if-changed` for the directory and each file.
+- `compile_dir` walks the directory in sorted order, writes one file per view under `$OUT_DIR/views/` at the view's path in the crate, which `#[ui_class]` finds it by ([code type design](ui-class.md#the-file-argument)), and prints `cargo:rerun-if-changed` for the directory and each file.
 - Linking: each generated file references every crate in `namespaces.crates_named()` through its path, so a control crate the map names keeps its types in the app's registry even when no view uses them. Every crate the map names is therefore a normal dependency of the app as well as a build-dependency; one that isn't fails to compile in the generated file, at its `use` line. A crate the map doesn't name can't be reached by a view; an app that wants its types for the runtime loader references it itself, as `dsl-neutral.md` §3 says. No `cargo metadata` runs inside the build.
 - The facade's `xaml-compiler` feature adds `artic-xaml-compiler` and re-exports `compile_dir`; apps don't name the compiler crate. A build-dependency on the facade compiles it once more for the host, the usual cost of a code generator.
 
