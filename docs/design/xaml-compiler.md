@@ -157,7 +157,7 @@ pub fn compile_str(
 pub fn compile_dir(dir: impl AsRef<Path>, namespaces: &NamespaceMap) -> Result<(), CompileError>;
 ```
 
-`compile_dir` builds the registry with `Registry::from_link_time()`, reads each file into one `SourceMap` and calls `compile_str`. `CompileError` holds the `SourceMap` and the `Diagnostics`, or an I/O error with its path. It also reports the registry's duplicates and a missing `OUT_DIR`. `compile_str` writes the file's path into the output, so `compile_dir` names each view relative to the crate, or to `dir` when `dir` is absolute.
+`compile_dir` builds the registry with `Registry::from_link_time()`, reads each file into one `SourceMap` and calls `compile_str`. `CompileError` holds the `SourceMap` and the `Diagnostics`, or an I/O error with its path. It also reports the registry's duplicates and a missing `OUT_DIR`. `compile_str` writes the file's path into the output, so `compile_dir` names each view by its path in the crate, and writes it at that path under `$OUT_DIR/views/` ([code type design](ui-class.md#the-file-argument)). A `dir` outside the crate names its views relative to `dir`.
 
 ## Writing the code
 

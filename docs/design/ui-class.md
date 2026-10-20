@@ -9,6 +9,7 @@ A view's code type is the Rust type that holds its handlers and its named nodes 
 ```rust,ignore
 // src/views/login.rs
 #[ui_class("login.xaml")]
+#[derive(Debug)]
 pub struct LoginView {
   attempts: u32,
 }
@@ -49,7 +50,7 @@ LoginView { layout, appearance, interaction, identity, child, ui, attempts }
        └─ Button
 ```
 
-- `#[ui_class]` adds `#[element]` and a `#[ui(content)] pub child: Child` field, so the struct has exactly `UserControl`'s members: the four groups and one child. The root's attributes (`Padding="16"`) set those members on `LoginView`.
+- `#[ui_class]` adds `#[element]` and a `#[ui(content)] pub child: Child` field; like any element, the struct derives `Debug` itself, so the struct has exactly `UserControl`'s members: the four groups and one child. The root's attributes (`Padding="16"`) set those members on `LoginView`.
 - A handler (#82) gets `&mut LoginView` from the tree, typed, with no downcast and no second node.
 - The root element of a view with a code type must be a `UserControl` for now. Another root, such as a `Surface` for a window, is a later issue: the code type would take that element's members instead.
 
@@ -149,7 +150,7 @@ Two checks keep the struct and the file together:
 
 `#[ui_class("login.xaml")]` names the view relative to the file the struct is in, as `include_str!` does. The macro finds that file with `Span::local_file` and makes the path relative to the crate (`src/views/login.xaml`).
 
-`compile_dir` writes each view at its path in the crate: `$OUT_DIR/views/src/views/login.rs`. That is the same path its header and diagnostics already show, so the macro needs nothing else to find the compiled file. A missing compiled file is the macro's error, at the string: "no compiled view for `src/views/login.xaml`: the file doesn't exist, or the build script's `compile_dir` doesn't cover it".
+`compile_dir` writes each view at its path in the crate: `$OUT_DIR/views/src/views/login.rs`, where it writes `$OUT_DIR/views/login.rs` today for `compile_dir("src/views")`. That is the same path its header and diagnostics already show, so the macro needs nothing else to find the compiled file. A view in a directory outside the crate keeps its path relative to that directory and can't have a code type, since the macro's path is always inside the crate. A missing compiled file is the macro's error, at the string: "no compiled view for `src/views/login.xaml`: the file doesn't exist, or the build script's `compile_dir` doesn't cover it".
 
 ## Where each piece lives
 
@@ -202,7 +203,7 @@ Today the view model, Rust emission, member resolution, `compile_dir` and the di
 | Spec §9 | the sample uses `self.ui.email`; the code type is the root element, not a `UserControl` owning `Self`; `create(&mut UiTree) -> Handle<Self>` |
 | Spec §4 | `x:Name` adds a field to the view's `ui`; `x:FieldModifier` sets that field's visibility |
 | `dsl.md` §9 | code type and field visibility point here |
-| `xaml-compiler.md` | "recorded for #52" and the wrapper question point here; `View` has no `root` for a view with a code type; output paths are relative to the crate |
+| `xaml-compiler.md` | "recorded for #52" and the wrapper question point here; `View` has no `root` for a view with a code type; `compile_dir` writes each view at its path in the crate (its doc comment in `dir.rs` changes with PR 3) |
 | `builder-api.md` | the `build_view` sample points here |
 | `element.md` | `ElementImpl`'s defaults fill the box |
 | #52 | "an `x:Name` colliding with a user field" leaves the criteria; `build_returns_user_control_root` becomes `build_returns_code_type_root` |
