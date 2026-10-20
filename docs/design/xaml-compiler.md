@@ -135,7 +135,10 @@ The builder design's sample, `impl LoginView { fn build_view(&mut self, tree) }`
 | A value provider written as an element, the root included | the type is a value provider, not an element |
 | An element inside a type with no content | the type takes no child elements |
 | A property given both as an attribute and as content | the property is set twice |
+| A namespace URI the map doesn't declare | no namespace, once per URI, with help to declare it |
 | An `x:Name` that isn't an identifier, is `self`, `Self`, `crate` or `super`, is used twice, or is `root` | invalid or duplicate name |
+
+An element in a value position (a property element, a content property, a value collection) is a value, which #57 resolves; until then it's reported as such and its type isn't looked up. Diagnostics are reported in source order.
 
 Rendering them as `file:line:col` lines in `cargo build` output is #51. Here `compile_dir` stops on the first file with errors and returns them; its error's `Display` renders them plainly.
 
@@ -154,7 +157,7 @@ pub fn compile_str(
 pub fn compile_dir(dir: impl AsRef<Path>, namespaces: &NamespaceMap) -> Result<(), CompileError>;
 ```
 
-`compile_dir` builds the registry with `Registry::from_link_time()`, reads each file into one `SourceMap` and calls `compile_str`. `CompileError` holds the `SourceMap` and the `Diagnostics`, or an I/O error with its path.
+`compile_dir` builds the registry with `Registry::from_link_time()`, reads each file into one `SourceMap` and calls `compile_str`. `CompileError` holds the `SourceMap` and the `Diagnostics`, or an I/O error with its path. It also reports the registry's duplicates and a missing `OUT_DIR`. `compile_str` writes the file's path into the output, so `compile_dir` names each view relative to the crate, or to `dir` when `dir` is absolute.
 
 ## Writing the code
 
