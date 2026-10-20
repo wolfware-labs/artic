@@ -100,3 +100,14 @@ fn debug_renders_the_diagnostics() {
   let shown = format!("{error:?}");
   assert!(shown.contains("no type `Gauge`") && !shown.contains("SourceMap"), "{shown}");
 }
+
+// A symlink to a directory isn't followed, so a link back to an ancestor ends instead of
+// recursing until the stack overflows.
+#[cfg(unix)]
+#[test]
+fn directory_symlink_is_not_followed() {
+  let root = setup("symlink", &[("a.xaml", BORDER)]);
+  std::os::unix::fs::symlink(root.join("views"), root.join("views/loop")).expect("a symlink");
+  let read = run(&root, &root.join("views")).expect("a valid view");
+  assert_eq!(read, [root.join("views/a.xaml")]);
+}

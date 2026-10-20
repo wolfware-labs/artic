@@ -48,7 +48,8 @@ impl Debug for CompileError {
 ///
 /// `dir` is read relative to the crate, where Cargo runs build scripts. Each view is written to
 /// `$OUT_DIR/views/<path under dir>.rs`, replacing what an earlier run wrote there, and Cargo is
-/// told to rerun the script when the directory or any view changes.
+/// told to rerun the script when the directory or any view changes. A symlink to a directory
+/// isn't followed.
 ///
 /// The compiler finds types in the registry of the build script itself, which holds the crates it
 /// links. So `build.rs` names each control crate its views use with `use <crate> as _;`, and
@@ -120,19 +121,20 @@ pub fn compile_into(
   Ok(views)
 }
 
-/// Every `.xaml` file under `dir`, in sorted order.
+/// Every `.xaml` file under `dir`, in sorted order. A symlink to a directory isn't followed, so a
+/// link back to an ancestor can't loop.
 fn find_views(dir: &Path) -> Result<Vec<PathBuf>, CompileError> {
   let mut entries = fs::read_dir(dir)
     .and_then(|entries| {
       entries
-        .map(|entry| entry.map(|entry| entry.path()))
+        .map(|entry| entry.and_then(|entry| Ok((entry.path(), entry.file_type()?))))
         .collect::<io::Result<Vec<_>>>()
     })
     .map_err(io_error(dir))?;
-  entries.sort();
+  entries.sort_by(|(one, _), (other, _)| one.cmp(other));
   let mut views = Vec::new();
-  for path in entries {
-    if path.is_dir() {
+  for (path, kind) in entries {
+    if kind.is_dir() {
       views.extend(find_views(&path)?);
     } else if path.extension().is_some_and(|extension| extension == "xaml") {
       views.push(path);
