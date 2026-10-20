@@ -4,8 +4,8 @@ use std::fmt::{Debug, Display, Formatter, Result};
 use std::str::FromStr;
 
 pub use crate::{
-  ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, EventInfo, HasGroup, OverrideDefaults, PropertyGroup,
-  PropertyGroupInfo, PropertyInfo, PropertyRef, RustExpr, ToRust, TypeInfo, UiCollection, UiType, ValueError,
+  ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, EventInfo, HasGroup, OverrideDefaults,
+  PropertyGroup, PropertyGroupInfo, PropertyInfo, PropertyRef, RustExpr, ToRust, TypeInfo, UiCollection, UiType, ValueError,
   ValueProviderInfo, Whitespace, WithChildren, register_type,
 };
 pub use artic_core::Object;

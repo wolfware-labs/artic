@@ -4,7 +4,7 @@
 use crate::names::field_name;
 use crate::resolve::{parse_path, resolve};
 use crate::unsupported;
-use artic_registry::{ContentInfo, PropertyInfo, PropertyRef, Registry, RustExpr, TypeInfo, Whitespace};
+use artic_registry::{ContentInfo, ContentMethod, PropertyInfo, PropertyRef, Registry, RustExpr, TypeInfo, Whitespace};
 use artic_xaml::diagnostics::{Diagnostic, Diagnostics, Span};
 use artic_xaml::infoset::{Directive, Member, MemberKey, XamlDocument, XamlNode};
 use artic_xaml::namespaces::NamespaceMap;
@@ -368,7 +368,7 @@ impl Lower<'_> {
 
   /// Lowers the child elements of a collection content and returns its content call: `child`
   /// takes one, `children` any number, and none is written for no children.
-  fn children(&mut self, info: &TypeInfo, method: &str, member: &Member) -> Content {
+  fn children(&mut self, info: &TypeInfo, method: ContentMethod, member: &Member) -> Content {
     let mut objects = Vec::new();
     let mut children = Vec::new();
     for node in &member.value {
@@ -386,7 +386,7 @@ impl Lower<'_> {
         XamlNode::Value { .. } | XamlNode::MarkupExtension { .. } => {}
       }
     }
-    let single = method == "child";
+    let single = method == ContentMethod::Child;
     if single && let [first, second, ..] = objects.as_slice() {
       self.diagnostics.push(
         Diagnostic::error(*second, format!("`{}` takes one child", info.name))
@@ -394,7 +394,7 @@ impl Lower<'_> {
           .with_secondary(*first, "first child"),
       );
     }
-    let method = syn::parse_str(method).expect("a content method is an identifier");
+    let method = syn::parse_str(method.name()).expect("a content method is an identifier");
     match children.as_slice() {
       [] => Content::None,
       [child] if single => Content::Child { method, child: *child },

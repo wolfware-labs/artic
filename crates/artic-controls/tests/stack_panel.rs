@@ -6,7 +6,7 @@ use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{AccessCx, ElementTypes, Visibility};
 use artic_layout::geometry::{Rect, Size};
 use artic_layout::{LayoutNodes, Layoutable, Orientation};
-use artic_registry::{ContentInfo, UiType};
+use artic_registry::{ContentInfo, ContentMethod, UiType};
 use artic_test::layout::{Boxes, Fixed, Headless, Invariants, strategy};
 use proptest::prelude::*;
 
@@ -180,7 +180,7 @@ fn stack_children_are_its_content() {
     <StackPanel as UiType>::TYPE_INFO.content,
     Some(ContentInfo::Collection {
       field: "children",
-      method: Some("children"),
+      method: Some(ContentMethod::Children),
       ..
     })
   ));

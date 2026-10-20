@@ -1,5 +1,5 @@
 use crate::ui_type::attributes::{FieldAttributes, TypeAttributes, parse_field_attributes, parse_type_attributes};
-use crate::ui_type::builders::{content_method_name, key_constant_name};
+use crate::ui_type::builders::{content_method, key_constant_name};
 use quote::ToTokens;
 use syn::ext::IdentExt;
 use syn::{Data, DeriveInput, Error, Field, Fields, GenericArgument, Ident, PathArguments, Type, Visibility};
@@ -151,7 +151,7 @@ fn check_generated_names(attributes: &TypeAttributes, ui_fields: &[UiField]) -> 
   let content = ui_fields
     .iter()
     .find(|field| field.attributes.content.is_some() && matches!(field.role, Role::Collection));
-  if let Some((field, name)) = content.and_then(|field| Some((field, content_method_name(field.ty)?))) {
+  if let Some((field, name)) = content.and_then(|field| Some((field, content_method(field.ty)?.name()))) {
     let name = name.to_owned();
     take(
       &mut taken,

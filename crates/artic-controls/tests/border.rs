@@ -6,7 +6,7 @@ use artic_element::{AccessCx, Child, ElementTypes, RenderCx, Visibility};
 use artic_layout::LayoutNodes;
 use artic_layout::Layoutable;
 use artic_layout::geometry::{CornerRadius, Point, Rect, RoundedRect, Size, Thickness};
-use artic_registry::{ContentInfo, UiType, ValueError};
+use artic_registry::{ContentInfo, ContentMethod, UiType, ValueError};
 use artic_render::{BoxShadow, Brush, Color, Command, Compositor, Layer, Layers, Nodes, SceneBuilder, SceneItem, Shape};
 use artic_test::layout::{Boxes, Fixed, Headless, Invariants, strategy};
 use proptest::prelude::*;
@@ -139,7 +139,7 @@ fn border_child_is_its_content() {
     <Border as UiType>::TYPE_INFO.content,
     Some(ContentInfo::Collection {
       field: "child",
-      method: Some("child"),
+      method: Some(ContentMethod::Child),
       ..
     })
   ));

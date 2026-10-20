@@ -171,14 +171,33 @@ pub enum ContentInfo {
   Collection {
     /// The collection field.
     field: &'static str,
-    /// The builder method that takes the children: `child` for a field of type `Child`,
-    /// `children` for one of type `Children`, and `None` for any other collection, which has no
-    /// builder method, so only `add_child` fills it.
-    method: Option<&'static str>,
+    /// The builder method that takes the children, or `None` for a collection that isn't
+    /// `Child` or `Children`, which has no builder method, so only `add_child` fills it.
+    method: Option<ContentMethod>,
     /// Adds one child element as content, calling the field's `UiCollection::push_child` with
     /// an accessor to the field.
     add_child: fn(&mut UiTree, NodeId, NodeId) -> Result<(), ValueError>,
   },
+}
+
+/// The builder method that takes a collection content's children.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContentMethod {
+  /// `child`, for a field of type `Child`: one child.
+  Child,
+  /// `children`, for a field of type `Children`: any number, in order.
+  Children,
+}
+
+impl ContentMethod {
+  /// The method's name: `child` or `children`.
+  #[must_use]
+  pub const fn name(self) -> &'static str {
+    match self {
+      ContentMethod::Child => "child",
+      ContentMethod::Children => "children",
+    }
+  }
 }
 
 /// A property found on a type, with the field of the group it lives in, if any.
@@ -248,6 +267,13 @@ mod tests {
   use static_assertions::assert_impl_all;
 
   assert_impl_all!(TypeInfo: Sync);
+
+  // Each content method is named as the builder method the derive writes.
+  #[test]
+  fn content_method_names_its_builder_method() {
+    assert_eq!(ContentMethod::Child.name(), "child");
+    assert_eq!(ContentMethod::Children.name(), "children");
+  }
 
   static PADDING: PropertyKey<f32> = PropertyKey::new("Padding", Affects::LAYOUT, Inheritance::None);
 
