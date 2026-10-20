@@ -52,7 +52,8 @@ fn unknown_element_reports_error() {
 // The header and the doc comments name the file with `/` separators on every platform.
 #[test]
 fn file_path_uses_forward_slashes() {
-  let rust = compile_with(r#"<Border xmlns="https://artic.rs/ui"/>"#, "views/account/login.xaml", |_| {}).expect("a valid view");
+  let rust =
+    compile_with(r#"<Border xmlns="https://artic.rs/ui"/>"#, "views/account/login.xaml", |_| {}).expect("a valid view");
   assert!(rust.starts_with("// Generated from views/account/login.xaml.\n"), "{rust}");
   assert!(rust.contains("/// The nodes of `views/account/login.xaml`"), "{rust}");
 }
@@ -65,7 +66,10 @@ fn name_in_two_crates_is_ambiguous() {
   })
   .expect_err("two Borders");
   assert!(errors.contains("`Border` is ambiguous in `https://artic.rs/ui`"), "{errors}");
-  assert!(errors.contains("`artic_controls::border::Border`, `elements::Border`"), "{errors}");
+  assert!(
+    errors.contains("`artic_controls::border::Border`, `elements::Border`"),
+    "{errors}"
+  );
 }
 
 // A `using:` type is written with the module path the document gave, its crate translated
@@ -80,7 +84,10 @@ fn using_type_keeps_its_module_path() {
 #[test]
 fn using_path_without_type_reports_error() {
   let errors = compile(r#"<c:Gauge xmlns:c="using:artic_controls::border"/>"#).expect_err("no Gauge");
-  assert!(errors.contains("no type `Gauge` in `using:artic_controls::border`"), "{errors}");
+  assert!(
+    errors.contains("no type `Gauge` in `using:artic_controls::border`"),
+    "{errors}"
+  );
 }
 
 // A namespace that points at the crate whose build script runs gets the build-dependency help.
@@ -117,5 +124,8 @@ fn every_unknown_type_is_reported() {
   let errors = compile(r#"<Border xmlns="https://artic.rs/ui"><Gauge/></Border>"#).expect_err("unknown child");
   assert!(errors.contains("no type `Gauge`"), "{errors}");
   let errors = compile(r#"<StackPanel xmlns="https://artic.rs/ui"><Gauge/><Dial/></StackPanel>"#).expect_err("two unknown");
-  assert!(errors.contains("no type `Gauge`") && errors.contains("no type `Dial`"), "{errors}");
+  assert!(
+    errors.contains("no type `Gauge`") && errors.contains("no type `Dial`"),
+    "{errors}"
+  );
 }

@@ -111,7 +111,7 @@ impl Lower<'_> {
     let XamlNode::Object { ty, members, .. } = node else {
       unreachable!("only object elements are lowered as elements")
     };
-    let resolved = match self.report(resolve(ty, self.registry, self.namespaces)) {
+    let resolved = match resolve(ty, self.registry, self.namespaces, &mut self.diagnostics) {
       Some(resolved) if resolved.info.is_value_provider() => {
         self.diagnostics.push(unsupported::provider_as_element(ty));
         None
@@ -219,7 +219,7 @@ impl Lower<'_> {
     let name = group.methods.rsplit("::").next().unwrap_or(group.methods);
     let text = format!("{}::{name}", self.namespaces.path_of(krate));
     if !self.view.traits.contains_key(&text)
-      && let Some(path) = self.report(parse_path(&text, span))
+      && let Some(path) = parse_path(&text, span, &mut self.diagnostics)
     {
       self.view.traits.insert(text, path);
     }
@@ -241,14 +241,21 @@ impl Lower<'_> {
         .push(Diagnostic::error(span, message).with_label(format!("for `{}`", property.name)));
       return None;
     }
-    let expr = syn::parse_str(out.as_str()).map_err(|_| {
-      Diagnostic::error(
-        span,
-        format!("the value of `{}` was written as invalid Rust: `{}`", property.name, out.as_str()),
-      )
-      .with_help(format!("`{}`'s `ToRust` impl writes invalid Rust", property.value_type))
-    });
-    self.report(expr)
+    let expr = syn::parse_str(out.as_str()).ok();
+    if expr.is_none() {
+      self.diagnostics.push(
+        Diagnostic::error(
+          span,
+          format!(
+            "the value of `{}` was written as invalid Rust: `{}`",
+            property.name,
+            out.as_str()
+          ),
+        )
+        .with_help(format!("`{}`'s `ToRust` impl writes invalid Rust", property.value_type)),
+      );
+    }
+    expr
   }
 
   /// Applies a directive: `x:Name` gives a field, `x:Key` is reported, and the others are kept
@@ -311,7 +318,9 @@ impl Lower<'_> {
           self.diagnostics.push(unsupported::value_collection(member.span));
         }
       }
-      Some(ContentInfo::Collection { method: Some(method), .. }) => members.content = self.children(info, method, member),
+      Some(ContentInfo::Collection {
+        method: Some(method), ..
+      }) => members.content = self.children(info, method, member),
     }
   }
 
@@ -392,11 +401,6 @@ impl Lower<'_> {
       _ if single => Content::None,
       _ => Content::Children { method, children },
     }
-  }
-
-  /// The value, or `None` after recording the diagnostic.
-  fn report<T>(&mut self, result: Result<T, Diagnostic>) -> Option<T> {
-    result.map_err(|diagnostic| self.diagnostics.push(diagnostic)).ok()
   }
 }
 

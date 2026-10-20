@@ -55,11 +55,14 @@ fn joined(rust: &str) -> String {
 // A `Child` content takes the child's handle, after the property methods.
 #[test]
 fn child_comes_after_properties() {
-  let rust = compile(r#"<Border xmlns="https://artic.rs/ui" Padding="2"><TextBlock Text="Hi"/></Border>"#)
-    .expect("a valid view");
+  let rust =
+    compile(r#"<Border xmlns="https://artic.rs/ui" Padding="2"><TextBlock Text="Hi"/></Border>"#).expect("a valid view");
   let border = joined(&rust);
   let border = &border[border.find("let__e1=").expect("the border's let")..];
-  assert!(border.starts_with("let__e1=::artic::controls::Border::new().padding("), "{rust}");
+  assert!(
+    border.starts_with("let__e1=::artic::controls::Border::new().padding("),
+    "{rust}"
+  );
   assert!(border.contains(".child(__e0).build(tree);"), "{rust}");
 }
 
@@ -91,7 +94,10 @@ fn empty_panel_writes_no_children_call() {
 #[test]
 fn text_content_sets_content_property() {
   let rust = compile(&format!(r#"<Label xmlns="{TEST_UI}">  Hello   world </Label>"#)).expect("a valid view");
-  assert!(rust.contains(r#".text(::std::string::String::from("Hello world"))"#), "{rust}");
+  assert!(
+    rust.contains(r#".text(::std::string::String::from("Hello world"))"#),
+    "{rust}"
+  );
 }
 
 // A type whose whitespace is significant gets its text as written.

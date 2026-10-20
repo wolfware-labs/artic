@@ -55,8 +55,7 @@ fn attribute_becomes_builder_call() {
 // A group's property is called through its methods trait, imported once from its crate's path.
 #[test]
 fn group_property_imports_its_trait() {
-  let rust =
-    compile(r#"<Border xmlns="https://artic.rs/ui" Margin="1" HorizontalAlignment="Left"/>"#).expect("a valid view");
+  let rust = compile(r#"<Border xmlns="https://artic.rs/ui" Margin="1" HorizontalAlignment="Left"/>"#).expect("a valid view");
   assert!(rust.contains("use ::artic::element::LayoutMethods as _;"), "{rust}");
   assert_eq!(rust.matches("LayoutMethods").count(), 1, "{rust}");
   assert!(rust.contains(".margin("), "{rust}");
@@ -67,7 +66,13 @@ fn group_property_imports_its_trait() {
 fn group_imports_are_sorted() {
   let one = compile(r#"<StackPanel xmlns="https://artic.rs/ui" Margin="1" Background="Red"/>"#).expect("a valid view");
   let other = compile(r#"<StackPanel xmlns="https://artic.rs/ui" Background="Red" Margin="1"/>"#).expect("a valid view");
-  let imports = |rust: &str| rust.lines().filter(|line| line.starts_with("use ")).map(str::to_owned).collect::<Vec<_>>();
+  let imports = |rust: &str| {
+    rust
+      .lines()
+      .filter(|line| line.starts_with("use "))
+      .map(str::to_owned)
+      .collect::<Vec<_>>()
+  };
   assert_eq!(
     imports(&one),
     [
@@ -104,7 +109,10 @@ fn bad_literal_reports_error() {
 #[test]
 fn invalid_literal_rust_reports_error() {
   let errors = compile(&format!(r#"<Knob xmlns="{TEST_UI}" Shape="x"/>"#)).expect_err("invalid Rust");
-  assert!(errors.contains("the value of `Shape` was written as invalid Rust: `(`"), "{errors}");
+  assert!(
+    errors.contains("the value of `Shape` was written as invalid Rust: `(`"),
+    "{errors}"
+  );
 }
 
 // An event handler comes with #82.
@@ -143,18 +151,17 @@ fn markup_extensions_report_their_issue() {
 // An object as a property's value comes with #57.
 #[test]
 fn object_value_reports_error() {
-  let errors = compile(
-    r#"<Border xmlns="https://artic.rs/ui"><Border.Background><SolidColorBrush/></Border.Background></Border>"#,
-  )
-  .expect_err("a value object");
+  let errors =
+    compile(r#"<Border xmlns="https://artic.rs/ui"><Border.Background><SolidColorBrush/></Border.Background></Border>"#)
+      .expect_err("a value object");
   assert!(errors.contains("value objects come with #57"), "{errors}");
 }
 
 // A property element holding text sets the property like an attribute.
 #[test]
 fn property_element_text_becomes_builder_call() {
-  let rust = compile(r#"<Border xmlns="https://artic.rs/ui"><Border.Padding>4</Border.Padding></Border>"#)
-    .expect("a valid view");
+  let rust =
+    compile(r#"<Border xmlns="https://artic.rs/ui"><Border.Padding>4</Border.Padding></Border>"#).expect("a valid view");
   assert!(rust.contains(".padding("), "{rust}");
 }
 

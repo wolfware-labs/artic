@@ -23,7 +23,10 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
   let lets = view.elements.iter().enumerate().map(|(index, element)| {
     let local = local(index);
     let ty = &element.ty;
-    let setters = element.setters.iter().map(|Setter { method, value }| quote!(.#method(#value)));
+    let setters = element
+      .setters
+      .iter()
+      .map(|Setter { method, value }| quote!(.#method(#value)));
     let content = content(&element.content);
     quote!(let #local = #ty::new() #(#setters)* #content .build(tree);)
   });
