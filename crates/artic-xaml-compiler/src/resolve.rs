@@ -6,6 +6,7 @@ use artic_xaml::diagnostics::{Diagnostic, Diagnostics, Span};
 use artic_xaml::infoset::{TypeRef, XamlNamespace};
 use artic_xaml::namespaces::NamespaceMap;
 use syn::Path;
+use syn::parse::Parser;
 
 /// A type named in markup, with the path generated code names it by.
 pub(crate) struct Resolved {
@@ -34,9 +35,10 @@ pub(crate) fn resolve(
 }
 
 /// Parses `text`, built from the namespace map's paths, as the path of an item, or records that
-/// it isn't one.
+/// it isn't one. The path is read as a module path, without generic arguments, since generated
+/// code writes it before `::new()` and in `use` items.
 pub(crate) fn parse_path(text: &str, span: Span, diagnostics: &mut Diagnostics) -> Option<Path> {
-  let parsed = syn::parse_str(text).ok();
+  let parsed = Path::parse_mod_style.parse_str(text).ok();
   if parsed.is_none() {
     diagnostics.push(
       Diagnostic::error(span, format!("`{text}` isn't a Rust path")).with_help("check the paths set with `NamespaceMap::path`"),

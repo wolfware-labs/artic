@@ -129,3 +129,16 @@ fn every_unknown_type_is_reported() {
     "{errors}"
   );
 }
+
+// A crate path with generic arguments is reported, not written into code that can't parse.
+#[test]
+fn generic_crate_path_reports_error() {
+  let errors = compile_with(r#"<Border xmlns="https://artic.rs/ui"/>"#, "view.xaml", |map| {
+    map.path("artic_controls", "::artic::controls<T>");
+  })
+  .expect_err("not a module path");
+  assert!(
+    errors.contains("`::artic::controls<T>::Border` isn't a Rust path"),
+    "{errors}"
+  );
+}
