@@ -6,6 +6,10 @@
 
 pub use artic_xaml::namespaces::NamespaceMap;
 
+/// Compiles a directory of views from a build script, and why it stopped.
+#[cfg(feature = "xaml-compiler")]
+pub use artic_xaml_compiler::{CompileError, compile_dir};
+
 // The registry only knows linked crates, and a crate nothing refers to is left out of the link:
 // these keep the crates `ARTIC_UI` names in every app that uses this module.
 use artic_controls as _;

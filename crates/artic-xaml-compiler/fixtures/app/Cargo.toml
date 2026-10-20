@@ -1,0 +1,25 @@
+[package]
+name = "artic-xaml-compiler-fixture-app"
+description = "An app whose build script compiles its views, for the compiler's integration tests."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+artic.workspace = true
+artic-xaml-compiler-fixture-controls = { path = "../controls" }
+
+[build-dependencies]
+artic = { workspace = true, features = ["xaml-compiler"] }
+artic-xaml-compiler-fixture-controls = { path = "../controls" }
+
+[dev-dependencies]
+artic-core.workspace = true
+artic-registry.workspace = true
+
+[lints]
+workspace = true
