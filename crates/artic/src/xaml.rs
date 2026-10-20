@@ -6,9 +6,20 @@
 
 pub use artic_xaml::namespaces::NamespaceMap;
 
-/// Compiles a directory of views from a build script, and why it stopped.
+/// Why [`compile_dir`] stopped.
 #[cfg(feature = "xaml-compiler")]
-pub use artic_xaml_compiler::{CompileError, compile_dir};
+pub use artic_xaml_compiler::CompileError;
+
+/// Compiles a directory of views from a build script.
+///
+/// An app's `build.rs`, with `artic` as a build-dependency and its `xaml-compiler` feature on:
+///
+/// ```no_run
+/// let namespaces = artic::xaml::namespaces();
+/// artic::xaml::compile_dir("src/views", &namespaces).unwrap();
+/// ```
+#[cfg(feature = "xaml-compiler")]
+pub use artic_xaml_compiler::compile_dir;
 
 // The registry only knows linked crates, and a crate nothing refers to is left out of the link:
 // these keep the crates `ARTIC_UI` names in every app that uses this module.

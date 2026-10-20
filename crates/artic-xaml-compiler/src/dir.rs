@@ -55,8 +55,8 @@ impl Debug for CompileError {
 /// that crate is a build-dependency as well as a dependency: the generated code compiles in the
 /// app and names it too.
 ///
-/// An app calls it from `build.rs` as `artic::xaml::compile_dir`, through the facade's
-/// `xaml-compiler` feature:
+/// An app usually calls it as `artic::xaml::compile_dir`, through the facade's `xaml-compiler`
+/// feature. Called from this crate directly:
 ///
 /// ```no_run
 /// let namespaces = artic::xaml::namespaces();
