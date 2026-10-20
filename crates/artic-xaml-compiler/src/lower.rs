@@ -3,7 +3,7 @@
 
 use crate::resolve::{parse_path, resolve};
 use crate::unsupported;
-use artic_registry::{PropertyInfo, PropertyRef, Registry, RustExpr, TypeInfo};
+use artic_registry::{ContentInfo, PropertyInfo, PropertyRef, Registry, RustExpr, TypeInfo, Whitespace};
 use artic_xaml::diagnostics::{Diagnostic, Diagnostics, Span};
 use artic_xaml::infoset::{Directive, Member, MemberKey, XamlDocument, XamlNode};
 use artic_xaml::namespaces::NamespaceMap;
@@ -256,10 +256,103 @@ impl Lower<'_> {
     }
   }
 
-  /// Lowers the elements inside content; the content rules come with the next commit.
-  fn content(&mut self, _info: Option<&'static TypeInfo>, member: &Member, _members: &mut Members) {
-    for child in member.value.iter().filter(|node| matches!(node, XamlNode::Object { .. })) {
-      self.element(child);
+  /// Lowers the content written directly inside an element of type `info`, or, for a type that
+  /// didn't resolve, only the elements in it, for their own diagnostics.
+  fn content(&mut self, info: Option<&'static TypeInfo>, member: &Member, members: &mut Members) {
+    let Some(info) = info else {
+      for child in member.value.iter().filter(|node| matches!(node, XamlNode::Object { .. })) {
+        self.element(child);
+      }
+      return;
+    };
+    match info.content {
+      None => self.no_content(info, member),
+      Some(ContentInfo::Property(property)) => self.content_text(info, property, member, members),
+      Some(ContentInfo::Collection { method: None, .. }) => {
+        if member.value.iter().any(|node| !is_blank(node)) {
+          self.diagnostics.push(unsupported::value_collection(member.span));
+        }
+      }
+      Some(ContentInfo::Collection { method: Some(method), .. }) => members.content = self.children(info, method, member),
+    }
+  }
+
+  /// Reports content inside a type that takes none.
+  fn no_content(&mut self, info: &TypeInfo, member: &Member) {
+    for node in &member.value {
+      match node {
+        XamlNode::Value { text, span, .. } if !text.is_empty() => {
+          self
+            .diagnostics
+            .push(Diagnostic::error(*span, format!("`{}` takes no text content", info.name)));
+        }
+        XamlNode::Object { span, .. } => {
+          self
+            .diagnostics
+            .push(Diagnostic::error(*span, format!("`{}` takes no child elements", info.name)));
+        }
+        XamlNode::Value { .. } | XamlNode::MarkupExtension { .. } => {}
+      }
+    }
+  }
+
+  /// Sets the content property from the text inside the element: `raw` for a type whose
+  /// whitespace is significant, `text` otherwise, and nothing when that is empty.
+  fn content_text(&mut self, info: &TypeInfo, property: PropertyRef, member: &Member, members: &mut Members) {
+    let significant = info.whitespace == Whitespace::Significant;
+    let mut value = String::new();
+    for node in &member.value {
+      match node {
+        XamlNode::Value { text, raw, .. } => value.push_str(if significant { raw } else { text }),
+        XamlNode::Object { span, .. } => {
+          self.diagnostics.push(unsupported::value_object(*span));
+          return;
+        }
+        XamlNode::MarkupExtension { ty, span, .. } => {
+          self.diagnostics.push(unsupported::markup_extension(ty, *span));
+          return;
+        }
+      }
+    }
+    if !value.is_empty() {
+      self.set(info, property, &value, member.span, members);
+    }
+  }
+
+  /// Lowers the child elements of a collection content and returns its content call: `child`
+  /// takes one, `children` any number, and none is written for no children.
+  fn children(&mut self, info: &TypeInfo, method: &str, member: &Member) -> Content {
+    let mut objects = Vec::new();
+    let mut children = Vec::new();
+    for node in &member.value {
+      match node {
+        XamlNode::Value { text, span, .. } if !text.is_empty() => {
+          self.diagnostics.push(
+            Diagnostic::error(*span, format!("`{}` takes no text content", info.name))
+              .with_help("put the text in an element, such as a `TextBlock`"),
+          );
+        }
+        XamlNode::Object { span, .. } => {
+          objects.push(*span);
+          children.extend(self.element(node));
+        }
+        XamlNode::Value { .. } | XamlNode::MarkupExtension { .. } => {}
+      }
+    }
+    let single = method == "child";
+    if single && let [first, second, ..] = objects.as_slice() {
+      self.diagnostics.push(
+        Diagnostic::error(*second, format!("`{}` takes one child", info.name))
+          .with_label("second child")
+          .with_secondary(*first, "first child"),
+      );
+    }
+    let method = syn::parse_str(method).expect("a content method is an identifier");
+    match children.as_slice() {
+      [] => Content::None,
+      [child] if single => Content::Child { method, child: *child },
+      _ if single => Content::None,
+      _ => Content::Children { method, children },
     }
   }
 
@@ -267,4 +360,9 @@ impl Lower<'_> {
   fn report<T>(&mut self, result: Result<T, Diagnostic>) -> Option<T> {
     result.map_err(|diagnostic| self.diagnostics.push(diagnostic)).ok()
   }
+}
+
+/// Whether `node` is text that adds nothing, such as indentation between elements.
+fn is_blank(node: &XamlNode) -> bool {
+  matches!(node, XamlNode::Value { text, .. } if text.is_empty())
 }

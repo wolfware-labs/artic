@@ -54,3 +54,8 @@ pub(crate) fn markup_extension(ty: &TypeRef, span: Span) -> Diagnostic {
     None => Diagnostic::error(span, format!("unknown value provider `{written}`")),
   }
 }
+
+/// Content for a collection of values, such as gradient stops.
+pub(crate) fn value_collection(span: Span) -> Diagnostic {
+  Diagnostic::error(span, "value collections come with #57")
+}
