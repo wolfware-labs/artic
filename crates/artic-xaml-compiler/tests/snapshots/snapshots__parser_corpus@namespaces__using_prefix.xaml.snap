@@ -1,0 +1,8 @@
+---
+source: crates/artic-xaml-compiler/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/namespaces/using_prefix.xaml
+---
+valid/namespaces/using_prefix.xaml:1:2: error: no type `Card` in `using:my_app::views`
+1 | <v:Card xmlns:v="using:my_app::views"/>
+  |  ^^^^^^ unknown type

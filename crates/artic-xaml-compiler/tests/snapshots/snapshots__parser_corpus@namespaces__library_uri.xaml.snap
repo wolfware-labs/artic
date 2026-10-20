@@ -1,0 +1,12 @@
+---
+source: crates/artic-xaml-compiler/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/namespaces/library_uri.xaml
+---
+valid/namespaces/library_uri.xaml:2:2: error: no type `Panel` in `https://artic.rs/ui`
+2 | <Panel xmlns="https://artic.rs/ui" xmlns:charts="https://acme.dev/charts">
+  |  ^^^^^ unknown type
+
+valid/namespaces/library_uri.xaml:3:4: error: no type `PieChart` in `https://acme.dev/charts`
+3 |   <charts:PieChart/>
+  |    ^^^^^^^^^^^^^^^ unknown type

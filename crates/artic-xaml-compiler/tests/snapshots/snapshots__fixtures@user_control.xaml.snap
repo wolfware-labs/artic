@@ -1,0 +1,37 @@
+---
+source: crates/artic-xaml-compiler/tests/snapshots.rs
+expression: rust
+input_file: crates/artic-xaml-compiler/tests/fixtures/user_control.xaml
+---
+// Generated from user_control.xaml.
+
+use ::artic::prelude::{Handle, UiTree};
+use ::artic::element::LayoutMethods as _;
+/// The nodes of `user_control.xaml`: its root and one handle per `x:Name`.
+#[allow(non_snake_case)]
+#[derive(Clone, Copy, Debug)]
+pub struct View {
+    pub root: Handle<::artic::controls::UserControl>,
+    pub email: Handle<::artic::controls::TextBlock>,
+    pub r#type: Handle<::artic::controls::TextBlock>,
+}
+/// Builds `user_control.xaml` in `tree` and returns its nodes.
+pub fn build(tree: &mut UiTree) -> View {
+    let __e0 = ::artic::controls::TextBlock::new()
+        .text(::std::string::String::from("Email"))
+        .build(tree);
+    let __e1 = ::artic::controls::TextBlock::new()
+        .text(::std::string::String::from("Sign in"))
+        .build(tree);
+    let __e2 = ::artic::controls::StackPanel::new()
+        .spacing(8.0_f32)
+        .margin(::artic::layout::Thickness::new(16.0_f32, 16.0_f32, 16.0_f32, 16.0_f32))
+        .children([__e0.id(), __e1.id()])
+        .build(tree);
+    let __e3 = ::artic::controls::UserControl::new().child(__e2).build(tree);
+    View {
+        root: __e3,
+        email: __e0,
+        r#type: __e1,
+    }
+}

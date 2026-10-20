@@ -1,0 +1,12 @@
+---
+source: crates/artic-xaml-compiler/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/whitespace/between_elements.xaml
+---
+valid/whitespace/between_elements.xaml:1:40: error: `TextBlock` takes no child elements
+1 | <TextBlock xmlns="https://artic.rs/ui"><Run>Hello</Run> <Run>world</Run></TextBlock>
+  |                                        ^^^^^^^^^^^^^^^^
+
+valid/whitespace/between_elements.xaml:1:57: error: `TextBlock` takes no child elements
+1 | <TextBlock xmlns="https://artic.rs/ui"><Run>Hello</Run> <Run>world</Run></TextBlock>
+  |                                                         ^^^^^^^^^^^^^^^^

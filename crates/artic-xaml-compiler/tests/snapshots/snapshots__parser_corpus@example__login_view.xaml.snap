@@ -1,0 +1,16 @@
+---
+source: crates/artic-xaml-compiler/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/example/login_view.xaml
+---
+valid/example/login_view.xaml:5:4: error: `UserControl` has no property `Resources`
+5 |   <UserControl.Resources>
+  |    ^^^^^^^^^^^^^^^^^^^^^ unknown property
+
+valid/example/login_view.xaml:9:6: error: no type `TextBox` in `https://artic.rs/ui`
+9 |     <TextBox x:Name="email" Text="{Binding Email, Mode=TwoWay}" Placeholder="Email"/>
+  |      ^^^^^^^ unknown type
+
+valid/example/login_view.xaml:10:6: error: no type `Button` in `https://artic.rs/ui`
+10 |     <Button Classes="primary" Content="Sign in"
+   |      ^^^^^^ unknown type

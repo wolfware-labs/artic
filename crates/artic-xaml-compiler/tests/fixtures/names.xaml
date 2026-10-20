@@ -1,0 +1,5 @@
+<!-- Names in both cases, a keyword, and an empty panel that writes no content call. -->
+<StackPanel xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup" x:Name="Panel">
+  <StackPanel x:Name="empty"/>
+  <TextBlock x:Name="Email"/>
+</StackPanel>

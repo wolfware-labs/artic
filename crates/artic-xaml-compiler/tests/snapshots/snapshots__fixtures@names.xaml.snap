@@ -1,0 +1,31 @@
+---
+source: crates/artic-xaml-compiler/tests/snapshots.rs
+expression: rust
+input_file: crates/artic-xaml-compiler/tests/fixtures/names.xaml
+---
+// Generated from names.xaml.
+
+use ::artic::prelude::{Handle, UiTree};
+/// The nodes of `names.xaml`: its root and one handle per `x:Name`.
+#[allow(non_snake_case)]
+#[derive(Clone, Copy, Debug)]
+pub struct View {
+    pub root: Handle<::artic::controls::StackPanel>,
+    pub empty: Handle<::artic::controls::StackPanel>,
+    pub Email: Handle<::artic::controls::TextBlock>,
+    pub Panel: Handle<::artic::controls::StackPanel>,
+}
+/// Builds `names.xaml` in `tree` and returns its nodes.
+pub fn build(tree: &mut UiTree) -> View {
+    let __e0 = ::artic::controls::StackPanel::new().build(tree);
+    let __e1 = ::artic::controls::TextBlock::new().build(tree);
+    let __e2 = ::artic::controls::StackPanel::new()
+        .children([__e0.id(), __e1.id()])
+        .build(tree);
+    View {
+        root: __e2,
+        empty: __e0,
+        Email: __e1,
+        Panel: __e2,
+    }
+}

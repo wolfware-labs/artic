@@ -1,0 +1,5 @@
+<!-- A card: a border with an outline, padding and a group property, holding text. -->
+<Border xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup"
+        Padding="12,8" CornerRadius="6" BorderThickness="1" Background="#F8FAFC" Margin="16">
+  <TextBlock x:Name="title" Text="Welcome" FontSize="18" TextWrapping="Wrap"/>
+</Border>

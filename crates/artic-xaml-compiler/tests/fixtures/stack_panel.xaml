@@ -1,0 +1,8 @@
+<!-- A vertical list with spacing, a nested border and text in document order. -->
+<StackPanel xmlns="https://artic.rs/ui" Orientation="Vertical" Spacing="8" Background="White">
+  <TextBlock Text="One"/>
+  <Border Padding="4">
+    <TextBlock Text="Two"/>
+  </Border>
+  <TextBlock Text="Three" TextAlignment="Center"/>
+</StackPanel>

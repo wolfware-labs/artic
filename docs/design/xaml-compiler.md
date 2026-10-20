@@ -132,7 +132,9 @@ The builder design's sample, `impl LoginView { fn build_view(&mut self, tree) }`
 | Text inside a type with no content, or text in a collection of elements | the type takes no text content |
 | A second child for a `Child` content | the type takes one child |
 | A collection content of values, such as gradient stops | "value collections come with #57" |
-| A root that is a value object or a value provider | the root must be an element |
+| A value provider written as an element, the root included | the type is a value provider, not an element |
+| An element inside a type with no content | the type takes no child elements |
+| A property given both as an attribute and as content | the property is set twice |
 | An `x:Name` that isn't an identifier, is `self`, `Self`, `crate` or `super`, is used twice, or is `root` | invalid or duplicate name |
 
 Rendering them as `file:line:col` lines in `cargo build` output is #51. Here `compile_dir` stops on the first file with errors and returns them; its error's `Display` renders them plainly.

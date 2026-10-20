@@ -1,0 +1,7 @@
+<!-- Spec §4's view shape with the controls that exist today: a user control around a panel. -->
+<UserControl xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup" x:Class="app::views::LoginView">
+  <StackPanel Spacing="8" Margin="16">
+    <TextBlock x:Name="email" Text="Email"/>
+    <TextBlock x:Name="type" Text="Sign in"/>
+  </StackPanel>
+</UserControl>

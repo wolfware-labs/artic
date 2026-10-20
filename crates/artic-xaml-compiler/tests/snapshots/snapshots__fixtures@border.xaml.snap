@@ -1,0 +1,42 @@
+---
+source: crates/artic-xaml-compiler/tests/snapshots.rs
+expression: rust
+input_file: crates/artic-xaml-compiler/tests/fixtures/border.xaml
+---
+// Generated from border.xaml.
+
+use ::artic::prelude::{Handle, UiTree};
+use ::artic::element::LayoutMethods as _;
+/// The nodes of `border.xaml`: its root and one handle per `x:Name`.
+#[allow(non_snake_case)]
+#[derive(Clone, Copy, Debug)]
+pub struct View {
+    pub root: Handle<::artic::controls::Border>,
+    pub title: Handle<::artic::controls::TextBlock>,
+}
+/// Builds `border.xaml` in `tree` and returns its nodes.
+pub fn build(tree: &mut UiTree) -> View {
+    let __e0 = ::artic::controls::TextBlock::new()
+        .text(::std::string::String::from("Welcome"))
+        .font_size(18.0_f32)
+        .text_wrapping(::artic::layout::TextWrapping::Wrap)
+        .build(tree);
+    let __e1 = ::artic::controls::Border::new()
+        .padding(::artic::layout::Thickness::new(12.0_f32, 8.0_f32, 12.0_f32, 8.0_f32))
+        .corner_radius(
+            ::artic::layout::CornerRadius::new(6.0_f32, 6.0_f32, 6.0_f32, 6.0_f32),
+        )
+        .border_thickness(
+            ::artic::layout::Thickness::new(1.0_f32, 1.0_f32, 1.0_f32, 1.0_f32),
+        )
+        .background(
+            ::artic::render::Brush::Solid(::artic::render::SolidColorBrush {
+                color: ::artic::render::Color::rgba(248_u8, 250_u8, 252_u8, 255_u8),
+                opacity: 1.0_f32,
+            }),
+        )
+        .margin(::artic::layout::Thickness::new(16.0_f32, 16.0_f32, 16.0_f32, 16.0_f32))
+        .child(__e0)
+        .build(tree);
+    View { root: __e1, title: __e0 }
+}
