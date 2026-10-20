@@ -203,7 +203,7 @@ pub struct Border {
 For a flattened field, `derive(UiType)`:
 
 - calls `self.layout.visit_properties(visit)` from the struct's own `visit_properties`;
-- adds `PropertyGroupInfo { field: "layout", properties: <Layout as PropertyGroup>::PROPERTIES }` to the type's `TypeInfo.groups`.
+- adds `PropertyGroupInfo { field: "layout", properties: <Layout as PropertyGroup>::PROPERTIES, methods: <Layout as PropertyGroup>::METHODS }` to the type's `TypeInfo.groups`.
 
 A control has one entry per group, in the order the fields are declared.
 

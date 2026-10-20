@@ -155,6 +155,11 @@ pub struct PropertyGroupInfo {
   pub field: &'static str,
   /// The group's properties.
   pub properties: &'static [PropertyInfo],
+  /// The defining path of the group's methods trait, from [`PropertyGroup::METHODS`], such as
+  /// `artic_element::properties::LayoutMethods`. It may name a private module; the trait is
+  /// reachable at its crate's root, so generated code takes the crate (the first segment) and the
+  /// trait (the last).
+  pub methods: &'static str,
 }
 
 /// What a type takes as content: a property, or a collection field of child elements.
@@ -166,6 +171,10 @@ pub enum ContentInfo {
   Collection {
     /// The collection field.
     field: &'static str,
+    /// The builder method that takes the children: `child` for a field of type `Child`,
+    /// `children` for one of type `Children`, and `None` for any other collection, which has no
+    /// builder method, so only `add_child` fills it.
+    method: Option<&'static str>,
     /// Adds one child element as content, calling the field's `UiCollection::push_child` with
     /// an accessor to the field.
     add_child: fn(&mut UiTree, NodeId, NodeId) -> Result<(), ValueError>,

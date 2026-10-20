@@ -14,11 +14,16 @@ use artic_element as _;
 /// The namespace URI of artic's own UI types.
 pub const ARTIC_UI: &str = "https://artic.rs/ui";
 
-/// A map holding artic's URI, standing for the artic crates that define UI types.
+/// A map holding artic's URI, standing for the artic crates that define UI types, and the facade
+/// module each artic crate is reached by.
 #[must_use]
 pub fn namespaces() -> NamespaceMap {
   let mut map = NamespaceMap::new();
   map.alias(ARTIC_UI, &["artic_element", "artic_controls"]);
+  map.path("artic_controls", "::artic::controls");
+  map.path("artic_element", "::artic::element");
+  map.path("artic_layout", "::artic::layout");
+  map.path("artic_render", "::artic::render");
   map
 }
 
@@ -59,5 +64,20 @@ mod tests {
       Some(vec!["artic_element", "artic_controls"])
     );
     assert_eq!(namespaces(), map);
+  }
+
+  // Each artic crate is reached through the facade module that re-exports it.
+  #[test]
+  fn facade_maps_crates_to_its_modules() {
+    let map = namespaces();
+
+    assert_eq!(map.path_of("artic_controls"), "::artic::controls");
+    assert_eq!(map.path_of("artic_element"), "::artic::element");
+    assert_eq!(map.path_of("artic_layout"), "::artic::layout");
+    assert_eq!(map.path_of("artic_render"), "::artic::render");
+    assert_eq!(
+      map.crates_named().collect::<Vec<_>>(),
+      ["artic_controls", "artic_element", "artic_layout", "artic_render"]
+    );
   }
 }
