@@ -16,3 +16,7 @@ Thumbs.db
 # Golden-image failures, written beside each golden
 *.actual.png
 *.diff.png
+
+# insta writes these while a snapshot awaits review.
+*.pending-snap
+*.snap.new
