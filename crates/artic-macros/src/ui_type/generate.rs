@@ -1,6 +1,6 @@
 use crate::crate_root::{REGISTRY, crate_root};
 use crate::ui_type::attributes::{Affects, Attached, Inherits, Target, Whitespace};
-use crate::ui_type::builders::{builders, content_method_name};
+use crate::ui_type::builders::{builders, content_method};
 use crate::ui_type::fields::{Analysis, Role, UiField, generic_argument, snake_case, ui_name};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
@@ -111,8 +111,11 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
             info: &__PROPERTIES[#index],
           }))),
           None => {
-            let method = match content_method_name(field.ty) {
-              Some(method) => quote!(::core::option::Option::Some(#method)),
+            let method = match content_method(field.ty) {
+              Some(method) => {
+                let variant = method.variant();
+                quote!(::core::option::Option::Some(__artic::ContentMethod::#variant))
+              }
               None => quote!(::core::option::Option::None),
             };
             quote!(::core::option::Option::Some(__artic::ContentInfo::Collection {

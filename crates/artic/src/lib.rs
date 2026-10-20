@@ -10,6 +10,8 @@
 //! - `skia`: use the `skia-safe` rendering backend.
 //! - `xaml`: `xaml::namespaces()`, the namespace URIs XAML views use, for the runtime loader and
 //!   for `build.rs`.
+//! - `xaml-compiler`: `xaml::compile_dir`, which compiles a directory of XAML views to Rust from
+//!   `build.rs`. Turns `xaml` on.
 
 #[doc(hidden)]
 pub use artic_element::__private;

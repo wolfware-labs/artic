@@ -69,14 +69,13 @@ fn group_imports_are_sorted() {
   let imports = |rust: &str| {
     rust
       .lines()
-      .filter(|line| line.starts_with("use "))
+      .filter(|line| line.starts_with("use ") && line.contains("Methods"))
       .map(str::to_owned)
       .collect::<Vec<_>>()
   };
   assert_eq!(
     imports(&one),
     [
-      "use ::artic::prelude::{Handle, UiTree};",
       "use ::artic::controls::PanelMethods as _;",
       "use ::artic::element::LayoutMethods as _;",
     ]

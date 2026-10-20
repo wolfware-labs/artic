@@ -1,0 +1,18 @@
+[package]
+name = "artic-xaml-compiler-fixture-controls"
+description = "A control crate the compiler's fixture app names in its namespace map and no view uses."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+artic-core.workspace = true
+artic-macros.workspace = true
+artic-registry.workspace = true
+
+[lints]
+workspace = true

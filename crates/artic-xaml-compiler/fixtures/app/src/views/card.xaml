@@ -1,0 +1,7 @@
+<!-- A card: a border around a panel of two named texts. -->
+<Border xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup" Padding="8" Margin="4">
+  <StackPanel x:Name="list" Spacing="6">
+    <TextBlock x:Name="title" Text="Welcome" FontSize="18"/>
+    <TextBlock x:Name="body" Text="Signed in"/>
+  </StackPanel>
+</Border>

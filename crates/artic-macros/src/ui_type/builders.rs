@@ -13,7 +13,7 @@ pub fn builders(analysis: &Analysis) -> TokenStream {
   let new_doc = format!("Creates a `{ident}` with each property at its default.");
   let build_doc = format!("Adds this `{ident}` to `tree` and returns its handle.");
   let constants = analysis.ui_fields.iter().filter_map(key_constant);
-  let content = content_method(analysis);
+  let content = content_builder(analysis);
   let methods = analysis.ui_fields.iter().filter_map(property_method);
   quote! {
     #(#constants)*
@@ -36,50 +36,76 @@ pub fn builders(analysis: &Analysis) -> TokenStream {
   }
 }
 
-/// The name of the method that takes a type's child elements: `child` for a field written
-/// `Child`, `children` for one written `Children`, and `None` for any other collection, whose
-/// values aren't child elements.
-pub fn content_method_name(ty: &Type) -> Option<&'static str> {
+/// The method that takes a type's child elements, as the registry's `ContentMethod` names it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ContentMethod {
+  /// `child`, for a field written `Child`.
+  Child,
+  /// `children`, for a field written `Children`.
+  Children,
+}
+
+impl ContentMethod {
+  /// The method's name.
+  pub fn name(self) -> &'static str {
+    match self {
+      ContentMethod::Child => "child",
+      ContentMethod::Children => "children",
+    }
+  }
+
+  /// The registry's variant, for the type's descriptor.
+  pub fn variant(self) -> Ident {
+    match self {
+      ContentMethod::Child => format_ident!("Child"),
+      ContentMethod::Children => format_ident!("Children"),
+    }
+  }
+}
+
+/// The method that takes a collection field's children: `Child` for a field written `Child`,
+/// `Children` for one written `Children`, and `None` for any other collection, whose values
+/// aren't child elements.
+pub fn content_method(ty: &Type) -> Option<ContentMethod> {
   let Type::Path(path) = ty else {
     return None;
   };
   match path.path.segments.last()?.ident.to_string().as_str() {
-    "Child" => Some("child"),
-    "Children" => Some("children"),
+    "Child" => Some(ContentMethod::Child),
+    "Children" => Some(ContentMethod::Children),
     _ => None,
   }
 }
 
 /// The method that takes the children of a type whose content is a collection, or `None`. It
 /// returns a `WithChildren`, whose `build` links them once the node exists.
-fn content_method(analysis: &Analysis) -> Option<TokenStream> {
+fn content_builder(analysis: &Analysis) -> Option<TokenStream> {
   let field = analysis
     .ui_fields
     .iter()
     .find(|field| field.attributes.content.is_some() && matches!(field.role, Role::Collection))?;
-  let name = content_method_name(field.ty)?;
+  let method = content_method(field.ty)?;
   let vis = field.vis;
-  let method = format_ident!("{name}");
-  Some(if name == "child" {
-    quote! {
+  let ident = format_ident!("{}", method.name());
+  Some(match method {
+    ContentMethod::Child => quote! {
       /// Sets the child, linked when the node is built.
       #[must_use]
-      #vis fn #method(self, child: impl ::core::convert::Into<__artic::NodeId>) -> __artic::WithChildren<Self, ::core::option::Option<__artic::NodeId>> {
+      #vis fn #ident(self, child: impl ::core::convert::Into<__artic::NodeId>) -> __artic::WithChildren<Self, ::core::option::Option<__artic::NodeId>> {
         __artic::WithChildren::new(self, ::core::option::Option::Some(::core::convert::Into::into(child)))
       }
-    }
-  } else {
-    quote! {
+    },
+    ContentMethod::Children => quote! {
       /// Sets the children, linked in order when the node is built.
       #[must_use]
-      #vis fn #method<I>(self, children: I) -> __artic::WithChildren<Self, I>
+      #vis fn #ident<I>(self, children: I) -> __artic::WithChildren<Self, I>
       where
         I: ::core::iter::IntoIterator,
         I::Item: ::core::convert::Into<__artic::NodeId>,
       {
         __artic::WithChildren::new(self, children)
       }
-    }
+    },
   })
 }
 

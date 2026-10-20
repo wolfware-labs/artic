@@ -26,6 +26,8 @@ members = [
     "crates/artic-winit",
     "crates/artic-xaml",
     "crates/artic-xaml-compiler",
+    "crates/artic-xaml-compiler/fixtures/app",
+    "crates/artic-xaml-compiler/fixtures/controls",
     "crates/artic-xaml-runtime",
     "crates/docs-check",
 ]

@@ -106,6 +106,7 @@ dependencies = [
  "artic-style",
  "artic-theme",
  "artic-xaml",
+ "artic-xaml-compiler",
  "artic-xaml-runtime",
 ]
 
@@ -380,6 +381,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "artic-xaml-compiler-fixture-app"
+version = "0.1.0"
+dependencies = [
+ "artic",
+ "artic-core",
+ "artic-registry",
+ "artic-xaml-compiler-fixture-controls",
+]
+
+[[package]]
+name = "artic-xaml-compiler-fixture-controls"
+version = "0.1.0"
+dependencies = [
+ "artic-core",
+ "artic-macros",
+ "artic-registry",
 ]
 
 [[package]]
