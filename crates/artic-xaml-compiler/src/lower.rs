@@ -1,6 +1,7 @@
 //! Turning a document's infoset into a [`View`]: every type resolved, every literal written, and
 //! the elements ordered children first.
 
+use crate::names::field_name;
 use crate::resolve::{parse_path, resolve};
 use crate::unsupported;
 use artic_registry::{ContentInfo, PropertyInfo, PropertyRef, Registry, RustExpr, TypeInfo, Whitespace};
@@ -75,6 +76,7 @@ pub(crate) fn lower(document: &XamlDocument, registry: &Registry, namespaces: &N
     paths,
     view: View::default(),
     diagnostics: Diagnostics::new(),
+    named: HashMap::new(),
   };
   lower.element(&document.root);
   lower.diagnostics.into_result(lower.view)
@@ -88,6 +90,8 @@ struct Lower<'a> {
   paths: RustExpr,
   view: View,
   diagnostics: Diagnostics,
+  /// Where each `x:Name` field was first given.
+  named: HashMap<String, Span>,
 }
 
 /// What lowering one element's members gathers.
@@ -249,10 +253,44 @@ impl Lower<'_> {
 
   /// Applies a directive: `x:Name` gives a field, `x:Key` is reported, and the others are kept
   /// for the issues that use them (#52, #94, #168).
-  fn directive(&mut self, directive: &Directive, member: &Member, _members: &mut Members) {
+  fn directive(&mut self, directive: &Directive, member: &Member, members: &mut Members) {
     match directive {
+      Directive::Name => members.name = self.name(member),
       Directive::Key => self.diagnostics.push(unsupported::resource_key(member.span)),
-      Directive::Name | Directive::Class | Directive::DataType | Directive::FieldModifier | Directive::Uid => {}
+      Directive::Class | Directive::DataType | Directive::FieldModifier | Directive::Uid => {}
+    }
+  }
+
+  /// The `View` field an `x:Name` gives, or `None` after reporting it.
+  fn name(&mut self, member: &Member) -> Option<Ident> {
+    let [XamlNode::Value { text, span, .. }] = member.value.as_slice() else {
+      self
+        .diagnostics
+        .push(Diagnostic::error(member.span, "`x:Name` takes a name written as text"));
+      return None;
+    };
+    let field = match field_name(text) {
+      Ok(field) => field,
+      Err(reason) => {
+        self
+          .diagnostics
+          .push(Diagnostic::error(*span, format!("`{text}` isn't a valid name")).with_help(reason));
+        return None;
+      }
+    };
+    match self.named.entry(field.to_string()) {
+      Entry::Occupied(first) => {
+        self.diagnostics.push(
+          Diagnostic::error(*span, format!("`{text}` names two elements"))
+            .with_label("named again here")
+            .with_secondary(*first.get(), "first named here"),
+        );
+        None
+      }
+      Entry::Vacant(slot) => {
+        slot.insert(*span);
+        Some(field)
+      }
     }
   }
 

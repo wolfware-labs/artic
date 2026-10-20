@@ -19,6 +19,7 @@
 
 mod emit;
 mod lower;
+mod names;
 mod resolve;
 mod unsupported;
 
