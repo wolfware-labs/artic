@@ -2,9 +2,10 @@
 //! the elements ordered children first.
 
 use crate::resolve::resolve;
+use crate::unsupported;
 use artic_registry::Registry;
 use artic_xaml::diagnostics::{Diagnostic, Diagnostics};
-use artic_xaml::infoset::{XamlDocument, XamlNode};
+use artic_xaml::infoset::{MemberKey, XamlDocument, XamlNode};
 use artic_xaml::namespaces::NamespaceMap;
 use std::collections::BTreeMap;
 use syn::{Expr, Ident, Path};
@@ -85,10 +86,22 @@ impl Lower<'_> {
   /// Lowers an object element and its children, returning its index, or `None` when its type
   /// isn't one the view can build.
   fn element(&mut self, node: &XamlNode) -> Option<usize> {
-    let XamlNode::Object { ty, .. } = node else {
+    let XamlNode::Object { ty, members, .. } = node else {
       unreachable!("only object elements are lowered as elements")
     };
-    let resolved = self.report(resolve(ty, self.registry, self.namespaces))?;
+    let resolved = match self.report(resolve(ty, self.registry, self.namespaces)) {
+      Some(resolved) if resolved.info.is_value_provider() => {
+        self.diagnostics.push(unsupported::provider_as_element(ty));
+        None
+      }
+      resolved => resolved,
+    };
+    for member in members.iter().filter(|member| matches!(member.key, MemberKey::Content | MemberKey::Items)) {
+      for child in member.value.iter().filter(|node| matches!(node, XamlNode::Object { .. })) {
+        self.element(child);
+      }
+    }
+    let resolved = resolved?;
     self.view.elements.push(Element {
       ty: resolved.path,
       setters: Vec::new(),
