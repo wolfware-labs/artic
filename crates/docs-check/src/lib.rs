@@ -73,6 +73,9 @@ pub mod docs_design_text_block {}
 #[doc = include_str!("../../../docs/design/text.md")]
 pub mod docs_design_text {}
 
+#[doc = include_str!("../../../docs/design/ui-class.md")]
+pub mod docs_design_ui_class {}
+
 #[doc = include_str!("../../../docs/design/value-objects.md")]
 pub mod docs_design_value_objects {}
 

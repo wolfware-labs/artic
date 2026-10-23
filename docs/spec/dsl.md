@@ -171,7 +171,7 @@ These aren't in the registry. A language offers them in its own syntax, with the
 | --- | --- | --- |
 | Node names | A name the view's code reaches a node by | `x:Name` |
 | Resource keys | The key of an entry in a resource dictionary | `x:Key` |
-| Code type | The Rust type that holds a view's handlers and named nodes, marked `#[ui_class]` | `x:Class` |
+| Code type | The Rust type that holds a view's handlers and named nodes, marked `#[ui_class]`, and is the view's root element ([design](../design/ui-class.md)) | `x:Class` |
 | Data type | The type compiled bindings are checked against | `x:DataType` |
 | Typed literals | A primitive value written with its type | `x:String`, `x:Int32`, `x:Double`, `x:Boolean` |
 | Field visibility | The visibility of the field generated for a named node | `x:FieldModifier` (`x:Uid` is accepted and has no meaning yet) |
