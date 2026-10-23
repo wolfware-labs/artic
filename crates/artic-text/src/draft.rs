@@ -91,7 +91,7 @@ impl DraftLine {
         runs.push(DraftRun {
           font: faces.font(run.font()),
           size: run.font_size(),
-          coords: run.normalized_coords().into(),
+          coords: run.normalized_coords().iter().map(|coord| coord.to_bits()).collect(),
           synthesis: Synthesis {
             embolden: synthesis.embolden(),
             skew: synthesis.skew().unwrap_or(0.0),

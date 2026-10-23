@@ -71,7 +71,7 @@ impl Engine {
 
 impl TextEngine for Engine {
   fn paragraph(&mut self, text: &str, style: &TextStyle, paragraph_style: &ParagraphStyle, limits: TextLimits) -> Paragraph {
-    if !(style.size.is_finite() && style.size > 0.0) {
+    if !(style.size.is_finite() && style.size > 0.0) || !self.shaping.has_fonts() {
       return Paragraph::default();
     }
     let kept = self.shaping.lay_out(text, style, paragraph_style, limits);

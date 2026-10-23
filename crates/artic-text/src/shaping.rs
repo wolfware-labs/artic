@@ -39,6 +39,12 @@ impl Shaping {
     self.faces.len()
   }
 
+  /// Whether the engine has a font to shape with. Without one, `parley` still gives each line the
+  /// height of the style's size, so the engine checks this itself.
+  pub(crate) fn has_fonts(&mut self) -> bool {
+    self.fonts.collection.family_ids().next().is_some()
+  }
+
   pub(crate) fn lay_out(&mut self, text: &str, style: &TextStyle, paragraph: &ParagraphStyle, limits: TextLimits) -> Kept {
     let mut builder = self.layouts.ranged_builder(&mut self.fonts, text, 1.0, false);
     properties::push(&mut builder, style, paragraph, &self.default_family);
