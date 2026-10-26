@@ -1,5 +1,7 @@
 //! The fields of a view's code that its names give.
 
+use artic_ident::{is_identifier, is_keyword, snake_case};
+
 /// The field a name gives in a view's code: the name in snake_case, such as `submit_button` for
 /// `SubmitButton`, and a keyword as a raw identifier, such as `r#type` for `Type`; or why it
 /// can't be one.
@@ -23,47 +25,9 @@ pub fn field_name(name: &str) -> Result<String, &'static str> {
     "root" => Err("`root` is the field of the view's root element"),
     "self" | "crate" | "super" => Err("`self`, `Self`, `crate` and `super` can't be raw identifiers"),
     _ if !is_identifier(&field) => Err("a name must be a Rust identifier"),
-    _ if KEYWORDS.contains(&field.as_str()) => Ok(format!("r#{field}")),
+    _ if is_keyword(&field) => Ok(format!("r#{field}")),
     _ => Ok(field),
   }
-}
-
-/// The words a name becomes a raw identifier for: Rust's keywords, strict and reserved up to the
-/// 2024 edition's `gen`, other than `self`, `crate` and `super`, which [`field_name`] refuses
-/// before reaching it.
-const KEYWORDS: &[&str] = &[
-  "abstract", "as", "async", "await", "become", "box", "break", "const", "continue", "do", "dyn", "else", "enum", "extern",
-  "false", "final", "fn", "for", "gen", "if", "impl", "in", "let", "loop", "macro", "match", "mod", "move", "mut", "override",
-  "priv", "pub", "ref", "return", "static", "struct", "trait", "true", "try", "type", "typeof", "unsafe", "unsized", "use",
-  "virtual", "where", "while", "yield",
-];
-
-/// Whether `name` is an identifier by Unicode's XID rules, as Rust reads one, other than `_`.
-fn is_identifier(name: &str) -> bool {
-  let mut chars = name.chars();
-  let Some(first) = chars.next() else {
-    return false;
-  };
-  name != "_" && (first == '_' || unicode_ident::is_xid_start(first)) && chars.all(unicode_ident::is_xid_continue)
-}
-
-/// `SubmitButton` as `submit_button` and `URLField` as `url_field`: a word starts at a capital
-/// after a lowercase letter or a digit, and at the last capital of an acronym.
-fn snake_case(name: &str) -> String {
-  let characters: Vec<char> = name.chars().collect();
-  let mut snake = String::with_capacity(name.len() + 4);
-  for (index, &character) in characters.iter().enumerate() {
-    if character.is_uppercase() && index > 0 {
-      let previous = characters[index - 1];
-      let after_lowercase = previous.is_lowercase() || previous.is_ascii_digit();
-      let starts_word = previous.is_uppercase() && characters.get(index + 1).is_some_and(|next| next.is_lowercase());
-      if after_lowercase || starts_word {
-        snake.push('_');
-      }
-    }
-    snake.extend(character.to_lowercase());
-  }
-  snake
 }
 
 /// `field` with each run of underscores inside it written as one, as Rust's snake_case lint
@@ -85,6 +49,7 @@ fn collapse_underscores(field: &str) -> String {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use artic_ident::KEYWORDS;
   use pretty_assertions::assert_eq;
 
   /// The field the rule built on `syn` gives `name`, which `field_name` replaces.
@@ -126,7 +91,11 @@ mod tests {
       "",
       "email",
     ];
-    for word in KEYWORDS.iter().copied().filter(|word| *word != "gen").chain(others) {
+    let raw_only = KEYWORDS
+      .iter()
+      .copied()
+      .filter(|word| !["gen", "self", "Self", "crate", "super"].contains(word));
+    for word in raw_only.chain(others) {
       assert_eq!(field_name(word).ok(), syn_field(word), "{word:?}");
     }
   }
@@ -136,27 +105,6 @@ mod tests {
   #[test]
   fn gen_is_a_raw_identifier() {
     assert_eq!(field_name("gen"), Ok("r#gen".to_owned()));
-  }
-
-  // The rule every snake_case converter in artic follows: a word starts at a capital after a
-  // lowercase letter or a digit, and at the last capital of an acronym.
-  #[test]
-  fn snake_case_matches_the_shared_table() {
-    let table = [
-      ("MyApp", "my_app"),
-      ("XMLParser", "xml_parser"),
-      ("Views", "views"),
-      ("V2Controls", "v2_controls"),
-      ("io", "io"),
-      ("SubmitButton", "submit_button"),
-      ("URLField", "url_field"),
-      ("ZIndex", "z_index"),
-      ("Email", "email"),
-      ("Submit_Button", "submit_button"),
-    ];
-    for (name, snake) in table {
-      assert_eq!(snake_case(name), snake, "{name}");
-    }
   }
 
   // A run of underscores inside a name gives one, so the field passes Rust's snake_case lint;

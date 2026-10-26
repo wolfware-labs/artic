@@ -10,6 +10,7 @@ repository.workspace = true
 
 [dependencies]
 artic-diagnostics.workspace = true
+artic-ident.workspace = true
 xmlparser.workspace = true
 
 [dev-dependencies]

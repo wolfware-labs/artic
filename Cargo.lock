@@ -212,6 +212,7 @@ version = "0.1.0"
 dependencies = [
  "artic-core",
  "artic-element",
+ "artic-ident",
  "artic-registry",
  "insta",
  "pretty_assertions",
@@ -363,10 +364,10 @@ version = "0.1.0"
 dependencies = [
  "artic-core",
  "artic-diagnostics",
+ "artic-ident",
  "artic-registry",
  "pretty_assertions",
  "syn 3.0.9",
- "unicode-ident",
 ]
 
 [[package]]
@@ -391,6 +392,7 @@ name = "artic-xaml"
 version = "0.1.0"
 dependencies = [
  "artic-diagnostics",
+ "artic-ident",
  "insta",
  "pretty_assertions",
  "xmlparser",

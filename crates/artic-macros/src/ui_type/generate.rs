@@ -1,7 +1,8 @@
 use crate::crate_root::{REGISTRY, crate_root};
 use crate::ui_type::attributes::{Affects, Attached, Inherits, Target, Whitespace};
 use crate::ui_type::builders::{builders, content_method};
-use crate::ui_type::fields::{Analysis, Role, UiField, generic_argument, snake_case, ui_name};
+use crate::ui_type::fields::{Analysis, Role, UiField, generic_argument, ui_name};
+use artic_ident::snake_case;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::Ident;

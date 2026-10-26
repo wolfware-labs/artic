@@ -1,5 +1,6 @@
 use crate::ui_type::attributes::{FieldAttributes, TypeAttributes, parse_field_attributes, parse_type_attributes};
 use crate::ui_type::builders::{content_method, key_constant_name};
+use artic_ident::snake_case;
 use quote::ToTokens;
 use syn::ext::IdentExt;
 use syn::{Data, DeriveInput, Error, Field, Fields, GenericArgument, Ident, PathArguments, Type, Visibility};
@@ -326,26 +327,6 @@ pub fn generic_argument<'a>(ty: &'a Type, wrapper: &str) -> Option<&'a Type> {
   }
 }
 
-/// `ColumnSpan` as `column_span` and `XMLParser` as `xml_parser`: the name of a generated helper.
-/// A word starts at a capital after a lowercase letter or a digit, and at the last capital of an
-/// acronym.
-pub fn snake_case(name: &str) -> String {
-  let characters: Vec<char> = name.chars().collect();
-  let mut snake = String::with_capacity(name.len() + 4);
-  for (index, &character) in characters.iter().enumerate() {
-    if character.is_uppercase() && index > 0 {
-      let previous = characters[index - 1];
-      let after_lowercase = previous.is_lowercase() || previous.is_ascii_digit();
-      let starts_word = previous.is_uppercase() && characters.get(index + 1).is_some_and(|next| next.is_lowercase());
-      if after_lowercase || starts_word {
-        snake.push('_');
-      }
-    }
-    snake.extend(character.to_lowercase());
-  }
-  snake
-}
-
 fn pascal_case(name: &str) -> String {
   name
     .trim_start_matches("r#")
@@ -432,34 +413,6 @@ mod tests {
 
     let names: Vec<String> = analysis.ui_fields.iter().map(ui_name).collect();
     assert_eq!(names, ["CornerRadius", "BorderBrush"]);
-  }
-
-  // Attached property names become snake_case helper names.
-  #[test]
-  fn snake_case_names() {
-    let names: Vec<String> = ["Row", "ColumnSpan", "Name"].into_iter().map(snake_case).collect();
-    assert_eq!(names, ["row", "column_span", "name"]);
-  }
-
-  // The rule every snake_case converter in artic follows: a word starts at a capital after a
-  // lowercase letter or a digit, and at the last capital of an acronym.
-  #[test]
-  fn snake_case_matches_the_shared_table() {
-    let table = [
-      ("MyApp", "my_app"),
-      ("XMLParser", "xml_parser"),
-      ("Views", "views"),
-      ("V2Controls", "v2_controls"),
-      ("io", "io"),
-      ("SubmitButton", "submit_button"),
-      ("URLField", "url_field"),
-      ("ZIndex", "z_index"),
-      ("Email", "email"),
-      ("Submit_Button", "submit_button"),
-    ];
-    for (name, snake) in table {
-      assert_eq!(snake_case(name), snake, "{name}");
-    }
   }
 
   // An event can't be content: content is a value or child elements.
