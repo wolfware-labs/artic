@@ -3,7 +3,7 @@
 use crate::displays::Displays;
 use crate::error::Error;
 use crate::surfaces::Surfaces;
-use crate::translate::{Translated, facts, translate};
+use crate::translate::{Translated, translate};
 use artic_platform::{AppHandler, Axes, Chrome, HostContext, HostEvent, SurfaceInfo, SurfaceLoss, Waker, WindowDesc, Windows};
 use artic_render::{PhysicalSize, SurfaceId, Target, TargetKind};
 use std::fmt::{Debug, Formatter};
@@ -222,7 +222,7 @@ impl<A: AppHandler> ApplicationHandler for Driver<A> {
     let Some(window) = self.surfaces.window(surface).map(Rc::clone) else {
       return;
     };
-    match translate(&facts(&event, &window)) {
+    match translate(&event, &window) {
       Translated::Changed { size, scale } => self.refresh(event_loop, surface, Some((size, scale))),
       Translated::Moved => self.refresh(event_loop, surface, None),
       Translated::Close => self.call(event_loop, |app, cx| app.event(cx, HostEvent::CloseRequested { surface })),
