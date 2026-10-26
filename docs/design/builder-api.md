@@ -269,36 +269,33 @@ fn resource_accent() -> SolidColorBrush {
   SolidColorBrush::new().color(Color::rgb(0x3B, 0x82, 0xF6))   // "#3B82F6", parsed at build time
 }
 
-impl LoginView {
-  fn build_view(&mut self, tree: &mut UiTree) -> Handle<UserControl> {
-    let email = TextBox::new()
-      .placeholder("Email")
-      .build(tree);
-    self.email = email;                                            // x:Name="email"
-    bind_two_way(tree, email, |vm: &LoginVm| &vm.email, |text_box: &TextBox| &text_box.text);
+pub fn build(tree: &mut UiTree) -> Handle<LoginView> {
+  let email = TextBox::new()                                     // x:Name="email"
+    .placeholder("Email")
+    .build(tree);
+  bind_two_way(tree, email, |vm: &LoginVm| &vm.email, |text_box: &TextBox| &text_box.text);
 
-    let sign_in = Button::new()
-      .classes(["primary"])
-      .content("Sign in")
-      .on_click(/* LoginView::on_click, wired as spec §9 describes */)
-      .build(tree);
-    bind_command(tree, sign_in, |vm: &LoginVm| &vm.sign_in);
+  let sign_in = Button::new()
+    .classes(["primary"])
+    .content("Sign in")
+    .on_click(/* LoginView::on_click, wired as spec §9 describes */)
+    .build(tree);
+  bind_command(tree, sign_in, |vm: &LoginVm| &vm.sign_in);
 
-    let panel = StackPanel::new()
-      .spacing(8.0)
-      .margin(Thickness::uniform(16.0))                           // "16", parsed at build time
-      .children([email.id(), sign_in.id()])
-      .build(tree);
+  let panel = StackPanel::new()
+    .spacing(8.0)
+    .margin(Thickness::uniform(16.0))                           // "16", parsed at build time
+    .children([email.id(), sign_in.id()])
+    .build(tree);
 
-    UserControl::new()
-      .child(panel)
-      .build(tree)
-  }
+  LoginView::new(View { email })                                 // x:Class: the code type is the root
+    .child(panel)
+    .build(tree)
 }
 ```
 
 - Text literals are parsed when the view is compiled, so the output constructs values (`Thickness::uniform(16.0)`) and never parses at runtime. The [XAML compiler design](xaml-compiler.md#literals) gives the `ToRust` trait that writes them.
-- The compiler's files wrap this body differently: a `View` struct with the root and the `x:Name` handles, and a `build` function returning it ([XAML compiler design](xaml-compiler.md#what-a-compiled-view-gives-the-app)). With a code type, the struct takes `UserControl`'s place at the root and keeps the handles in its `ui` field, and `build_view` becomes its `create` ([code type design](ui-class.md)).
+- `View` holds the `x:Name` handles, and the code type `LoginView` takes `UserControl`'s place at the root, keeping them in its `ui` field; `#[ui_class]`'s `LoginView::create` calls this `build` ([code type design](ui-class.md)). A view without a code type returns a `View` that also holds its root ([XAML compiler design](xaml-compiler.md#what-a-compiled-view-gives-the-app)).
 - Elements are emitted in post-order: each child is built before the element that holds it.
 - `Accent` isn't used in the example. A use such as `Background="{StaticResource Accent}"` would emit `.background(resource_accent())`.
 - How a code-behind method becomes a click handler belongs to the code-behind design (§9); the comment marks that spot.

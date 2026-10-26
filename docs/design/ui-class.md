@@ -146,7 +146,7 @@ The root's members resolve through the element the document's root names, `UserC
 Two checks keep the struct and the file together:
 
 - rustc checks the path: a code type that doesn't exist, or isn't a type with that `View`, fails to compile.
-- The compiled file states its code type, `pub const CODE_TYPE: Option<&str> = Some("app::views::login::LoginView");`, or `None` without one. `#[ui_class]` adds a constant assertion comparing it with `concat!(module_path!(), "::LoginView")`, whose message is a literal naming the source file and the expected path: "`src/views/login.xaml` must name this struct as its code type: add `x:Class="app::views::login::LoginView"` to its root".
+- The compiled file states its code type, `pub const CODE_TYPE: Option<&str> = Some("app::views::login::LoginView");`, or `None` without one. `#[ui_class]` adds a constant assertion comparing it with `concat!(module_path!(), "::LoginView")` through a `const fn` that compares the bytes, since `==` on `&str` isn't usable in a constant, whose message is a literal naming the source file and the expected path: "`src/views/login.xaml` must name this struct as its code type: add `x:Class="app::views::login::LoginView"` to its root".
 
 ## The file argument
 
@@ -209,7 +209,7 @@ Today the view model, Rust emission, member resolution, `compile_dir` and the di
 | Spec §4 | `x:Name` adds a field to the view's `ui`; `x:FieldModifier` sets that field's visibility |
 | `dsl.md` §9 | code type and field visibility point here |
 | `xaml-compiler.md` | "recorded for #52" and the wrapper question point here; `View` has no `root` for a view with a code type; `compile_dir` writes each view at its path in the crate (its doc comment in `dir.rs` changes with PR 3) |
-| `builder-api.md` | the `build_view` sample points here |
+| `builder-api.md` | the sample is the compiled `build`, with the code type at the root |
 | `element.md` | `ElementImpl`'s defaults fill the box |
 | `dsl.md` §3, `loader-values.md`, `value-objects.md` | `TypeInfo::new` is an `Option`; they change with PR 4, since `dsl.md`'s sample is a doctest |
 | `surface.md` | the sample's `Application` has no `x:Class`, which needs a code type on an `Application` root (#55) |
