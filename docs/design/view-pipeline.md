@@ -133,7 +133,9 @@ pub trait Language {
   /// file can't be read as a document, with at least one diagnostic saying why.
   fn read(&self, sources: &SourceMap, file: SourceId, registry: &Registry) -> (Option<Document>, Diagnostics);
 
-  /// The crates its views can reach, which generated code references so the app links them.
+  /// The crates its configuration names, for XAML the crates its URIs stand for, which generated
+  /// code references so the app links them. A crate a view reaches only by its Rust path, as
+  /// XAML's `using:` does, is linked by the app itself, as today.
   fn crates(&self) -> Vec<&str>;
 }
 ```
@@ -236,8 +238,8 @@ pub fn compile_str(
   paths: &CratePaths,
 ) -> Result<String, Diagnostics>;
 
-/// Compiles every file of `language` under `dir` to `$OUT_DIR/views/<path in the crate>.rs`, for a
-/// build script.
+/// Compiles every file of `language` under `dir` to `$OUT_DIR/views/<path under dir>.rs`, for a
+/// build script. #52 changes the output to the path in the crate.
 pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), paths: &CratePaths) -> Result<(), CompileError>;
 ```
 
