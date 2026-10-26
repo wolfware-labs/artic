@@ -26,6 +26,16 @@ use std::fmt::{Debug, Formatter, Result};
 /// assert_eq!(ROW.key().name(), "Row");
 /// assert_eq!(ROW.default_value(), 0);
 /// ```
+///
+/// A `const` key doesn't compile where a key is used, as a [`PropertyKey`] doesn't:
+///
+/// ```compile_fail,E0716
+/// use artic_core::property::{Affects, AttachedKey, Inheritance};
+///
+/// const ROW: AttachedKey<usize> = AttachedKey::new("Row", Affects::LAYOUT, Inheritance::None, || 0);
+///
+/// let key: &'static AttachedKey<usize> = &ROW;
+/// ```
 pub struct AttachedKey<T> {
   key: PropertyKey<T>,
   default: fn() -> T,

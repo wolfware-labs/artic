@@ -33,7 +33,7 @@ mod tests {
 
   static SIZE: PropertyKey<f32> = PropertyKey::new("Size", Affects::LAYOUT, Inheritance::None);
   static ROW: AttachedKey<f32> = AttachedKey::new("Row", Affects::LAYOUT, Inheritance::None, || 14.0);
-  const COLUMN: AttachedKey<f32> = AttachedKey::new("Column", Affects::LAYOUT, Inheritance::None, || 0.0);
+  static COLUMN: AttachedKey<f32> = AttachedKey::new("Column", Affects::LAYOUT, Inheritance::None, || 0.0);
 
   // A property key starts a field at the type's default; an attached key at its own.
   #[test]
@@ -42,14 +42,14 @@ mod tests {
     assert_eq!(ROW.initial_value(), 14.0);
   }
 
-  // Both kinds read the property key they store under through `key()`, in const code too.
+  // Both kinds read the property key they store under through `key()`.
   #[test]
   fn both_kinds_give_their_property_key() {
-    const NAME: &str = COLUMN.key().name();
+    let name = COLUMN.key().name();
 
     assert_eq!(SIZE.key().name(), "Size");
     assert_eq!(ROW.key().name(), "Row");
-    assert_eq!(NAME, "Column");
+    assert_eq!(name, "Column");
     assert!(std::ptr::eq(SIZE.key(), &SIZE));
   }
 }
