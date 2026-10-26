@@ -118,7 +118,7 @@ impl LoginView {
 }
 ```
 
-`create`, not `build`, since `build(self, tree)` is already the builder's last call. `#[ui_class]`'s `#[ui(new = …)]` names a function that returns `LoginView::create(tree).id()`, since `TypeInfo::new` returns a `NodeId`, so the runtime loader (#59) and a view in another crate that uses `LoginView` build the whole view, not an empty node.
+`create`, not `build`, since `build(self, tree)` is already the builder's last call. `#[ui_class]`'s `#[ui(new = …)]` names a function that returns `LoginView::create(tree).id()`, since `TypeInfo::new` returns a `NodeId`, so the runtime loader (#59) builds the whole view, not an empty node. A compiled view using `LoginView` as an element is later work (below).
 
 The compiled `build` constructs the code type as the root:
 
