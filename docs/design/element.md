@@ -32,10 +32,12 @@ pub trait Element: Object + Layoutable {
 
 pub trait ElementImpl {
   /// The content's size within `available`, which already excludes the margin and is held within
-  /// the element's limits.
-  fn measure_override(&self, cx: &mut MeasureCx<'_>, available: Size) -> Size { Size::ZERO }
-  /// Places the children within `size`, in the element's own coordinates.
-  fn arrange_override(&self, cx: &mut ArrangeCx<'_>, size: Size) {}
+  /// the element's limits. By default, the largest size the children want, as children sharing
+  /// one box ([code type design](ui-class.md#the-code-type-is-the-element)).
+  fn measure_override(&self, cx: &mut MeasureCx<'_>, available: Size) -> Size { cx.measure_children(available) }
+  /// Places the children within `size`, in the element's own coordinates. By default, each child
+  /// fills it.
+  fn arrange_override(&self, cx: &mut ArrangeCx<'_>, size: Size) { cx.arrange_children(Rect::new(0.0, 0.0, size.width, size.height)) }
   fn render(&self, cx: &mut RenderCx<'_>, scene: &mut SceneBuilder) {}
   fn on_event(&mut self, cx: &mut EventCx<'_>, event: &InputEvent) -> Handled { Handled::No }
   /// Adds the control's role, name, value and actions to the default node built from the groups.

@@ -63,7 +63,7 @@ impl<T> From<Handle<T>> for NodeId { /* … */ }
 - `Clone`, `Copy`, `PartialEq`, `Eq`, `Hash` and `Debug` are written by hand: derived, they would require `T` to implement them too, and `Handle<Border>` wouldn't be `Copy`.
 - `Handle<T>` is `Copy` and the size of `NodeId`. Like `NodeId` it is `Send` and `Sync`, but every method needs the tree, which isn't.
 - Using a handle to a freed node is a bug and panics, as disposed signals do (#11); `try_get` is for code that expects nodes to go away.
-- `x:Name` gives the code-behind a `Handle<T>` field, as spec §9 shows.
+- `x:Name` gives the view's `View` a `Handle<T>` field, which a code type holds as `ui` (spec §9).
 - Child parameters take `impl Into<NodeId>`, so a `Handle<Button>` or a raw `NodeId` both work.
 
 ## Member methods
@@ -248,7 +248,7 @@ For `Border` as built:
 ```xml
 <UserControl xmlns="https://artic.rs/ui"
              xmlns:x="https://artic.rs/markup"
-             x:Class="app::views::LoginView"
+             x:Class="app::views::login::LoginView"
              x:DataType="app::vm::LoginVm">
   <UserControl.Resources>
     <SolidColorBrush x:Key="Accent" Color="#3B82F6"/>
@@ -269,36 +269,33 @@ fn resource_accent() -> SolidColorBrush {
   SolidColorBrush::new().color(Color::rgb(0x3B, 0x82, 0xF6))   // "#3B82F6", parsed at build time
 }
 
-impl LoginView {
-  fn build_view(&mut self, tree: &mut UiTree) -> Handle<UserControl> {
-    let email = TextBox::new()
-      .placeholder("Email")
-      .build(tree);
-    self.email = email;                                            // x:Name="email"
-    bind_two_way(tree, email, |vm: &LoginVm| &vm.email, |text_box: &TextBox| &text_box.text);
+pub fn build(tree: &mut UiTree) -> Handle<LoginView> {
+  let email = TextBox::new()                                     // x:Name="email"
+    .placeholder("Email")
+    .build(tree);
+  bind_two_way(tree, email, |vm: &LoginVm| &vm.email, |text_box: &TextBox| &text_box.text);
 
-    let sign_in = Button::new()
-      .classes(["primary"])
-      .content("Sign in")
-      .on_click(/* LoginView::on_click, wired as spec §9 describes */)
-      .build(tree);
-    bind_command(tree, sign_in, |vm: &LoginVm| &vm.sign_in);
+  let sign_in = Button::new()
+    .classes(["primary"])
+    .content("Sign in")
+    .on_click(/* LoginView::on_click, wired as spec §9 describes */)
+    .build(tree);
+  bind_command(tree, sign_in, |vm: &LoginVm| &vm.sign_in);
 
-    let panel = StackPanel::new()
-      .spacing(8.0)
-      .margin(Thickness::uniform(16.0))                           // "16", parsed at build time
-      .children([email.id(), sign_in.id()])
-      .build(tree);
+  let panel = StackPanel::new()
+    .spacing(8.0)
+    .margin(Thickness::uniform(16.0))                           // "16", parsed at build time
+    .children([email.id(), sign_in.id()])
+    .build(tree);
 
-    UserControl::new()
-      .child(panel)
-      .build(tree)
-  }
+  LoginView::new(View { email })                                 // x:Class: the code type is the root
+    .child(panel)
+    .build(tree)
 }
 ```
 
 - Text literals are parsed when the view is compiled, so the output constructs values (`Thickness::uniform(16.0)`) and never parses at runtime. The [XAML compiler design](xaml-compiler.md#literals) gives the `ToRust` trait that writes them.
-- The compiler's files wrap this body differently: a `View` struct with the root and the `x:Name` handles, and a `build` function returning it, which `#[ui_class]` (#52) wraps ([XAML compiler design](xaml-compiler.md#what-a-compiled-view-gives-the-app)).
+- `View` holds the `x:Name` handles, and the code type `LoginView` takes `UserControl`'s place at the root, keeping them in its `ui` field; `#[ui_class]`'s `LoginView::create` calls this `build` ([code type design](ui-class.md)). A view without a code type returns a `View` that also holds its root ([XAML compiler design](xaml-compiler.md#what-a-compiled-view-gives-the-app)).
 - Elements are emitted in post-order: each child is built before the element that holds it.
 - `Accent` isn't used in the example. A use such as `Background="{StaticResource Accent}"` would emit `.background(resource_accent())`.
 - How a code-behind method becomes a click handler belongs to the code-behind design (§9); the comment marks that spot.

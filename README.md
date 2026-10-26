@@ -18,7 +18,7 @@ A cross-platform UI framework for Rust. Views are written in XAML, all logic is 
 ```xml
 <UserControl xmlns="https://artic.rs/ui"
              xmlns:x="https://artic.rs/markup"
-             x:Class="app::views::LoginView"
+             x:Class="app::views::login::LoginView"
              x:DataType="app::vm::LoginVm">
   <StackPanel Spacing="8" Margin="16">
     <TextBox Text="{Binding Email, Mode=TwoWay}" Placeholder="Email"/>
