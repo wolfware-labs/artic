@@ -89,6 +89,15 @@ mod tests {
     }
   }
 
+  // A name is taken as written: spaces or a comment around an identifier make it invalid, where
+  // `syn`'s parser skipped them.
+  #[test]
+  fn padded_name_is_invalid() {
+    for name in [" email ", "email ", "email/*c*/", "email//c"] {
+      assert_eq!(field_name(name), Err("a name must be a Rust identifier"), "{name:?}");
+    }
+  }
+
   // Each refused name gives today's reason.
   #[test]
   fn refused_names_give_their_reason() {

@@ -19,7 +19,7 @@ for status in "$names_status" "$directives_status"; do
 done
 hits=$(printf '%s\n%s' "$names" "$directives" | sed '/^$/d')
 if [ -n "$hits" ]; then
-  echo "These lines name XAML below the XAML layer:"
+  echo "These lines name XAML or write its directives below the XAML layer:"
   echo "$hits"
   exit 1
 fi

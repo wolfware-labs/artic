@@ -188,7 +188,7 @@ A language reports each of these at its location in the source:
 - an attached property set where its target rule forbids it;
 - content for a type that takes none, or a second child where one is taken.
 
-A language that reads into a `Document` reports only the type problems, as the document's `Problem`s, and its own syntax errors. `artic_view::check` reports the rest the same way for every language: an unknown property or an event set as one, a property set twice (text inside an element sets its content property, so `Text` written both ways counts), content a type doesn't take, a second child, and a name that isn't a field or names two elements.
+A language that reads into a `Document` reports its own syntax errors, and records as the document's `Problem`s the types it can't find and the constructs it can't hold yet, such as an attached property. A back end reports a value that doesn't parse or fit. `artic_view::check` reports the rest the same way for every language: an unknown property or an event set as one, a property set twice (text inside an element sets its content property, so `Text` written both ways counts), content a type doesn't take, a second child, and a name that isn't a field or names two elements.
 
 `ValueError` carries no position; the language adds it. A build-time language reports these as errors from `build.rs`; a run-time one returns them to the app.
 
@@ -220,4 +220,4 @@ XAML spells namespaces as URIs. `NamespaceMap` in `artic-xaml` says which crates
 
 **`Document`, `check` and `Language` are built (#325); the compiler takes a `Language` with #325's last pull request.**
 
-A front end turns its syntax into a `Document` from `artic-view`: each element's type looked up in the registry, each member as written, and each problem it found recorded where it occurs rather than reported. `artic_view::check` finds every member on its type and returns a `CheckedView`, the elements children first, which a back end builds. A language implements `Language`, its file extension and a `read` from a file to a document, and the compiler and, with #59, the runtime loader take it. The [view pipeline design](../design/view-pipeline.md) has the details.
+A front end turns its syntax into a `Document` from `artic-view`: each element's type looked up in the registry, each member as written, and each problem it found recorded where it occurs rather than reported. `artic_view::check` finds every member on its type and returns a `CheckedView`, the elements children first, which a back end builds. A language implements `Language`, its file extension and a `read` from a file to a document, and, with #325's last pull request, the compiler takes it, as the runtime loader will with #59. The [view pipeline design](../design/view-pipeline.md) has the details.
