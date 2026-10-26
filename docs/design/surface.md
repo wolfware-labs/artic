@@ -5,7 +5,8 @@ Issue: #48. Builds on: the [host seam](host.md) (#39), the [frame pipeline](fram
 A **surface** is a root the app asks the host to present: an OS window on a desktop, the whole screen on a phone, a canvas on the web. The app declares its surfaces in the tree, under one `Application` node, and the runner makes the host match the tree: a surface added or reopened is presented, one closed is taken down, and one whose title or size changed is updated. App code never opens, updates or closes anything itself, and the same view runs on every platform.
 
 ```xml
-<Application Desktop.Chrome="System">
+<Application xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup"
+             xmlns:local="using:notes::views" Desktop.Chrome="System">
   <Application.Resources>
     <Style x:Key="ToolSurface" TargetType="Surface">
       <Setter Property="Desktop.SizeToContent" Value="WidthAndHeight"/>
