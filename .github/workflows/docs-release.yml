@@ -1,0 +1,36 @@
+name: Docs release
+
+# Asks artic-docs to archive the user docs for each published release. Its
+# archive-docs workflow takes the snapshot and opens a pull request there.
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  dispatch:
+    # Prereleases don't get an archived copy of the docs.
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The artic-docs bot app is installed on artic-docs only. The token is
+      # scoped to it and expires with the job.
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        id: token
+        with:
+          client-id: ${{ vars.DOCS_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.DOCS_BOT_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: artic-docs
+          permission-contents: write
+      - name: Send the release to artic-docs
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh api "repos/$OWNER/artic-docs/dispatches" \
+            -f event_type=framework-release \
+            -f "client_payload[version]=$TAG"
