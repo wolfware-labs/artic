@@ -1,4 +1,4 @@
-//! The constructs a later issue adds, each reported with that issue.
+//! The XAML constructs a later issue adds, each reported with that issue.
 
 use artic_diagnostics::{Diagnostic, Span};
 use artic_xaml::infoset::{TypeRef, XamlNamespace};
@@ -14,19 +14,9 @@ pub(crate) fn provider_as_element(ty: &TypeRef) -> Diagnostic {
     .with_help(format!("write it as an attribute value: `{{{} …}}`", ty.name))
 }
 
-/// An event handler, such as `Click="on_click"`.
-pub(crate) fn event(span: Span) -> Diagnostic {
-  Diagnostic::error(span, "event handlers come with #82")
-}
-
 /// An attached property, such as `Grid.Row="1"`.
 pub(crate) fn attached(span: Span) -> Diagnostic {
   Diagnostic::error(span, "attached properties come with #50")
-}
-
-/// An object as a property's value, such as a brush written as an element.
-pub(crate) fn value_object(span: Span) -> Diagnostic {
-  Diagnostic::error(span, "value objects come with #57")
 }
 
 /// `x:Key`, which only a resource dictionary gives meaning to.
@@ -53,9 +43,4 @@ pub(crate) fn markup_extension(ty: &TypeRef, span: Span) -> Diagnostic {
     Some(issue) => Diagnostic::error(span, format!("`{{{written}}}` comes with {issue}")),
     None => Diagnostic::error(span, format!("unknown value provider `{written}`")),
   }
-}
-
-/// Content for a collection of values, such as gradient stops.
-pub(crate) fn value_collection(span: Span) -> Diagnostic {
-  Diagnostic::error(span, "value collections come with #57")
 }

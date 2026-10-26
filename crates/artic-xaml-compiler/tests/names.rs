@@ -63,3 +63,13 @@ fn recorded_directives_are_accepted() {
   .expect("a valid view");
   assert!(!rust.contains("app::"), "{rust}");
 }
+
+// A name is taken as written: spaces or a comment around it make it invalid rather than being
+// dropped from the field.
+#[test]
+fn padded_name_is_invalid() {
+  for name in [" email ", "email/*c*/"] {
+    let errors = named(name).expect_err(name);
+    assert!(errors.contains(&format!("`{name}` isn't a valid name")), "{name}: {errors}");
+  }
+}

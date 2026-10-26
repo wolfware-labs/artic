@@ -1,6 +1,8 @@
 //! Writing a [`View`] as a formatted module body.
 
-use crate::lower::{Content, Setter, View};
+use crate::lower::{Setter, View};
+use artic_registry::ContentMethod;
+use artic_view::CheckedContent;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::path::{Component, Path};
@@ -8,7 +10,7 @@ use std::path::{Component, Path};
 /// The module body for `view`, compiled from the file at `path`.
 pub(crate) fn emit(view: &View, path: &Path) -> String {
   let file = display(path);
-  let root = view.elements.len() - 1;
+  let root = view.root;
   let root_ty = &view.elements[root].ty;
   let root_local = local(root);
   let prelude = &view.prelude;
@@ -58,14 +60,16 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
 }
 
 /// The content call of an element, or nothing.
-fn content(content: &Content) -> TokenStream {
+fn content(content: &CheckedContent) -> TokenStream {
   match content {
-    Content::None => TokenStream::new(),
-    Content::Child { method, child } => {
+    CheckedContent::None => TokenStream::new(),
+    CheckedContent::Child(child) => {
+      let method = format_ident!("{}", ContentMethod::Child.name());
       let child = local(*child);
       quote!(.#method(#child))
     }
-    Content::Children { method, children } => {
+    CheckedContent::Children(children) => {
+      let method = format_ident!("{}", ContentMethod::Children.name());
       let children = children.iter().map(|child| local(*child));
       quote!(.#method([#(#children.id()),*]))
     }

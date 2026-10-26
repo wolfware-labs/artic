@@ -72,27 +72,28 @@ The workspace is layered. A crate depends only on crates in lower layers, so the
 | 2 | `artic-render` | `Renderer` trait and retained scene (backends are adapter crates) |
 | 2 | `artic-text` | Text shaping and line breaking with `parley`, fonts with `fontique` |
 | 2 | `artic-style` | Selectors, styles, setters, resource dictionaries |
-| 2 | `artic-xaml-compiler` | Build-time compiler from XAML to Rust |
+| 2 | `artic-view` | The view every UI language reads its files into, and its checks |
 | 2 | `artic-xaml-runtime` | Runtime loader for hot reload and `runtime-xaml` |
 | 3 | `artic-element` | The `Element` trait and its contexts, the property groups every control has (`layout`, `appearance`, `interaction`, `identity`), and the table that finds a node's element |
-| 3 | `artic-lsp` | Language server for `.xaml` files |
+| 3 | `artic-xaml-compiler` | Build-time compiler from XAML to Rust |
 | 4 | `artic-controls` | Templated controls such as `Button`, `TextBox` and `ListBox` |
 | 4 | `artic-platform` | The `Host` seam, `artic::run` and the frame pipeline (hosts are adapter crates) |
-| 4 | `artic-cli` | The `cargo artic` command |
+| 4 | `artic-lsp` | Language server for `.xaml` files |
 | 5 | `artic-theme` | Default token-based theme and control templates |
 | 5 | `artic-test` | Headless host and test helpers |
 | 5 | `artic-winit` | Default host adapter: windows, input and OS services through `winit` |
 | 5 | `artic-vello` | Default renderer adapter: `vello` on `wgpu` |
+| 5 | `artic-cli` | The `cargo artic` command |
 | 6 | `artic` | Facade crate that apps depend on |
 
 ```mermaid
 flowchart BT
   L0["Layer 0: artic-core, artic-macros, artic-diagnostics, artic-test-fonts"]
   L1["Layer 1: artic-registry, artic-layout, artic-i18n, artic-xaml"]
-  L2["Layer 2: artic-render, artic-text, artic-style, artic-xaml-compiler, artic-xaml-runtime"]
-  L3["Layer 3: artic-element, artic-lsp"]
-  L4["Layer 4: artic-controls, artic-platform, artic-cli"]
-  L5["Layer 5: artic-theme, artic-test, artic-winit, artic-vello"]
+  L2["Layer 2: artic-render, artic-text, artic-style, artic-view, artic-xaml-runtime"]
+  L3["Layer 3: artic-element, artic-xaml-compiler"]
+  L4["Layer 4: artic-controls, artic-platform, artic-lsp"]
+  L5["Layer 5: artic-theme, artic-test, artic-winit, artic-vello, artic-cli"]
   L6["Layer 6: artic"]
   L0 --> L1 --> L2 --> L3 --> L4 --> L5 --> L6
 ```

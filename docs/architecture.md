@@ -10,9 +10,9 @@ An app picks three things. Each sits behind an interface no layer below it knows
 | --- | --- | --- |
 | Host | `Host` in `artic-platform` | `artic-winit` |
 | Renderer | `Renderer` in `artic-render` | `artic-vello` |
-| UI language | the registry and the tree, as [the contract](spec/dsl.md) states | XAML: `artic-xaml`, `artic-xaml-compiler`, `artic-xaml-runtime` |
+| UI language | `Document` and `Language` in `artic-view`, over the registry and the tree, as [the contract](spec/dsl.md) states | XAML: `artic-xaml`, `artic-xaml-compiler`, `artic-xaml-runtime` |
 
-No crate below a UI language depends on it or names it. Only the XAML crates, `artic-lsp`, `artic-cli`, the facade's `xaml` module and `docs-check`'s list of documents say XAML; `scripts/check-ui-neutral.sh` checks this in CI.
+No crate below a UI language depends on it or names it. Only the XAML crates, `artic-lsp`, `artic-cli`, the facade's `xaml` module and `docs-check`'s list of documents say XAML or write its `x:` directives; `scripts/check-ui-neutral.sh` checks this in CI.
 
 ## Layers
 
@@ -22,10 +22,10 @@ A crate depends only on crates in lower layers. Crates in the same layer never d
 | --- | --- | --- |
 | 0 | `artic-core`, `artic-macros`, `artic-diagnostics`, `artic-test-fonts` | Foundations with no artic dependencies: the reactive core and tree, the proc macros, spans and diagnostics, and the test font |
 | 1 | `artic-registry`, `artic-layout`, `artic-i18n`, `artic-xaml` | Type metadata, geometry, layout and text values, localization, the XAML parser |
-| 2 | `artic-render`, `artic-text`, `artic-style`, `artic-xaml-compiler`, `artic-xaml-runtime` | The `Renderer` seam and scene; text shaping and fonts; styling; the two XAML back ends |
-| 3 | `artic-element`, `artic-lsp` | The `Element` trait, its contexts and the property groups every control has; the language server |
-| 4 | `artic-controls`, `artic-platform`, `artic-cli` | Controls, the `Host` seam and frame pipeline, and the CLI |
-| 5 | `artic-theme`, `artic-test`, `artic-winit`, `artic-vello` | The default theme, test utilities, and the default backend adapters |
+| 2 | `artic-render`, `artic-text`, `artic-style`, `artic-view`, `artic-xaml-runtime` | The `Renderer` seam and scene; text shaping and fonts; styling; the view every UI language reads into, and its checks; the XAML loader |
+| 3 | `artic-element`, `artic-xaml-compiler` | The `Element` trait, its contexts and the property groups every control has; the XAML compiler |
+| 4 | `artic-controls`, `artic-platform`, `artic-lsp` | Controls, the `Host` seam and frame pipeline, and the language server |
+| 5 | `artic-theme`, `artic-test`, `artic-winit`, `artic-vello`, `artic-cli` | The default theme, test utilities, the default backend adapters, and the CLI |
 | 6 | `artic` | The facade that apps depend on |
 
 ## Dependency graph
@@ -68,7 +68,9 @@ flowchart TD
   render --> layout[artic-layout]
   text --> layout
   styles --> registry
-  compiler --> registry
+  compiler --> view[artic-view]
+  view --> registry
+  view --> diagnostics
   compiler --> xaml[artic-xaml]
   xaml --> diagnostics[artic-diagnostics]
   runtime --> registry
@@ -95,7 +97,8 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-render` | `artic-core`, `artic-layout` |
 | `artic-text` | `artic-layout` |
 | `artic-style` | `artic-core`, `artic-registry` |
-| `artic-xaml-compiler` | `artic-xaml`, `artic-registry`, `artic-diagnostics` |
+| `artic-view` | `artic-registry`, `artic-diagnostics` |
+| `artic-xaml-compiler` | `artic-xaml`, `artic-view`, `artic-registry`, `artic-diagnostics` |
 | `artic-xaml-runtime` | `artic-xaml`, `artic-registry`, `artic-core` |
 | `artic-element` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-macros` |
 | `artic-controls` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-element`, `artic-style`, `artic-macros` |
