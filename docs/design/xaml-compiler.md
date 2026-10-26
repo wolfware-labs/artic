@@ -139,7 +139,7 @@ The block above is a view without a code type. The builder design's sample is a 
 | An element inside a type with no content | the type takes no child elements |
 | A property given both as an attribute and as content | the property is set twice |
 | A namespace URI the map doesn't declare | no namespace, once per URI, with help to declare it |
-| An `x:Name` that isn't an identifier, gives the field `self`, `crate`, `super` or `root`, or gives a field another name gives | invalid or duplicate name |
+| An `x:Name` that isn't an identifier, gives the field `self`, `crate`, `super` or `root`, or gives the same field as another name | invalid or duplicate name |
 
 An element in a value position (a property element, a content property, a value collection) is a value, which #57 resolves; until then it's reported as such and its type isn't looked up. Diagnostics are reported in source order.
 
