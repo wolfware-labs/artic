@@ -15,7 +15,7 @@ pub struct LoginView {
 }
 
 impl LoginView {
-  fn on_click(&mut self, cx: &mut ViewCx, _: &Click) {
+  fn on_click(&mut self, cx: &mut ViewCx, _: &RoutedEventArgs) {
     self.attempts += 1;
     cx.get(self.ui.email).text.set(String::new());
   }
@@ -25,7 +25,7 @@ impl LoginView {
 ```xml
 <!-- src/views/login.xaml -->
 <UserControl xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup"
-             x:Class="app::views::LoginView" Padding="16">
+             x:Class="app::views::login::LoginView" Margin="16">
   <StackPanel Spacing="8">
     <TextBox x:Name="email" x:FieldModifier="pub(crate)"/>
     <Button Content="Sign in" Click="on_click"/>
@@ -37,7 +37,7 @@ impl LoginView {
 let login: Handle<LoginView> = LoginView::create(&mut tree);
 ```
 
-`ViewCx`, `Click` and the `Click="on_click"` wiring come with #82; the sample shows where they go.
+`ViewCx`, `RoutedEventArgs` and the `Click="on_click"` wiring come with #82; the sample shows where they go.
 
 ## The code type is the element
 
@@ -50,7 +50,7 @@ LoginView { layout, appearance, interaction, identity, child, ui, attempts }
        └─ Button
 ```
 
-- `#[ui_class]` adds `#[element]` and a `#[ui(content)] pub child: Child` field; like any element, the struct derives `Debug` itself, so the struct has exactly `UserControl`'s members: the four groups and one child. The root's attributes (`Padding="16"`) set those members on `LoginView`.
+- `#[ui_class]` adds `#[element]` and a `#[ui(content)] pub child: Child` field; like any element, the struct derives `Debug` itself. So beside its own fields, the struct has every member `UserControl` has: the four groups and one child. The root's attributes (`Margin="16"`) set those members on `LoginView`.
 - A handler (#82) gets `&mut LoginView` from the tree, typed, with no downcast and no second node.
 - The root element of a view with a code type must be a `UserControl` for now. Another root, such as a `Surface` for a window, is a later issue: the code type would take that element's members instead.
 
@@ -86,10 +86,10 @@ pub struct LoginView {
 }
 ```
 
-- `self.ui.email` is a `Handle<TextBox>`. `View` is `Copy`, so it can be passed around or destructured: `let View { email, .. } = self.ui;`.
+- `self.ui.email` is a `Handle<TextBox>`. `View` is `Copy`, so it can be passed around or destructured: `let login_view::View { email, .. } = self.ui;`.
 - A named node can't collide with a field of the struct, so there is no collision error to report.
 - The proc macro reads no file to learn the names: rustc resolves every field and type from the included code.
-- For a view with a code type, `View` has no `root` field, since the code type is the root.
+- For a view with a code type, `View` has no `root` field, since the code type is the root, and the root can't have an `x:Name`: `View` is built before the root is.
 
 The compiled file is included in a module named after the struct in snake case (`login_view`), with the struct's visibility. The struct's `ui` field has the struct's visibility too, and each field of `View` has its node's field visibility (`x:FieldModifier`):
 
@@ -103,7 +103,7 @@ The compiled file is included in a module named after the struct in snake case (
 
 ## Building it
 
-Every element is built from `Default`, and a code type is too: each field of the struct starts at its `Default` (`attempts` at 0). Data a view needs arrives after it's built, through the handle or, later, the view-model (#82, #94).
+A code type is built like any element, except for `ui`: every other field starts at its `Default` (`attempts` at 0). Data a view needs arrives after it's built, through the handle or, later, the view-model (#82, #94).
 
 `ui` has no default: its handles exist only once the view's nodes are built. The `UiType` derive gains a field setting for that, usable by any type: `#[ui(required)]`. The derive then writes `new(ui: View) -> Self`, with every other field as `Default` would write it, instead of `Default` and `new()`. A type with a required field names the function the registry builds it with, `#[ui(new = path)]`, since `TypeInfo::new` takes only the tree.
 
@@ -118,18 +118,18 @@ impl LoginView {
 }
 ```
 
-`create`, not `build`, since `build(self, tree)` is already the builder's last call. The registry's `TypeInfo::new` for `LoginView` calls `create`, so the runtime loader (#59) and a view in another crate that uses `LoginView` build the whole view, not an empty node.
+`create`, not `build`, since `build(self, tree)` is already the builder's last call. `#[ui_class]`'s `#[ui(new = …)]` names a function that returns `LoginView::create(tree).id()`, since `TypeInfo::new` returns a `NodeId`, so the runtime loader (#59) and a view in another crate that uses `LoginView` build the whole view, not an empty node.
 
 The compiled `build` constructs the code type as the root:
 
 ```rust,ignore
 // $OUT_DIR/views/src/views/login.rs
-pub fn build(tree: &mut UiTree) -> Handle<crate::views::LoginView> {
+pub fn build(tree: &mut UiTree) -> Handle<crate::views::login::LoginView> {
   let __e0 = ::artic::controls::TextBox::new().build(tree);
   let __e1 = ::artic::controls::Button::new().content("Sign in").build(tree);
   let __e2 = ::artic::controls::StackPanel::new().spacing(8.0_f32).children([__e0.id(), __e1.id()]).build(tree);
-  crate::views::LoginView::new(View { email: __e0 })
-    .padding(::artic::layout::Thickness::uniform(16.0_f32))
+  crate::views::login::LoginView::new(View { email: __e0 })
+    .margin(::artic::layout::Thickness::uniform(16.0_f32))
     .child(__e2)
     .build(tree)
 }
@@ -137,14 +137,14 @@ pub fn build(tree: &mut UiTree) -> Handle<crate::views::LoginView> {
 
 ## How the compiled file names the code type
 
-The code type's path is the root's Rust type. The compiler reads `x:Class="app::views::LoginView"` as a path and replaces its first segment, the crate, with `crate`: generated code is included in that crate. A path whose first segment isn't the crate being built (`CARGO_CRATE_NAME`) is an error: a code type lives in the crate its view is compiled into.
+The code type's path is the root's Rust type, at the module that defines it, as `module_path!()` gives it: `src/views/login.rs` defines `app::views::login::LoginView`, and a re-export such as `app::views::LoginView` doesn't match. The compiler reads `x:Class="app::views::login::LoginView"` as a path and replaces its first segment, the crate, with `crate`: generated code is included in that crate. A path whose first segment isn't the package being built (`CARGO_PKG_NAME`, with `-` as `_`, which the build script sees) is an error: a code type lives in the crate its view is compiled into.
 
 The root's members resolve through the element the document's root names, `UserControl`, which the code type mirrors. The code type itself isn't in the build script's registry, since it's defined in the app crate ([which types a view can use](xaml-compiler.md#which-types-a-view-can-use)).
 
 Two checks keep the struct and the file together:
 
 - rustc checks the path: a code type that doesn't exist, or isn't a type with that `View`, fails to compile.
-- The compiled file states its code type, `pub const CODE_TYPE: Option<&str> = Some("app::views::LoginView");`, or `None` without one. `#[ui_class]` adds a constant assertion comparing it with `concat!(module_path!(), "::LoginView")`, whose message names the source file: "`src/views/login.xaml` names `app::views::Login` as its code type, not `app::views::LoginView`", or "`src/views/login.xaml` has no code type: add `x:Class="app::views::LoginView"` to its root".
+- The compiled file states its code type, `pub const CODE_TYPE: Option<&str> = Some("app::views::login::LoginView");`, or `None` without one. `#[ui_class]` adds a constant assertion comparing it with `concat!(module_path!(), "::LoginView")`, whose message is a literal naming the source file and the expected path: "`src/views/login.xaml` must name this struct as its code type: add `x:Class="app::views::login::LoginView"` to its root".
 
 ## The file argument
 
@@ -172,6 +172,7 @@ Today the view model, Rust emission, member resolution, `compile_dir` and the di
 | `x:Class` on an element other than the root | compiler | the attribute |
 | A code type whose root isn't a `UserControl` | compiler | the root element |
 | A code type outside the crate being built | compiler | the attribute |
+| `x:Name` on the root of a view with a code type | compiler | the attribute |
 | A field visibility other than `pub` or `pub(crate)` | compiler | the attribute |
 | A field visibility on an element without a name | compiler | the attribute |
 | The file and the struct name different code types, or the file names none | `#[ui_class]`'s assertion | the struct, naming the `.xaml` |
@@ -206,6 +207,8 @@ Today the view model, Rust emission, member resolution, `compile_dir` and the di
 | `xaml-compiler.md` | "recorded for #52" and the wrapper question point here; `View` has no `root` for a view with a code type; `compile_dir` writes each view at its path in the crate (its doc comment in `dir.rs` changes with PR 3) |
 | `builder-api.md` | the `build_view` sample points here |
 | `element.md` | `ElementImpl`'s defaults fill the box |
+| `surface.md` | the sample's `Application` has no `x:Class`, which needs a code type on an `Application` root (#55) |
+| Doc comments in code | change with the PR that changes the code: `ElementImpl`'s defaults (PR 2), the compiler's `View` and `dir.rs` (PR 3), the `UiType` derive's `Default` and `#[element]` (PR 4) |
 | #52 | "an `x:Name` colliding with a user field" leaves the criteria; `build_returns_user_control_root` becomes `build_returns_code_type_root` |
 
 ## Pull requests

@@ -72,13 +72,16 @@ impl RustExpr {
 
 ## What a compiled view gives the app
 
-Each `src/views/<name>.xaml` becomes `$OUT_DIR/views/src/views/<name>.rs`, at its path in the crate, a module body with one struct and one function:
+Each `src/views/<name>.xaml` becomes `$OUT_DIR/views/src/views/<name>.rs`, at its path in the crate, a module body with one constant, one struct and one function:
 
 ```rust,ignore
 // Generated from src/views/login_view.xaml.
 use ::artic::prelude::{Handle, UiTree};
 use ::artic::controls as _;
 use ::artic::element::LayoutMethods as _;
+
+/// The Rust type `x:Class` names, which `#[ui_class]` checks against its struct.
+pub const CODE_TYPE: Option<&str> = None;
 
 /// The nodes of `login_view.xaml`: its root and one handle per `x:Name`.
 #[allow(non_snake_case)]
@@ -108,6 +111,7 @@ pub fn build(tree: &mut UiTree) -> View {
 - A property becomes its builder method, named after the field (`PropertyInfo::field`). A group's property uses the same name through the group's methods trait. `PropertyGroupInfo` gains `methods: &'static str`, the trait's defining path from `PropertyGroup::METHODS`. The compiler never writes that path, which may name a private module: it takes the crate (first segment) and the trait's name (last segment), and since the trait sits at its crate's root, imports it once per file as `use <crate path>::<Trait> as _;` with the crate's path from the map, such as `use ::artic::element::LayoutMethods as _;`.
 - Content comes last, after the property methods, because `.child` and `.children` return a `WithChildren` that has only `build`. `ContentInfo::Collection` gains `method: Option<ContentMethod>`, the method the derive generated (`ContentMethod::Child` or `ContentMethod::Children`) or `None` for a collection of values; a `ContentInfo::Property` content is that property's method, given text or a literal. Text content takes the node's `text`, or its `raw` text for a type marked `whitespace = "significant"`.
 - `x:Name` adds a field to `View`, typed by the element. The name must be a Rust identifier; a keyword becomes a raw identifier (`r#type`), except `self`, `Self`, `crate` and `super`, which can't be raw and are rejected. `#[allow(non_snake_case)]` keeps `x:Name="Email"` warning-free.
+- `CODE_TYPE` is `None` for a view without `x:Class`, as here. With one, it is `Some("<crate>::<path>")` and the root is the code type.
 - `x:Class` makes the view's root its code type, and `x:FieldModifier` sets a named node's field visibility ([code type design](ui-class.md)); `x:DataType` is recorded for #94; `x:Uid` is accepted and ignored until localization (#168).
 - The file references every crate the namespace map names, with `use <path> as _;`, so their types stay in the app's link (below).
 

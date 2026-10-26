@@ -184,7 +184,7 @@ The parser implements MS-XAML 2012 §5 (XML → XAML Infoset) for the constructs
 | Attached property | `Grid.Row="1"`, `<Grid.Row>1</Grid.Row>` | Owner type must declare it; target constraint checked |
 | Type-converted text | `Margin="4,8"` | Whitespace/comma grammar per converter |
 | Markup extension | `{Binding Path=Name, Mode=TwoWay}` | Grammar from MS-XAML §5.3 incl. escapes `{}` and nesting |
-| `x:Name` | `x:Name="submit"` | Generates a typed field in the code type's `ui` (§9) |
+| `x:Name` | `x:Name="submit"` | Generates a typed field in the view's `View`, which a code type holds as `ui` (§9) |
 | `x:Key` | on resource children | Required in `ResourceDictionary` unless `x:Type`-keyed styles |
 | `x:Class` | root only | Names the `#[ui_class]` struct, which becomes the root element |
 | `x:Type` | `{x:Type Button}` | Yields a `TypeInfo` reference |
@@ -245,7 +245,7 @@ Each text `Value` keeps both forms: `text` after these rules (empty for whitespa
 ```xml
 <UserControl xmlns="https://artic.rs/ui"
              xmlns:x="https://artic.rs/markup"
-             x:Class="app::views::LoginView"
+             x:Class="app::views::login::LoginView"
              x:DataType="app::vm::LoginVm">
   <UserControl.Resources>
     <SolidColorBrush x:Key="Accent" Color="#3B82F6"/>
@@ -275,11 +275,11 @@ flowchart LR
 
 ### Build-time compiler (release path)
 
-1. `build.rs` calls `artic::xaml::compile_dir("src/views", &namespaces)` (the facade's `xaml-compiler` feature), with the namespace map from `artic::xaml::namespaces()` and the app's own aliases; every `.xaml` becomes `$OUT_DIR/views/<name>.rs`, included via `include!` by the `#[ui_class]` macro.
+1. `build.rs` calls `artic::xaml::compile_dir("src/views", &namespaces)` (the facade's `xaml-compiler` feature), with the namespace map from `artic::xaml::namespaces()` and the app's own aliases; every `.xaml` becomes `$OUT_DIR/views/<path in the crate>.rs`, such as `$OUT_DIR/views/src/views/login.rs`, included via `include!` by the `#[ui_class]` macro.
 2. Type and property names resolve against the registry of all dependency crates. Because the registry is link-time, the compiler runs in a build script that links `artic-controls` and the app's own control crates as build-dependencies.
 3. Output is plain Rust in the [builder shape](../design/builder-api.md): `let sign_in = Button::new().content("Sign in").build(tree);`, one statement per element, children before their parents. No string lookups survive to runtime.
 4. Bindings compile to typed closures (`|vm: &LoginVm| vm.email.get()`) over the `x:DataType` in scope, whether declared, inherited or inferred (§6, D2). A binding with no resolvable `x:DataType` is a compile error that names the attribute to add and where. Unknown property on a known `x:DataType` is a compile error. There is no reflective fallback (D1).
-5. Generated code is deterministic and gitignored; diagnostics point at the `.xaml` line/column via `#[track_caller]`-style span tables so `cargo build` errors read like `views/login.xaml:12:9: unknown property 'Foo' on Button`.
+5. Generated code is deterministic and gitignored; diagnostics point at the `.xaml` line/column via `#[track_caller]`-style span tables so `cargo build` errors read like `src/views/login.xaml:12:9: unknown property 'Foo' on Button`.
 
 ### Runtime loader (dev path)
 
@@ -411,8 +411,8 @@ pub trait Element: Object + Layoutable {          // Layoutable (§7 Layout prot
     fn layers(&self, size: Size) -> Layers { Layers::default() }   // transform and opacity around the node and its children, clip around the children, visibility, z-index
 }
 pub trait ElementImpl {                           // what a control writes; #[element] calls it
-    fn measure_override(&self, cx: &mut MeasureCx, available: Size) -> Size { Size::ZERO }
-    fn arrange_override(&self, cx: &mut ArrangeCx, size: Size) {}
+    fn measure_override(&self, cx: &mut MeasureCx, available: Size) -> Size { cx.measure_children(available) }   // by default the children share one box
+    fn arrange_override(&self, cx: &mut ArrangeCx, size: Size) { cx.arrange_children(Rect::new(0.0, 0.0, size.width, size.height)) }
     fn render(&self, cx: &mut RenderCx, scene: &mut SceneBuilder) {}
     fn on_event(&mut self, cx: &mut EventCx, event: &InputEvent) -> Handled { Handled::No }   // not called while disabled
     fn accessibility(&self, cx: &AccessCx, node: &mut accesskit::Node) {}   // adds to the default node

@@ -63,7 +63,7 @@ impl<T> From<Handle<T>> for NodeId { /* … */ }
 - `Clone`, `Copy`, `PartialEq`, `Eq`, `Hash` and `Debug` are written by hand: derived, they would require `T` to implement them too, and `Handle<Border>` wouldn't be `Copy`.
 - `Handle<T>` is `Copy` and the size of `NodeId`. Like `NodeId` it is `Send` and `Sync`, but every method needs the tree, which isn't.
 - Using a handle to a freed node is a bug and panics, as disposed signals do (#11); `try_get` is for code that expects nodes to go away.
-- `x:Name` gives the code-behind a `Handle<T>` field, as spec §9 shows.
+- `x:Name` gives the view's `View` a `Handle<T>` field, which a code type holds as `ui` (spec §9).
 - Child parameters take `impl Into<NodeId>`, so a `Handle<Button>` or a raw `NodeId` both work.
 
 ## Member methods
@@ -248,7 +248,7 @@ For `Border` as built:
 ```xml
 <UserControl xmlns="https://artic.rs/ui"
              xmlns:x="https://artic.rs/markup"
-             x:Class="app::views::LoginView"
+             x:Class="app::views::login::LoginView"
              x:DataType="app::vm::LoginVm">
   <UserControl.Resources>
     <SolidColorBrush x:Key="Accent" Color="#3B82F6"/>
