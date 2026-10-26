@@ -4,7 +4,7 @@ Issue: #325. Builds on: the [XAML compiler](xaml-compiler.md) (#49), [UI languag
 
 The compiler #49 built sits in the XAML crates, but most of it isn't XAML: diagnostics with source spans, checking a view's members against the registry, writing Rust, and driving a build script would be the same for any language. This design moves those parts into three crates no language owns. A language then writes one front end, from its syntax to a plain `Document`, and gets the compiler and, with #59, the loader from it. The XAML crates keep XAML's syntax and meaning only.
 
-The generated code and every diagnostic stay the same: each snapshot's content and the fixture app stay unchanged; only the header insta writes above a moved snapshot, which names its source file, follows the move. The one difference is for a misconfigured path, [below](#writing-rust). A few names an app's build script can reach move; [What changes for an app](#what-changes-for-an-app) lists them.
+The generated code and every diagnostic stay the same: each snapshot's content and the fixture app stay unchanged; only the header insta writes above a moved snapshot, which names its source file, follows the move. Two differences touch only a misconfigured path, [below](#writing-rust): the help of "isn't a Rust path" names `CratePaths::path` in place of `NamespaceMap::path`, which goes, and the element with such a path has its members checked. No snapshot has either; the one test of the message checks only its text, not its help. A few names an app's build script can reach move; [What changes for an app](#what-changes-for-an-app) lists them.
 
 ## The pipeline
 
@@ -207,6 +207,8 @@ Values stay text. The compiler writes each one as Rust at build time, and the lo
 - a value that can't be written as Rust, its type's refusal, and a `ToRust` impl that writes invalid Rust, at the value's span;
 - a type path that isn't a Rust path, at the type's name;
 - the prelude or a linked crate path that isn't a Rust path, at the root element.
+
+Each "isn't a Rust path" error keeps its message and its help says "check the paths set with `CratePaths::path`", since `NamespaceMap::path` goes.
 
 Each name becomes the field `field_name` gives. A type path that isn't a Rust path is an error, so `emit` returns no code for the view and no reference to that element is ever written; the one difference from today is that the checker has already checked that element's members, so a misconfigured `CratePaths` or `using:` path can add property and content errors for it. No snapshot has such an element.
 
