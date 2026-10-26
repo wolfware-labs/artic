@@ -4,8 +4,10 @@
 /// `SubmitButton`, and a keyword as a raw identifier, such as `r#type` for `Type`; or why it
 /// can't be one.
 ///
-/// A name is a Rust identifier by Unicode's rules, other than `_`, taken as written. Two names
-/// with one snake_case form give one field.
+/// The name is taken as written, so spaces around it make it invalid. Its field, the name in
+/// snake_case with each run of underscores inside it written as one, must be a Rust identifier
+/// by Unicode's rules, other than `_`. Two names with one field, such as `Email` and `email`,
+/// give it twice.
 ///
 /// # Errors
 ///
@@ -16,7 +18,7 @@ pub fn field_name(name: &str) -> Result<String, &'static str> {
   if name.starts_with("r#") {
     return Err("write the name without `r#`: a keyword becomes a raw identifier by itself");
   }
-  let field = snake_case(name);
+  let field = collapse_underscores(&snake_case(name));
   match field.as_str() {
     "root" => Err("`root` is the field of the view's root element"),
     "self" | "crate" | "super" => Err("`self`, `Self`, `crate` and `super` can't be raw identifiers"),
@@ -62,6 +64,22 @@ fn snake_case(name: &str) -> String {
     snake.extend(character.to_lowercase());
   }
   snake
+}
+
+/// `field` with each run of underscores inside it written as one, as Rust's snake_case lint
+/// asks; leading and trailing underscores are kept.
+fn collapse_underscores(field: &str) -> String {
+  let inner = field.trim_matches('_');
+  let start = field.len() - field.trim_start_matches('_').len();
+  let mut collapsed = String::with_capacity(field.len());
+  collapsed.push_str(&field[..start]);
+  for character in inner.chars() {
+    if !(character == '_' && collapsed.ends_with('_')) {
+      collapsed.push(character);
+    }
+  }
+  collapsed.push_str(&field[start + inner.len()..]);
+  collapsed
 }
 
 #[cfg(test)]
@@ -139,6 +157,15 @@ mod tests {
     for (name, snake) in table {
       assert_eq!(snake_case(name), snake, "{name}");
     }
+  }
+
+  // A run of underscores inside a name gives one, so the field passes Rust's snake_case lint;
+  // leading and trailing underscores are kept.
+  #[test]
+  fn underscore_runs_inside_a_name_collapse() {
+    assert_eq!(field_name("first__name"), Ok("first_name".to_owned()));
+    assert_eq!(field_name("Submit__Button"), Ok("submit_button".to_owned()));
+    assert_eq!(field_name("__private__"), Ok("__private__".to_owned()));
   }
 
   // A name in another casing gives its snake_case field.
