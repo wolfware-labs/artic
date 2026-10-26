@@ -179,6 +179,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "artic-ident"
+version = "0.1.0"
+dependencies = [
+ "pretty_assertions",
+ "syn 3.0.9",
+ "unicode-ident",
+]
+
+[[package]]
 name = "artic-layout"
 version = "0.1.0"
 dependencies = [
