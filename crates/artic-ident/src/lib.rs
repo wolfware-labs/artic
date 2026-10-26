@@ -45,7 +45,7 @@ pub fn snake_case(name: &str) -> String {
     }
     if character.is_uppercase() && index > 0 {
       let previous = characters[index - 1];
-      let after_lowercase = previous.is_lowercase() || previous.is_ascii_digit();
+      let after_lowercase = previous.is_lowercase() || previous.is_numeric();
       let starts_word = previous.is_uppercase() && characters.get(index + 1).is_some_and(|next| next.is_lowercase());
       if after_lowercase || starts_word {
         snake.push('_');
@@ -138,6 +138,7 @@ mod tests {
       ("first__name", "first_name"),
       ("Row__Span", "row_span"),
       ("__private__", "__private__"),
+      ("a\u{663}B", "a\u{663}_b"),
     ];
     for (name, snake) in table {
       assert_eq!(snake_case(name), snake, "{name}");
