@@ -169,7 +169,7 @@ These aren't in the registry. A language offers them in its own syntax, with the
 
 | Feature | Meaning | In XAML |
 | --- | --- | --- |
-| Node names | A name the view's code reaches a node by | `x:Name` |
+| Node names | A name the view's code reaches a node by, as a snake_case field | `x:Name` |
 | Resource keys | The key of an entry in a resource dictionary | `x:Key` |
 | Code type | The Rust type that holds a view's handlers and named nodes, marked `#[ui_class]`, and is the view's root element ([design](../design/ui-class.md)) | `x:Class` |
 | Data type | The type compiled bindings are checked against | `x:DataType` |

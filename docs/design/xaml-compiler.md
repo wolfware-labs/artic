@@ -84,7 +84,6 @@ use ::artic::element::LayoutMethods as _;
 pub const CODE_TYPE: Option<&str> = None;
 
 /// The nodes of `login_view.xaml`: its root and one handle per `x:Name`.
-#[allow(non_snake_case)]
 #[derive(Clone, Copy, Debug)]
 pub struct View {
   pub root: Handle<::artic::controls::UserControl>,
@@ -110,7 +109,7 @@ pub fn build(tree: &mut UiTree) -> View {
 - One `let` per element, in post-order, named `__e0`, `__e1`, … in that order, so no name in the view can shadow `tree` or another local.
 - A property becomes its builder method, named after the field (`PropertyInfo::field`). A group's property uses the same name through the group's methods trait. `PropertyGroupInfo` gains `methods: &'static str`, the trait's defining path from `PropertyGroup::METHODS`. The compiler never writes that path, which may name a private module: it takes the crate (first segment) and the trait's name (last segment), and since the trait sits at its crate's root, imports it once per file as `use <crate path>::<Trait> as _;` with the crate's path from the map, such as `use ::artic::element::LayoutMethods as _;`.
 - Content comes last, after the property methods, because `.child` and `.children` return a `WithChildren` that has only `build`. `ContentInfo::Collection` gains `method: Option<ContentMethod>`, the method the derive generated (`ContentMethod::Child` or `ContentMethod::Children`) or `None` for a collection of values; a `ContentInfo::Property` content is that property's method, given text or a literal. Text content takes the node's `text`, or its `raw` text for a type marked `whitespace = "significant"`.
-- `x:Name` adds a field to `View`, typed by the element. The name must be a Rust identifier; a keyword becomes a raw identifier (`r#type`), except `self`, `Self`, `crate` and `super`, which can't be raw and are rejected. `#[allow(non_snake_case)]` keeps `x:Name="Email"` warning-free.
+- `x:Name` adds a field to `View`, typed by the element, named by the name in snake_case: `SubmitButton` gives `submit_button`, `URLField` gives `url_field`. The name must be a Rust identifier; a field that is a keyword becomes a raw identifier (`r#type`), and a field `self`, `crate`, `super` or `root` is rejected. Two names with one field are a duplicate.
 - `CODE_TYPE` is `None` for a view without `x:Class`, as here. With one, it is `Some("<crate>::<path>")` and the root is the code type.
 - `x:Class` makes the view's root its code type, and `x:FieldModifier` sets a named node's field visibility ([code type design](ui-class.md)); `x:DataType` is recorded for #94; `x:Uid` is accepted and ignored until localization (#168).
 - The file references every crate the namespace map names, with `use <path> as _;`, so their types stay in the app's link (below).
@@ -140,7 +139,7 @@ The block above is a view without a code type. The builder design's sample is a 
 | An element inside a type with no content | the type takes no child elements |
 | A property given both as an attribute and as content | the property is set twice |
 | A namespace URI the map doesn't declare | no namespace, once per URI, with help to declare it |
-| An `x:Name` that isn't an identifier, is `self`, `Self`, `crate` or `super`, is used twice, or is `root` | invalid or duplicate name |
+| An `x:Name` that isn't an identifier, gives the field `self`, `crate`, `super` or `root`, or gives a field another name gives | invalid or duplicate name |
 
 An element in a value position (a property element, a content property, a value collection) is a value, which #57 resolves; until then it's reported as such and its type isn't looked up. Diagnostics are reported in source order.
 
