@@ -537,6 +537,21 @@ mod tests {
     );
   }
 
+  // An attached property's helpers split an acronym as a word, so `URLField`'s getter is
+  // `url_field`, and a property of that name clashes with it.
+  #[test]
+  fn attached_acronym_gives_one_word_helpers() {
+    let input: DeriveInput = parse_quote! {
+      #[ui(attached(name = "URLField", ty = usize, target = children))]
+      struct Form { #[ui] url_field: Property<usize> }
+    };
+
+    assert_eq!(
+      error(&input),
+      "`url_field` would be both the method of the property `url_field` and the getter of the attached property `URLField`; rename one"
+    );
+  }
+
   // Two fields whose key constants are one name, such as `row_span` and `rowSpan`, are rejected.
   #[test]
   fn fields_with_one_key_constant_are_an_error() {
