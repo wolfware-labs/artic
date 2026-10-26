@@ -1,29 +1,34 @@
 //! The fields of a view's code that its names give.
 
-/// The field a name gives in a view's code, such as `r#type` for `type`, or why it can't be one.
+/// The field a name gives in a view's code: the name in snake_case, such as `submit_button` for
+/// `SubmitButton`, and a keyword as a raw identifier, such as `r#type` for `Type`; or why it
+/// can't be one.
 ///
-/// A name is a Rust identifier by Unicode's rules, other than `_`; a keyword becomes a raw
-/// identifier.
+/// A name is a Rust identifier by Unicode's rules, other than `_`, taken as written. Two names
+/// with one snake_case form give one field.
 ///
 /// # Errors
 ///
-/// Returns why the name can't be a field: `root`, which the root element's field takes; `self`,
-/// `Self`, `crate` and `super`, which can't be raw identifiers; a name written with `r#`; or a
-/// name that isn't an identifier.
+/// Returns why the name can't be a field: a field `root`, which the root element's field takes;
+/// a field `self`, `crate` or `super`, which can't be raw identifiers; a name written with `r#`;
+/// or a name that isn't an identifier.
 pub fn field_name(name: &str) -> Result<String, &'static str> {
-  match name {
+  if name.starts_with("r#") {
+    return Err("write the name without `r#`: a keyword becomes a raw identifier by itself");
+  }
+  let field = snake_case(name);
+  match field.as_str() {
     "root" => Err("`root` is the field of the view's root element"),
-    "self" | "Self" | "crate" | "super" => Err("`self`, `Self`, `crate` and `super` can't be raw identifiers"),
-    _ if name.starts_with("r#") => Err("write the name without `r#`: a keyword becomes a raw identifier by itself"),
-    _ if !is_identifier(name) => Err("a name must be a Rust identifier"),
-    _ if KEYWORDS.contains(&name) => Ok(format!("r#{name}")),
-    _ => Ok(name.to_owned()),
+    "self" | "crate" | "super" => Err("`self`, `Self`, `crate` and `super` can't be raw identifiers"),
+    _ if !is_identifier(&field) => Err("a name must be a Rust identifier"),
+    _ if KEYWORDS.contains(&field.as_str()) => Ok(format!("r#{field}")),
+    _ => Ok(field),
   }
 }
 
 /// The words a name becomes a raw identifier for: Rust's keywords, strict and reserved up to the
-/// 2024 edition's `gen`, other than `self`, `Self`, `crate` and `super`, which [`field_name`]
-/// refuses before reaching it.
+/// 2024 edition's `gen`, other than `self`, `crate` and `super`, which [`field_name`] refuses
+/// before reaching it.
 const KEYWORDS: &[&str] = &[
   "abstract", "as", "async", "await", "become", "box", "break", "const", "continue", "do", "dyn", "else", "enum", "extern",
   "false", "final", "fn", "for", "gen", "if", "impl", "in", "let", "loop", "macro", "match", "mod", "move", "mut", "override",
@@ -38,6 +43,25 @@ fn is_identifier(name: &str) -> bool {
     return false;
   };
   name != "_" && (first == '_' || unicode_ident::is_xid_start(first)) && chars.all(unicode_ident::is_xid_continue)
+}
+
+/// `SubmitButton` as `submit_button` and `URLField` as `url_field`: a word starts at a capital
+/// after a lowercase letter or a digit, and at the last capital of an acronym.
+fn snake_case(name: &str) -> String {
+  let characters: Vec<char> = name.chars().collect();
+  let mut snake = String::with_capacity(name.len() + 4);
+  for (index, &character) in characters.iter().enumerate() {
+    if character.is_uppercase() && index > 0 {
+      let previous = characters[index - 1];
+      let after_lowercase = previous.is_lowercase() || previous.is_ascii_digit();
+      let starts_word = previous.is_uppercase() && characters.get(index + 1).is_some_and(|next| next.is_lowercase());
+      if after_lowercase || starts_word {
+        snake.push('_');
+      }
+    }
+    snake.extend(character.to_lowercase());
+  }
+  snake
 }
 
 #[cfg(test)]
@@ -94,6 +118,64 @@ mod tests {
   #[test]
   fn gen_is_a_raw_identifier() {
     assert_eq!(field_name("gen"), Ok("r#gen".to_owned()));
+  }
+
+  // The rule every snake_case converter in artic follows: a word starts at a capital after a
+  // lowercase letter or a digit, and at the last capital of an acronym.
+  #[test]
+  fn snake_case_matches_the_shared_table() {
+    let table = [
+      ("MyApp", "my_app"),
+      ("XMLParser", "xml_parser"),
+      ("Views", "views"),
+      ("V2Controls", "v2_controls"),
+      ("io", "io"),
+      ("SubmitButton", "submit_button"),
+      ("URLField", "url_field"),
+      ("ZIndex", "z_index"),
+      ("Email", "email"),
+      ("Submit_Button", "submit_button"),
+    ];
+    for (name, snake) in table {
+      assert_eq!(snake_case(name), snake, "{name}");
+    }
+  }
+
+  // A name in another casing gives its snake_case field.
+  #[test]
+  fn pascal_case_name_gives_a_snake_case_field() {
+    assert_eq!(field_name("SubmitButton"), Ok("submit_button".to_owned()));
+  }
+
+  // A name whose field is `root` is refused, since the root element's field has it.
+  #[test]
+  fn converted_root_is_refused() {
+    for name in ["Root", "ROOT"] {
+      assert_eq!(
+        field_name(name),
+        Err("`root` is the field of the view's root element"),
+        "{name}"
+      );
+    }
+  }
+
+  // A name whose field is a keyword gives the raw identifier.
+  #[test]
+  fn converted_keyword_is_raw() {
+    assert_eq!(field_name("Type"), Ok("r#type".to_owned()));
+    assert_eq!(field_name("Match"), Ok("r#match".to_owned()));
+  }
+
+  // A name whose field is `self`, `crate` or `super` is refused, as those can't be raw.
+  #[test]
+  fn converted_self_is_refused() {
+    for name in ["SELF", "Crate", "Super"] {
+      assert_eq!(
+        field_name(name),
+        Err("`self`, `Self`, `crate` and `super` can't be raw identifiers"),
+        "{name}"
+      );
+    }
   }
 
   // A name is taken as written: spaces or a comment around an identifier make it invalid, where
