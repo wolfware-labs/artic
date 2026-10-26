@@ -71,8 +71,8 @@ struct Check {
   elements: Vec<CheckedElement>,
   names: Vec<(Text, usize)>,
   diagnostics: Diagnostics,
-  /// Where each name's field was first given.
-  named: HashMap<String, Span>,
+  /// The name that first gave each field, where it's written.
+  named: HashMap<String, Text>,
   /// The `once` keys already reported.
   reported: HashSet<String>,
 }
@@ -196,15 +196,22 @@ impl Check {
     };
     match self.named.entry(field) {
       Entry::Occupied(first) => {
-        self.diagnostics.push(
-          Diagnostic::error(name.span, format!("`{}` names two elements", name.text))
-            .with_label("named again here")
-            .with_secondary(*first.get(), "first named here"),
-        );
+        let mut diagnostic = Diagnostic::error(name.span, format!("`{}` names two elements", name.text))
+          .with_label("named again here")
+          .with_secondary(first.get().span, "first named here");
+        if first.get().text != name.text {
+          diagnostic = diagnostic.with_help(format!(
+            "`{}` and `{}` both give the field `{}`",
+            first.get().text,
+            name.text,
+            first.key()
+          ));
+        }
+        self.diagnostics.push(diagnostic);
         None
       }
       Entry::Vacant(slot) => {
-        slot.insert(name.span);
+        slot.insert(name.clone());
         Some(name.clone())
       }
     }

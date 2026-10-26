@@ -27,18 +27,41 @@ fn keyword_name_is_raw() {
   assert!(rust.contains("pub r#type: Handle<"), "{rust}");
 }
 
-// A name in PascalCase is kept, and the struct allows it.
+// A name in PascalCase gives its snake_case field, and the struct needs no `allow`.
 #[test]
-fn pascal_case_name_is_kept() {
-  let rust = named("Email").expect("a valid view");
-  assert!(rust.contains("pub Email: Handle<"), "{rust}");
-  assert!(rust.contains("#[allow(non_snake_case)]"), "{rust}");
+fn pascal_case_name_gives_a_snake_case_field() {
+  let rust = named("SubmitButton").expect("a valid view");
+  assert!(rust.contains("pub submit_button: Handle<"), "{rust}");
+  assert!(!rust.contains("non_snake_case"), "{rust}");
+}
+
+// Two spellings of one field name two elements.
+#[test]
+fn two_spellings_of_one_field_report_error() {
+  let errors = compile(
+    r#"<StackPanel xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup"><Border x:Name="email"/><Border x:Name="Email"/></StackPanel>"#,
+  )
+  .expect_err("one field twice");
+  assert!(errors.contains("`Email` names two elements"), "{errors}");
+  assert!(errors.contains("`email` and `Email` both give the field `email`"), "{errors}");
 }
 
 // Names that can't be fields are reported, each with why.
 #[test]
 fn invalid_names_report_errors() {
-  for name in ["self", "Self", "crate", "super", "root", "two words", "1st", "r#type", "_"] {
+  for name in [
+    "self",
+    "Self",
+    "SELF",
+    "crate",
+    "super",
+    "root",
+    "Root",
+    "two words",
+    "1st",
+    "r#type",
+    "_",
+  ] {
     let errors = named(name).expect_err(name);
     assert!(errors.contains(&format!("`{name}` isn't a valid name")), "{name}: {errors}");
   }

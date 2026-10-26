@@ -234,8 +234,28 @@ fn two_elements_with_one_name() {
   assert_eq!(reported(&diagnostics), [at("`email` names two elements", 30)]);
   let diagnostic = diagnostics.iter().next().expect("one diagnostic");
   assert_eq!(diagnostic.labels[0].span, span(10, 11));
+  assert_eq!(diagnostic.help, None);
   assert_eq!(view.names.len(), 1);
   assert_eq!((view.names[0].0.text.as_str(), view.names[0].1), ("email", 1));
+}
+
+// Two names with one snake_case field name two elements, and the help names both spellings.
+#[test]
+fn two_spellings_of_one_field() {
+  let child = element(&IMAGE, 21, vec![name("Email", 30)]);
+  let document = Document {
+    root: element(&PANEL, 0, vec![name("email", 10), content(20, vec![Content::Element(child)])]),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  assert_eq!(reported(&diagnostics), [at("`Email` names two elements", 30)]);
+  let diagnostic = diagnostics.iter().next().expect("one diagnostic");
+  assert_eq!(
+    diagnostic.help.as_deref(),
+    Some("`email` and `Email` both give the field `email`")
+  );
+  assert_eq!(view.names.len(), 1);
 }
 
 // An element whose type isn't found still has its name and the elements in its content checked,

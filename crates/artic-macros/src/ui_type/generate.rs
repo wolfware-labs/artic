@@ -1,7 +1,8 @@
 use crate::crate_root::{REGISTRY, crate_root};
 use crate::ui_type::attributes::{Affects, Attached, Inherits, Target, Whitespace};
 use crate::ui_type::builders::{builders, content_method};
-use crate::ui_type::fields::{Analysis, Role, UiField, generic_argument, snake_case, ui_name};
+use crate::ui_type::fields::{Analysis, Role, UiField, generic_argument, ui_name};
+use artic_ident::{rust_identifier, screaming_snake_case, snake_case};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::Ident;
@@ -309,7 +310,7 @@ fn arg_info(field: &UiField) -> TokenStream {
 
 /// The static an attached property's key lives in, such as `__ATTACHED_COLUMN_SPAN`.
 fn attached_static(attached: &Attached) -> Ident {
-  format_ident!("__ATTACHED_{}", snake_case(&attached.name.value()).to_uppercase())
+  format_ident!("__ATTACHED_{}", screaming_snake_case(&attached.name.value()))
 }
 
 /// The `static AttachedKey` of one attached property.
@@ -340,10 +341,11 @@ fn attached_helpers(owner: &Ident, attached: &Attached) -> TokenStream {
   let ty = &attached.ty;
   let name = attached.name.value();
   let snake = snake_case(&name);
-  let constant = format_ident!("{}", snake.to_uppercase());
-  let getter = format_ident!("{snake}");
+  let constant = format_ident!("{}", screaming_snake_case(&name));
+  let getter: Ident =
+    syn::parse_str(&rust_identifier(&snake).expect("the analysis checks the getter")).expect("a Rust identifier parses");
   let setter = format_ident!("set_{snake}");
-  let value = format_ident!("{snake}");
+  let value = &getter;
   let property = format!("`{owner}.{name}`");
   let constant_doc = format!("The {property} attached property.");
   let setter_doc = format!("Sets {property} on `node`, at local precedence.");
@@ -409,7 +411,7 @@ fn key_path(field: &UiField) -> TokenStream {
 }
 
 pub(crate) fn generated_key(field: &Ident) -> Ident {
-  format_ident!("__KEY_{}", field.unraw().to_string().to_uppercase())
+  format_ident!("__KEY_{}", screaming_snake_case(&field.unraw().to_string()))
 }
 
 /// The `static PropertyKey` the derive writes for a property without a shared `key`.

@@ -1,0 +1,19 @@
+[package]
+name = "artic-ident"
+description = "Rust identifier rules artic's code generators share: case, keywords and validity."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+unicode-ident.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+syn.workspace = true
+
+[lints]
+workspace = true

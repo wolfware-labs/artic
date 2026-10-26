@@ -580,19 +580,22 @@ fn clr_namespace_rejected_with_hint() {
   );
 }
 
-// A `using:` path must be a module path from a crate name; the error points at the bad segment, as
-// written (`Vec&lt;T&gt;` is `Vec<T>` once decoded).
+// A `using:` path must be a module path from a crate name, each segment an identifier by Unicode's
+// XID rules; the error points at the bad segment, as written (`Vec&lt;T&gt;` is `Vec<T>` once
+// decoded).
 #[test]
 fn invalid_using_paths_are_errors() {
   let cases = [
     ("using:", "`using:` needs a Rust module path", ""),
     ("using:crate::views", "a `using:` path starts with a crate name", "crate"),
+    ("using:Self::views", "a `using:` path starts with a crate name", "Self"),
     ("using:::app", "a `using:` path starts with a crate name", ""),
     ("using:app::::views", "empty segment in a `using:` path", ""),
     ("using:app::", "empty segment in a `using:` path", ""),
     ("using:my-app::views", "`my-app` isn't a Rust identifier", "my-app"),
     ("using:app::Vec&lt;T&gt;", "`Vec<T>` isn't a Rust identifier", "Vec&lt;T&gt;"),
     ("using:app::type", "`type` is a Rust keyword", "type"),
+    ("using:app::a\u{2E2F}", "`a\u{2E2F}` isn't a Rust identifier", "a\u{2E2F}"),
   ];
   for (uri, message, at) in cases {
     let source = format!(r#"<v:Card xmlns:v="{uri}"/>"#);

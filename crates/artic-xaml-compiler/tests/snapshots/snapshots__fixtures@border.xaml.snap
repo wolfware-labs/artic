@@ -12,7 +12,6 @@ use ::artic::element as _;
 use ::artic::layout as _;
 use ::artic::render as _;
 /// The nodes of `border.xaml`: its root and one handle per `x:Name`.
-#[allow(non_snake_case)]
 #[derive(Clone, Copy, Debug)]
 pub struct View {
     pub root: Handle<::artic::controls::Border>,

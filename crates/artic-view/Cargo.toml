@@ -10,8 +10,8 @@ repository.workspace = true
 
 [dependencies]
 artic-diagnostics.workspace = true
+artic-ident.workspace = true
 artic-registry.workspace = true
-unicode-ident.workspace = true
 
 [dev-dependencies]
 artic-core.workspace = true

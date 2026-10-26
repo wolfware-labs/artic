@@ -270,6 +270,22 @@ fn attached_helpers_set_and_read_with_precedence() {
   assert_eq!(Grid::row(&tree, border), 2);
 }
 
+/// An owner of an attached property whose name is a keyword in snake_case.
+#[derive(Debug, UiType)]
+#[ui(attached(name = "TYPE", ty = usize, target = any))]
+struct Typed;
+
+// A name whose getter is a keyword gets it as a raw identifier: `r#type`, beside `set_type`.
+#[test]
+fn keyword_attached_name_gets_a_raw_getter() {
+  let mut tree = UiTree::new();
+  let border = (Border::TYPE_INFO.new)(&mut tree);
+
+  Typed::set_type(&mut tree, border, 3);
+
+  assert_eq!(Typed::r#type(&tree, border), 3);
+}
+
 // An attached key carries the metadata its declaration gives.
 #[test]
 fn attached_key_carries_its_metadata() {

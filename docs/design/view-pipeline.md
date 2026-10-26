@@ -4,7 +4,7 @@ Issue: #325. Builds on: the [XAML compiler](xaml-compiler.md) (#49), [UI languag
 
 The compiler #49 built sits in the XAML crates, but most of it isn't XAML: diagnostics with source spans, checking a view's members against the registry, writing Rust, and driving a build script would be the same for any language. This design moves those parts into three crates no language owns. A language then writes one front end, from its syntax to a plain `Document`, and gets the compiler and, with #59, the loader from it. The XAML crates keep XAML's syntax and meaning only.
 
-The generated code and every diagnostic stay the same: each snapshot's content and the fixture app stay unchanged, except the render snapshot of `artic-diagnostics`, whose test now uses a neutral file name and message; the header insta writes above a moved snapshot, which names its source file, follows the move. Three differences touch only a misconfigured path, [below](#writing-rust): the help of "isn't a Rust path" names `CratePaths::path` in place of `NamespaceMap::path`, which goes; the element with such a path has its members checked; and a value provider written as an element with such a path is reported as a value provider. No snapshot has any of them; the one test of the message checks only its text, not its help. One difference touches names: a name is taken as written, so spaces or a comment around it make it invalid, where `syn`'s parser dropped them from the field, and `gen` gives `r#gen`. A few names an app's build script can reach move; [What changes for an app](#what-changes-for-an-app) lists them.
+Apart from a name's field, now in snake_case, which changes the `names.xaml` snapshot's fields and drops `#[allow(non_snake_case)]` from every compiled snapshot, and the help a duplicate name gets when two spellings give one field ([What changes for an app](#what-changes-for-an-app)), the generated code and every diagnostic stay the same: every other snapshot line and the fixture app stay unchanged, except the render snapshot of `artic-diagnostics`, whose test now uses a neutral file name and message; the header insta writes above a moved snapshot, which names its source file, follows the move. Three differences touch only a misconfigured path, [below](#writing-rust): the help of "isn't a Rust path" names `CratePaths::path` in place of `NamespaceMap::path`, which goes; the element with such a path has its members checked; and a value provider written as an element with such a path is reported as a value provider. No snapshot has any of them; the one test of the message checks only its text, not its help. One difference touches names: a name is taken as written, so spaces or a comment around it make it invalid, where `syn`'s parser dropped them from the field, and `gen` gives `r#gen`. A few names an app's build script can reach move; [What changes for an app](#what-changes-for-an-app) lists them.
 
 ## The pipeline
 
@@ -24,9 +24,9 @@ CheckedView                   artic-view: every member found, content placed, na
 | Crate | Holds | Depends on |
 | --- | --- | --- |
 | `artic-diagnostics` | `Span`, `SourceId`, `SourceMap`, `SourceFile`, `LineCol`, `Diagnostic`, `Diagnostics`, `Severity`, `Label`, `render`, moved from `artic-xaml` | none |
-| `artic-view` | `Document`, `check`, `CheckedView`, the `Language` trait, the field-name rule | `artic-registry`, `artic-diagnostics`, `unicode-ident` |
+| `artic-view` | `Document`, `check`, `CheckedView`, the `Language` trait, the field-name rule | `artic-registry`, `artic-diagnostics`, `artic-ident` |
 | `artic-view-compiler` | `emit`, literals, `CratePaths`, `compile_str`, `compile_dir`, `CompileError` | `artic-view`, `artic-registry` (with `literals`), `artic-diagnostics`, `syn`, `quote`, `proc-macro2`, `prettyplease`, `thiserror` |
-| `artic-xaml` | the parser, the infoset, `NamespaceMap` (URIs only) | `artic-diagnostics` |
+| `artic-xaml` | the parser, the infoset, `NamespaceMap` (URIs only) | `artic-diagnostics`, `artic-ident` |
 | `artic-xaml-lang` (was `artic-xaml-compiler`) | `Xaml`, the front end | `artic-xaml`, `artic-view`, `artic-registry`, `artic-diagnostics` |
 
 `artic-diagnostics` has no dependencies, so `artic-style`'s selector errors and the parser use spans without the registry. `artic-view` has no `syn`, so the loader doesn't carry a code generator at run time. `artic-xaml` stays free of the registry, as `docs/architecture.md` requires, so its tests still need no registry. `artic-view-compiler` turns on the registry's `literals` feature, which `artic-xaml-compiler` turns on today.
@@ -149,7 +149,8 @@ pub trait Language {
 /// the type's content rule, and the names.
 pub fn check(document: &Document) -> (CheckedView, Diagnostics);
 
-/// The field a name gives in a view's `View`, such as `r#type` for `type`, or why it can't be one.
+/// The field a name gives in a view's `View`: the name in snake_case, a keyword as a raw
+/// identifier, such as `r#type` for `Type`; or why it can't be one.
 pub fn field_name(name: &str) -> Result<String, &'static str>;
 ```
 
@@ -161,7 +162,7 @@ The checker is `lower.rs`'s member half, unchanged in behavior, and needs no reg
 4. for content, applies the type's rule: text for a content property, where the first element or `Unsupported` node is reported and ends the content; the text sets the property as a `Property` member would, so a property set by both is reported as set twice; children for `child` or `children`, where text is reported with the help "put the text in an element, such as a `TextBlock`", every child element counts toward "takes one child" whether its type was found or not, and the child taken is the only found one; nothing for a type that takes none, where text and elements are reported and the elements still checked; and, for a collection of values, "value collections come with #57" when it holds anything but blank text, the elements inside it never reached;
 5. reports each `Unsupported` member.
 
-An element whose type isn't found still has its name checked and the elements in its content checked, so an unknown type doesn't hide the problems below it. `field_name` is `names.rs`'s rule without `syn`: an identifier by Unicode's XID rules (`unicode-ident`), not `_`, a keyword written as a raw identifier, and `self`, `Self`, `crate`, `super`, `root` and a leading `r#` refused with today's three reasons. It takes the name as written, so `" email "` is refused where `syn` skipped the spaces. Its keyword list is checked in its tests against `syn`, except `gen`, reserved since Rust 2024, which `syn` still takes as an identifier: `gen` becomes `r#gen`, so the field compiles on any edition, where the `syn` rule gave `gen`. Emission takes each field from it.
+An element whose type isn't found still has its name checked and the elements in its content checked, so an unknown type doesn't hide the problems below it. `field_name` is `names.rs`'s rule without `syn`, built on `artic-ident`: an identifier by Unicode's XID rules, not `_`, a keyword written as a raw identifier by `rust_identifier`, and `self`, `Self`, `crate`, `super`, `root` and a leading `r#` refused with today's three reasons. It converts the name to snake_case first (a word starts at a capital after a lowercase letter or a digit, and at the last capital of an acronym, and a run of underscores inside the name becomes one), and checks the field, so `Root` is refused and `Type` gives `r#type`; two names with one field are two elements with one name, with help naming both spellings. It takes the name as written, so `" email "` is refused where `syn` skipped the spaces. Its keyword list is checked in its tests against `syn`, except `gen`, reserved since Rust 2024, which `syn` still takes as an identifier: `gen` becomes `r#gen`, so the field compiles on any edition, where the `syn` rule gave `gen`. Emission takes each field from it.
 
 `CheckedView` is today's view model without the Rust in it:
 
@@ -282,6 +283,8 @@ let xaml = artic::xaml::Xaml::new(artic::xaml::namespaces());
 artic::view::compile_dir("src/views", &xaml, &paths)?;
 ```
 
+Beside the move, a name gives its field in snake_case, with each run of underscores inside it written as one, so the generated `View` needs no `#[allow(non_snake_case)]`: app code that read `view.Email` reads `view.email`. That changes the fields of the `names.xaml` snapshot and drops the `allow` line from every compiled snapshot. Two names with one field, such as `Email` and `email`, are reported as two elements with one name, with help naming both spellings.
+
 ## Layers
 
 - `artic-diagnostics` joins layer 0, and `artic-xaml`, which now depends on it, moves to layer 1.
@@ -330,4 +333,4 @@ Documents that describe the code change with the pull request that changes it.
 | 3 | `artic-view`: `Document`, `check`, `CheckedView`, `Language`; the XAML compiler reads into a `Document` and emits from a `CheckedView` |
 | 4 | `artic-view-compiler`: emission, `CratePaths`, the generic `compile_str` and `compile_dir`, the test language; `NamespaceMap` keeps URIs only; `artic-xaml-compiler` becomes `artic-xaml-lang`; the facade's `artic::view`; closes #325 |
 
-Each pull request keeps every snapshot's content and the fixture app unchanged, apart from that render snapshot in PR 2.
+Each pull request keeps every snapshot's content and the fixture app unchanged, apart from that render snapshot in PR 2 and the snake_case fields above.

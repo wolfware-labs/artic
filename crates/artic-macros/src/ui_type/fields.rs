@@ -1,5 +1,6 @@
 use crate::ui_type::attributes::{FieldAttributes, TypeAttributes, parse_field_attributes, parse_type_attributes};
 use crate::ui_type::builders::{content_method, key_constant_name};
+use artic_ident::{IdentError, pascal_case, rust_identifier, screaming_snake_case, snake_case};
 use quote::ToTokens;
 use syn::ext::IdentExt;
 use syn::{Data, DeriveInput, Error, Field, Fields, GenericArgument, Ident, PathArguments, Type, Visibility};
@@ -184,7 +185,17 @@ fn check_generated_names(attributes: &TypeAttributes, ui_fields: &[UiField]) -> 
   for attached in &attributes.attached {
     let name = attached.name.value();
     let getter = snake_case(&name);
-    let items = [(format!("set_{getter}"), "setter"), (getter.to_uppercase(), "constant")];
+    if let Err(error) = rust_identifier(&getter) {
+      let why = match error {
+        IdentError::NotIdentifier => "isn't a Rust identifier",
+        IdentError::PathKeyword => "can't be a raw identifier",
+      };
+      return Err(Error::new_spanned(
+        &attached.name,
+        format_args!("`{name}` can't name an attached property: its getter would be `{getter}`, which {why}"),
+      ));
+    }
+    let items = [(format!("set_{getter}"), "setter"), (screaming_snake_case(&name), "constant")];
     take(
       &mut taken,
       getter,
@@ -326,33 +337,6 @@ pub fn generic_argument<'a>(ty: &'a Type, wrapper: &str) -> Option<&'a Type> {
   }
 }
 
-/// `ColumnSpan` as `column_span`: the name of a generated helper.
-pub fn snake_case(name: &str) -> String {
-  let mut snake = String::with_capacity(name.len() + 4);
-  for (index, character) in name.chars().enumerate() {
-    if character.is_uppercase() && index > 0 {
-      snake.push('_');
-    }
-    snake.extend(character.to_lowercase());
-  }
-  snake
-}
-
-fn pascal_case(name: &str) -> String {
-  name
-    .trim_start_matches("r#")
-    .split('_')
-    .filter(|part| !part.is_empty())
-    .map(|part| {
-      let mut chars = part.chars();
-      chars
-        .next()
-        .map(|first| first.to_uppercase().chain(chars).collect::<String>())
-        .unwrap_or_default()
-    })
-    .collect()
-}
-
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -424,13 +408,6 @@ mod tests {
 
     let names: Vec<String> = analysis.ui_fields.iter().map(ui_name).collect();
     assert_eq!(names, ["CornerRadius", "BorderBrush"]);
-  }
-
-  // Attached property names become snake_case helper names.
-  #[test]
-  fn snake_case_names() {
-    let names: Vec<String> = ["Row", "ColumnSpan", "Name"].into_iter().map(snake_case).collect();
-    assert_eq!(names, ["row", "column_span", "name"]);
   }
 
   // An event can't be content: content is a value or child elements.
@@ -567,6 +544,62 @@ mod tests {
     assert_eq!(
       error(&input),
       "`ROW` would be both the key constant of the property `Row` and the constant of the attached property `Row`; rename one"
+    );
+  }
+
+  // An attached property's helpers split an acronym as a word, so `URLField`'s getter is
+  // `url_field`, and a property of that name clashes with it.
+  #[test]
+  fn attached_acronym_gives_one_word_helpers() {
+    let input: DeriveInput = parse_quote! {
+      #[ui(attached(name = "URLField", ty = usize, target = children))]
+      struct Form { #[ui] url_field: Property<usize> }
+    };
+
+    assert_eq!(
+      error(&input),
+      "`url_field` would be both the method of the property `url_field` and the getter of the attached property `URLField`; rename one"
+    );
+  }
+
+  // An attached name whose getter isn't an identifier is rejected, rather than panicking later.
+  #[test]
+  fn attached_name_that_is_not_an_identifier_is_an_error() {
+    let input: DeriveInput = parse_quote! {
+      #[ui(attached(name = "Row Span", ty = usize, target = children))]
+      struct Grid;
+    };
+
+    assert_eq!(
+      error(&input),
+      "`Row Span` can't name an attached property: its getter would be `row span`, which isn't a Rust identifier"
+    );
+  }
+
+  // An attached name whose getter is `self`, `crate` or `super` is rejected: those can't be raw.
+  #[test]
+  fn attached_name_that_is_a_path_keyword_is_an_error() {
+    let input: DeriveInput = parse_quote! {
+      #[ui(attached(name = "SELF", ty = usize, target = children))]
+      struct Grid;
+    };
+
+    assert_eq!(
+      error(&input),
+      "`SELF` can't name an attached property: its getter would be `self`, which can't be a raw identifier"
+    );
+  }
+
+  // Two fields whose key constants are one name, such as `row_span` and `rowSpan`, are rejected.
+  #[test]
+  fn fields_with_one_key_constant_are_an_error() {
+    let input: DeriveInput = parse_quote! {
+      struct Grid { #[ui] row_span: Property<usize>, #[ui] rowSpan: Property<usize> }
+    };
+
+    assert_eq!(
+      error(&input),
+      "`ROW_SPAN` would be both the key constant of the property `row_span` and the key constant of the property `rowSpan`; rename one"
     );
   }
 

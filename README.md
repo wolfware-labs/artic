@@ -62,40 +62,42 @@ The workspace is layered. A crate depends only on crates in lower layers, so the
 | Layer | Crate | Responsibility |
 | --- | --- | --- |
 | 0 | `artic-core` | Signals, effects, `Property<T>`, the node tree and trees, the UI dispatcher |
-| 0 | `artic-macros` | The derive and attribute macros, such as `#[element]`, `#[derive(UiType)]` and `#[derive(UiEnum)]` |
 | 0 | `artic-diagnostics` | Source files, spans and diagnostics for every UI language |
 | 0 | `artic-test-fonts` | The font artic's tests shape text with, as byte constants |
+| 0 | `artic-ident` | Rust identifier rules the code generators share: case conversions, keywords, and how a name is written as an identifier |
+| 1 | `artic-macros` | The derive and attribute macros, such as `#[element]`, `#[derive(UiType)]` and `#[derive(UiEnum)]` |
 | 1 | `artic-registry` | Type metadata that lets UI languages name Rust types and properties |
-| 1 | `artic-layout` | Measure and arrange protocol, geometry and text types, panels |
 | 1 | `artic-i18n` | Optional localizer backed by Fluent `.ftl` files |
 | 1 | `artic-xaml` | XAML parser and markup extension grammar |
-| 2 | `artic-render` | `Renderer` trait and retained scene (backends are adapter crates) |
-| 2 | `artic-text` | Text shaping and line breaking with `parley`, fonts with `fontique` |
+| 2 | `artic-layout` | Measure and arrange protocol, geometry and text types, panels |
 | 2 | `artic-style` | Selectors, styles, setters, resource dictionaries |
 | 2 | `artic-view` | The view every UI language reads its files into, and its checks |
 | 2 | `artic-xaml-runtime` | Runtime loader for hot reload and `runtime-xaml` |
-| 3 | `artic-element` | The `Element` trait and its contexts, the property groups every control has (`layout`, `appearance`, `interaction`, `identity`), and the table that finds a node's element |
+| 3 | `artic-render` | `Renderer` trait and retained scene (backends are adapter crates) |
+| 3 | `artic-text` | Text shaping and line breaking with `parley`, fonts with `fontique` |
 | 3 | `artic-xaml-compiler` | Build-time compiler from XAML to Rust |
-| 4 | `artic-controls` | Templated controls such as `Button`, `TextBox` and `ListBox` |
-| 4 | `artic-platform` | The `Host` seam, `artic::run` and the frame pipeline (hosts are adapter crates) |
+| 4 | `artic-element` | The `Element` trait and its contexts, the property groups every control has (`layout`, `appearance`, `interaction`, `identity`), and the table that finds a node's element |
 | 4 | `artic-lsp` | Language server for `.xaml` files |
-| 5 | `artic-theme` | Default token-based theme and control templates |
-| 5 | `artic-test` | Headless host and test helpers |
-| 5 | `artic-winit` | Default host adapter: windows, input and OS services through `winit` |
-| 5 | `artic-vello` | Default renderer adapter: `vello` on `wgpu` |
+| 4 | `artic-vello` | Default renderer adapter: `vello` on `wgpu` |
+| 5 | `artic-controls` | Templated controls such as `Button`, `TextBox` and `ListBox` |
+| 5 | `artic-platform` | The `Host` seam, `artic::run` and the frame pipeline (hosts are adapter crates) |
 | 5 | `artic-cli` | The `cargo artic` command |
-| 6 | `artic` | Facade crate that apps depend on |
+| 6 | `artic-theme` | Default token-based theme and control templates |
+| 6 | `artic-test` | Headless host and test helpers |
+| 6 | `artic-winit` | Default host adapter: windows, input and OS services through `winit` |
+| 7 | `artic` | Facade crate that apps depend on |
 
 ```mermaid
 flowchart BT
-  L0["Layer 0: artic-core, artic-macros, artic-diagnostics, artic-test-fonts"]
-  L1["Layer 1: artic-registry, artic-layout, artic-i18n, artic-xaml"]
-  L2["Layer 2: artic-render, artic-text, artic-style, artic-view, artic-xaml-runtime"]
-  L3["Layer 3: artic-element, artic-xaml-compiler"]
-  L4["Layer 4: artic-controls, artic-platform, artic-lsp"]
-  L5["Layer 5: artic-theme, artic-test, artic-winit, artic-vello, artic-cli"]
-  L6["Layer 6: artic"]
-  L0 --> L1 --> L2 --> L3 --> L4 --> L5 --> L6
+  L0["Layer 0: artic-core, artic-diagnostics, artic-ident, artic-test-fonts"]
+  L1["Layer 1: artic-macros, artic-registry, artic-i18n, artic-xaml"]
+  L2["Layer 2: artic-layout, artic-style, artic-view, artic-xaml-runtime"]
+  L3["Layer 3: artic-render, artic-text, artic-xaml-compiler"]
+  L4["Layer 4: artic-element, artic-vello, artic-lsp"]
+  L5["Layer 5: artic-controls, artic-platform, artic-cli"]
+  L6["Layer 6: artic-theme, artic-test, artic-winit"]
+  L7["Layer 7: artic"]
+  L0 --> L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> L7
 ```
 
 [docs/architecture.md](docs/architecture.md) has the exact dependency edges and the rules behind them.

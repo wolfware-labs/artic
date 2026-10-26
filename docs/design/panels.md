@@ -97,7 +97,7 @@ pub enum Orientation {
 }
 ```
 
-`Orientation` sits in `sizing.rs` beside the alignments, where a contributor looks for layout vocabulary, and `artic-layout` re-exports it from its root with them (`pub use sizing::{HorizontalAlignment, Orientation, …}`). The new edge makes no cycle: `artic-macros` depends on no artic crate, and its output names crates the caller already depends on. A proc macro runs on the build machine, so the web target gains nothing.
+`Orientation` sits in `sizing.rs` beside the alignments, where a contributor looks for layout vocabulary, and `artic-layout` re-exports it from its root with them (`pub use sizing::{HorizontalAlignment, Orientation, …}`). The new edge makes no cycle: `artic-macros` depends only on `artic-ident`, which depends on nothing, and its output names crates the caller already depends on. A proc macro runs on the build machine, so the web target gains nothing.
 
 ## 3. Collapsed children
 

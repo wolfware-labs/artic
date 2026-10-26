@@ -196,6 +196,7 @@ impl<T: UiType + Object, I: IntoIterator<Item: Into<NodeId>>> WithChildren<T, I>
 | A Rust keyword field (`r#type`) | The method is `r#type` too (a raw identifier) |
 | A user's inherent method with a builder method's name | Rust's duplicate-definition error; builder method names are reserved on derived types |
 | An attached getter clashing with the owner's own property method | Derive error naming both; `#[ui(name = …)]` renames one |
+| An attached name whose getter, its snake_case form, isn't a Rust identifier (`Row Span`) or is `self`, `crate` or `super` | Derive error naming the getter. A getter that is any other keyword is a raw identifier: `TYPE` gives `r#type` and `set_type` |
 | A property constant and an attached constant with one name, such as two `ROW`s | Derive error naming both. A field `row` beside an attached `Row` reports this once, as the getter clash above |
 | A field named like a field of a flattened group, such as an own `width` | Compile error naming both, from a `const` check against the group's `PROPERTIES`; otherwise the inherent method would hide the group's |
 | Two flattened groups with a field of the same name | The same `const` check, naming the two groups |

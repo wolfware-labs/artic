@@ -4,6 +4,7 @@ use super::text::Decoded;
 use super::{unresolved, unsupported};
 use crate::infoset::XamlNamespace;
 use artic_diagnostics::{Diagnostic, Diagnostics, SourceId, Span};
+use artic_ident::{is_identifier, is_keyword, is_path_keyword, snake_case};
 
 const MARKUP_URI: &str = "https://artic.rs/markup";
 pub(super) const UI_URI: &str = "https://artic.rs/ui";
@@ -91,7 +92,7 @@ impl UsingPath<'_> {
     for (index, segment) in self.path.split("::").enumerate() {
       let span = self.span(offset, offset + segment.len());
       offset += segment.len() + "::".len();
-      if index == 0 && matches!(segment, "" | "crate" | "self" | "super") {
+      if index == 0 && (segment.is_empty() || is_path_keyword(segment)) {
         return Some(Diagnostic::error(span, "a `using:` path starts with a crate name").with_help(from_crate));
       }
       if segment.is_empty() {
@@ -100,7 +101,7 @@ impl UsingPath<'_> {
       if !is_identifier(segment) {
         return Some(Diagnostic::error(span, format!("`{segment}` isn't a Rust identifier")));
       }
-      if KEYWORDS.contains(&segment) {
+      if is_keyword(segment) {
         return Some(Diagnostic::error(span, format!("`{segment}` is a Rust keyword")));
       }
     }
@@ -116,22 +117,6 @@ impl UsingPath<'_> {
       offsets.source_offset(self.start + end),
     )
   }
-}
-
-/// Rust's strict and reserved keywords, none of which can name a module without `r#`.
-const KEYWORDS: &[&str] = &[
-  "Self", "abstract", "as", "async", "await", "become", "box", "break", "const", "continue", "crate", "do", "dyn", "else",
-  "enum", "extern", "false", "final", "fn", "for", "gen", "if", "impl", "in", "let", "loop", "macro", "match", "mod", "move",
-  "mut", "override", "priv", "pub", "ref", "return", "self", "static", "struct", "super", "trait", "true", "try", "type",
-  "typeof", "unsafe", "unsized", "use", "virtual", "where", "while", "yield",
-];
-
-/// Whether `text` is a Rust identifier: a letter or `_`, then letters, digits or `_`, but not `_`
-/// alone.
-fn is_identifier(text: &str) -> bool {
-  let mut characters = text.chars();
-  let first = characters.next().is_some_and(|first| first.is_alphabetic() || first == '_');
-  first && text != "_" && characters.all(|character| character.is_alphanumeric() || character == '_')
 }
 
 /// A best-effort Rust module path for a .NET namespace: `MyApp.Views;assembly=MyApp` becomes
@@ -150,54 +135,15 @@ fn rust_path(clr_namespace: &str) -> String {
   }
 }
 
-/// `MyApp` as `my_app`, and `XMLParser` as `xml_parser`.
-fn snake_case(name: &str) -> String {
-  let characters: Vec<char> = name.chars().collect();
-  let mut snake = String::with_capacity(name.len() + 4);
-  for (index, &character) in characters.iter().enumerate() {
-    if character.is_uppercase() && index > 0 {
-      let previous = characters[index - 1];
-      let after_lowercase = previous.is_lowercase() || previous.is_ascii_digit();
-      let starts_word = previous.is_uppercase() && characters.get(index + 1).is_some_and(|next| next.is_lowercase());
-      if after_lowercase || starts_word {
-        snake.push('_');
-      }
-    }
-    snake.extend(character.to_lowercase());
-  }
-  snake
-}
-
 #[cfg(test)]
 mod tests {
   use super::*;
   use pretty_assertions::assert_eq;
-
-  // .NET names become snake_case, splitting at lowercase-to-uppercase and before the last capital of
-  // an acronym.
-  #[test]
-  fn snake_case_splits_words() {
-    let converted: Vec<_> = ["MyApp", "XMLParser", "Views", "V2Controls", "io"]
-      .into_iter()
-      .map(snake_case)
-      .collect();
-    assert_eq!(converted, ["my_app", "xml_parser", "views", "v2_controls", "io"]);
-  }
 
   // A `clr-namespace:` value becomes a module path; the assembly is dropped.
   #[test]
   fn clr_namespaces_become_module_paths() {
     assert_eq!(rust_path("MyApp.ViewModels;assembly=MyApp"), "my_app::view_models");
     assert_eq!(rust_path(";assembly=MyApp"), "my_app::views");
-  }
-
-  // Identifiers start with a letter or `_` and go on with letters, digits or `_`.
-  #[test]
-  fn identifiers() {
-    let valid: Vec<_> = ["app", "_private", "v2", "é", "_", "2d", "my-app", "Vec<T>", " views", ""]
-      .into_iter()
-      .map(is_identifier)
-      .collect();
-    assert_eq!(valid, [true, true, true, true, false, false, false, false, false, false]);
   }
 }

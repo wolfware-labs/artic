@@ -42,7 +42,6 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
     #(use #links as _;)*
 
     #[doc = #view_doc]
-    #[allow(non_snake_case)]
     #[derive(Clone, Copy, Debug)]
     pub struct View {
       pub root: Handle<#root_ty>,

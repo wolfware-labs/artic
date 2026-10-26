@@ -1,5 +1,6 @@
 use crate::ui_type::fields::{Analysis, Role, UiField, generic_argument, ui_name};
 use crate::ui_type::generate::generated_key;
+use artic_ident::screaming_snake_case;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::ext::IdentExt;
@@ -184,7 +185,7 @@ fn is_number(ty: &Type) -> bool {
 
 /// The public name of a property's key: the field name without `r#`, in SCREAMING_SNAKE_CASE.
 pub fn key_constant_name(field: &Ident) -> Ident {
-  format_ident!("{}", field.unraw().to_string().to_uppercase())
+  format_ident!("{}", screaming_snake_case(&field.unraw().to_string()))
 }
 
 /// The public constant for a property's own key, or `None` for a field that shares a key, whose

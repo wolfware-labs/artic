@@ -1,48 +1,38 @@
 //! The fields of a view's code that its names give.
 
-/// The field a name gives in a view's code, such as `r#type` for `type`, or why it can't be one.
+use artic_ident::{IdentError, rust_identifier, snake_case};
+
+/// The field a name gives in a view's code: the name in snake_case, such as `submit_button` for
+/// `SubmitButton`, and a keyword as a raw identifier, such as `r#type` for `Type`; or why it
+/// can't be one.
 ///
-/// A name is a Rust identifier by Unicode's rules, other than `_`; a keyword becomes a raw
-/// identifier.
+/// The name is taken as written, so spaces around it make it invalid. Its field is
+/// `artic_ident`'s snake_case form of it, written as `artic_ident::rust_identifier` writes it.
+/// Two names with one field, such as `Email` and `email`, give it twice.
 ///
 /// # Errors
 ///
-/// Returns why the name can't be a field: `root`, which the root element's field takes; `self`,
-/// `Self`, `crate` and `super`, which can't be raw identifiers; a name written with `r#`; or a
-/// name that isn't an identifier.
+/// Returns why the name can't be a field: a field `root`, which the root element's field takes;
+/// a field `self`, `crate` or `super`, which can't be raw identifiers; a name written with `r#`;
+/// or a name that isn't an identifier.
 pub fn field_name(name: &str) -> Result<String, &'static str> {
-  match name {
-    "root" => Err("`root` is the field of the view's root element"),
-    "self" | "Self" | "crate" | "super" => Err("`self`, `Self`, `crate` and `super` can't be raw identifiers"),
-    _ if name.starts_with("r#") => Err("write the name without `r#`: a keyword becomes a raw identifier by itself"),
-    _ if !is_identifier(name) => Err("a name must be a Rust identifier"),
-    _ if KEYWORDS.contains(&name) => Ok(format!("r#{name}")),
-    _ => Ok(name.to_owned()),
+  if name.starts_with("r#") {
+    return Err("write the name without `r#`: a keyword becomes a raw identifier by itself");
   }
-}
-
-/// The words a name becomes a raw identifier for: Rust's keywords, strict and reserved up to the
-/// 2024 edition's `gen`, other than `self`, `Self`, `crate` and `super`, which [`field_name`]
-/// refuses before reaching it.
-const KEYWORDS: &[&str] = &[
-  "abstract", "as", "async", "await", "become", "box", "break", "const", "continue", "do", "dyn", "else", "enum", "extern",
-  "false", "final", "fn", "for", "gen", "if", "impl", "in", "let", "loop", "macro", "match", "mod", "move", "mut", "override",
-  "priv", "pub", "ref", "return", "static", "struct", "trait", "true", "try", "type", "typeof", "unsafe", "unsized", "use",
-  "virtual", "where", "while", "yield",
-];
-
-/// Whether `name` is an identifier by Unicode's XID rules, as Rust reads one, other than `_`.
-fn is_identifier(name: &str) -> bool {
-  let mut chars = name.chars();
-  let Some(first) = chars.next() else {
-    return false;
-  };
-  name != "_" && (first == '_' || unicode_ident::is_xid_start(first)) && chars.all(unicode_ident::is_xid_continue)
+  let field = snake_case(name);
+  if field == "root" {
+    return Err("`root` is the field of the view's root element");
+  }
+  rust_identifier(&field).map_err(|error| match error {
+    IdentError::PathKeyword => "`self`, `Self`, `crate` and `super` can't be raw identifiers",
+    IdentError::NotIdentifier => "a name must be a Rust identifier",
+  })
 }
 
 #[cfg(test)]
 mod tests {
   use super::*;
+  use artic_ident::{KEYWORDS, is_path_keyword};
   use pretty_assertions::assert_eq;
 
   /// The field the rule built on `syn` gives `name`, which `field_name` replaces.
@@ -84,7 +74,11 @@ mod tests {
       "",
       "email",
     ];
-    for word in KEYWORDS.iter().copied().filter(|word| *word != "gen").chain(others) {
+    let raw_only = KEYWORDS
+      .iter()
+      .copied()
+      .filter(|word| *word != "gen" && !is_path_keyword(word));
+    for word in raw_only.chain(others) {
       assert_eq!(field_name(word).ok(), syn_field(word), "{word:?}");
     }
   }
@@ -94,6 +88,52 @@ mod tests {
   #[test]
   fn gen_is_a_raw_identifier() {
     assert_eq!(field_name("gen"), Ok("r#gen".to_owned()));
+  }
+
+  // A run of underscores inside a name gives one, so the field passes Rust's snake_case lint;
+  // leading and trailing underscores are kept.
+  #[test]
+  fn underscore_runs_inside_a_name_collapse() {
+    assert_eq!(field_name("first__name"), Ok("first_name".to_owned()));
+    assert_eq!(field_name("Submit__Button"), Ok("submit_button".to_owned()));
+    assert_eq!(field_name("__private__"), Ok("__private__".to_owned()));
+  }
+
+  // A name in another casing gives its snake_case field.
+  #[test]
+  fn pascal_case_name_gives_a_snake_case_field() {
+    assert_eq!(field_name("SubmitButton"), Ok("submit_button".to_owned()));
+  }
+
+  // A name whose field is `root` is refused, since the root element's field has it.
+  #[test]
+  fn converted_root_is_refused() {
+    for name in ["Root", "ROOT"] {
+      assert_eq!(
+        field_name(name),
+        Err("`root` is the field of the view's root element"),
+        "{name}"
+      );
+    }
+  }
+
+  // A name whose field is a keyword gives the raw identifier.
+  #[test]
+  fn converted_keyword_is_raw() {
+    assert_eq!(field_name("Type"), Ok("r#type".to_owned()));
+    assert_eq!(field_name("Match"), Ok("r#match".to_owned()));
+  }
+
+  // A name whose field is `self`, `crate` or `super` is refused, as those can't be raw.
+  #[test]
+  fn converted_self_is_refused() {
+    for name in ["SELF", "Crate", "Super"] {
+      assert_eq!(
+        field_name(name),
+        Err("`self`, `Self`, `crate` and `super` can't be raw identifiers"),
+        "{name}"
+      );
+    }
   }
 
   // A name is taken as written: spaces or a comment around an identifier make it invalid, where
