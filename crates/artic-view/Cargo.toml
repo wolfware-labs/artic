@@ -1,0 +1,22 @@
+[package]
+name = "artic-view"
+description = "The view every UI language reads its files into, and the checks it goes through."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+artic-diagnostics.workspace = true
+artic-registry.workspace = true
+unicode-ident.workspace = true
+
+[dev-dependencies]
+artic-core.workspace = true
+pretty_assertions.workspace = true
+syn.workspace = true
+
+[lints]
+workspace = true

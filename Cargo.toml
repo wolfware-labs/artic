@@ -24,6 +24,7 @@ members = [
     "crates/artic-text",
     "crates/artic-theme",
     "crates/artic-vello",
+    "crates/artic-view",
     "crates/artic-winit",
     "crates/artic-xaml",
     "crates/artic-xaml-compiler",
@@ -61,6 +62,7 @@ artic-test-fonts = { path = "crates/artic-test-fonts", version = "0.1.0" }
 artic-text = { path = "crates/artic-text", version = "0.1.0" }
 artic-theme = { path = "crates/artic-theme", version = "0.1.0" }
 artic-vello = { path = "crates/artic-vello", version = "0.1.0" }
+artic-view = { path = "crates/artic-view", version = "0.1.0" }
 artic-winit = { path = "crates/artic-winit", version = "0.1.0" }
 artic-xaml = { path = "crates/artic-xaml", version = "0.1.0" }
 artic-xaml-compiler = { path = "crates/artic-xaml-compiler", version = "0.1.0" }
@@ -86,6 +88,7 @@ static_assertions = "1.1.0"
 syn = { version = "3.0.6", features = ["full"] }
 thiserror = "2.0.21"
 trybuild = "1.0.122"
+unicode-ident = "1.0.26"
 # skrifa is the font reader vello 0.11 draws glyphs with: pinned to vello's version, so artic-vello
 # checks a face with the same code that would otherwise panic on it.
 skrifa = { version = "=0.48.0", default-features = false, features = ["std"] }

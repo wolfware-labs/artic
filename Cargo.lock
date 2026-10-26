@@ -349,6 +349,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "artic-view"
+version = "0.1.0"
+dependencies = [
+ "artic-core",
+ "artic-diagnostics",
+ "artic-registry",
+ "pretty_assertions",
+ "syn 3.0.9",
+ "unicode-ident",
+]
+
+[[package]]
 name = "artic-winit"
 version = "0.1.0"
 dependencies = [
