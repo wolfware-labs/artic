@@ -20,8 +20,8 @@ A crate depends only on crates in lower layers. Crates in the same layer never d
 
 | Layer | Crates | Role |
 | --- | --- | --- |
-| 0 | `artic-core`, `artic-macros`, `artic-xaml`, `artic-test-fonts` | Foundations with no artic dependencies: the reactive core and tree, the proc macros, the XAML parser, and the test font |
-| 1 | `artic-registry`, `artic-layout`, `artic-i18n` | Type metadata, geometry, layout and text values, localization |
+| 0 | `artic-core`, `artic-macros`, `artic-diagnostics`, `artic-test-fonts` | Foundations with no artic dependencies: the reactive core and tree, the proc macros, spans and diagnostics, and the test font |
+| 1 | `artic-registry`, `artic-layout`, `artic-i18n`, `artic-xaml` | Type metadata, geometry, layout and text values, localization, the XAML parser |
 | 2 | `artic-render`, `artic-text`, `artic-style`, `artic-xaml-compiler`, `artic-xaml-runtime` | The `Renderer` seam and scene; text shaping and fonts; styling; the two XAML back ends |
 | 3 | `artic-element`, `artic-lsp` | The `Element` trait, its contexts and the property groups every control has; the language server |
 | 4 | `artic-controls`, `artic-platform`, `artic-cli` | Controls, the `Host` seam and frame pipeline, and the CLI |
@@ -70,6 +70,7 @@ flowchart TD
   styles --> registry
   compiler --> registry
   compiler --> xaml[artic-xaml]
+  xaml --> diagnostics[artic-diagnostics]
   runtime --> registry
   runtime --> xaml
 
@@ -85,7 +86,8 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | --- | --- |
 | `artic-core` | none |
 | `artic-macros` | none (proc-macro; generated code names `artic::__private`, `artic_registry::__private` or, for `UiEnum`, `artic_core::__private`, whichever the calling crate depends on) |
-| `artic-xaml` | none |
+| `artic-diagnostics` | none |
+| `artic-xaml` | `artic-diagnostics` |
 | `artic-test-fonts` | none (data only: the test font's bytes) |
 | `artic-registry` | `artic-core` |
 | `artic-layout` | `artic-core`, `artic-macros` |
@@ -93,7 +95,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-render` | `artic-core`, `artic-layout` |
 | `artic-text` | `artic-layout` |
 | `artic-style` | `artic-core`, `artic-registry` |
-| `artic-xaml-compiler` | `artic-xaml`, `artic-registry` |
+| `artic-xaml-compiler` | `artic-xaml`, `artic-registry`, `artic-diagnostics` |
 | `artic-xaml-runtime` | `artic-xaml`, `artic-registry`, `artic-core` |
 | `artic-element` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-macros` |
 | `artic-controls` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-element`, `artic-style`, `artic-macros` |
@@ -119,7 +121,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 - Test data that a crate below `artic-test` needs too, such as the test font, lives in a data-only crate with no dependencies (`artic-test-fonts`), not in `artic-test`, so the crate's tests can use it without a cycle.
 - The crates under `crates/artic-registry/fixtures/` are test-only (`publish = false`) and sit outside the layers. Two register two UI types each (`Alpha` or `Beta`, and `Twin`); `artic-registry-linking` holds the tests that check which of them reach the registry.
 - `artic-macros`' own tests dev-depend on crates that use the macros, such as `artic-core`, `artic-registry` and `artic-element`. Cargo allows these dev-only loops: `artic-macros` itself depends on no artic crate, so its build has no cycle.
-- When `artic-style` needs source spans for selector errors, the span and diagnostic types move to a crate below every UI language, so `artic-style` names none.
+- Spans and diagnostics live in `artic-diagnostics`, below every UI language, so `artic-style` can report selector errors with spans without naming one.
 - `crates/docs-check` is test-only (`publish = false`) and sits outside the layers, like the registry fixtures. It compiles the Rust code in the documents.
 - `artic-xaml` does not depend on the registry. Type references stay unresolved in the infoset, so parser tests need no registry.
 - Release builds link `artic-xaml-runtime` only when the app enables `runtime-xaml`. Compiled views never touch the loader.

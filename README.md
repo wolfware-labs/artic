@@ -63,11 +63,12 @@ The workspace is layered. A crate depends only on crates in lower layers, so the
 | --- | --- | --- |
 | 0 | `artic-core` | Signals, effects, `Property<T>`, the node tree and trees, the UI dispatcher |
 | 0 | `artic-macros` | The derive and attribute macros, such as `#[element]`, `#[derive(UiType)]` and `#[derive(UiEnum)]` |
-| 0 | `artic-xaml` | XAML parser, markup extension grammar and spanned diagnostics |
+| 0 | `artic-diagnostics` | Source files, spans and diagnostics for every UI language |
 | 0 | `artic-test-fonts` | The font artic's tests shape text with, as byte constants |
 | 1 | `artic-registry` | Type metadata that lets UI languages name Rust types and properties |
 | 1 | `artic-layout` | Measure and arrange protocol, geometry and text types, panels |
 | 1 | `artic-i18n` | Optional localizer backed by Fluent `.ftl` files |
+| 1 | `artic-xaml` | XAML parser and markup extension grammar |
 | 2 | `artic-render` | `Renderer` trait and retained scene (backends are adapter crates) |
 | 2 | `artic-text` | Text shaping and line breaking with `parley`, fonts with `fontique` |
 | 2 | `artic-style` | Selectors, styles, setters, resource dictionaries |
@@ -86,8 +87,8 @@ The workspace is layered. A crate depends only on crates in lower layers, so the
 
 ```mermaid
 flowchart BT
-  L0["Layer 0: artic-core, artic-macros, artic-xaml, artic-test-fonts"]
-  L1["Layer 1: artic-registry, artic-layout, artic-i18n"]
+  L0["Layer 0: artic-core, artic-macros, artic-diagnostics, artic-test-fonts"]
+  L1["Layer 1: artic-registry, artic-layout, artic-i18n, artic-xaml"]
   L2["Layer 2: artic-render, artic-text, artic-style, artic-xaml-compiler, artic-xaml-runtime"]
   L3["Layer 3: artic-element, artic-lsp"]
   L4["Layer 4: artic-controls, artic-platform, artic-cli"]

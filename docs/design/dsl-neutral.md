@@ -130,7 +130,7 @@ The goal goes into the spec and the architecture:
 - spec §2 and `docs/architecture.md` show the language layer beside the host and renderer adapters;
 - spec §3 describes the registry in neutral terms and points at `dsl.md`; its "Namespaces" subsection, which is about XAML, moves to §4, and "a back end reports a URI no registered type declares" becomes "a URI the namespace map doesn't know";
 - spec §4 stays XAML's;
-- `docs/architecture.md` drops the planned `artic-style` → `artic-xaml` edge: when selector errors need a source span, the span and diagnostic types move to a crate below every language, so `artic-style` names no language.
+- `docs/architecture.md` drops the planned `artic-style` → `artic-xaml` edge: when selector errors need a source span, the span and diagnostic types move to a crate below every language, so `artic-style` names no language. They now live in `artic-diagnostics` (#325).
 
 After the rename, every document is checked against the code and updated to it: `docs/spec/technical_spec.md`, `docs/architecture.md`, every file in `docs/design/` and `docs/spikes/`, and the crates' module docs. The pull request lists each file with what it needed, or that it was checked and needed nothing. Design documents describe the code as it is, so they use the new names too; the decisions they record keep their reasons.
 

@@ -119,7 +119,7 @@ The block above is a view without a code type. The builder design's sample is a 
 
 ## What the compiler reports
 
-`compile_str` collects every problem in one pass as `artic-xaml` `Diagnostics`, each with its span:
+`compile_str` collects every problem in one pass as `artic-diagnostics` `Diagnostics`, each with its span:
 
 | Input | Diagnostic |
 | --- | --- |

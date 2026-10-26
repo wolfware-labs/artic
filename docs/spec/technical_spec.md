@@ -51,8 +51,8 @@ The framework is a Cargo workspace of layered crates; each layer depends only on
 
 ```mermaid
 flowchart BT
-  L0["Layer 0: artic-core, artic-macros, artic-xaml, artic-test-fonts"]
-  L1["Layer 1: artic-registry, artic-layout, artic-i18n"]
+  L0["Layer 0: artic-core, artic-macros, artic-diagnostics, artic-test-fonts"]
+  L1["Layer 1: artic-registry, artic-layout, artic-i18n, artic-xaml"]
   L2["Layer 2: artic-render, artic-text, artic-style, artic-xaml-compiler, artic-xaml-runtime"]
   L3["Layer 3: artic-element, artic-lsp"]
   L4["Layer 4: artic-controls, artic-platform, artic-cli"]
@@ -68,7 +68,8 @@ Each layer builds on the ones below it. The exact dependency edges and the rules
 | `artic-core` | Signals, effects, `Property<T>`, styled-property metadata, visual/logical tree, `Object` trait, resources, dispatcher | `Signal`, `effect`, `Property`, `Node`, `UiTree`, `Dispatcher` |
 | `artic-registry` | Type descriptors any UI language uses: type name → constructor, properties, content, attached properties, events, value providers; a type's namespace is its crate | `TypeInfo`, `PropertyInfo`, `Registry`, `Lookup` |
 | `artic-macros` | `#[derive(UiType)]`, `#[element]`, `#[derive(UiProperties)]`, `#[derive(UiEnum)]`, `#[derive(ViewModel)]`, `#[ui_class]` | proc macros |
-| `artic-xaml` | Parser: XML → XAML Infoset (MS-XAML §5), markup-extension grammar, diagnostics with spans | `XamlDocument`, `XamlNode`, `MarkupExtensionAst`, `Diagnostic` |
+| `artic-diagnostics` | Source files, spans and diagnostics every UI language reports through | `SourceMap`, `Span`, `Diagnostic` |
+| `artic-xaml` | Parser: XML → XAML Infoset (MS-XAML §5), markup-extension grammar | `XamlDocument`, `XamlNode`, `MarkupExtensionAst` |
 | `artic-xaml-compiler` | Infoset → Rust source (`build.rs` API and `cargo artic` CLI), reached through the facade's `xaml-compiler` feature | `compile_str()`, `compile_dir()` |
 | `artic-xaml-runtime` | Infoset → live object tree using the registry; file watcher and hot-swap | `XamlLoader`, `HotReload` |
 | `artic-xaml-macros` (planned) | `xaml!`: a view written inline in XAML, compiled like a `.xaml` file. It sits beside the XAML compiler, so no generic crate names XAML | proc macro |

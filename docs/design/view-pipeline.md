@@ -31,7 +31,7 @@ CheckedView                   artic-view: every member found, content placed, na
 
 `artic-diagnostics` has no dependencies, so `artic-style`'s selector errors and the parser use spans without the registry. `artic-view` has no `syn`, so the loader doesn't carry a code generator at run time. `artic-xaml` stays free of the registry, as `docs/architecture.md` requires, so its tests still need no registry. `artic-view-compiler` turns on the registry's `literals` feature, which `artic-xaml-compiler` turns on today.
 
-The moved code keeps its behavior; its own tests and docs, which use XAML file names and messages as examples, are rewritten with neutral ones, so `scripts/check-ui-neutral.sh` passes over the new crates. The render snapshot keeps its rendered content; its file name and its `source:` header follow the new crate.
+The moved code keeps its behavior; its own tests and docs, which use XAML file names and messages as examples, are rewritten with neutral ones, so `scripts/check-ui-neutral.sh` passes over the new crates. The render snapshot's test uses a neutral file name and message, so its text changes with its file name and `source:` header; every other snapshot keeps its content.
 
 ## The document
 
