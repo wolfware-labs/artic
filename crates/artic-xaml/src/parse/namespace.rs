@@ -173,15 +173,25 @@ mod tests {
   use super::*;
   use pretty_assertions::assert_eq;
 
-  // .NET names become snake_case, splitting at lowercase-to-uppercase and before the last capital of
-  // an acronym.
+  // The rule every snake_case converter in artic follows: a word starts at a capital after a
+  // lowercase letter or a digit, and at the last capital of an acronym.
   #[test]
-  fn snake_case_splits_words() {
-    let converted: Vec<_> = ["MyApp", "XMLParser", "Views", "V2Controls", "io"]
-      .into_iter()
-      .map(snake_case)
-      .collect();
-    assert_eq!(converted, ["my_app", "xml_parser", "views", "v2_controls", "io"]);
+  fn snake_case_matches_the_shared_table() {
+    let table = [
+      ("MyApp", "my_app"),
+      ("XMLParser", "xml_parser"),
+      ("Views", "views"),
+      ("V2Controls", "v2_controls"),
+      ("io", "io"),
+      ("SubmitButton", "submit_button"),
+      ("URLField", "url_field"),
+      ("ZIndex", "z_index"),
+      ("Email", "email"),
+      ("Submit_Button", "submit_button"),
+    ];
+    for (name, snake) in table {
+      assert_eq!(snake_case(name), snake, "{name}");
+    }
   }
 
   // A `clr-namespace:` value becomes a module path; the assembly is dropped.
