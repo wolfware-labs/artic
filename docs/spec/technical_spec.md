@@ -51,14 +51,15 @@ The framework is a Cargo workspace of layered crates; each layer depends only on
 
 ```mermaid
 flowchart BT
-  L0["Layer 0: artic-core, artic-macros, artic-diagnostics, artic-test-fonts"]
-  L1["Layer 1: artic-registry, artic-layout, artic-i18n, artic-xaml"]
-  L2["Layer 2: artic-render, artic-text, artic-style, artic-view, artic-xaml-runtime"]
-  L3["Layer 3: artic-element, artic-xaml-compiler"]
-  L4["Layer 4: artic-controls, artic-platform, artic-lsp"]
-  L5["Layer 5: artic-theme, artic-test, artic-winit, artic-vello, artic-cli"]
-  L6["Layer 6: artic"]
-  L0 --> L1 --> L2 --> L3 --> L4 --> L5 --> L6
+  L0["Layer 0: artic-core, artic-diagnostics, artic-ident, artic-test-fonts"]
+  L1["Layer 1: artic-macros, artic-registry, artic-i18n, artic-xaml"]
+  L2["Layer 2: artic-layout, artic-style, artic-view, artic-xaml-runtime"]
+  L3["Layer 3: artic-render, artic-text, artic-xaml-compiler"]
+  L4["Layer 4: artic-element, artic-vello, artic-lsp"]
+  L5["Layer 5: artic-controls, artic-platform, artic-cli"]
+  L6["Layer 6: artic-theme, artic-test, artic-winit"]
+  L7["Layer 7: artic"]
+  L0 --> L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> L7
 ```
 
 Each layer builds on the ones below it. The exact dependency edges and the rules behind them (for example, `artic-controls` never depends on `artic-platform`) are in [docs/architecture.md](../architecture.md). The app crate depends on the compiler only as a build-dependency.
@@ -69,6 +70,7 @@ Each layer builds on the ones below it. The exact dependency edges and the rules
 | `artic-registry` | Type descriptors any UI language uses: type name → constructor, properties, content, attached properties, events, value providers; a type's namespace is its crate | `TypeInfo`, `PropertyInfo`, `Registry`, `Lookup` |
 | `artic-macros` | `#[derive(UiType)]`, `#[element]`, `#[derive(UiProperties)]`, `#[derive(UiEnum)]`, `#[derive(ViewModel)]`, `#[ui_class]` | proc macros |
 | `artic-diagnostics` | Source files, spans and diagnostics every UI language reports through | `SourceMap`, `Span`, `Diagnostic` |
+| `artic-ident` | Rust identifier rules the code generators share: snake case, keywords, what an identifier is | `snake_case()`, `is_identifier()`, `is_keyword()` |
 | `artic-view` | The view every UI language reads its files into (`Document`), the checks on it, and the trait a language implements | `Document`, `check()`, `CheckedView`, `Language` |
 | `artic-xaml` | Parser: XML → XAML Infoset (MS-XAML §5), markup-extension grammar | `XamlDocument`, `XamlNode`, `MarkupExtensionAst` |
 | `artic-xaml-compiler` | Infoset → Rust source (`build.rs` API and `cargo artic` CLI), reached through the facade's `xaml-compiler` feature | `compile_str()`, `compile_dir()` |

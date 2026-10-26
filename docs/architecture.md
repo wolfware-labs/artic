@@ -16,17 +16,18 @@ No crate below a UI language depends on it or names it. Only the XAML crates, `a
 
 ## Layers
 
-A crate depends only on crates in lower layers. Crates in the same layer never depend on each other.
+A crate's layer is its depth: one more than the deepest artic crate it depends on, planned dependencies included, and 0 for a crate with none. So a crate depends only on crates in lower layers, and crates in the same layer never depend on each other.
 
 | Layer | Crates | Role |
 | --- | --- | --- |
-| 0 | `artic-core`, `artic-macros`, `artic-diagnostics`, `artic-test-fonts` | Foundations with no artic dependencies: the reactive core and tree, the proc macros, spans and diagnostics, and the test font |
-| 1 | `artic-registry`, `artic-layout`, `artic-i18n`, `artic-xaml` | Type metadata, geometry, layout and text values, localization, the XAML parser |
-| 2 | `artic-render`, `artic-text`, `artic-style`, `artic-view`, `artic-xaml-runtime` | The `Renderer` seam and scene; text shaping and fonts; styling; the view every UI language reads into, and its checks; the XAML loader |
-| 3 | `artic-element`, `artic-xaml-compiler` | The `Element` trait, its contexts and the property groups every control has; the XAML compiler |
-| 4 | `artic-controls`, `artic-platform`, `artic-lsp` | Controls, the `Host` seam and frame pipeline, and the language server |
-| 5 | `artic-theme`, `artic-test`, `artic-winit`, `artic-vello`, `artic-cli` | The default theme, test utilities, the default backend adapters, and the CLI |
-| 6 | `artic` | The facade that apps depend on |
+| 0 | `artic-core`, `artic-diagnostics`, `artic-ident`, `artic-test-fonts` | Foundations with no artic dependencies: the reactive core and tree, spans and diagnostics, Rust identifier rules, and the test font |
+| 1 | `artic-macros`, `artic-registry`, `artic-i18n`, `artic-xaml` | The proc macros, type metadata, localization, the XAML parser |
+| 2 | `artic-layout`, `artic-style`, `artic-view`, `artic-xaml-runtime` | Geometry, layout and text values; styling; the view every UI language reads into, and its checks; the XAML loader |
+| 3 | `artic-render`, `artic-text`, `artic-xaml-compiler` | The `Renderer` seam and scene; text shaping and fonts; the XAML compiler |
+| 4 | `artic-element`, `artic-vello`, `artic-lsp` | The `Element` trait, its contexts and the property groups every control has; the default renderer adapter; the language server |
+| 5 | `artic-controls`, `artic-platform`, `artic-cli` | Controls, the `Host` seam and frame pipeline, and the CLI |
+| 6 | `artic-theme`, `artic-test`, `artic-winit` | The default theme, test utilities, and the default host adapter |
+| 7 | `artic` | The facade that apps depend on |
 
 ## Dependency graph
 
@@ -79,6 +80,9 @@ flowchart TD
   registry --> core[artic-core]
   layout --> core
   layout --> macros
+  macros --> ident[artic-ident]
+  xaml --> ident
+  view --> ident
   i18n[artic-i18n] --> core
 ```
 
@@ -87,9 +91,10 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | Crate | Depends on |
 | --- | --- |
 | `artic-core` | none |
-| `artic-macros` | none (proc-macro; generated code names `artic::__private`, `artic_registry::__private` or, for `UiEnum`, `artic_core::__private`, whichever the calling crate depends on) |
+| `artic-macros` | `artic-ident` (proc-macro; generated code names `artic::__private`, `artic_registry::__private` or, for `UiEnum`, `artic_core::__private`, whichever the calling crate depends on) |
 | `artic-diagnostics` | none |
-| `artic-xaml` | `artic-diagnostics` |
+| `artic-ident` | none |
+| `artic-xaml` | `artic-diagnostics`, `artic-ident` |
 | `artic-test-fonts` | none (data only: the test font's bytes) |
 | `artic-registry` | `artic-core` |
 | `artic-layout` | `artic-core`, `artic-macros` |
@@ -97,7 +102,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-render` | `artic-core`, `artic-layout` |
 | `artic-text` | `artic-layout` |
 | `artic-style` | `artic-core`, `artic-registry` |
-| `artic-view` | `artic-registry`, `artic-diagnostics` |
+| `artic-view` | `artic-registry`, `artic-diagnostics`, `artic-ident` |
 | `artic-xaml-compiler` | `artic-xaml`, `artic-view`, `artic-registry`, `artic-diagnostics` |
 | `artic-xaml-runtime` | `artic-xaml`, `artic-registry`, `artic-core` |
 | `artic-element` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-macros` |
@@ -123,7 +128,8 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 - Dev-dependencies may point from any crate to `artic-test`, as long as `artic-test` does not depend back on that crate. Control, theme and language-server tests use `TestHost` this way.
 - Test data that a crate below `artic-test` needs too, such as the test font, lives in a data-only crate with no dependencies (`artic-test-fonts`), not in `artic-test`, so the crate's tests can use it without a cycle.
 - The crates under `crates/artic-registry/fixtures/` are test-only (`publish = false`) and sit outside the layers. Two register two UI types each (`Alpha` or `Beta`, and `Twin`); `artic-registry-linking` holds the tests that check which of them reach the registry.
-- `artic-macros`' own tests dev-depend on crates that use the macros, such as `artic-core`, `artic-registry` and `artic-element`. Cargo allows these dev-only loops: `artic-macros` itself depends on no artic crate, so its build has no cycle.
+- `artic-macros`' own tests dev-depend on crates that use the macros, such as `artic-core`, `artic-registry` and `artic-element`. Cargo allows these dev-only loops: `artic-macros` itself depends only on `artic-ident`, so its build has no cycle.
+- Rust identifier rules (snake case, keywords, what an identifier is) live in `artic-ident`, below every crate that writes Rust from a name, so each converts and checks a name the same way.
 - Spans and diagnostics live in `artic-diagnostics`, below every UI language, so `artic-style` can report selector errors with spans without naming one.
 - `crates/docs-check` is test-only (`publish = false`) and sits outside the layers, like the registry fixtures. It compiles the Rust code in the documents.
 - `artic-xaml` does not depend on the registry. Type references stay unresolved in the infoset, so parser tests need no registry.
