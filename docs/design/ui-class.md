@@ -72,7 +72,7 @@ pub trait ElementImpl {
 }
 ```
 
-`UserControl` and `Surface` then have empty impls, and `#[ui_class]` writes `impl ElementImpl for LoginView {}`. A leaf with no children still measures as nothing, and `Border`, `StackPanel` and `TextBlock` override both methods already. `Application`, whose children are surfaces the host lays out on their own, is checked to make sure the default does nothing harmful there.
+`UserControl` then has an empty impl, `Surface` keeps only its `accessibility` override (the window role and title), and `#[ui_class]` writes `impl ElementImpl for LoginView {}`. A leaf with no children still measures as nothing, and `Border`, `StackPanel` and `TextBlock` override both methods already. `Application`, whose children are surfaces the host lays out on their own, is checked to make sure the default does nothing harmful there.
 
 ## The named nodes: one `ui` field
 
@@ -213,7 +213,7 @@ Today the view model, Rust emission, member resolution, `compile_dir` and the di
 | PR | Contents |
 | --- | --- |
 | 1 | this document and the changes above |
-| 2 | `ElementImpl`'s fill default; `UserControl` and `Surface` lose their impls |
+| 2 | `ElementImpl`'s fill default; `UserControl` and `Surface` lose their layout methods |
 | 3 | the view compiler: code type and field visibility, the root as the code type, `CODE_TYPE`, output paths relative to the crate, the diagnostics above; XAML reads `x:Class` and `x:FieldModifier` into them |
 | 4 | `#[ui(required)]`, `#[ui(new = …)]`, `#[ui_class]`, the facade's `artic::ui_class`, the fixture app's code type and the trybuild cases; closes #52 |
 
