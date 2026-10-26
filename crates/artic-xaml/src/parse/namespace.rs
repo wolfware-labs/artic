@@ -4,7 +4,7 @@ use super::text::Decoded;
 use super::{unresolved, unsupported};
 use crate::infoset::XamlNamespace;
 use artic_diagnostics::{Diagnostic, Diagnostics, SourceId, Span};
-use artic_ident::{is_identifier, is_keyword, snake_case};
+use artic_ident::{is_identifier, is_keyword, is_path_keyword, snake_case};
 
 const MARKUP_URI: &str = "https://artic.rs/markup";
 pub(super) const UI_URI: &str = "https://artic.rs/ui";
@@ -92,7 +92,7 @@ impl UsingPath<'_> {
     for (index, segment) in self.path.split("::").enumerate() {
       let span = self.span(offset, offset + segment.len());
       offset += segment.len() + "::".len();
-      if index == 0 && matches!(segment, "" | "crate" | "self" | "super") {
+      if index == 0 && (segment.is_empty() || is_path_keyword(segment)) {
         return Some(Diagnostic::error(span, "a `using:` path starts with a crate name").with_help(from_crate));
       }
       if segment.is_empty() {

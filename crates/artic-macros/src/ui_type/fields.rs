@@ -1,6 +1,6 @@
 use crate::ui_type::attributes::{FieldAttributes, TypeAttributes, parse_field_attributes, parse_type_attributes};
 use crate::ui_type::builders::{content_method, key_constant_name};
-use artic_ident::snake_case;
+use artic_ident::{pascal_case, screaming_snake_case, snake_case};
 use quote::ToTokens;
 use syn::ext::IdentExt;
 use syn::{Data, DeriveInput, Error, Field, Fields, GenericArgument, Ident, PathArguments, Type, Visibility};
@@ -185,7 +185,7 @@ fn check_generated_names(attributes: &TypeAttributes, ui_fields: &[UiField]) -> 
   for attached in &attributes.attached {
     let name = attached.name.value();
     let getter = snake_case(&name);
-    let items = [(format!("set_{getter}"), "setter"), (getter.to_uppercase(), "constant")];
+    let items = [(format!("set_{getter}"), "setter"), (screaming_snake_case(&name), "constant")];
     take(
       &mut taken,
       getter,
@@ -325,21 +325,6 @@ pub fn generic_argument<'a>(ty: &'a Type, wrapper: &str) -> Option<&'a Type> {
     GenericArgument::Type(argument) if arguments.args.len() == 1 => Some(argument),
     _ => None,
   }
-}
-
-fn pascal_case(name: &str) -> String {
-  name
-    .trim_start_matches("r#")
-    .split('_')
-    .filter(|part| !part.is_empty())
-    .map(|part| {
-      let mut chars = part.chars();
-      chars
-        .next()
-        .map(|first| first.to_uppercase().chain(chars).collect::<String>())
-        .unwrap_or_default()
-    })
-    .collect()
 }
 
 #[cfg(test)]
@@ -549,6 +534,19 @@ mod tests {
     assert_eq!(
       error(&input),
       "`ROW` would be both the key constant of the property `Row` and the constant of the attached property `Row`; rename one"
+    );
+  }
+
+  // Two fields whose key constants are one name, such as `row_span` and `rowSpan`, are rejected.
+  #[test]
+  fn fields_with_one_key_constant_are_an_error() {
+    let input: DeriveInput = parse_quote! {
+      struct Grid { #[ui] row_span: Property<usize>, #[ui] rowSpan: Property<usize> }
+    };
+
+    assert_eq!(
+      error(&input),
+      "`ROW_SPAN` would be both the key constant of the property `row_span` and the key constant of the property `rowSpan`; rename one"
     );
   }
 

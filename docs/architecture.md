@@ -129,7 +129,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 - Test data that a crate below `artic-test` needs too, such as the test font, lives in a data-only crate with no dependencies (`artic-test-fonts`), not in `artic-test`, so the crate's tests can use it without a cycle.
 - The crates under `crates/artic-registry/fixtures/` are test-only (`publish = false`) and sit outside the layers. Two register two UI types each (`Alpha` or `Beta`, and `Twin`); `artic-registry-linking` holds the tests that check which of them reach the registry.
 - `artic-macros`' own tests dev-depend on crates that use the macros, such as `artic-core`, `artic-registry` and `artic-element`. Cargo allows these dev-only loops: `artic-macros` itself depends only on `artic-ident`, so its build has no cycle.
-- Rust identifier rules (snake case, keywords, what an identifier is) live in `artic-ident`, below every crate that writes Rust from a name, so each converts and checks a name the same way.
+- Rust identifier rules (snake, screaming snake and Pascal case, keywords, what an identifier is, and how a name is written as one) live in `artic-ident`, below every crate that writes Rust from a name, so each converts and checks a name the same way.
 - Spans and diagnostics live in `artic-diagnostics`, below every UI language, so `artic-style` can report selector errors with spans without naming one.
 - `crates/docs-check` is test-only (`publish = false`) and sits outside the layers, like the registry fixtures. It compiles the Rust code in the documents.
 - `artic-xaml` does not depend on the registry. Type references stay unresolved in the infoset, so parser tests need no registry.

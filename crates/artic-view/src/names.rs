@@ -1,15 +1,14 @@
 //! The fields of a view's code that its names give.
 
-use artic_ident::{is_identifier, is_keyword, snake_case};
+use artic_ident::{IdentError, rust_identifier, snake_case};
 
 /// The field a name gives in a view's code: the name in snake_case, such as `submit_button` for
 /// `SubmitButton`, and a keyword as a raw identifier, such as `r#type` for `Type`; or why it
 /// can't be one.
 ///
-/// The name is taken as written, so spaces around it make it invalid. Its field, the name in
-/// snake_case with each run of underscores inside it written as one, must be a Rust identifier
-/// by Unicode's rules, other than `_`. Two names with one field, such as `Email` and `email`,
-/// give it twice.
+/// The name is taken as written, so spaces around it make it invalid. Its field is
+/// `artic_ident`'s snake_case form of it, written as `artic_ident::rust_identifier` writes it.
+/// Two names with one field, such as `Email` and `email`, give it twice.
 ///
 /// # Errors
 ///
@@ -20,36 +19,20 @@ pub fn field_name(name: &str) -> Result<String, &'static str> {
   if name.starts_with("r#") {
     return Err("write the name without `r#`: a keyword becomes a raw identifier by itself");
   }
-  let field = collapse_underscores(&snake_case(name));
-  match field.as_str() {
-    "root" => Err("`root` is the field of the view's root element"),
-    "self" | "crate" | "super" => Err("`self`, `Self`, `crate` and `super` can't be raw identifiers"),
-    _ if !is_identifier(&field) => Err("a name must be a Rust identifier"),
-    _ if is_keyword(&field) => Ok(format!("r#{field}")),
-    _ => Ok(field),
+  let field = snake_case(name);
+  if field == "root" {
+    return Err("`root` is the field of the view's root element");
   }
-}
-
-/// `field` with each run of underscores inside it written as one, as Rust's snake_case lint
-/// asks; leading and trailing underscores are kept.
-fn collapse_underscores(field: &str) -> String {
-  let inner = field.trim_matches('_');
-  let start = field.len() - field.trim_start_matches('_').len();
-  let mut collapsed = String::with_capacity(field.len());
-  collapsed.push_str(&field[..start]);
-  for character in inner.chars() {
-    if !(character == '_' && collapsed.ends_with('_')) {
-      collapsed.push(character);
-    }
-  }
-  collapsed.push_str(&field[start + inner.len()..]);
-  collapsed
+  rust_identifier(&field).map_err(|error| match error {
+    IdentError::PathKeyword => "`self`, `Self`, `crate` and `super` can't be raw identifiers",
+    IdentError::NotIdentifier => "a name must be a Rust identifier",
+  })
 }
 
 #[cfg(test)]
 mod tests {
   use super::*;
-  use artic_ident::KEYWORDS;
+  use artic_ident::{KEYWORDS, is_path_keyword};
   use pretty_assertions::assert_eq;
 
   /// The field the rule built on `syn` gives `name`, which `field_name` replaces.
@@ -94,7 +77,7 @@ mod tests {
     let raw_only = KEYWORDS
       .iter()
       .copied()
-      .filter(|word| !["gen", "self", "Self", "crate", "super"].contains(word));
+      .filter(|word| *word != "gen" && !is_path_keyword(word));
     for word in raw_only.chain(others) {
       assert_eq!(field_name(word).ok(), syn_field(word), "{word:?}");
     }

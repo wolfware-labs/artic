@@ -588,6 +588,7 @@ fn invalid_using_paths_are_errors() {
   let cases = [
     ("using:", "`using:` needs a Rust module path", ""),
     ("using:crate::views", "a `using:` path starts with a crate name", "crate"),
+    ("using:Self::views", "a `using:` path starts with a crate name", "Self"),
     ("using:::app", "a `using:` path starts with a crate name", ""),
     ("using:app::::views", "empty segment in a `using:` path", ""),
     ("using:app::", "empty segment in a `using:` path", ""),

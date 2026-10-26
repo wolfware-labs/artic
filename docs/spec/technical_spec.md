@@ -70,7 +70,7 @@ Each layer builds on the ones below it. The exact dependency edges and the rules
 | `artic-registry` | Type descriptors any UI language uses: type name → constructor, properties, content, attached properties, events, value providers; a type's namespace is its crate | `TypeInfo`, `PropertyInfo`, `Registry`, `Lookup` |
 | `artic-macros` | `#[derive(UiType)]`, `#[element]`, `#[derive(UiProperties)]`, `#[derive(UiEnum)]`, `#[derive(ViewModel)]`, `#[ui_class]` | proc macros |
 | `artic-diagnostics` | Source files, spans and diagnostics every UI language reports through | `SourceMap`, `Span`, `Diagnostic` |
-| `artic-ident` | Rust identifier rules the code generators share: snake case, keywords, what an identifier is | `snake_case()`, `is_identifier()`, `is_keyword()` |
+| `artic-ident` | Rust identifier rules the code generators share: case conversions, keywords, and how a name is written as an identifier | `rust_identifier()`, `snake_case()`, `screaming_snake_case()`, `pascal_case()`, `is_identifier()`, `is_keyword()`, `is_path_keyword()` |
 | `artic-view` | The view every UI language reads its files into (`Document`), the checks on it, and the trait a language implements | `Document`, `check()`, `CheckedView`, `Language` |
 | `artic-xaml` | Parser: XML → XAML Infoset (MS-XAML §5), markup-extension grammar | `XamlDocument`, `XamlNode`, `MarkupExtensionAst` |
 | `artic-xaml-compiler` | Infoset → Rust source (`build.rs` API and `cargo artic` CLI), reached through the facade's `xaml-compiler` feature | `compile_str()`, `compile_dir()` |

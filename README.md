@@ -64,7 +64,7 @@ The workspace is layered. A crate depends only on crates in lower layers, so the
 | 0 | `artic-core` | Signals, effects, `Property<T>`, the node tree and trees, the UI dispatcher |
 | 0 | `artic-diagnostics` | Source files, spans and diagnostics for every UI language |
 | 0 | `artic-test-fonts` | The font artic's tests shape text with, as byte constants |
-| 0 | `artic-ident` | Rust identifier rules the code generators share: snake case, keywords, what an identifier is |
+| 0 | `artic-ident` | Rust identifier rules the code generators share: case conversions, keywords, and how a name is written as an identifier |
 | 1 | `artic-macros` | The derive and attribute macros, such as `#[element]`, `#[derive(UiType)]` and `#[derive(UiEnum)]` |
 | 1 | `artic-registry` | Type metadata that lets UI languages name Rust types and properties |
 | 1 | `artic-i18n` | Optional localizer backed by Fluent `.ftl` files |
