@@ -35,7 +35,7 @@ The moved code keeps its behavior; its own tests and docs, which use XAML file n
 
 ## The document
 
-A front end turns its syntax into a `Document`: plain data, every type looked up, every member still as written, in the language's member order. It's what a test builds by hand.
+A front end turns its syntax into a `Document`: plain data, the type of every element it holds looked up, every member still as written, in the language's member order. A type that isn't found becomes a `Problem` the checker reports only if it reaches that element, so an element inside a collection of values reports nothing, as today, and an element written as a property's value isn't held at all until #57. It's what a test builds by hand.
 
 Today's compiler reports a problem only where it looks: a property's value is read only once the type and the property are found, and an element where its parent takes a value, such as inside a `TextBlock`, is never looked up at all ([what the compiler reports](xaml-compiler.md#what-the-compiler-reports)). A front end can't know those rules without copying them, so it records each problem where it occurs, as a `Problem`, and the checker reports the problems it reaches, in the order it reaches them. A problem it doesn't reach is dropped, as today.
 
@@ -156,7 +156,7 @@ pub fn field_name(name: &str) -> Result<String, &'static str>;
 The checker is `lower.rs`'s member half, unchanged in behavior, and needs no registry: each `TypeInfo` it holds answers for its own properties. It walks the document in member order, children where their content member is, and, for each element it reaches:
 
 1. reports the type's problem and goes on: properties are checked only when the type was found; names and `Unsupported` members always; the elements in the content always when the type wasn't found, and as step 4 says when it was;
-2. for a property, finds it by name or reports it unknown (an event's name gives "event handlers come with #82"), then reports the value's problem or a property set twice;
+2. for a property, finds it by name; an unknown name is reported (an event's name gives "event handlers come with #82") and ends that member, its value and "set twice" never checked; for a found property, reports the value's problem if it has one, and otherwise a property set twice;
 3. for a name, reports its problem, then a name `field_name` refuses, with the reason as help, then two elements with one name, so a name that's invalid twice is reported twice;
 4. for content, applies the type's rule: text for a content property, where the first element or `Unsupported` node is reported and ends the content; children for `child` or `children`, where text is reported with the help "put the text in an element, such as a `TextBlock`", every child element counts toward "takes one child" whether its type was found or not, and the child taken is the only found one; nothing for a type that takes none, where text and elements are reported and the elements still checked; and, for a collection of values, "value collections come with #57" when it holds anything but blank text, the elements inside it never reached;
 5. reports each `Unsupported` member.
