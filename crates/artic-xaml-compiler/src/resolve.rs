@@ -1,8 +1,8 @@
 //! Finding the type a markup name stands for, and the path generated code names it by.
 
 use crate::unsupported;
+use artic_diagnostics::{Diagnostic, Diagnostics, Span};
 use artic_registry::{Lookup, Registry, TypeInfo};
-use artic_xaml::diagnostics::{Diagnostic, Diagnostics, Span};
 use artic_xaml::infoset::{TypeRef, XamlNamespace};
 use artic_xaml::namespaces::NamespaceMap;
 use syn::Path;

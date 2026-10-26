@@ -3,8 +3,8 @@
 
 use super::text::{Decoded, OffsetMap};
 use super::{Fatal, duplicate_of, unresolved};
-use crate::diagnostics::{Diagnostic, Diagnostics, SourceId, Span};
 use crate::infoset::{Member, MemberKey, TypeRef, XamlNode};
+use artic_diagnostics::{Diagnostic, Diagnostics, SourceId, Span};
 
 /// Parses an attribute value that starts with `{`: a markup extension, or literal text after a
 /// `{}` escape. Returns `None` if the value has an error, which is recorded in `diagnostics`.
@@ -301,8 +301,8 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::diagnostics::SourceMap;
   use crate::parse::text::{Kind, decode};
+  use artic_diagnostics::SourceMap;
   use pretty_assertions::assert_eq;
 
   /// Parses `value` as an attribute value written at the start of a file.

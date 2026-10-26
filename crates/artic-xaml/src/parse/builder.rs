@@ -3,8 +3,8 @@
 use super::text::{Decoded, Kind, decode, normalize_line_endings};
 use super::whitespace::{self, Space};
 use super::{Fatal, duplicate_of, markup, namespace, unresolved, unsupported};
-use crate::diagnostics::{Diagnostic, Diagnostics, LineCol, SourceFile, SourceId, Span};
 use crate::infoset::{Directive, Member, MemberKey, NamespaceDecl, TypeRef, XamlDocument, XamlNamespace, XamlNode};
+use artic_diagnostics::{Diagnostic, Diagnostics, LineCol, SourceFile, SourceId, Span};
 use std::collections::HashSet;
 use xmlparser::{ElementEnd, StrSpan, Token, Tokenizer};
 

@@ -1,6 +1,6 @@
 //! The constructs a later issue adds, each reported with that issue.
 
-use artic_xaml::diagnostics::{Diagnostic, Span};
+use artic_diagnostics::{Diagnostic, Span};
 use artic_xaml::infoset::{TypeRef, XamlNamespace};
 
 /// An `x:` primitive written as an element, such as `<x:String>`.

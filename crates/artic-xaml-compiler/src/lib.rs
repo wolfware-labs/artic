@@ -8,7 +8,7 @@
 //!
 //! ```
 //! use artic_registry::Registry;
-//! use artic_xaml::diagnostics::SourceMap;
+//! use artic_diagnostics::SourceMap;
 //!
 //! let mut sources = SourceMap::new();
 //! let file = sources.add("view.xaml", r#"<Border xmlns="https://artic.rs/ui"/>"#);
@@ -27,8 +27,8 @@ mod unsupported;
 
 pub use dir::{CompileError, compile_dir, compile_into};
 
+use artic_diagnostics::{Diagnostics, SourceId, SourceMap};
 use artic_registry::Registry;
-use artic_xaml::diagnostics::{Diagnostics, SourceId, SourceMap};
 use artic_xaml::namespaces::NamespaceMap;
 
 /// Compiles one document to the Rust module body for it.

@@ -1,8 +1,8 @@
 //! Compiling a document in a test, against the registry the test binary links.
 
 use artic::xaml::NamespaceMap;
+use artic_diagnostics::SourceMap;
 use artic_registry::Registry;
-use artic_xaml::diagnostics::SourceMap;
 
 /// A URI standing for the test crate, whose own `#[derive(UiType)]` types it names.
 pub const TEST_UI: &str = "https://test.example/ui";

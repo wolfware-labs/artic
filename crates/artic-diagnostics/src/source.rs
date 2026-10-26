@@ -98,9 +98,9 @@ impl SourceFile {
   /// # Examples
   ///
   /// ```
-  /// use artic_xaml::diagnostics::{LineCol, SourceFile};
+  /// use artic_diagnostics::{LineCol, SourceFile};
   ///
-  /// let file = SourceFile::new("view.xaml", "<A>\r\n  <B é=\"1\"/>\r\n</A>");
+  /// let file = SourceFile::new("view.ui", "<A>\r\n  <B é=\"1\"/>\r\n</A>");
   /// assert_eq!(file.line_col(10), LineCol { line: 2, column: 6 });
   /// ```
   #[must_use]
@@ -193,7 +193,7 @@ mod tests {
 
   /// Returns the line and column of `byte` in `text`.
   fn line_col(text: &str, byte: usize) -> (usize, usize) {
-    let position = SourceFile::new("test.xaml", text).line_col(byte);
+    let position = SourceFile::new("test.ui", text).line_col(byte);
     (position.line, position.column)
   }
 
@@ -233,7 +233,7 @@ mod tests {
   // With CRLF line endings, the `\r` neither counts as a column nor shifts line numbers.
   #[test]
   fn crlf_line_endings() {
-    let file = SourceFile::new("test.xaml", "<A>\r\n  <B/>\r\n</A>");
+    let file = SourceFile::new("test.ui", "<A>\r\n  <B/>\r\n</A>");
 
     assert_eq!(file.line_col(7), LineCol { line: 2, column: 3 });
     assert_eq!(file.line_col(13), LineCol { line: 3, column: 1 });
@@ -253,7 +253,7 @@ mod tests {
   // Line text has no line ending, and lines past the last one are empty.
   #[test]
   fn line_text() {
-    let file = SourceFile::new("test.xaml", "one\ntwo");
+    let file = SourceFile::new("test.ui", "one\ntwo");
 
     assert_eq!(file.line_text(1), "one");
     assert_eq!(file.line_text(2), "two");
@@ -266,18 +266,18 @@ mod tests {
   fn source_map_hands_out_ids() {
     let mut sources = SourceMap::new();
 
-    let first = sources.add("a.xaml", "a");
-    let second = sources.add("b.xaml", "b");
+    let first = sources.add("a.ui", "a");
+    let second = sources.add("b.ui", "b");
 
     assert_eq!(sources.get(first).text(), "a");
-    assert_eq!(sources.get(second).path(), Path::new("b.xaml"));
+    assert_eq!(sources.get(second).path(), Path::new("b.ui"));
   }
 
   // `byte_offset` undoes `line_col`, across multi-byte characters and CRLF line endings, and clamps
   // positions past the text.
   #[test]
   fn byte_offset_inverts_line_col() {
-    let file = SourceFile::new("test.xaml", "<A é=\"1\">\r\n  <B/>\r\n</A>");
+    let file = SourceFile::new("test.ui", "<A é=\"1\">\r\n  <B/>\r\n</A>");
 
     for byte in [0, 3, 5, 6, 12, 14, 18] {
       assert_eq!(file.byte_offset(file.line_col(byte)), byte, "byte {byte}");

@@ -1,8 +1,8 @@
 //! The MS-XAML and WPF constructs artic rejects, each with why and what to write instead.
 
 use super::namespace::UI_URI;
-use crate::diagnostics::{Diagnostic, Span};
 use crate::infoset::{TypeRef, XamlNamespace};
+use artic_diagnostics::{Diagnostic, Span};
 
 /// A construct artic rejects.
 pub(crate) struct Unsupported {
