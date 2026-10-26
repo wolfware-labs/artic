@@ -4,7 +4,7 @@ Issue: #325. Builds on: the [XAML compiler](xaml-compiler.md) (#49), [UI languag
 
 The compiler #49 built sits in the XAML crates, but most of it isn't XAML: diagnostics with source spans, checking a view's members against the registry, writing Rust, and driving a build script would be the same for any language. This design moves those parts into three crates no language owns. A language then writes one front end, from its syntax to a plain `Document`, and gets the compiler and, with #59, the loader from it. The XAML crates keep XAML's syntax and meaning only.
 
-The generated code and every diagnostic stay the same: each snapshot and the fixture app pass unchanged. The one difference is for a misconfigured path, [below](#writing-rust). A few names an app's build script can reach move; [What changes for an app](#what-changes-for-an-app) lists them.
+The generated code and every diagnostic stay the same: each snapshot's content and the fixture app stay unchanged; only the header insta writes above a moved snapshot, which names its source file, follows the move. The one difference is for a misconfigured path, [below](#writing-rust). A few names an app's build script can reach move; [What changes for an app](#what-changes-for-an-app) lists them.
 
 ## The pipeline
 
@@ -31,7 +31,7 @@ CheckedView                   artic-view: every member found, content placed, na
 
 `artic-diagnostics` has no dependencies, so `artic-style`'s selector errors and the parser use spans without the registry. `artic-view` has no `syn`, so the loader doesn't carry a code generator at run time. `artic-xaml` stays free of the registry, as `docs/architecture.md` requires, so its tests still need no registry. `artic-view-compiler` turns on the registry's `literals` feature, which `artic-xaml-compiler` turns on today.
 
-The moved code keeps its behavior; its own tests and docs, which use XAML file names and messages as examples, are rewritten with neutral ones, so `scripts/check-ui-neutral.sh` passes over the new crates. The render snapshot keeps its rendered content and takes the new crate's file name.
+The moved code keeps its behavior; its own tests and docs, which use XAML file names and messages as examples, are rewritten with neutral ones, so `scripts/check-ui-neutral.sh` passes over the new crates. The render snapshot keeps its rendered content; its file name and its `source:` header follow the new crate.
 
 ## The document
 
@@ -118,7 +118,7 @@ pub struct Problem {
 - `Content::span` runs from the first node to the last, the span a content property's text is set at.
 - `module` keeps the module a document named, as XAML's `using:` does, so generated code names the type there. Without one, the type is reached at its crate's root, the [convention](xaml-compiler.md#naming-types-in-generated-code) every artic crate follows.
 - `Content::Text` carries both forms because a type whose whitespace is significant (`Whitespace::Significant`) reads `raw`; the rules that make `text` are the language's own.
-- The document holds only what artic can build today. A construct a later issue adds is an `Unsupported` problem until that issue adds it: attached properties (#50), an element as a property's value (#57), value providers (#94, #112), resource keys (#111). The code type and field visibility come with #52.
+- The document holds only what artic can build today. A construct a later issue adds is an `Unsupported` problem until that issue adds it: attached properties (#50), an element as a property's value (#57), value providers (#94, #112), resource keys (#111). The code type and field visibility come with #52 and the data type with #94, each as a member of the document, so the loader (#59) gets them from the same document as the compiler.
 - The types are `artic_view::document::Element` and the like; code that also uses `artic_element::Element` names the module.
 
 ## A language
@@ -130,8 +130,7 @@ pub trait Language {
   fn extension(&self) -> &str;
 
   /// Reads `file` into a document, looking each type up in `registry`. Returns `None` when the
-  /// file can't be read as a document, with at least one diagnostic saying why; the diagnostics
-  /// are reported before the checker's.
+  /// file can't be read as a document, with at least one diagnostic saying why.
   fn read(&self, sources: &SourceMap, file: SourceId, registry: &Registry) -> (Option<Document>, Diagnostics);
 
   /// The crates its views can reach, which generated code references so the app links them.
@@ -202,7 +201,7 @@ Values stay text. The compiler writes each one as Rust at build time, and the lo
 
 `artic-view-compiler` turns a `CheckedView` into the module body #49 writes today. Emission always runs, on a partial view too, so its problems are reported with the others; `compile_str` keeps the code only when no stage reported an error. It reports:
 
-- a property's group trait path that isn't a Rust path, once per trait at its first use in member order, before that property's value;
+- a property's group trait path that isn't a Rust path, at each property that uses the trait, before that property's value, as today: a trait is recorded only once its path parses;
 - a value that can't be written as Rust, its type's refusal, and a `ToRust` impl that writes invalid Rust, at the value's span;
 - a type path that isn't a Rust path, at the type's name;
 - the prelude or a linked crate path that isn't a Rust path, at the root element.
@@ -242,7 +241,7 @@ pub fn compile_str(
 pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), paths: &CratePaths) -> Result<(), CompileError>;
 ```
 
-`compile_str` reads, checks and emits. When `read` returns no document it returns the language's diagnostics. Otherwise it gathers the diagnostics of the three stages, sorts them by where they start, keeping the order they were found in for one position, and returns them all if any is an error, or the Rust. The generated file references every crate of `language.crates()` and `paths.crates_named()`, each once and sorted, as it references every crate the namespace map names today. `compile_dir` is `dir.rs` with the extension and the language passed in; the doc-hidden `compile_into`, which its tests use, moves with it.
+`compile_str` reads, checks and emits. When `read` returns no document it returns the language's diagnostics. Otherwise it gathers the diagnostics of the three stages, sorts them by where they start, keeping the order they were found in for one position, and returns them all if any is an error, or the Rust. A view with warnings only returns the Rust and drops them, as `Diagnostics::into_result` does today; #51 decides how cargo shows them. The generated file references every crate of `language.crates()` and `paths.crates_named()`, each once and sorted, as it references every crate the namespace map names today. `compile_dir` is `dir.rs` with the extension and the language passed in; the doc-hidden `compile_into`, which its tests use, moves with it.
 
 `CratePaths` is the half of `NamespaceMap` that isn't XAML: `path`, `path_of` and the paths part of `crates_named` move here. `NamespaceMap` keeps `alias` and `crates`, plus a `crates_named` over the crates its URIs stand for, which `Xaml::crates` returns.
 
@@ -253,7 +252,7 @@ pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), p
 - each object element's type through a URI's crates or a `using:` module, or a problem: an undeclared URI (`once` set to `namespace:` and the URI), an unknown type with the linking hint, an ambiguous one ("use a `using:` namespace to pick one"), an `x:` primitive (#62), or a value provider written as an element;
 - each property member, attribute or property element, as one `Member::Property`; a markup extension in it (the issue that adds it, or an unknown value provider) or an element in it (#57) is the value's problem;
 - `x:Name` as `Member::Name`, or the problem "`x:Name` takes a name written as text"; `x:Key` (#111) and attached properties (#50) as `Unsupported`; `x:Class`, `x:DataType`, `x:FieldModifier` and `x:Uid` as nothing, as today;
-- content as `Member::Content`, its text with its MS-XAML form and its raw form, a markup extension in it as `Unsupported`.
+- content as `Member::Content`, its text with its MS-XAML form and its raw form. XAML's parser writes markup extensions only in attribute values, so XAML's content has no `Unsupported` node; the variant is for a language whose content can hold one.
 
 Every message keeps its text and its span, and the checker reaches each problem where `lower.rs` reported it, so the snapshots don't change. `artic-xaml-compiler` becomes `artic-xaml-lang` because the loader will use the front end too; a crate named "compiler" would be wrong for it. The crate's fixture packages keep their names, so the generated `use … as _;` lines in their views don't change.
 
@@ -261,7 +260,7 @@ Every message keeps its text and its span, and the checker reaches each problem 
 
 | Name | Feature | What it is |
 | --- | --- | --- |
-| `artic::xaml::compile_dir(dir, &namespaces)` | `xaml-compiler` | unchanged: `artic::view::compile_dir(dir, &Xaml::new(namespaces.clone()), &artic::view::crate_paths())` |
+| `artic::xaml::compile_dir(dir, &namespaces)` | `xaml-compiler` | unchanged: `artic::view::compile_dir(dir, &Xaml::new(namespaces.clone()), &artic::view::crate_paths())`, with artic's paths only |
 | `artic::xaml::namespaces()` | `xaml` | artic's URI only: `https://artic.rs/ui` → `artic_element`, `artic_controls` |
 | `artic::xaml::Xaml` | `xaml-compiler` | the language, for the long form below |
 | `artic::view::crate_paths()` | `view-compiler` | artic's crate paths: `artic_controls` → `::artic::controls` and the others |
@@ -295,7 +294,7 @@ artic::view::compile_dir("src/views", &xaml, &paths)?;
 | `artic-diagnostics` | the tests and the render snapshot that move from `artic-xaml`, with neutral file names in the examples |
 | `artic-view` | `check` on hand-built documents: an unknown property, an event, a property set twice, a value's problem reported only once its property is found, each content rule, an element in a value collection never reached, a name invalid twice, two elements with one name, an element whose type isn't found with a checked child, a `once` problem reported once; `keywords_match_syn` |
 | `artic-view-compiler` | `hand_built_view_compiles`: a test language whose `read` returns a document built in code compiles to Rust that `syn` parses and names the types through `CratePaths`; `CratePaths`' tests, moved from `artic-xaml`; `diagnostics_are_sorted_across_stages`; the `dir.rs` tests, run with the test language |
-| `artic-xaml-lang` | every snapshot, the #28 fixture run and the fixture app, moved from `artic-xaml-compiler` with no change to any `.snap`; the test helper sets paths on a `CratePaths` instead of the namespace map |
+| `artic-xaml-lang` | every snapshot, the #28 fixture run and the fixture app, moved from `artic-xaml-compiler` with no change below any `.snap` header; the headers name the moved test and fixture paths; the test helper sets paths on a `CratePaths` instead of the namespace map |
 | `artic` | the facade's map tests split: `namespaces()` holds the URI, `crate_paths()` the paths; `tests/xaml.rs`'s `defining_crates_have_facade_paths` reads `crate_paths()` under `view-compiler` |
 
 ## Changes to other documents
@@ -327,4 +326,4 @@ Documents that describe the code change with the pull request that changes it.
 | 3 | `artic-view`: `Document`, `check`, `CheckedView`, `Language`; the XAML compiler reads into a `Document` and emits from a `CheckedView` |
 | 4 | `artic-view-compiler`: emission, `CratePaths`, the generic `compile_str` and `compile_dir`, the test language; `NamespaceMap` keeps URIs only; `artic-xaml-compiler` becomes `artic-xaml-lang`; the facade's `artic::view`; closes #325 |
 
-Each pull request keeps every snapshot and the fixture app unchanged.
+Each pull request keeps every snapshot's content and the fixture app unchanged.
