@@ -107,12 +107,11 @@ The desktop adapter, at layer 6, depending on `artic-platform`, `artic-render`, 
 - A window opened during a handler call reports its first `surface_changed` right after that call returns, since the context can't call the handler while it's in a call. A window that couldn't be created reports `surface_lost(…, Gone)` the same way.
 - `run` panics if winit's loop ends with an error, such as a lost connection to the display server, after the surfaces have been reported lost: the seam's `run` returns nothing, and a silent failure would hide it.
 
-The translation from a winit `WindowEvent` to a `SurfaceInfo`, a `HostEvent` or a frame is a pure function over values pulled out of the event, so tests construct its inputs without a display (winit's `ScaleFactorChanged` carries a writer tests can't build).
+`translate` reads a winit `WindowEvent` and its window and says what the event means: new surface facts, a close request, a frame, a move or the window's destruction. A scale change reads its new size from the window, since winit's `ScaleFactorChanged` carries a size writer rather than a size; so translation needs a real window, and the smoke example covers it.
 
 ## 6. Testing
 
-- `winit_event_translation`: resize, scale change and close map to the right `SurfaceInfo` or `HostEvent`, without a window.
-- The `WindowId` → `SurfaceId` map gives distinct ids and maps each back.
+- The `WindowId` → `SurfaceId` map gives distinct ids and maps each back; displays get stable ids, distinct monitors distinct ones, and a window on no monitor one of its own.
 - `artic-platform`: `Waker` is `Clone + Send + Sync` and `wake()` runs the host's hook; a minimal fake host drives a recording `AppHandler`, showing a host can be written against the seam alone, as `TestHost` (#101) will be.
 - `artic-platform` has no `winit` dependency, and no `winit` type appears in `artic-winit`'s public items.
 - A smoke example, `artic-winit/examples/smoke.rs`: an `AppHandler` that opens one window in `started`, through `HostContext::windows()` with a `WindowDesc` it builds itself, and asks for a frame after each frame; with `ARTIC_SMOKE_FRAMES=N` it exits after N frames, otherwise it runs until the window closes. It calls only `Host::new()` and `run`, with no target-specific code, and draws nothing: it checks the host alone, without the runner, and the `frames` example draws through the runner. #53 runs it in CI; the PR records manual runs on Windows, macOS and Linux.
