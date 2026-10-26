@@ -260,7 +260,7 @@ Every message keeps its text and its span, and the checker reaches each problem 
 
 | Name | Feature | What it is |
 | --- | --- | --- |
-| `artic::xaml::compile_dir(dir, &namespaces)` | `xaml-compiler` | unchanged: `artic::view::compile_dir(dir, &Xaml::new(namespaces.clone()), &artic::view::crate_paths())`, with artic's paths only |
+| `artic::xaml::compile_dir(dir, &namespaces)` | `xaml-compiler` | `artic::view::compile_dir(dir, &Xaml::new(namespaces.clone()), &artic::view::crate_paths())`: unchanged for an app that sets no crate paths of its own; one that does uses the long form below |
 | `artic::xaml::namespaces()` | `xaml` | artic's URI only: `https://artic.rs/ui` → `artic_element`, `artic_controls` |
 | `artic::xaml::Xaml` | `xaml-compiler` | the language, for the long form below |
 | `artic::view::crate_paths()` | `view-compiler` | artic's crate paths: `artic_controls` → `::artic::controls` and the others |
@@ -268,7 +268,7 @@ Every message keeps its text and its span, and the checker reaches each problem 
 
 `xaml-compiler` turns `view-compiler` on. Two names move, so a build script that used them changes:
 
-- `NamespaceMap::path` becomes `CratePaths::path`. A build script that maps a crate it renamed in `Cargo.toml`, as [the compiler design](xaml-compiler.md#naming-types-in-generated-code) describes, or one re-exported by another crate, sets it on `artic::view::crate_paths()` and calls the long form.
+- `NamespaceMap::path` becomes `CratePaths::path`. `NamespaceMap` no longer has the method, so a build script that called it fails to compile there rather than losing the path. A build script that maps a crate it renamed in `Cargo.toml`, as [the compiler design](xaml-compiler.md#naming-types-in-generated-code) describes, or one re-exported by another crate, sets it on `artic::view::crate_paths()` and calls the long form.
 - `artic::xaml::CompileError` becomes `artic::view::CompileError`, so the driver's error has one name.
 
 ```rust,ignore
