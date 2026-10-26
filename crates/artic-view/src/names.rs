@@ -21,13 +21,14 @@ pub fn field_name(name: &str) -> Result<String, &'static str> {
   }
 }
 
-/// The words a name becomes a raw identifier for: Rust's keywords, strict and reserved, other
-/// than `self`, `Self`, `crate` and `super`, which [`field_name`] refuses before reaching it.
+/// The words a name becomes a raw identifier for: Rust's keywords, strict and reserved up to the
+/// 2024 edition's `gen`, other than `self`, `Self`, `crate` and `super`, which [`field_name`]
+/// refuses before reaching it.
 const KEYWORDS: &[&str] = &[
   "abstract", "as", "async", "await", "become", "box", "break", "const", "continue", "do", "dyn", "else", "enum", "extern",
-  "false", "final", "fn", "for", "if", "impl", "in", "let", "loop", "macro", "match", "mod", "move", "mut", "override", "priv",
-  "pub", "ref", "return", "static", "struct", "trait", "true", "try", "type", "typeof", "unsafe", "unsized", "use", "virtual",
-  "where", "while", "yield",
+  "false", "final", "fn", "for", "gen", "if", "impl", "in", "let", "loop", "macro", "match", "mod", "move", "mut", "override",
+  "priv", "pub", "ref", "return", "static", "struct", "trait", "true", "try", "type", "typeof", "unsafe", "unsized", "use",
+  "virtual", "where", "while", "yield",
 ];
 
 /// Whether `name` is an identifier by Unicode's XID rules, as Rust reads one, other than `_`.
@@ -65,7 +66,6 @@ mod tests {
       "auto",
       "crate",
       "default",
-      "gen",
       "macro_rules",
       "raw",
       "root",
@@ -84,9 +84,16 @@ mod tests {
       "",
       "email",
     ];
-    for word in KEYWORDS.iter().copied().chain(others) {
+    for word in KEYWORDS.iter().copied().filter(|word| *word != "gen").chain(others) {
       assert_eq!(field_name(word).ok(), syn_field(word), "{word:?}");
     }
+  }
+
+  // `gen`, reserved since Rust 2024 though `syn` still takes it as an identifier, becomes a raw
+  // identifier, so the field compiles in a crate on any edition.
+  #[test]
+  fn gen_is_a_raw_identifier() {
+    assert_eq!(field_name("gen"), Ok("r#gen".to_owned()));
   }
 
   // A name is taken as written: spaces or a comment around an identifier make it invalid, where
