@@ -237,7 +237,7 @@ mod tests {
   // The builder methods fill in the label, the secondary places and the help text.
   #[test]
   fn builder_methods() {
-    let diagnostic = Diagnostic::error(span(), "duplicate x:Name 'email'")
+    let diagnostic = Diagnostic::error(span(), "duplicate name 'email'")
       .with_label("duplicate")
       .with_secondary(span(), "first defined here")
       .with_help("rename one of the two elements");
