@@ -1,0 +1,11 @@
+---
+source: crates/artic-diagnostics/src/render.rs
+expression: rendered
+---
+views/login.ui:3:12: error: duplicate name 'email'
+3 |   <TextBox name="email"/>
+  |            ^^^^^^^^^^^^ duplicate
+  ::: views/login.ui:2:12
+2 |   <TextBox name="email"/>
+  |            ------------ first defined here
+help: rename one of the two elements

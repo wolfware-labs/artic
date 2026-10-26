@@ -1,6 +1,6 @@
 use super::*;
-use crate::diagnostics::Span;
 use crate::infoset::{Directive, Member, MemberKey, TypeRef, XamlNamespace, XamlNode};
+use artic_diagnostics::Span;
 use pretty_assertions::assert_eq;
 
 /// Parses `text`, panicking on errors, and returns the root node.

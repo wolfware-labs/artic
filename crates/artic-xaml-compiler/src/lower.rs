@@ -4,8 +4,8 @@
 use crate::names::field_name;
 use crate::resolve::{parse_path, resolve};
 use crate::unsupported;
+use artic_diagnostics::{Diagnostic, Diagnostics, Span};
 use artic_registry::{ContentInfo, ContentMethod, PropertyInfo, PropertyRef, Registry, RustExpr, TypeInfo, Whitespace};
-use artic_xaml::diagnostics::{Diagnostic, Diagnostics, Span};
 use artic_xaml::infoset::{Directive, Member, MemberKey, TypeRef, XamlDocument, XamlNamespace, XamlNode};
 use artic_xaml::namespaces::NamespaceMap;
 use std::collections::hash_map::Entry;

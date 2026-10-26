@@ -62,9 +62,9 @@ fn collapse(text: &str) -> String {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::diagnostics::{SourceMap, Span};
   use crate::infoset::TypeRef;
   use crate::parse::unresolved;
+  use artic_diagnostics::{SourceMap, Span};
   use pretty_assertions::assert_eq;
 
   /// Normalizes a content list of `parts`, where `None` stands for an element, and returns each

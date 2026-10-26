@@ -1,4 +1,4 @@
-use crate::diagnostics::{Diagnostic, Diagnostics, SourceMap, Span};
+use crate::{Diagnostic, Diagnostics, SourceMap, Span};
 use std::fmt::Write;
 
 impl Diagnostic {
@@ -13,14 +13,14 @@ impl Diagnostic {
   /// # Examples
   ///
   /// ```
-  /// use artic_xaml::diagnostics::{Diagnostic, SourceMap, Span};
+  /// use artic_diagnostics::{Diagnostic, SourceMap, Span};
   ///
   /// let mut sources = SourceMap::new();
-  /// let file = sources.add("view.xaml", "<Button Foo=\"1\"/>");
+  /// let file = sources.add("view.ui", "<Button Foo=\"1\"/>");
   /// let diagnostic = Diagnostic::error(Span::new(file, 8, 11), "unknown property 'Foo' on Button");
   /// assert_eq!(
   ///   diagnostic.render(&sources),
-  ///   "view.xaml:1:9: error: unknown property 'Foo' on Button\n\
+  ///   "view.ui:1:9: error: unknown property 'Foo' on Button\n\
   ///    1 | <Button Foo=\"1\"/>\n  |         ^^^"
   /// );
   /// ```
@@ -102,10 +102,10 @@ mod tests {
   use super::*;
   use pretty_assertions::assert_eq;
 
-  /// Returns a source map with `text` as `views/login.xaml`, and that file's id.
-  fn login(text: &str) -> (SourceMap, crate::diagnostics::SourceId) {
+  /// Returns a source map with `text` as `views/login.ui`, and that file's id.
+  fn login(text: &str) -> (SourceMap, crate::SourceId) {
     let mut sources = SourceMap::new();
-    let file = sources.add("views/login.xaml", text);
+    let file = sources.add("views/login.ui", text);
     (sources, file)
   }
 
@@ -120,7 +120,7 @@ mod tests {
 
     assert_eq!(
       rendered.lines().next(),
-      Some("views/login.xaml:12:9: error: unknown property 'Foo' on Button")
+      Some("views/login.ui:12:9: error: unknown property 'Foo' on Button")
     );
   }
 
@@ -131,7 +131,7 @@ mod tests {
 
     let rendered = Diagnostic::error(Span::new(file, 3, 3), "expected '</A>'").render(&sources);
 
-    assert_eq!(rendered, "views/login.xaml:1:4: error: expected '</A>'\n1 | <A>\n  |    ^");
+    assert_eq!(rendered, "views/login.ui:1:4: error: expected '</A>'\n1 | <A>\n  |    ^");
   }
 
   // An empty file renders line 1, column 1, with an empty source line.
@@ -141,7 +141,7 @@ mod tests {
 
     let rendered = Diagnostic::error(Span::new(file, 0, 0), "expected a root element").render(&sources);
 
-    assert_eq!(rendered, "views/login.xaml:1:1: error: expected a root element\n1 | \n  | ^");
+    assert_eq!(rendered, "views/login.ui:1:1: error: expected a root element\n1 | \n  | ^");
   }
 
   // A span over several lines is underlined to the end of its first line.
@@ -151,7 +151,7 @@ mod tests {
 
     let rendered = Diagnostic::error(Span::new(file, 3, 10), "bad value").render(&sources);
 
-    assert_eq!(rendered, "views/login.xaml:1:4: error: bad value\n1 | <A b=\"x\n  |    ^^^^");
+    assert_eq!(rendered, "views/login.ui:1:4: error: bad value\n1 | <A b=\"x\n  |    ^^^^");
   }
 
   // Underlines line up under text that has tabs and multi-byte characters before them.
@@ -168,13 +168,13 @@ mod tests {
   // A diagnostic with a primary label, a secondary label on another line and help text.
   #[test]
   fn renders_labels_and_help() {
-    let text = "<StackPanel>\n  <TextBox x:Name=\"email\"/>\n  <TextBox x:Name=\"email\"/>\n</StackPanel>\n";
+    let text = "<StackPanel>\n  <TextBox name=\"email\"/>\n  <TextBox name=\"email\"/>\n</StackPanel>\n";
     let (sources, file) = login(text);
-    let first = text.find("x:Name").expect("first name");
-    let second = text.rfind("x:Name").expect("second name");
-    let length = "x:Name=\"email\"".len();
+    let first = text.find("name=").expect("first name");
+    let second = text.rfind("name=").expect("second name");
+    let length = "name=\"email\"".len();
 
-    let rendered = Diagnostic::error(Span::new(file, second, second + length), "duplicate x:Name 'email'")
+    let rendered = Diagnostic::error(Span::new(file, second, second + length), "duplicate name 'email'")
       .with_label("duplicate")
       .with_secondary(Span::new(file, first, first + length), "first defined here")
       .with_help("rename one of the two elements")

@@ -6,6 +6,7 @@ members = [
     "crates/artic-cli",
     "crates/artic-controls",
     "crates/artic-core",
+    "crates/artic-diagnostics",
     "crates/artic-element",
     "crates/artic-i18n",
     "crates/artic-layout",
@@ -45,6 +46,7 @@ artic = { path = "crates/artic", version = "0.1.0" }
 artic-cli = { path = "crates/artic-cli", version = "0.1.0" }
 artic-controls = { path = "crates/artic-controls", version = "0.1.0" }
 artic-core = { path = "crates/artic-core", version = "0.1.0" }
+artic-diagnostics = { path = "crates/artic-diagnostics", version = "0.1.0" }
 artic-element = { path = "crates/artic-element", version = "0.1.0" }
 artic-i18n = { path = "crates/artic-i18n", version = "0.1.0" }
 artic-layout = { path = "crates/artic-layout", version = "0.1.0" }

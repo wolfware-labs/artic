@@ -51,8 +51,8 @@ The framework is a Cargo workspace of layered crates; each layer depends only on
 
 ```mermaid
 flowchart BT
-  L0["Layer 0: artic-core, artic-macros, artic-xaml, artic-test-fonts"]
-  L1["Layer 1: artic-registry, artic-layout, artic-i18n"]
+  L0["Layer 0: artic-core, artic-macros, artic-diagnostics, artic-test-fonts"]
+  L1["Layer 1: artic-registry, artic-layout, artic-i18n, artic-xaml"]
   L2["Layer 2: artic-render, artic-text, artic-style, artic-xaml-compiler, artic-xaml-runtime"]
   L3["Layer 3: artic-element, artic-lsp"]
   L4["Layer 4: artic-controls, artic-platform, artic-cli"]
@@ -68,7 +68,8 @@ Each layer builds on the ones below it. The exact dependency edges and the rules
 | `artic-core` | Signals, effects, `Property<T>`, styled-property metadata, visual/logical tree, `Object` trait, resources, dispatcher | `Signal`, `effect`, `Property`, `Node`, `UiTree`, `Dispatcher` |
 | `artic-registry` | Type descriptors any UI language uses: type name → constructor, properties, content, attached properties, events, value providers; a type's namespace is its crate | `TypeInfo`, `PropertyInfo`, `Registry`, `Lookup` |
 | `artic-macros` | `#[derive(UiType)]`, `#[element]`, `#[derive(UiProperties)]`, `#[derive(UiEnum)]`, `#[derive(ViewModel)]`, `#[ui_class]` | proc macros |
-| `artic-xaml` | Parser: XML → XAML Infoset (MS-XAML §5), markup-extension grammar, diagnostics with spans | `XamlDocument`, `XamlNode`, `MarkupExtensionAst`, `Diagnostic` |
+| `artic-diagnostics` | Source files, spans and diagnostics every UI language reports through | `SourceMap`, `Span`, `Diagnostic` |
+| `artic-xaml` | Parser: XML → XAML Infoset (MS-XAML §5), markup-extension grammar | `XamlDocument`, `XamlNode`, `MarkupExtensionAst` |
 | `artic-xaml-compiler` | Infoset → Rust source (`build.rs` API and `cargo artic` CLI), reached through the facade's `xaml-compiler` feature | `compile_str()`, `compile_dir()` |
 | `artic-xaml-runtime` | Infoset → live object tree using the registry; file watcher and hot-swap | `XamlLoader`, `HotReload` |
 | `artic-xaml-macros` (planned) | `xaml!`: a view written inline in XAML, compiled like a `.xaml` file. It sits beside the XAML compiler, so no generic crate names XAML | proc macro |
@@ -566,7 +567,7 @@ Templates are instantiated per use from their infoset (runtime) or from a genera
 
 - [x] Style inline in code-behind (`Style::new("Button.primary").setter(…)`) as a supported builder API in v1? Decided: yes; it is what the compiler emits anyway (D6).
 - [x] Media-style queries (`:screen(compact)` pseudo-class from window width) for adaptive layouts across desktop and phone? Decided: yes, as pseudo-classes on the root set by the platform layer (D6, M4-14).
-- [x] A CSS-syntax stylesheet format instead of, or next to, `<Style>`/`<Setter>` markup? Decided: next to it, in v2. The semantics stay as defined here (selectors, specificity, typed setters, precedence 4); only the syntax is new, and it compiles to the same builder calls as XAML styles. v1 keeps the public `Style`, `Selector` and `Setter` API free of XAML-specific types so the v2 parser can target it directly; when selector errors need source spans, the span and diagnostic types move to a crate below every UI language, so they serve both parsers ([architecture](../architecture.md)). The resource-reference syntax (`{DynamicResource}` equivalent) is decided with the v2 design (D28).
+- [x] A CSS-syntax stylesheet format instead of, or next to, `<Style>`/`<Setter>` markup? Decided: next to it, in v2. The semantics stay as defined here (selectors, specificity, typed setters, precedence 4); only the syntax is new, and it compiles to the same builder calls as XAML styles. v1 keeps the public `Style`, `Selector` and `Setter` API free of XAML-specific types so the v2 parser can target it directly; the span and diagnostic types live in `artic-diagnostics`, below every UI language, so they serve both parsers ([architecture](../architecture.md)). The resource-reference syntax (`{DynamicResource}` equivalent) is decided with the v2 design (D28).
 
 ## 9. Events, routing, commands, code-behind
 

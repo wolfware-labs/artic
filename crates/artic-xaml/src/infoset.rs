@@ -6,12 +6,12 @@
 //! at it. Type references carry the namespace their prefix stands for, but turning them into Rust
 //! types needs the registry, which this crate doesn't depend on.
 
-use crate::diagnostics::{SourceId, Span};
+use artic_diagnostics::{SourceId, Span};
 
 /// A parsed XAML file.
 #[derive(Debug, Clone, PartialEq)]
 pub struct XamlDocument {
-  /// The file, in the [`SourceMap`](crate::diagnostics::SourceMap) it was parsed from.
+  /// The file, in the [`SourceMap`](artic_diagnostics::SourceMap) it was parsed from.
   pub source: SourceId,
   /// The root element, always an [`XamlNode::Object`].
   pub root: XamlNode,

@@ -2,7 +2,7 @@
 // infoset; every file under `fixtures/invalid/` must fail and snapshots its rendered errors. See
 // `fixtures/README.md`.
 
-use artic_xaml::diagnostics::{SourceFile, SourceId, SourceMap, Span};
+use artic_diagnostics::{SourceFile, SourceId, SourceMap, Span};
 use artic_xaml::infoset::{Member, MemberKey, TypeRef, XamlDocument, XamlNamespace, XamlNode};
 use artic_xaml::parse;
 use std::fmt::Write;

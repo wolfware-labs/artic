@@ -9,6 +9,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+artic-diagnostics.workspace = true
 artic-xaml.workspace = true
 artic-registry = { workspace = true, features = ["literals"] }
 prettyplease.workspace = true

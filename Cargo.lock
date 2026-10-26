@@ -147,6 +147,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "artic-diagnostics"
+version = "0.1.0"
+dependencies = [
+ "insta",
+ "pretty_assertions",
+]
+
+[[package]]
 name = "artic-element"
 version = "0.1.0"
 dependencies = [
@@ -361,6 +369,7 @@ dependencies = [
 name = "artic-xaml"
 version = "0.1.0"
 dependencies = [
+ "artic-diagnostics",
  "insta",
  "pretty_assertions",
  "xmlparser",
@@ -372,6 +381,7 @@ version = "0.1.0"
 dependencies = [
  "artic",
  "artic-core",
+ "artic-diagnostics",
  "artic-macros",
  "artic-registry",
  "artic-xaml",

@@ -2,8 +2,8 @@
 
 use super::text::Decoded;
 use super::{unresolved, unsupported};
-use crate::diagnostics::{Diagnostic, Diagnostics, SourceId, Span};
 use crate::infoset::XamlNamespace;
+use artic_diagnostics::{Diagnostic, Diagnostics, SourceId, Span};
 
 const MARKUP_URI: &str = "https://artic.rs/markup";
 pub(super) const UI_URI: &str = "https://artic.rs/ui";

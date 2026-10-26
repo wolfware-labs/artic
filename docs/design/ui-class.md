@@ -166,7 +166,7 @@ Two checks keep the struct and the file together:
 | Code type, field visibility, `CODE_TYPE`, the root as the code type, the output path | the UI-language-neutral view compiler |
 | Reading `x:Class` and `x:FieldModifier` into the code type and field visibility | `artic-xaml-compiler` |
 
-Today the view model, Rust emission, member resolution, `compile_dir` and the diagnostics all sit in the XAML crates. An issue of their own moves them into neutral crates before #52's compiler changes, so the code type and field visibility land in the neutral model the first time, and only their XAML spellings land in the XAML crate.
+Today the view model, Rust emission, member resolution and `compile_dir` sit in the XAML crates. An issue of their own moves them into neutral crates before #52's compiler changes, so the code type and field visibility land in the neutral model the first time, and only their XAML spellings land in the XAML crate.
 
 ## What is reported
 

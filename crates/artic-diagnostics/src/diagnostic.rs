@@ -1,4 +1,4 @@
-use crate::diagnostics::Span;
+use crate::Span;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result};
 
@@ -32,15 +32,15 @@ pub struct Label {
   pub message: String,
 }
 
-/// One problem found in a XAML file: what is wrong, where, and what to do about it.
+/// One problem found in a source file: what is wrong, where, and what to do about it.
 ///
 /// # Examples
 ///
 /// ```
-/// use artic_xaml::diagnostics::{Diagnostic, SourceMap, Span};
+/// use artic_diagnostics::{Diagnostic, SourceMap, Span};
 ///
 /// let mut sources = SourceMap::new();
-/// let file = sources.add("view.xaml", "<Button Foo=\"1\"/>");
+/// let file = sources.add("view.ui", "<Button Foo=\"1\"/>");
 /// let diagnostic = Diagnostic::error(Span::new(file, 8, 11), "unknown property 'Foo' on Button")
 ///   .with_label("not a property of Button")
 ///   .with_help("remove the attribute, or check its spelling");
@@ -214,13 +214,13 @@ impl Error for Diagnostics {}
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::diagnostics::SourceMap;
+  use crate::SourceMap;
   use pretty_assertions::assert_eq;
 
   /// Returns a span in a throwaway source map.
   fn span() -> Span {
     let mut sources = SourceMap::new();
-    Span::new(sources.add("test.xaml", "<A/>"), 0, 1)
+    Span::new(sources.add("test.ui", "<A/>"), 0, 1)
   }
 
   // Warnings alone are not failures; one error is.
@@ -237,7 +237,7 @@ mod tests {
   // The builder methods fill in the label, the secondary places and the help text.
   #[test]
   fn builder_methods() {
-    let diagnostic = Diagnostic::error(span(), "duplicate x:Name 'email'")
+    let diagnostic = Diagnostic::error(span(), "duplicate name 'email'")
       .with_label("duplicate")
       .with_secondary(span(), "first defined here")
       .with_help("rename one of the two elements");

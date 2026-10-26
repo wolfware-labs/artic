@@ -1,6 +1,6 @@
 //! XAML parser producing the artic infoset, with spanned diagnostics.
 //!
-//! [`parse`](fn@parse) reads one file of a [`SourceMap`](diagnostics::SourceMap) into an
+//! [`parse`](fn@parse) reads one file of a [`SourceMap`](artic_diagnostics::SourceMap) into an
 //! [`XamlDocument`](infoset::XamlDocument). XML is read with the `xmlparser` tokenizer, which keeps
 //! byte positions for every token, so each node of the infoset points at its source text and every
 //! error is reported with a span. Namespace prefixes are resolved with XML's scoping rules while
@@ -10,7 +10,7 @@
 //! the back ends that look types up.
 //!
 //! ```
-//! use artic_xaml::diagnostics::SourceMap;
+//! use artic_diagnostics::SourceMap;
 //! use artic_xaml::parse;
 //!
 //! let mut sources = SourceMap::new();
@@ -39,7 +39,7 @@
 //! such text on one line, or use `xml:space="preserve"`.
 //!
 //! ```
-//! use artic_xaml::diagnostics::SourceMap;
+//! use artic_diagnostics::SourceMap;
 //! use artic_xaml::infoset::{MemberKey, XamlNode};
 //! use artic_xaml::parse;
 //!
@@ -69,7 +69,6 @@
 //! assert_eq!(content(r#"<Root xml:space="preserve">  two  spaces </Root>"#), ["  two  spaces "]);
 //! ```
 
-pub mod diagnostics;
 pub mod infoset;
 pub mod namespaces;
 mod parse;

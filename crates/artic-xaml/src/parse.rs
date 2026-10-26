@@ -9,8 +9,8 @@ mod text;
 mod unsupported;
 mod whitespace;
 
-use crate::diagnostics::{Diagnostic, Diagnostics, SourceId, SourceMap};
 use crate::infoset::{Member, MemberKey, XamlDocument, XamlNamespace};
+use artic_diagnostics::{Diagnostic, Diagnostics, SourceId, SourceMap};
 use builder::Builder;
 
 /// Parses the XAML file `file` of `sources` into its infoset.
@@ -23,7 +23,7 @@ use builder::Builder;
 /// # Examples
 ///
 /// ```
-/// use artic_xaml::diagnostics::SourceMap;
+/// use artic_diagnostics::SourceMap;
 /// use artic_xaml::infoset::{MemberKey, XamlNode};
 /// use artic_xaml::parse;
 ///

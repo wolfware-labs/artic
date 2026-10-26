@@ -4,7 +4,7 @@ Issue: #325. Builds on: the [XAML compiler](xaml-compiler.md) (#49), [UI languag
 
 The compiler #49 built sits in the XAML crates, but most of it isn't XAML: diagnostics with source spans, checking a view's members against the registry, writing Rust, and driving a build script would be the same for any language. This design moves those parts into three crates no language owns. A language then writes one front end, from its syntax to a plain `Document`, and gets the compiler and, with #59, the loader from it. The XAML crates keep XAML's syntax and meaning only.
 
-The generated code and every diagnostic stay the same: each snapshot's content and the fixture app stay unchanged; only the header insta writes above a moved snapshot, which names its source file, follows the move. Two differences touch only a misconfigured path, [below](#writing-rust): the help of "isn't a Rust path" names `CratePaths::path` in place of `NamespaceMap::path`, which goes, and the element with such a path has its members checked. No snapshot has either; the one test of the message checks only its text, not its help. A few names an app's build script can reach move; [What changes for an app](#what-changes-for-an-app) lists them.
+The generated code and every diagnostic stay the same: each snapshot's content and the fixture app stay unchanged, except the render snapshot of `artic-diagnostics`, whose test now uses a neutral file name and message; the header insta writes above a moved snapshot, which names its source file, follows the move. Two differences touch only a misconfigured path, [below](#writing-rust): the help of "isn't a Rust path" names `CratePaths::path` in place of `NamespaceMap::path`, which goes, and the element with such a path has its members checked. No snapshot has either; the one test of the message checks only its text, not its help. A few names an app's build script can reach move; [What changes for an app](#what-changes-for-an-app) lists them.
 
 ## The pipeline
 
@@ -31,7 +31,7 @@ CheckedView                   artic-view: every member found, content placed, na
 
 `artic-diagnostics` has no dependencies, so `artic-style`'s selector errors and the parser use spans without the registry. `artic-view` has no `syn`, so the loader doesn't carry a code generator at run time. `artic-xaml` stays free of the registry, as `docs/architecture.md` requires, so its tests still need no registry. `artic-view-compiler` turns on the registry's `literals` feature, which `artic-xaml-compiler` turns on today.
 
-The moved code keeps its behavior; its own tests and docs, which use XAML file names and messages as examples, are rewritten with neutral ones, so `scripts/check-ui-neutral.sh` passes over the new crates. The render snapshot keeps its rendered content; its file name and its `source:` header follow the new crate.
+The moved code keeps its behavior; its own tests and docs, which use XAML file names and messages as examples, are rewritten with neutral ones, so `scripts/check-ui-neutral.sh` passes over the new crates. The render snapshot's test uses a neutral file name and message, so its text changes with its file name and `source:` header; every other snapshot keeps its content.
 
 ## The document
 
@@ -330,4 +330,4 @@ Documents that describe the code change with the pull request that changes it.
 | 3 | `artic-view`: `Document`, `check`, `CheckedView`, `Language`; the XAML compiler reads into a `Document` and emits from a `CheckedView` |
 | 4 | `artic-view-compiler`: emission, `CratePaths`, the generic `compile_str` and `compile_dir`, the test language; `NamespaceMap` keeps URIs only; `artic-xaml-compiler` becomes `artic-xaml-lang`; the facade's `artic::view`; closes #325 |
 
-Each pull request keeps every snapshot's content and the fixture app unchanged.
+Each pull request keeps every snapshot's content and the fixture app unchanged, apart from that render snapshot in PR 2.

@@ -1,8 +1,8 @@
 //! Compiling a directory of views for a build script.
 
 use crate::compile_str;
+use artic_diagnostics::{Diagnostics, SourceMap};
 use artic_registry::{Registry, RegistryError};
-use artic_xaml::diagnostics::{Diagnostics, SourceMap};
 use artic_xaml::namespaces::NamespaceMap;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::path::{Path, PathBuf};
