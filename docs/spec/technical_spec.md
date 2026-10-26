@@ -585,6 +585,7 @@ Input becomes routed events (tunnel then bubble through the visual tree, as in W
 
 ```rust,ignore
 #[ui_class("login.xaml")]   // includes the compiled view, relative to this file
+#[derive(Debug)]
 pub struct LoginView {
     // generated: ui: login_view::View, holding email: Handle<TextBox> and every x:Name
     attempts: u32,               // user fields, each starting at its Default
@@ -597,7 +598,7 @@ impl LoginView {
 }
 ```
 
-- The struct is the view's root element: `#[ui_class]` makes it an element with `UserControl`'s members, holds the view's named nodes in one `ui` field, and adds `create(&mut UiTree) -> Handle<Self>`, which builds the whole view with the struct at its root ([code type design](../design/ui-class.md)). With #82 it also generates a handler table `name → fn` used by both paths.
+- The struct is the view's root element: `#[ui_class]` makes it an element with `UserControl`'s members, holds the view's named nodes in one `ui` field, and adds `create(&mut UiTree) -> Handle<Self>`, which builds the whole view with the struct at its root ([code type design](../design/ui-class.md)). Like any element, the struct derives `Debug` itself. With #82 it also generates a handler table `name → fn` used by both paths.
 - Handler signature is `fn(&mut self, &mut ViewCx, &Args)`; `ViewCx` gives tree access and the dispatcher. Handlers are `&mut self`, so no interior mutability in code-behind.
 - A handler name that does not exist is a compile error in the compiled path, a load error in the runtime path.
 - Code-behind and view-model are both available: `self.view_model::<LoginVm>()` returns the `DataContext` downcast.

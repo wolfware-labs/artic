@@ -75,7 +75,7 @@ impl RustExpr {
 Each `src/views/<name>.xaml` becomes `$OUT_DIR/views/src/views/<name>.rs`, at its path in the crate, a module body with one struct and one function:
 
 ```rust,ignore
-// Generated from views/login_view.xaml.
+// Generated from src/views/login_view.xaml.
 use ::artic::prelude::{Handle, UiTree};
 use ::artic::controls as _;
 use ::artic::element::LayoutMethods as _;
@@ -153,7 +153,7 @@ pub fn compile_str(
   namespaces: &NamespaceMap,
 ) -> Result<String, Diagnostics>;
 
-/// Compiles every `.xaml` file under `dir` into `$OUT_DIR/views/`, for a build script.
+/// Compiles every `.xaml` file under `dir` to `$OUT_DIR/views/<path in the crate>.rs`, for a build script.
 pub fn compile_dir(dir: impl AsRef<Path>, namespaces: &NamespaceMap) -> Result<(), CompileError>;
 ```
 
