@@ -20,11 +20,6 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
     .iter()
     .filter(|f| matches!(f.role, Role::Event { .. }))
     .collect();
-  let collections: Vec<&UiField> = analysis
-    .ui_fields
-    .iter()
-    .filter(|f| matches!(f.role, Role::Collection))
-    .collect();
   let groups: Vec<&UiField> = analysis.ui_fields.iter().filter(|f| matches!(f.role, Role::Group)).collect();
 
   let keys = properties.iter().map(|field| key_static(field));
@@ -94,10 +89,6 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
   let property_count = properties.len();
   let event_count = events.len();
   let value_checks = properties.iter().map(|field| value_check(field));
-  let collection_checks = collections.iter().map(|field| {
-    let ty = field.ty;
-    quote_spanned!(ty.span()=> __artic::assert_collection::<#ty>();)
-  });
   let own_content = analysis
     .ui_fields
     .iter()
@@ -157,7 +148,6 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
     quote!(__artic::group_content(#field_name, <#ty as __artic::PropertyGroup>::CONTENT))
   });
   let content = quote!(__artic::one_content(&[#own_content, #(#group_contents),*]));
-  let is_collection = !collections.is_empty();
   let attached = &analysis.attributes.attached;
   let attached_keys = attached.iter().map(attached_key);
   let builders = builders(analysis);
@@ -243,7 +233,6 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
         rust_path: ::core::concat!(::core::module_path!(), "::", ::core::stringify!(#ident)),
         new: __new,
         content: #content,
-        is_collection: #is_collection,
         properties: &__PROPERTIES,
         groups: &__GROUPS,
         events: &__EVENTS,
@@ -262,7 +251,6 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
       fn __checks() {
         use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
         #(#value_checks)*
-        #(#collection_checks)*
         #(#group_checks)*
         #(#attached_checks)*
       }

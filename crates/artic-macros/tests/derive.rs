@@ -15,8 +15,8 @@ use pretty_assertions::assert_eq;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::str::FromStr;
 
-// Placeholders for value types that later issues add: geometry (#22), brushes (#35), pointer input
-// and the property groups (#42). They only need to parse from text and have defaults.
+// Stand-ins for value types: the real geometry, brush and pointer types live in crates above the
+// macros, which these tests can't depend on. They only need to parse from text and have defaults.
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 struct Thickness(f32);
@@ -112,7 +112,7 @@ impl UiCollection for Items {
 }
 
 #[derive(Debug, UiType)]
-struct StackPanel {
+struct ItemList {
   #[ui(content)]
   children: Items,
 }
@@ -167,7 +167,6 @@ fn border_is_registered_with_its_members() {
     border.events.iter().map(|event| event.name).collect::<Vec<_>>(),
     ["PointerPressed"]
   );
-  assert!(!border.is_collection);
   assert!(border.rust_path.ends_with("::Border"));
   assert!(std::ptr::eq(border, Border::TYPE_INFO));
 }
@@ -196,13 +195,13 @@ fn default_expression_sets_the_default_level() {
   assert_eq!(Window::default().font_size.get(), 14.0, "differs from f32's own default");
 }
 
-// A type with a collection field accepts children.
+// A collection field is the type's content, which is how children reach it.
 #[test]
-fn collection_field_makes_the_type_a_collection() {
-  let panel = lookup("StackPanel");
+fn collection_field_is_the_content() {
+  let list = lookup("ItemList");
 
-  assert!(panel.is_collection);
-  assert!(StackPanel::default().children.0.is_empty());
+  assert!(matches!(list.content, Some(ContentInfo::Collection { .. })));
+  assert!(ItemList::default().children.0.is_empty());
 }
 
 // `whitespace = "significant"` reaches the descriptor.
@@ -474,7 +473,7 @@ fn content_child_on_a_field() {
 #[test]
 fn content_children_on_a_field() {
   assert!(matches!(
-    lookup("StackPanel").content,
+    lookup("ItemList").content,
     Some(ContentInfo::Collection { field: "children", .. })
   ));
 }
@@ -483,7 +482,7 @@ fn content_children_on_a_field() {
 #[test]
 fn value_collection_content_has_no_method() {
   assert!(matches!(
-    lookup("StackPanel").content,
+    lookup("ItemList").content,
     Some(ContentInfo::Collection { method: None, .. })
   ));
 }
@@ -513,15 +512,15 @@ fn content_property_in_a_group() {
 #[test]
 fn add_child_pushes_into_the_content_field() {
   let mut tree = UiTree::new();
-  let panel = (lookup("StackPanel").new)(&mut tree);
-  let child = tree.alloc(Box::new(StackPanel::default()));
-  let Some(ContentInfo::Collection { add_child, .. }) = lookup("StackPanel").content else {
+  let panel = (lookup("ItemList").new)(&mut tree);
+  let child = tree.alloc(Box::new(ItemList::default()));
+  let Some(ContentInfo::Collection { add_child, .. }) = lookup("ItemList").content else {
     panic!("a collection");
   };
 
   add_child(&mut tree, panel, child).expect("added");
 
-  assert_eq!(tree.get_as::<StackPanel>(panel).unwrap().children.0, [child]);
+  assert_eq!(tree.get_as::<ItemList>(panel).unwrap().children.0, [child]);
 }
 
 // Given a node of another type, `add_child` refuses before changing anything.
@@ -529,8 +528,8 @@ fn add_child_pushes_into_the_content_field() {
 fn add_child_refuses_another_type() {
   let mut tree = UiTree::new();
   let other = (lookup("Border").new)(&mut tree);
-  let child = tree.alloc(Box::new(StackPanel::default()));
-  let Some(ContentInfo::Collection { add_child, .. }) = lookup("StackPanel").content else {
+  let child = tree.alloc(Box::new(ItemList::default()));
+  let Some(ContentInfo::Collection { add_child, .. }) = lookup("ItemList").content else {
     panic!("a collection");
   };
 
@@ -676,7 +675,7 @@ struct Frame {
   child: Child,
 }
 
-/// A panel, as `StackPanel` holds its children.
+/// A panel, as `ItemList` holds its children.
 #[derive(Debug, UiType)]
 struct Panel {
   #[ui(content)]

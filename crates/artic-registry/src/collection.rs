@@ -1,7 +1,7 @@
 //! The fields that receive an element's child elements.
 //!
-//! A `#[ui]` field that is neither a `Property` nor an `Event` is a collection: when a UI language
-//! gives the type child elements, each child is added to it, in order, through [`UiCollection`].
+//! A type's content field that isn't a `Property` is a collection: when a UI language gives the
+//! type child elements, each child is added to it, in order, through [`UiCollection`].
 
 use crate::ValueError;
 use artic_core::tree::{NodeId, UiTree};
@@ -13,7 +13,7 @@ use artic_core::tree::{NodeId, UiTree};
 /// field, as a brush keeps its gradient stops; `field` reaches the field inside the owner node.
 #[diagnostic::on_unimplemented(
   message = "`{Self}` can't hold child elements",
-  label = "`#[ui]` on a field that isn't a `Property` or an `Event` makes it a collection of children",
+  label = "a content field that isn't a `Property` is a collection of children",
   note = "to make this field a property, declare it as `Property<{Self}>`"
 )]
 pub trait UiCollection: Sized {

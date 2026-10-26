@@ -1,0 +1,8 @@
+error[E0277]: `String` can't hold child elements
+ --> tests/ui/content_not_a_collection.rs:6:9
+  |
+6 |   text: String,
+  |         ^^^^^^ a content field that isn't a `Property` is a collection of children
+  |
+  = help: the trait `UiCollection` is not implemented for `String`
+  = note: to make this field a property, declare it as `Property<String>`

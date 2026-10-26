@@ -18,8 +18,6 @@ pub struct TypeInfo {
   pub new: fn(&mut UiTree) -> NodeId,
   /// What receives content written directly inside the element, if anything.
   pub content: Option<ContentInfo>,
-  /// Whether the type is a collection that accepts child elements.
-  pub is_collection: bool,
   /// The type's settable properties.
   pub properties: &'static [PropertyInfo],
   /// The property groups the type embeds, whose properties are listed as the type's.
@@ -297,7 +295,6 @@ mod tests {
     rust_path: "artic_controls::Border",
     new: new_border,
     content: None,
-    is_collection: false,
     properties: &[PropertyInfo {
       name: PADDING.name(),
       field: "padding",

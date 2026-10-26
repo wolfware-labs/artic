@@ -23,7 +23,6 @@ const fn info(name: &'static str, rust_path: &'static str) -> TypeInfo {
     rust_path,
     new: new_node,
     content: None,
-    is_collection: false,
     properties: &[],
     groups: &[],
     events: &[],
@@ -59,7 +58,6 @@ pub static PANEL: TypeInfo = TypeInfo {
     method: Some(ContentMethod::Children),
     add_child,
   }),
-  is_collection: true,
   properties: &PANEL_PROPERTIES,
   events: &PANEL_EVENTS,
   ..info("Panel", "test_ui::Panel")
@@ -72,7 +70,6 @@ pub static FRAME: TypeInfo = TypeInfo {
     method: Some(ContentMethod::Child),
     add_child,
   }),
-  is_collection: true,
   ..info("Frame", "test_ui::Frame")
 };
 
@@ -107,7 +104,6 @@ pub static STOPS: TypeInfo = TypeInfo {
     method: None,
     add_child,
   }),
-  is_collection: true,
   ..info("Stops", "test_ui::Stops")
 };
 

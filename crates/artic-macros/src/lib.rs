@@ -50,8 +50,8 @@ use syn::{DeriveInput, parse_macro_input};
 ///   listed and visited as the type's own, and the type gets the group's builder methods through
 ///   the group's `Methods` trait. It takes no other settings. An own property named like a field
 ///   of a flattened group, or two groups sharing a field name, is an error.
-/// - Any other `#[ui]` field is a collection of child elements and must implement
-///   `UiCollection`.
+/// - Any other `#[ui]` field is a collection of child elements: it must implement
+///   `UiCollection` and be the content, since children reach a type only through its content.
 /// - `#[ui(content)]` on one `Property` or collection field: it receives content written inside
 ///   the element. A flattened group may mark one of its properties instead; a type has at most one
 ///   content member, counting its groups.
