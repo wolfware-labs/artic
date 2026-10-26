@@ -204,3 +204,15 @@ fn every_named_crate_is_linked() {
     ]
   );
 }
+
+// A type whose path isn't a Rust path is reported at its name, and its members are still
+// checked, since the checker runs before the path is written.
+#[test]
+fn unparseable_type_path_still_checks_members() {
+  let errors = compile_with(r#"<Border xmlns="https://artic.rs/ui" Foo="1"/>"#, "view.xaml", |map| {
+    map.path("artic_controls", "not a path");
+  })
+  .expect_err("a bad path");
+  assert!(errors.contains("`not a path::Border` isn't a Rust path"), "{errors}");
+  assert!(errors.contains("`Border` has no property `Foo`"), "{errors}");
+}

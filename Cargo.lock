@@ -396,6 +396,7 @@ dependencies = [
  "artic-diagnostics",
  "artic-macros",
  "artic-registry",
+ "artic-view",
  "artic-xaml",
  "insta",
  "pretty_assertions",

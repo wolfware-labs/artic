@@ -12,6 +12,7 @@ repository.workspace = true
 artic-diagnostics.workspace = true
 artic-xaml.workspace = true
 artic-registry = { workspace = true, features = ["literals"] }
+artic-view.workspace = true
 prettyplease.workspace = true
 proc-macro2.workspace = true
 quote.workspace = true

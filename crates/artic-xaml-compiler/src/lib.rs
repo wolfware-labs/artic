@@ -1,10 +1,11 @@
 //! Build-time compiler that turns XAML views into Rust.
 //!
-//! [`compile_str`] reads one document, resolves every type and property against the registry,
-//! parses every literal, and returns the module body that builds the view: a `View` struct that
-//! holds the root and one handle per `x:Name`, and a `build` function that creates each element
-//! with its builder, children first. Every problem in the document is reported in one pass.
-//! [`compile_dir`] does it for every view of a directory, from a build script.
+//! [`compile_str`] reads one document into an `artic_view` document, checks it with
+//! `artic_view::check`, and writes the checked view as the module body that builds it: a `View`
+//! struct that holds the root and one handle per `x:Name`, and a `build` function that creates
+//! each element with its builder, children first. Every problem in the document is reported in
+//! one pass. [`compile_dir`] does it for every view of a directory, from a build script. [`Xaml`]
+//! is the language the loader and tools read XAML with.
 //!
 //! ```
 //! use artic_registry::Registry;
@@ -21,13 +22,14 @@
 mod dir;
 mod emit;
 mod lower;
-mod names;
+mod read;
 mod resolve;
 mod unsupported;
 
 pub use dir::{CompileError, compile_dir, compile_into};
+pub use read::Xaml;
 
-use artic_diagnostics::{Diagnostics, SourceId, SourceMap};
+use artic_diagnostics::{Diagnostic, Diagnostics, SourceId, SourceMap};
 use artic_registry::Registry;
 use artic_xaml::namespaces::NamespaceMap;
 
@@ -47,7 +49,26 @@ pub fn compile_str(
   registry: &Registry,
   namespaces: &NamespaceMap,
 ) -> Result<String, Diagnostics> {
-  let document = artic_xaml::parse(sources, file)?;
-  let view = lower::lower(&document, registry, namespaces)?;
-  Ok(emit::emit(&view, sources.get(file).path()))
+  let (document, mut diagnostics) = read::read(sources, file, registry, namespaces);
+  let Some(document) = document else {
+    return Err(diagnostics);
+  };
+  let (view, checked) = artic_view::check(&document);
+  let (view, lowered) = lower::lower(&view, namespaces);
+  diagnostics.extend(checked);
+  diagnostics.extend(lowered);
+  let diagnostics = sorted(diagnostics);
+  match view {
+    Some(view) if !diagnostics.has_errors() => Ok(emit::emit(&view, sources.get(file).path())),
+    _ => Err(diagnostics),
+  }
+}
+
+/// `diagnostics` by where each starts, keeping the order they were found in for one position.
+fn sorted(diagnostics: Diagnostics) -> Diagnostics {
+  let mut list: Vec<Diagnostic> = diagnostics.into_iter().collect();
+  list.sort_by_key(|diagnostic| diagnostic.span.start);
+  let mut sorted = Diagnostics::new();
+  sorted.extend(list);
+  sorted
 }
