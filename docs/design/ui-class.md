@@ -137,7 +137,7 @@ pub fn build(tree: &mut UiTree) -> Handle<crate::views::login::LoginView> {
 
 ## How the compiled file names the code type
 
-The code type's path is the root's Rust type, at the module that defines it, as `module_path!()` gives it: `src/views/login.rs` defines `app::views::login::LoginView`, and a re-export such as `app::views::LoginView` doesn't match. The compiler reads `x:Class="app::views::login::LoginView"` as a path and replaces its first segment, the crate, with `crate`: generated code is included in that crate. A path whose first segment isn't the package being built (`CARGO_PKG_NAME`, with `-` as `_`, which the build script sees) is an error: a code type lives in the crate its view is compiled into.
+The code type's path is the root's Rust type, at the module that defines it, as `module_path!()` gives it: `src/views/login.rs` defines `app::views::login::LoginView`, and a re-export such as `app::views::LoginView` doesn't match. The compiler reads `x:Class="app::views::login::LoginView"` as a path and replaces its first segment, the crate, with `crate`: generated code is included in that crate, since a code type lives in the crate its view is compiled into. The compiler doesn't check that segment itself. A build script knows its package's name, not the name of the library target, which `[lib] name` can change; the assertion below compares the whole path against `module_path!()`, which has the crate's real name, so a wrong crate fails there.
 
 The root's members resolve through the element the document's root names, `UserControl`, which the code type mirrors. The code type itself isn't in the build script's registry, since it's defined in the app crate ([which types a view can use](xaml-compiler.md#which-types-a-view-can-use)).
 
@@ -171,11 +171,11 @@ Today the view model, Rust emission, member resolution, `compile_dir` and the di
 | --- | --- | --- |
 | `x:Class` on an element other than the root | compiler | the attribute |
 | A code type whose root isn't a `UserControl` | compiler | the root element |
-| A code type outside the crate being built | compiler | the attribute |
 | `x:Name` on the root of a view with a code type | compiler | the attribute |
 | A field visibility other than `pub` or `pub(crate)` | compiler | the attribute |
 | A field visibility on an element without a name | compiler | the attribute |
-| The file and the struct name different code types, or the file names none | `#[ui_class]`'s assertion | the struct, naming the `.xaml` |
+| The file and the struct name different code types, including another crate, or the file names none | `#[ui_class]`'s assertion | the struct, naming the `.xaml` |
+| An item beside the struct already named like its module (`login_view`) | rustc, as a duplicate name | the struct |
 | No compiled file | `#[ui_class]` | the path string |
 | A struct with generics, a tuple struct, or a field named `ui` or `child` | `#[ui_class]` | the struct or the field |
 
