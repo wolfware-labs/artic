@@ -23,7 +23,7 @@ A **surface** is a root the app asks the host to present: an OS window on a desk
 </Application>
 ```
 
-`Application.Resources` arrives with #122; the rest is this design.
+`Application.Resources` arrives with #122, and views such as `local:NotesView` used as elements come after #52 ([code type design](ui-class.md#not-in-this-design)); the rest is this design.
 
 ## 1. Who sees what
 

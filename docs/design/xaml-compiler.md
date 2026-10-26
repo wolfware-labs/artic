@@ -115,7 +115,7 @@ pub fn build(tree: &mut UiTree) -> View {
 - `x:Class` makes the view's root its code type, and `x:FieldModifier` sets a named node's field visibility ([code type design](ui-class.md)); `x:DataType` is recorded for #94; `x:Uid` is accepted and ignored until localization (#168).
 - The file references every crate the namespace map names, with `use <path> as _;`, so their types stay in the app's link (below).
 
-The builder design's sample is this `build` for a view with a code type: there, `build` returns the code type at the root instead, and `View` holds only the named nodes ([code type design](ui-class.md#building-it)).
+The block above is a view without a code type. The builder design's sample is a view with one: its `build` returns the code type at the root, `View` holds only the named nodes, and `CODE_TYPE` names the type ([code type design](ui-class.md#building-it)).
 
 ## What the compiler reports
 
