@@ -105,7 +105,9 @@ The compiled file is included in a module named after the struct in snake case (
 
 A code type is built like any element, except for `ui`: every other field starts at its `Default` (`attempts` at 0). Data a view needs arrives after it's built, through the handle or, later, the view-model (#82, #94).
 
-`ui` has no default: its handles exist only once the view's nodes are built. The `UiType` derive gains a field setting for that, usable by any type: `#[ui(required)]`. The derive then writes `new(ui: View) -> Self`, with every other field as `Default` would write it, instead of `Default` and `new()`. A type with a required field names the function the registry builds it with, `#[ui(new = path)]`, since `TypeInfo::new` takes only the tree.
+`ui` has no default: its handles exist only once the view's nodes are built. The `UiType` derive gains a field setting for that, usable by any type: `#[ui(required)]`. The derive then writes `new(ui: View) -> Self`, with every other field as `Default` would write it, instead of `Default` and `new()`.
+
+Such a type has no node to create from the tree alone, so `TypeInfo::new` becomes `Option<fn(&mut UiTree) -> NodeId>`, `None` for a type with a required field. Every other type keeps `Some`. The runtime loader creates a node with `TypeInfo::new` and then sets its members and builds its children from the source, so pointing it at `create` would build the compiled children a second time, and a view that only exists at run time has no compiled file to call. Until #59 designs that path (build the children, fill `View` from the named nodes, then construct the code type), the loader reports "`LoginView` can't be created from markup yet (#59)".
 
 `#[ui_class]` writes both:
 
@@ -118,7 +120,7 @@ impl LoginView {
 }
 ```
 
-`create`, not `build`, since `build(self, tree)` is already the builder's last call. `#[ui_class]`'s `#[ui(new = …)]` names a function that returns `LoginView::create(tree).id()`, since `TypeInfo::new` returns a `NodeId`, so the runtime loader (#59) builds the whole view, not an empty node. A compiled view using `LoginView` as an element is later work (below).
+`create`, not `build`, since `build(self, tree)` is already the builder's last call. A compiled view using `LoginView` as an element is later work (below).
 
 The compiled `build` constructs the code type as the root:
 
@@ -158,7 +160,8 @@ Two checks keep the struct and the file together:
 
 | Piece | Crate |
 | --- | --- |
-| `#[ui_class]`, `#[ui(required)]`, `#[ui(new = …)]` | `artic-macros`, re-exported as `artic::ui_class` |
+| `#[ui_class]`, `#[ui(required)]` | `artic-macros`, re-exported as `artic::ui_class` |
+| `TypeInfo::new` as an `Option` | `artic-registry` |
 | `ElementImpl`'s fill default | `artic-element` |
 | Code type, field visibility, `CODE_TYPE`, the root as the code type, the output path | the UI-language-neutral view compiler |
 | Reading `x:Class` and `x:FieldModifier` into the code type and field visibility | `artic-xaml-compiler` |
@@ -182,14 +185,15 @@ Today the view model, Rust emission, member resolution, `compile_dir` and the di
 ## Not in this design
 
 - Event handlers, the handler table and `view_model::<T>()`: #82.
-- Building a code type from a file at run time: #59, through `TypeInfo::new`.
+- Building a code type from a file at run time: #59, which gives the loader a way to construct a type whose `TypeInfo::new` is `None`.
 - A code type as an element in another compiled view: a compiled view uses only build-dependency types (D1 of the compiler), so a library's code type in an app's view is the case, and the compiler would emit `create` for it. A later issue.
 - `App` opening its first window from a code type: #55.
 
 ## Testing
 
 - `artic-element`: an element with no `ElementImpl` methods fills its box with its children; `UserControl` and `Surface` layouts are unchanged.
-- `artic-macros` (trybuild): a code type builds; a field named `ui`; generics; a missing compiled file, with `.stderr` naming the `.xaml`; `#[ui(required)]` without `#[ui(new = …)]`.
+- `artic-macros` (trybuild): a code type builds; a field named `ui`; generics; a missing compiled file, with `.stderr` naming the `.xaml`.
+- `artic-registry`: a type with a required field registers `new: None`; every other type `Some`.
 - The view compiler: snapshots of a view with a code type and field visibilities; each new diagnostic.
 - The fixture app (`crates/artic-xaml-compiler/fixtures/app`) gains a code type:
   - `build_returns_code_type_root`: `create` returns the code type at the root of the tree, with the view's root content as its child;
@@ -207,6 +211,7 @@ Today the view model, Rust emission, member resolution, `compile_dir` and the di
 | `xaml-compiler.md` | "recorded for #52" and the wrapper question point here; `View` has no `root` for a view with a code type; `compile_dir` writes each view at its path in the crate (its doc comment in `dir.rs` changes with PR 3) |
 | `builder-api.md` | the `build_view` sample points here |
 | `element.md` | `ElementImpl`'s defaults fill the box |
+| `dsl.md` §3, `loader-values.md`, `value-objects.md` | `TypeInfo::new` is an `Option`; they change with PR 4, since `dsl.md`'s sample is a doctest |
 | `surface.md` | the sample's `Application` has no `x:Class`, which needs a code type on an `Application` root (#55) |
 | Doc comments in code | change with the PR that changes the code: `ElementImpl`'s defaults (PR 2), the compiler's `View` and `dir.rs` (PR 3), the `UiType` derive's `Default` and `#[element]` (PR 4) |
 | #52 | "an `x:Name` colliding with a user field" leaves the criteria; `build_returns_user_control_root` becomes `build_returns_code_type_root` |
@@ -218,6 +223,6 @@ Today the view model, Rust emission, member resolution, `compile_dir` and the di
 | 1 | this document and the changes above |
 | 2 | `ElementImpl`'s fill default; `UserControl` and `Surface` lose their layout methods |
 | 3 | the view compiler: code type and field visibility, the root as the code type, `CODE_TYPE`, output paths relative to the crate, the diagnostics above; XAML reads `x:Class` and `x:FieldModifier` into them |
-| 4 | `#[ui(required)]`, `#[ui(new = …)]`, `#[ui_class]`, the facade's `artic::ui_class`, the fixture app's code type and the trybuild cases; closes #52 |
+| 4 | `#[ui(required)]`, `TypeInfo::new` as an `Option`, `#[ui_class]`, the facade's `artic::ui_class`, the fixture app's code type and the trybuild cases; closes #52 |
 
 PR 3 waits for the issue that moves the neutral pieces out of the XAML crates.
