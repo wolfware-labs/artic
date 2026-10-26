@@ -1,19 +1,19 @@
 //! The host: winit's event loop, driving an `AppHandler`.
 
+use crate::displays::Displays;
 use crate::error::Error;
 use crate::surfaces::Surfaces;
 use crate::translate::{Translated, facts, translate};
 use artic_platform::{AppHandler, Axes, Chrome, HostContext, HostEvent, SurfaceInfo, SurfaceLoss, Waker, WindowDesc, Windows};
 use artic_render::{PhysicalSize, SurfaceId, Target, TargetKind};
-use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Debug, Formatter};
-use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use std::time::Instant;
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
+use winit::monitor::MonitorHandle;
 use winit::window::{Window, WindowAttributes, WindowId};
 
 /// The desktop host: windows, frames and the event loop on Windows, macOS and Linux (X11 and
@@ -58,6 +58,7 @@ impl artic_platform::Host for Host {
     let mut driver = Driver {
       app,
       surfaces: Surfaces::default(),
+      displays: Displays::default(),
       opened: Vec::new(),
       proxy: self.event_loop.create_proxy(),
       start: Instant::now(),
@@ -77,6 +78,12 @@ impl artic_platform::Host for Host {
 struct Driver<A> {
   app: A,
   surfaces: Surfaces<WindowId, Rc<Window>>,
+  /// Each monitor's display id, by winit's `MonitorHandle`, which compares by what each platform
+  /// identifies a monitor by: the display's UUID on macOS, the `HMONITOR` on Windows, the RandR
+  /// CRTC on X11 and the `wl_output` global on Wayland. Rearranging displays keeps an id, and
+  /// monitors connected together always differ; a monitor plugged in again may get a new id, and
+  /// on X11 one plugged in later may take the id of one unplugged from its CRTC.
+  displays: Displays<MonitorHandle>,
   opened: Vec<SurfaceId>,
   proxy: EventLoopProxy<()>,
   start: Instant,
@@ -151,24 +158,15 @@ impl<A: AppHandler> Driver<A> {
       None,
     ));
     let monitor = window.current_monitor();
-    let key = monitor.as_ref().map_or(0, |monitor| {
-      let mut hasher = DefaultHasher::new();
-      match monitor.name() {
-        Some(name) => name.hash(&mut hasher),
-        None => {
-          let position = monitor.position();
-          (position.x, position.y).hash(&mut hasher);
-        }
-      }
-      hasher.finish()
-    });
+    let refresh_rate = monitor
+      .as_ref()
+      .and_then(MonitorHandle::refresh_rate_millihertz)
+      .map(|millihertz| millihertz as f32 / 1000.0);
     let info = SurfaceInfo {
       size,
       scale: scale.unwrap_or(window.scale_factor() as f32),
-      display: self.surfaces.display_id(key),
-      refresh_rate: monitor
-        .and_then(|monitor| monitor.refresh_rate_millihertz())
-        .map(|millihertz| millihertz as f32 / 1000.0),
+      display: self.displays.id(monitor),
+      refresh_rate,
     };
     if self.surfaces.update(surface, info) {
       self.call(event_loop, |app, cx| app.surface_changed(cx, surface, info));

@@ -15,7 +15,9 @@ pub struct SurfaceInfo {
   pub refresh_rate: Option<f32>,
 }
 
-/// A display, as the host identifies it. Two surfaces on one display have equal ids.
+/// A display, as the host identifies it. Two surfaces on one display have equal ids, and surfaces
+/// on different displays have different ones. An id may not survive the display being unplugged
+/// and plugged in again.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DisplayId(u64);
 

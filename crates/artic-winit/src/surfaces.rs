@@ -1,9 +1,8 @@
 //! The host's windows, each with its artic surface id, last reported facts and last applied
 //! description.
 
-use artic_platform::{DisplayId, SurfaceInfo, WindowDesc};
+use artic_platform::{SurfaceInfo, WindowDesc};
 use artic_render::SurfaceId;
-use std::collections::HashMap;
 
 /// One open window.
 #[derive(Debug)]
@@ -22,7 +21,6 @@ struct Entry<K, W> {
 pub(crate) struct Surfaces<K, W> {
   entries: Vec<Entry<K, W>>,
   next: u64,
-  displays: HashMap<u64, DisplayId>,
   lost: Vec<(SurfaceId, Option<W>)>,
 }
 
@@ -31,7 +29,6 @@ impl<K, W> Default for Surfaces<K, W> {
     Self {
       entries: Vec::new(),
       next: 1,
-      displays: HashMap::new(),
       lost: Vec::new(),
     }
   }
@@ -124,12 +121,6 @@ impl<K: PartialEq + Copy, W> Surfaces<K, W> {
   pub(crate) fn drain(&mut self) -> Vec<(SurfaceId, W)> {
     self.entries.drain(..).map(|entry| (entry.id, entry.window)).collect()
   }
-
-  /// The display id for the monitor the library describes by `key`, the same for the same key.
-  pub(crate) fn display_id(&mut self, key: u64) -> DisplayId {
-    let next = self.displays.len() as u64 + 1;
-    *self.displays.entry(key).or_insert(DisplayId::new(next))
-  }
 }
 
 #[cfg(test)]
@@ -191,17 +182,6 @@ mod tests {
       [first, third]
     );
     assert_eq!(surfaces.id(10), None);
-  }
-
-  // A monitor keeps its display id, and two monitors get two.
-  #[test]
-  fn monitors_get_stable_display_ids() {
-    let mut surfaces = Surfaces::<u32, ()>::default();
-
-    let first = surfaces.display_id(111);
-
-    assert_eq!(surfaces.display_id(111), first);
-    assert_ne!(surfaces.display_id(222), first);
   }
 
   // A window that couldn't be created still has an id, which is reported lost.

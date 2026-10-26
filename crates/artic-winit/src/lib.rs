@@ -4,6 +4,7 @@
 //! `artic_platform::Host`, and no `winit` type appears in its public items. The design is
 //! `docs/design/host.md`.
 
+mod displays;
 mod error;
 mod host;
 mod surfaces;
