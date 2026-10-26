@@ -153,7 +153,7 @@ pub fn field_name(name: &str) -> Result<String, &'static str>;
 
 The checker is `lower.rs`'s member half, unchanged in behavior, and needs no registry: each `TypeInfo` it holds answers for its own properties. It walks the document in member order, children where their content member is, and, for each element it reaches:
 
-1. reports the type's problem and goes on: properties are checked only when the type was found; names, `Unsupported` members and the elements in the content always;
+1. reports the type's problem and goes on: properties are checked only when the type was found; names and `Unsupported` members always; the elements in the content always when the type wasn't found, and as step 4 says when it was;
 2. for a property, finds it by name or reports it unknown (an event's name gives "event handlers come with #82"), then reports the value's problem or a property set twice;
 3. for a name, reports its problem, then a name `field_name` refuses, with the reason as help, then two elements with one name, so a name that's invalid twice is reported twice;
 4. for content, applies the type's rule: text for a content property, where the first element or `Unsupported` node is reported and ends the content; children for `child` or `children`, where text is reported with the help "put the text in an element, such as a `TextBlock`", every child element counts toward "takes one child" whether its type was found or not, and the child taken is the only found one; nothing for a type that takes none, where text and elements are reported and the elements still checked; and, for a collection of values, "value collections come with #57" when it holds anything but blank text, the elements inside it never reached;
