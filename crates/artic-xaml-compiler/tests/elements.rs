@@ -34,7 +34,6 @@ fn bare_element_builds_its_root() {
   use ::artic::render as _;
   use ::elements as _;
   /// The nodes of `view.xaml`: its root and one handle per `x:Name`.
-  #[allow(non_snake_case)]
   #[derive(Clone, Copy, Debug)]
   pub struct View {
       pub root: Handle<::artic::controls::Border>,

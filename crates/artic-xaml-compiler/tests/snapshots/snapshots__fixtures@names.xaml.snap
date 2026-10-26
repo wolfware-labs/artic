@@ -11,13 +11,12 @@ use ::artic::element as _;
 use ::artic::layout as _;
 use ::artic::render as _;
 /// The nodes of `names.xaml`: its root and one handle per `x:Name`.
-#[allow(non_snake_case)]
 #[derive(Clone, Copy, Debug)]
 pub struct View {
     pub root: Handle<::artic::controls::StackPanel>,
     pub empty: Handle<::artic::controls::StackPanel>,
-    pub Email: Handle<::artic::controls::TextBlock>,
-    pub Panel: Handle<::artic::controls::StackPanel>,
+    pub email: Handle<::artic::controls::TextBlock>,
+    pub panel: Handle<::artic::controls::StackPanel>,
 }
 /// Builds `names.xaml` in `tree` and returns its nodes.
 pub fn build(tree: &mut UiTree) -> View {
@@ -29,7 +28,7 @@ pub fn build(tree: &mut UiTree) -> View {
     View {
         root: __e2,
         empty: __e0,
-        Email: __e1,
-        Panel: __e2,
+        email: __e1,
+        panel: __e2,
     }
 }
