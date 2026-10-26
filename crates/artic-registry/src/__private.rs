@@ -142,9 +142,6 @@ pub const fn groups_share_field(a: &[PropertyInfo], b: &[PropertyInfo]) -> bool 
   false
 }
 
-/// Compiles only if `T` is a collection of child elements.
-pub const fn assert_collection<T: UiCollection>() {}
-
 /// Compiles only if `T` is a property group.
 pub const fn assert_property_group<T: PropertyGroup>() {}
 
@@ -217,7 +214,6 @@ mod tests {
     rust_path: "tests::Gauge",
     new: |_| unreachable!("never created"),
     content: None,
-    is_collection: false,
     properties: &[],
     groups: &[],
     events: &[],

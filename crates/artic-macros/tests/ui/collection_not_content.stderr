@@ -1,0 +1,5 @@
+error: `#[ui]` makes this field a collection of children, and only the content can be one: mark it `#[ui(content)]`, or make it a `Property` field
+ --> tests/ui/collection_not_content.rs:6:10
+  |
+6 |   stops: Vec<u8>,
+  |          ^^^^^^^

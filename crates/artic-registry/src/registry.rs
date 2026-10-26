@@ -160,7 +160,6 @@ mod tests {
       rust_path,
       new: new_node,
       content: None,
-      is_collection: false,
       properties: &[],
       groups: &[],
       events: &[],

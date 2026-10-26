@@ -71,7 +71,7 @@ pub fn analyze(input: &DeriveInput) -> syn::Result<Analysis<'_>> {
   check_generated_names(&attributes, &ui_fields)?;
   check_positional(&input.ident, &attributes, &ui_fields)?;
   check_content(&ui_fields)?;
-  check_child_fields(&ui_fields)?;
+  check_collections(&ui_fields)?;
   Ok(Analysis {
     ident: &input.ident,
     attributes,
@@ -99,21 +99,21 @@ pub fn check_content(ui_fields: &[UiField]) -> syn::Result<()> {
   Ok(())
 }
 
-/// Rejects a `Child` or `Children` field that isn't the content: a type's children are linked
-/// through its content, by a UI language and by `WithChildren` alike.
-fn check_child_fields(ui_fields: &[UiField]) -> syn::Result<()> {
+/// Rejects a collection field that isn't the content: a type's children reach it only through
+/// its content, by a UI language and by `WithChildren` alike, so nothing could fill another one.
+fn check_collections(ui_fields: &[UiField]) -> syn::Result<()> {
   for field in ui_fields {
-    let Type::Path(path) = field.ty else { continue };
-    let Some(last) = path.path.segments.last() else { continue };
-    let is_child_field = last.ident == "Child" || last.ident == "Children";
-    if is_child_field && field.attributes.content.is_none() {
-      return Err(Error::new_spanned(
-        field.ty,
-        format_args!(
+    if matches!(field.role, Role::Collection) && field.attributes.content.is_none() {
+      let message = match content_method(field.ty) {
+        Some(method) => format!(
           "a `{}` field must be the type's content: mark it `#[ui(content)]`",
-          last.ident
+          method.variant()
         ),
-      ));
+        None => "`#[ui]` makes this field a collection of children, and only the content can be one: mark it \
+                 `#[ui(content)]`, or make it a `Property` field"
+          .to_owned(),
+      };
+      return Err(Error::new_spanned(field.ty, message));
     }
   }
   Ok(())
@@ -296,15 +296,12 @@ pub fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttribu
 /// keys, and an unmarked one would have none. A `Child` or `Children` field must be marked
 /// `#[ui(content)]`, since children reach a type only through its content.
 pub fn reject_unmarked_member(field: &Field) -> syn::Result<()> {
-  if let Type::Path(path) = &field.ty
-    && let Some(last) = path.path.segments.last()
-    && (last.ident == "Child" || last.ident == "Children")
-  {
+  if let Some(method) = content_method(&field.ty) {
     return Err(Error::new_spanned(
       &field.ty,
       format_args!(
         "add `#[ui(content)]` to this `{}` field so it holds the type's children",
-        last.ident
+        method.variant()
       ),
     ));
   }
@@ -356,10 +353,10 @@ mod tests {
     let input: DeriveInput = parse_quote! {
       struct Border {
         layout: Layout,
-        #[ui(content)] child: Property<Option<NodeId>>,
+        #[ui] child: Property<Option<NodeId>>,
         #[ui(default = Thickness::ZERO)] padding: artic::Property<Thickness>,
         #[ui] pointer_pressed: Event<PointerEvent>,
-        #[ui] items: Vec<NodeId>,
+        #[ui(content)] items: Vec<NodeId>,
       }
     };
 
@@ -631,10 +628,10 @@ mod tests {
     );
   }
 
-  // A `Child` or `Children` field that isn't the content is rejected: children are linked only
-  // through the content.
+  // A collection field that isn't the content is rejected, whatever its type: children reach a
+  // type only through its content, so nothing could fill it.
   #[test]
-  fn child_fields_must_be_the_content() {
+  fn collection_fields_must_be_the_content() {
     for (ty, name) in [(quote::quote!(Child), "Child"), (quote::quote!(artic::Children), "Children")] {
       let input: DeriveInput = parse_quote! { struct Panel { #[ui] items: #ty } };
 
@@ -643,5 +640,10 @@ mod tests {
         format!("a `{name}` field must be the type's content: mark it `#[ui(content)]`")
       );
     }
+    let input: DeriveInput = parse_quote! { struct Gradient { #[ui] stops: Items } };
+    assert_eq!(
+      error(&input),
+      "`#[ui]` makes this field a collection of children, and only the content can be one: mark it `#[ui(content)]`, or make it a `Property` field"
+    );
   }
 }
