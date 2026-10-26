@@ -1,6 +1,6 @@
 //! Errors and warnings about source files, with the position they refer to.
 //!
-//! Every part of artic that reads a UI language (its parser, the compiler, the loader and the
+//! Every part of artic that reads a view (a language's parser, the compiler, the loader and the
 //! language server) reports through these types, so problems look the same wherever they are
 //! found.
 

@@ -11,7 +11,7 @@ pub struct SourceId(u32);
 /// They become lines and columns only when a diagnostic is rendered.
 ///
 /// Its `Debug` output is compact, `Span(0, 4..9)` for bytes `4..9` of file 0, since spans appear on
-/// every node of a printed infoset.
+/// every node of a printed syntax tree.
 #[derive(Clone, Copy, Eq, PartialEq, Hash)]
 pub struct Span {
   /// The file the range is in.
@@ -151,7 +151,7 @@ impl SourceFile {
 
 /// Every source file one run reads, addressed by [`SourceId`].
 ///
-/// The parser works with a map holding one file; the compiler and the language server hold many.
+/// A parser works with a map holding one file; the compiler and the language server hold many.
 #[derive(Debug, Default)]
 pub struct SourceMap {
   files: Vec<SourceFile>,

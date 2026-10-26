@@ -9,7 +9,7 @@ license.workspace = true
 repository.workspace = true
 
 [dev-dependencies]
-insta = { workspace = true, features = ["glob"] }
+insta.workspace = true
 pretty_assertions.workspace = true
 
 [lints]
