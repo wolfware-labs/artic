@@ -208,7 +208,7 @@ Values stay text. The compiler writes each one as Rust at build time, and the lo
 - a type path that isn't a Rust path, at the type's name;
 - the prelude or a linked crate path that isn't a Rust path, at the root element.
 
-Each name becomes the field `field_name` gives. A type path that isn't a Rust path leaves the element unbuilt, as today; the one difference from today is that the checker has already checked that element's members, so a misconfigured `CratePaths` or `using:` path can add property and content errors for it. No snapshot has such an element.
+Each name becomes the field `field_name` gives. A type path that isn't a Rust path is an error, so `emit` returns no code for the view and no reference to that element is ever written; the one difference from today is that the checker has already checked that element's members, so a misconfigured `CratePaths` or `using:` path can add property and content errors for it. No snapshot has such an element.
 
 ```rust,ignore
 /// The path generated code reaches each crate by.
