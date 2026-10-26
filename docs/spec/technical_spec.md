@@ -53,10 +53,10 @@ The framework is a Cargo workspace of layered crates; each layer depends only on
 flowchart BT
   L0["Layer 0: artic-core, artic-macros, artic-diagnostics, artic-test-fonts"]
   L1["Layer 1: artic-registry, artic-layout, artic-i18n, artic-xaml"]
-  L2["Layer 2: artic-render, artic-text, artic-style, artic-xaml-compiler, artic-xaml-runtime"]
-  L3["Layer 3: artic-element, artic-lsp"]
-  L4["Layer 4: artic-controls, artic-platform, artic-cli"]
-  L5["Layer 5: artic-theme, artic-test, artic-winit, artic-vello"]
+  L2["Layer 2: artic-render, artic-text, artic-style, artic-view, artic-xaml-runtime"]
+  L3["Layer 3: artic-element, artic-xaml-compiler"]
+  L4["Layer 4: artic-controls, artic-platform, artic-lsp"]
+  L5["Layer 5: artic-theme, artic-test, artic-winit, artic-vello, artic-cli"]
   L6["Layer 6: artic"]
   L0 --> L1 --> L2 --> L3 --> L4 --> L5 --> L6
 ```
@@ -69,6 +69,7 @@ Each layer builds on the ones below it. The exact dependency edges and the rules
 | `artic-registry` | Type descriptors any UI language uses: type name → constructor, properties, content, attached properties, events, value providers; a type's namespace is its crate | `TypeInfo`, `PropertyInfo`, `Registry`, `Lookup` |
 | `artic-macros` | `#[derive(UiType)]`, `#[element]`, `#[derive(UiProperties)]`, `#[derive(UiEnum)]`, `#[derive(ViewModel)]`, `#[ui_class]` | proc macros |
 | `artic-diagnostics` | Source files, spans and diagnostics every UI language reports through | `SourceMap`, `Span`, `Diagnostic` |
+| `artic-view` | The view every UI language reads its files into (`Document`), the checks on it, and the trait a language implements | `Document`, `check()`, `CheckedView`, `Language` |
 | `artic-xaml` | Parser: XML → XAML Infoset (MS-XAML §5), markup-extension grammar | `XamlDocument`, `XamlNode`, `MarkupExtensionAst` |
 | `artic-xaml-compiler` | Infoset → Rust source (`build.rs` API and `cargo artic` CLI), reached through the facade's `xaml-compiler` feature | `compile_str()`, `compile_dir()` |
 | `artic-xaml-runtime` | Infoset → live object tree using the registry; file watcher and hot-swap | `XamlLoader`, `HotReload` |
@@ -98,7 +99,7 @@ An app picks three things. Each sits behind an interface no layer below it knows
 | --- | --- | --- |
 | Host | `Host` in `artic-platform` | `artic-winit` |
 | Renderer | `Renderer` in `artic-render` | `artic-vello` |
-| UI language | the registry and the tree, as [the contract](dsl.md) states | XAML: `artic-xaml`, `artic-xaml-compiler`, `artic-xaml-runtime` |
+| UI language | `Document` and `Language` in `artic-view`, over the registry and the tree, as [the contract](dsl.md) states | XAML: `artic-xaml`, `artic-xaml-compiler`, `artic-xaml-runtime` |
 
 ### Object model in one paragraph
 

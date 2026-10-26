@@ -158,7 +158,7 @@ The checker is `lower.rs`'s member half, unchanged in behavior, and needs no reg
 1. reports the type's problem and goes on: properties are checked only when the type was found; names and `Unsupported` members always; the elements in the content always when the type wasn't found, and as step 4 says when it was;
 2. for a property, finds it by name; an unknown name is reported (an event's name gives "event handlers come with #82") and ends that member, its value and "set twice" never checked; for a found property, reports the value's problem if it has one, and otherwise a property set twice;
 3. for a name, reports its problem, then a name `field_name` refuses, with the reason as help, then two elements with one name, so a name that's invalid twice is reported twice;
-4. for content, applies the type's rule: text for a content property, where the first element or `Unsupported` node is reported and ends the content; children for `child` or `children`, where text is reported with the help "put the text in an element, such as a `TextBlock`", every child element counts toward "takes one child" whether its type was found or not, and the child taken is the only found one; nothing for a type that takes none, where text and elements are reported and the elements still checked; and, for a collection of values, "value collections come with #57" when it holds anything but blank text, the elements inside it never reached;
+4. for content, applies the type's rule: text for a content property, where the first element or `Unsupported` node is reported and ends the content; the text sets the property as a `Property` member would, so a property set by both is reported as set twice; children for `child` or `children`, where text is reported with the help "put the text in an element, such as a `TextBlock`", every child element counts toward "takes one child" whether its type was found or not, and the child taken is the only found one; nothing for a type that takes none, where text and elements are reported and the elements still checked; and, for a collection of values, "value collections come with #57" when it holds anything but blank text, the elements inside it never reached;
 5. reports each `Unsupported` member.
 
 An element whose type isn't found still has its name checked and the elements in its content checked, so an unknown type doesn't hide the problems below it. `field_name` is `names.rs`'s rule without `syn`: an identifier by Unicode's XID rules (`unicode-ident`), not `_`, a keyword written as a raw identifier, and `self`, `Self`, `crate`, `super`, `root` and a leading `r#` refused with today's three reasons. Its keyword list is checked in its tests against `syn`, and emission takes each field from it.
@@ -286,7 +286,7 @@ artic::view::compile_dir("src/views", &xaml, &paths)?;
 
 - `artic-diagnostics` joins layer 0, and `artic-xaml`, which now depends on it, moves to layer 1.
 - `artic-view` is in layer 2; `artic-view-compiler` and `artic-xaml-lang` are in layer 3.
-- `artic-lsp`, which depends on `artic-xaml-lang`, moves to layer 4, and `artic-cli`, planned to depend on `artic-lsp`, to layer 5.
+- `artic-lsp`, which depends on `artic-xaml-lang`, moves to layer 4, and `artic-cli`, planned to depend on `artic-lsp`, to layer 5. These moves land with PR 3, where `artic-xaml-compiler` starts depending on `artic-view`.
 - `artic-xaml-runtime` depends on neither new crate yet and stays in layer 2; #59 moves it when the loader uses them.
 - `artic-xaml-lang`'s tests compile XAML end to end, so it dev-depends on `artic-view-compiler`, in the same layer; `docs/architecture.md` lists that beside its other dev-dependency rules. Cargo allows it, since `artic-view-compiler` doesn't depend on `artic-xaml-lang`.
 - `scripts/check-ui-neutral.sh` allows `artic-xaml-lang` in place of `artic-xaml-compiler`, and covers the three new crates like every other.
@@ -308,8 +308,8 @@ Documents that describe the code change with the pull request that changes it.
 | Where | Change | PR |
 | --- | --- | --- |
 | `docs/architecture.md` | `artic-diagnostics` in layer 0, `artic-xaml` in layer 1; the layer roles; the planned span move for `artic-style` is done | 2 |
-| `docs/architecture.md` | `artic-view` in layer 2; the UI-language seam's interface includes `Document` and `Language` | 3 |
-| `docs/architecture.md` | `artic-view-compiler` and `artic-xaml-lang` in layer 3, `artic-lsp` in 4, `artic-cli` in 5; the crates allowed to say XAML; the dev-dependency rule; the dependency table and graph | 4 |
+| `docs/architecture.md` | `artic-view` in layer 2, `artic-xaml-compiler` in layer 3, `artic-lsp` in 4, `artic-cli` in 5; the UI-language seam's interface includes `Document` and `Language`; `check-ui-neutral.sh` catches `x:` directives | 3 |
+| `docs/architecture.md` | `artic-view-compiler` and `artic-xaml-lang` in layer 3; the crates allowed to say XAML; the dev-dependency rule; the dependency table and graph | 4 |
 | `docs/spec/dsl.md` | the intro and a section on what artic gives a language: `Document`, `check`, `Language`, the compiler; §10 says which problems `check` reports for a language; §11's last paragraph names `CratePaths` for the paths and `NamespaceMap` for the URIs | 3 and 4 |
 | `docs/design/xaml-compiler.md` | each part names the crate that now owns it; the API section shows the generic driver and the facade's short form; `NamespaceMap::path` becomes `CratePaths::path` | 4 |
 | `docs/design/ui-class.md` | "the UI-language-neutral view compiler" becomes `artic-view` and `artic-view-compiler`; `artic-xaml-compiler` becomes `artic-xaml-lang`, including the fixture app's path | 4 |

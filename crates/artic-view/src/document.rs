@@ -20,8 +20,8 @@ pub struct Element {
   pub ty: Result<TypeUse, Problem>,
   /// Where the element is written.
   pub span: Span,
-  /// Its members, in the language's member order: for XAML, attributes, then property elements,
-  /// then the content.
+  /// Its members, in the language's member order, such as attributes, then properties written
+  /// as elements, then the content.
   pub members: Vec<Member>,
 }
 

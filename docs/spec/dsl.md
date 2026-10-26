@@ -1,6 +1,6 @@
 # UI language contract
 
-A UI language is a front end that builds artic's tree. XAML is the first; a `view!{}` macro, another markup or a visual designer could be others. This document states what any of them does, with artic's registry and tree as the only interface, so a language can be added without changing artic. The layers below a language never name it ([spec §1](technical_spec.md#1-overview-and-locked-decisions)).
+A UI language is a front end that builds artic's tree. XAML is the first; a `view!{}` macro, another markup or a visual designer could be others. This document states what any of them does, with artic's registry and tree as the only interface, so a language can be added without changing artic. A language reads its files into `artic-view`'s `Document` and gets the checks below and, with [§12](#12-what-artic-gives-a-language), the compiler. The layers below a language never name it ([spec §1](technical_spec.md#1-overview-and-locked-decisions)).
 
 Some of the contract is built and some comes with XAML's back ends. Each section says which.
 
@@ -188,6 +188,8 @@ A language reports each of these at its location in the source:
 - an attached property set where its target rule forbids it;
 - content for a type that takes none, or a second child where one is taken.
 
+A language that reads into a `Document` reports only the type problems, as the document's `Problem`s, and its own syntax errors. `artic_view::check` reports the rest the same way for every language: an unknown property or an event set as one, a property set twice (text inside an element sets its content property, so `Text` written both ways counts), content a type doesn't take, a second child, and a name that isn't a field or names two elements.
+
 `ValueError` carries no position; the language adds it. A build-time language reports these as errors from `build.rs`; a run-time one returns them to the app.
 
 ## 11. XAML's mapping
@@ -213,3 +215,9 @@ Each construct [spec §4](technical_spec.md#supported) supports, and the section
 | XML comments, CDATA, `xml:space` | [6](#6-content-and-children) for whitespace; the rest is XAML syntax with nothing to map |
 
 XAML spells namespaces as URIs. `NamespaceMap` in `artic-xaml` says which crates a URI stands for: `artic::xaml::namespaces()` maps `https://artic.rs/ui` to `artic_element` and `artic_controls`, and an app adds its own URIs with `NamespaceMap::alias`. The map also holds the path generated code reaches each crate by (`NamespaceMap::path`); the facade maps its crates to `::artic::controls` and the like. `using:my_crate::views` joins the module and the name into a Rust path, `my_crate::views::Gauge`, for `Registry::type_by_rust_path`. `https://artic.rs/markup` holds XAML's own `x:` directives.
+
+## 12. What artic gives a language
+
+**`Document`, `check` and `Language` are built (#325); the compiler takes a `Language` with #325's last pull request.**
+
+A front end turns its syntax into a `Document` from `artic-view`: each element's type looked up in the registry, each member as written, and each problem it found recorded where it occurs rather than reported. `artic_view::check` finds every member on its type and returns a `CheckedView`, the elements children first, which a back end builds. A language implements `Language`, its file extension and a `read` from a file to a document, and the compiler and, with #59, the runtime loader take it. The [view pipeline design](../design/view-pipeline.md) has the details.
