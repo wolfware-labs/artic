@@ -1,6 +1,6 @@
 use crate::ui_type::attributes::{FieldAttributes, TypeAttributes, parse_field_attributes, parse_type_attributes};
 use crate::ui_type::builders::{content_method, key_constant_name};
-use artic_ident::{pascal_case, screaming_snake_case, snake_case};
+use artic_ident::{IdentError, pascal_case, rust_identifier, screaming_snake_case, snake_case};
 use quote::ToTokens;
 use syn::ext::IdentExt;
 use syn::{Data, DeriveInput, Error, Field, Fields, GenericArgument, Ident, PathArguments, Type, Visibility};
@@ -185,6 +185,16 @@ fn check_generated_names(attributes: &TypeAttributes, ui_fields: &[UiField]) -> 
   for attached in &attributes.attached {
     let name = attached.name.value();
     let getter = snake_case(&name);
+    if let Err(error) = rust_identifier(&getter) {
+      let why = match error {
+        IdentError::NotIdentifier => "isn't a Rust identifier",
+        IdentError::PathKeyword => "can't be a raw identifier",
+      };
+      return Err(Error::new_spanned(
+        &attached.name,
+        format_args!("`{name}` can't name an attached property: its getter would be `{getter}`, which {why}"),
+      ));
+    }
     let items = [(format!("set_{getter}"), "setter"), (screaming_snake_case(&name), "constant")];
     take(
       &mut taken,
@@ -549,6 +559,34 @@ mod tests {
     assert_eq!(
       error(&input),
       "`url_field` would be both the method of the property `url_field` and the getter of the attached property `URLField`; rename one"
+    );
+  }
+
+  // An attached name whose getter isn't an identifier is rejected, rather than panicking later.
+  #[test]
+  fn attached_name_that_is_not_an_identifier_is_an_error() {
+    let input: DeriveInput = parse_quote! {
+      #[ui(attached(name = "Row Span", ty = usize, target = children))]
+      struct Grid;
+    };
+
+    assert_eq!(
+      error(&input),
+      "`Row Span` can't name an attached property: its getter would be `row span`, which isn't a Rust identifier"
+    );
+  }
+
+  // An attached name whose getter is `self`, `crate` or `super` is rejected: those can't be raw.
+  #[test]
+  fn attached_name_that_is_a_path_keyword_is_an_error() {
+    let input: DeriveInput = parse_quote! {
+      #[ui(attached(name = "SELF", ty = usize, target = children))]
+      struct Grid;
+    };
+
+    assert_eq!(
+      error(&input),
+      "`SELF` can't name an attached property: its getter would be `self`, which can't be a raw identifier"
     );
   }
 

@@ -2,7 +2,7 @@ use crate::crate_root::{REGISTRY, crate_root};
 use crate::ui_type::attributes::{Affects, Attached, Inherits, Target, Whitespace};
 use crate::ui_type::builders::{builders, content_method};
 use crate::ui_type::fields::{Analysis, Role, UiField, generic_argument, ui_name};
-use artic_ident::{screaming_snake_case, snake_case};
+use artic_ident::{rust_identifier, screaming_snake_case, snake_case};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::Ident;
@@ -342,9 +342,10 @@ fn attached_helpers(owner: &Ident, attached: &Attached) -> TokenStream {
   let name = attached.name.value();
   let snake = snake_case(&name);
   let constant = format_ident!("{}", screaming_snake_case(&name));
-  let getter = format_ident!("{snake}");
+  let getter: Ident =
+    syn::parse_str(&rust_identifier(&snake).expect("the analysis checks the getter")).expect("a Rust identifier parses");
   let setter = format_ident!("set_{snake}");
-  let value = format_ident!("{snake}");
+  let value = &getter;
   let property = format!("`{owner}.{name}`");
   let constant_doc = format!("The {property} attached property.");
   let setter_doc = format!("Sets {property} on `node`, at local precedence.");
