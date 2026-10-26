@@ -1,6 +1,7 @@
 use crate::property::Affects;
 use std::fmt::{Debug, Formatter, Result};
 use std::marker::PhantomData;
+use std::sync::atomic::AtomicBool;
 
 /// The identity and metadata of one kind of property, shared by every node type that has it.
 ///
@@ -9,8 +10,10 @@ use std::marker::PhantomData;
 /// block both use the same key, which is how one inherits from the other. The key also fixes the
 /// value type, so a lookup by key can't return a property of another type.
 ///
-/// It must be a `static`, not a `const`: a `const` is copied into each place that uses it and has no
-/// single address to compare.
+/// It must be a `static`: a `const` is copied into each place that uses it and has no single
+/// address to compare, so a value set through one copy would be lost to the others. A `const` key
+/// doesn't compile where a key is used. For the same reason, a `const` can't read a static key's
+/// metadata, such as `const N: &str = KEY.name()`; a `static` initializer and running code can.
 ///
 /// # Examples
 ///
@@ -22,11 +25,25 @@ use std::marker::PhantomData;
 /// assert_eq!(FONT_SIZE.name(), "FontSize");
 /// assert!(FONT_SIZE.inherits());
 /// ```
+///
+/// A `const` key doesn't compile where a key is used:
+///
+/// ```compile_fail,E0716
+/// use artic_core::property::{Affects, Inheritance, PropertyKey};
+///
+/// const FONT_SIZE: PropertyKey<f32> = PropertyKey::new("FontSize", Affects::LAYOUT, Inheritance::Replace);
+///
+/// let key: &'static PropertyKey<f32> = &FONT_SIZE;
+/// ```
 pub struct PropertyKey<T> {
   name: &'static str,
   affects: Affects,
   inheritance: Inheritance<T>,
   value_type: PhantomData<fn() -> T>,
+  /// Never read: a field with interior mutability makes the key `!Freeze`, so Rust doesn't
+  /// promote a `const` key to `&'static`, and a `const` key used as a key doesn't compile.
+  #[expect(dead_code, reason = "its type, not its value, does the work")]
+  not_const: AtomicBool,
 }
 
 /// How a property takes part in inheritance from its logical ancestors.
@@ -73,6 +90,7 @@ impl<T> PropertyKey<T> {
       affects,
       inheritance,
       value_type: PhantomData,
+      not_const: AtomicBool::new(false),
     }
   }
 
