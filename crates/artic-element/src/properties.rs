@@ -5,7 +5,7 @@ use artic_core::property::Property;
 use artic_layout::geometry::{Point, Rect, Size, Thickness, Transform};
 use artic_layout::{ArrangeCx, HorizontalAlignment, MeasureCx, Sizing, VerticalAlignment, arrange_with, measure_with};
 use artic_macros::UiProperties;
-use artic_render::{Layers, Shape, drawable_opacity};
+use artic_render::{Layers, Shape};
 
 /// Where an element sits and how big it is: size, limits, margin and alignment.
 ///
@@ -147,7 +147,7 @@ impl Appearance {
         .get()
         .map(|transform| Transform::translate(-x, -y).then(transform).then(Transform::translate(x, y))),
       clip,
-      opacity: drawable_opacity(self.opacity.get()),
+      opacity: self.opacity.get(),
       visible: self.visibility.get() == Visibility::Visible,
       z_index: self.z_index.get(),
     }

@@ -2,7 +2,7 @@ use artic_layout::geometry::{CornerRadius, FillRule, PathElement, Point, Rect, R
 use artic_layout::text::Paragraph;
 use artic_render::{
   BoxShadow, Brush, Color, Command, GradientStop, Layer, LineCap, LineJoin, Paint, PhysicalSize, Scene, SceneItem, Shape,
-  Stroke,
+  Stroke, drawable_opacity,
 };
 use std::sync::Arc;
 use vello::kurbo::{self, Affine, BezPath, Cap, Diagonal2, Join, PathEl, Shape as _};
@@ -85,9 +85,13 @@ impl Translation<'_> {
         self.stack.push(Pushed::Layer);
       }
       Layer::Opacity(opacity) => {
-        self
-          .out
-          .push_layer(Fill::NonZero, BlendMode::default(), *opacity, Affine::IDENTITY, &self.surface);
+        self.out.push_layer(
+          Fill::NonZero,
+          BlendMode::default(),
+          drawable_opacity(*opacity),
+          Affine::IDENTITY,
+          &self.surface,
+        );
         self.stack.push(Pushed::Layer);
       }
     }
@@ -458,6 +462,18 @@ mod tests {
       surface: kurbo::Rect::ZERO,
     });
     out
+  }
+
+  // A layer's opacity is made drawable where it's drawn, so a hand-built scene with a broken one
+  // still blends at the rule's opacity: clamped to 0..=1, NaN as 1.
+  #[test]
+  fn opacity_layers_are_made_drawable() {
+    let alpha = |opacity: f32| {
+      let out = encoded(|t| t.push(&Layer::Opacity(opacity)));
+      f32::from_bits(out.encoding().draw_data[1])
+    };
+
+    assert_eq!([-0.5, 0.25, 2.0, f32::NAN].map(alpha), [0.0, 0.25, 1.0, 1.0]);
   }
 
   // Each shape becomes a kurbo path: a rectangle as vello would make it, a rounded rectangle

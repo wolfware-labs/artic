@@ -372,20 +372,17 @@ fn layers_carry_the_clip() {
   );
 }
 
-// Opacity outside 0–1 is clamped, and NaN counts as opaque; the property keeps what was set.
+// Layers carry the opacity as set, out of range or NaN, for the renderer to make drawable.
 #[test]
-fn layers_clamp_opacity() {
+fn layers_carry_opacity_as_set() {
   let appearance = Appearance::default();
   let opacity = |value: f32| {
     appearance.opacity.set(value);
     appearance.layers(Size::new(10.0, 10.0), None).opacity
   };
 
-  assert_eq!(
-    (opacity(0.25), opacity(-1.0), opacity(2.0), opacity(f32::NAN)),
-    (0.25, 0.0, 1.0, 1.0)
-  );
-  assert!(appearance.opacity.get().is_nan());
+  assert_eq!((opacity(0.25), opacity(-1.0), opacity(2.0)), (0.25, -1.0, 2.0));
+  assert!(opacity(f32::NAN).is_nan());
 }
 
 // A rotation pivots on the element's centre, which stays where it was.

@@ -72,14 +72,14 @@ impl BoxShadow {
   /// `rect` is made [drawable](Shape::drawable), grown by the spread on each side and moved by
   /// the offset. Each radius above `0` grows by the spread, and the radii are
   /// [fitted](RoundedRect::fitted) again. A negative spread shrinks the rectangle, down to
-  /// nothing. The shadow's own values are taken as they are, so call it on a
-  /// [drawable](BoxShadow::drawable) shadow.
+  /// nothing. The shadow is made [drawable](BoxShadow::drawable) first.
   #[must_use]
   pub fn shape(&self, rect: RoundedRect) -> Option<RoundedRect> {
     let Some(Shape::RoundedRect(caster)) = Shape::from(rect).drawable() else {
       return None;
     };
-    let (spread, offset) = (self.spread, self.offset);
+    let shadow = self.drawable()?;
+    let (spread, offset) = (shadow.spread, shadow.offset);
     let Rect { x, y, width, height } = caster.rect;
     let grown = Rect::new(
       x - spread + offset.x,
@@ -214,6 +214,18 @@ mod tests {
 
   fn parse(text: &str) -> Result<BoxShadow, ShadowProblem> {
     text.parse::<BoxShadow>().map_err(|error| error.problem)
+  }
+
+  // A shadow that draws nothing gives no shape, without the caller checking first; a NaN spread
+  // counts as 0, as it does when drawn.
+  #[test]
+  fn shape_makes_the_shadow_drawable() {
+    let rect = RoundedRect::new(Rect::new(0.0, 0.0, 10.0, 10.0), CornerRadius::ZERO);
+    let broken = BoxShadow::new(Point::new(f32::NAN, 0.0), 0.0, BLACK);
+    let nan_spread = BoxShadow::new(Point::ZERO, 0.0, BLACK).with_spread(f32::NAN);
+
+    assert_eq!(broken.shape(rect), None);
+    assert_eq!(nan_spread.shape(rect), Some(rect));
   }
 
   // Two numbers and a color: an offset, no blur, no spread.
