@@ -1,0 +1,12 @@
+---
+source: crates/artic-xaml-lang/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/markup-extension/quoted.xaml
+---
+valid/markup-extension/quoted.xaml:3:18: error: `{Binding}` comes with #94
+3 |            Text="{Binding Text, FallbackValue='a, b {c}'}"
+  |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+valid/markup-extension/quoted.xaml:4:12: error: `TextBlock` has no property `Tag`
+4 |            Tag="{A &quot;it's&quot;, 'say \'hi\'', a\,b}"/>
+  |            ^^^ unknown property

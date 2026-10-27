@@ -4,7 +4,7 @@
 # docs-check's list of every document are allowed to.
 set -uo pipefail
 cd "$(dirname "$0")/.."
-allowed=(':!crates/artic-xaml/' ':!crates/artic-xaml-compiler/' ':!crates/artic-xaml-runtime/'
+allowed=(':!crates/artic-xaml/' ':!crates/artic-xaml-lang/' ':!crates/artic-xaml-runtime/'
   ':!crates/artic-lsp/' ':!crates/artic-cli/' ':!crates/artic/src/xaml.rs' ':!crates/artic/Cargo.toml'
   ':!crates/artic/src/lib.rs' ':!crates/artic/tests/xaml.rs' ':!crates/docs-check/src/lib.rs')
 names=$(git grep -n -i 'xaml' -- 'crates/' "${allowed[@]}")

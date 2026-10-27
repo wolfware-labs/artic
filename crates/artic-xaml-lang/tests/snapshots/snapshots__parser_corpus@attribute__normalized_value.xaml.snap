@@ -1,0 +1,25 @@
+---
+source: crates/artic-xaml-lang/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/attribute/normalized_value.xaml
+---
+// Generated from valid/attribute/normalized_value.xaml.
+
+use ::artic::core::tree::{Handle, UiTree};
+use ::artic::controls as _;
+use ::artic::core as _;
+use ::artic::element as _;
+use ::artic::layout as _;
+use ::artic::render as _;
+/// The nodes of `valid/attribute/normalized_value.xaml`: its root and one handle per named element.
+#[derive(Clone, Copy, Debug)]
+pub struct View {
+    pub root: Handle<::artic::controls::TextBlock>,
+}
+/// Builds `valid/attribute/normalized_value.xaml` in `tree` and returns its nodes.
+pub fn build(tree: &mut UiTree) -> View {
+    let __e0 = ::artic::controls::TextBlock::new()
+        .text(::std::string::String::from("two lines tab & \nbreak"))
+        .build(tree);
+    View { root: __e0 }
+}

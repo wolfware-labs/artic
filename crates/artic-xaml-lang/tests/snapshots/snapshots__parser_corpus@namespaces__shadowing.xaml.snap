@@ -1,0 +1,20 @@
+---
+source: crates/artic-xaml-lang/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/namespaces/shadowing.xaml
+---
+valid/namespaces/shadowing.xaml:1:2: error: no type `Page` in `using:app::views`
+1 | <v:Page xmlns:v="using:app::views">
+  |  ^^^^^^ unknown type
+
+valid/namespaces/shadowing.xaml:2:4: error: no type `Panel` in `using:app::widgets`
+2 |   <v:Panel xmlns:v="using:app::widgets">
+  |    ^^^^^^^ unknown type
+
+valid/namespaces/shadowing.xaml:3:6: error: no type `Card` in `using:app::widgets`
+3 |     <v:Card/>
+  |      ^^^^^^ unknown type
+
+valid/namespaces/shadowing.xaml:5:4: error: no type `Header` in `using:app::views`
+5 |   <v:Header/>
+  |    ^^^^^^^^ unknown type

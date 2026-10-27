@@ -8,7 +8,7 @@ pub use artic_xaml::namespaces::NamespaceMap;
 
 /// XAML as a UI language, which [`compile_dir`] compiles with.
 #[cfg(feature = "xaml-compiler")]
-pub use artic_xaml_compiler::Xaml;
+pub use artic_xaml_lang::Xaml;
 
 /// Compiles every `.xaml` file under `dir` from a build script, with artic's paths: the short
 /// form of [`crate::view::compile_dir`] for XAML. It reads `CARGO_PKG_NAME` for

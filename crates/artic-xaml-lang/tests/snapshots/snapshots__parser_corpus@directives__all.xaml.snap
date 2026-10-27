@@ -1,0 +1,12 @@
+---
+source: crates/artic-xaml-lang/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/directives/all.xaml
+---
+valid/directives/all.xaml:2:4: error: no type `Button` in `https://artic.rs/ui`
+2 |   <Button x:Name="submit" x:Uid="submit-button" x:FieldModifier="pub(crate)"/>
+  |    ^^^^^^ unknown type
+
+valid/directives/all.xaml:3:4: error: `UserControl` has no property `Resources`
+3 |   <UserControl.Resources>
+  |    ^^^^^^^^^^^^^^^^^^^^^ unknown property

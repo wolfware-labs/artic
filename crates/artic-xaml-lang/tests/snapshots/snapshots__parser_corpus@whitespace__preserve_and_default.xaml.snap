@@ -1,0 +1,16 @@
+---
+source: crates/artic-xaml-lang/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/whitespace/preserve_and_default.xaml
+---
+valid/whitespace/preserve_and_default.xaml:1:2: error: no type `Panel` in `https://artic.rs/ui`
+1 | <Panel xmlns="https://artic.rs/ui" xml:space="preserve">  kept  <Panel xml:space="default">  normalized  </Panel><TextBlock>  inherited  </TextBlock></Panel>
+  |  ^^^^^ unknown type
+
+valid/whitespace/preserve_and_default.xaml:1:66: error: no type `Panel` in `https://artic.rs/ui`
+1 | <Panel xmlns="https://artic.rs/ui" xml:space="preserve">  kept  <Panel xml:space="default">  normalized  </Panel><TextBlock>  inherited  </TextBlock></Panel>
+  |                                                                  ^^^^^ unknown type
+
+valid/whitespace/preserve_and_default.xaml:1:125: error: `TextBlock` takes no text content
+1 | <Panel xmlns="https://artic.rs/ui" xml:space="preserve">  kept  <Panel xml:space="default">  normalized  </Panel><TextBlock>  inherited  </TextBlock></Panel>
+  |                                                                                                                             ^^^^^^^^^^^^^

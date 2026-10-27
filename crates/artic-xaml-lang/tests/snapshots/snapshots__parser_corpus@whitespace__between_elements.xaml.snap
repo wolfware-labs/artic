@@ -1,0 +1,20 @@
+---
+source: crates/artic-xaml-lang/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/whitespace/between_elements.xaml
+---
+valid/whitespace/between_elements.xaml:1:40: error: `TextBlock` takes no child elements
+1 | <TextBlock xmlns="https://artic.rs/ui"><Run>Hello</Run> <Run>world</Run></TextBlock>
+  |                                        ^^^^^^^^^^^^^^^^
+
+valid/whitespace/between_elements.xaml:1:41: error: no type `Run` in `https://artic.rs/ui`
+1 | <TextBlock xmlns="https://artic.rs/ui"><Run>Hello</Run> <Run>world</Run></TextBlock>
+  |                                         ^^^ unknown type
+
+valid/whitespace/between_elements.xaml:1:57: error: `TextBlock` takes no child elements
+1 | <TextBlock xmlns="https://artic.rs/ui"><Run>Hello</Run> <Run>world</Run></TextBlock>
+  |                                                         ^^^^^^^^^^^^^^^^
+
+valid/whitespace/between_elements.xaml:1:58: error: no type `Run` in `https://artic.rs/ui`
+1 | <TextBlock xmlns="https://artic.rs/ui"><Run>Hello</Run> <Run>world</Run></TextBlock>
+  |                                                          ^^^ unknown type

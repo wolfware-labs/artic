@@ -1,0 +1,12 @@
+---
+source: crates/artic-xaml-lang/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/content/collection.xaml
+---
+valid/content/collection.xaml:2:4: error: no type `Button` in `https://artic.rs/ui`
+2 |   <Button/>
+  |    ^^^^^^ unknown type
+
+valid/content/collection.xaml:3:4: error: no type `Image` in `https://artic.rs/ui`
+3 |   <Image/>
+  |    ^^^^^ unknown type
