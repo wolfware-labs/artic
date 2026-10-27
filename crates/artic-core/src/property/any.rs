@@ -29,6 +29,11 @@ impl<'a> PropertyVisitor<'a> {
   }
 
   /// Lists `property`, one of the node's own.
+  ///
+  /// # Panics
+  ///
+  /// When the tree adds the node, if `property` is already listed by another node: a property
+  /// belongs to one node, which disposes it when it's freed.
   pub fn visit<T>(&mut self, property: &Property<T>)
   where
     T: PartialEq + 'static,
@@ -131,6 +136,11 @@ where
   }
 
   fn attach(&self, dirty: DirtyHandle) {
+    let elsewhere = self.0.with_untracked(|state| state.is_listed_elsewhere(&dirty));
+    assert!(
+      !elsewhere,
+      "a property belongs to one node, and this one is already listed by another"
+    );
     self.0.update_with(|state| {
       state.attach(dirty);
       Change::Hidden

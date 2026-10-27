@@ -155,3 +155,15 @@ fn dropping_the_tree_disposes_its_nodes_properties() {
 
   assert_eq!(live_counts(), baseline);
 }
+
+// A property belongs to one node: listing it on a second node is a bug the tree reports, since
+// freeing either node would dispose it under the other.
+#[test]
+#[should_panic(expected = "a property belongs to one node")]
+fn a_property_listed_by_two_nodes_panics() {
+  let mut tree = UiTree::new();
+  let shared = Property::new(&FOREGROUND, 0);
+  let _first = tree.alloc(Box::new(Twice(shared)));
+
+  let _second = tree.alloc(Box::new(Twice(shared)));
+}

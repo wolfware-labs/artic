@@ -35,6 +35,11 @@ impl DirtyHandle {
     self.pending.set(true);
   }
 
+  /// Whether `other` is the same node's flags.
+  pub(crate) fn is_same_node(&self, other: &DirtyHandle) -> bool {
+    Rc::ptr_eq(&self.stages, &other.stages)
+  }
+
   pub(crate) fn stages(&self) -> Affects {
     self.stages.get()
   }
