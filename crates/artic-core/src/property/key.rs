@@ -62,7 +62,8 @@ pub enum Inheritance<T> {
 impl<T> Inheritance<T> {
   /// Calls `function` with the effective value of a property of this kind, from its own value
   /// (its highest set level, if any), its default and what it inherits from its nearest logical
-  /// ancestor, if any. Only a kind that inherits is ever given an inherited value.
+  /// ancestor, if any. `None` folds as `Replace` does: what keeps a property of a kind that
+  /// doesn't inherit from following an ancestor is that the tree never links one.
   pub(crate) fn resolve<R>(self, own: Option<&T>, default: &T, inherited: Option<&T>, function: impl FnOnce(&T) -> R) -> R {
     match (self, inherited) {
       (Inheritance::Combine(combine), Some(inherited)) => function(&combine(own.unwrap_or(default), inherited)),
@@ -158,16 +159,18 @@ mod tests {
 
   // Own value, default and inherited value fold one way for every reader: `Replace` takes the own
   // value, else the inherited one, else the default; `Combine` applies its function to the own
-  // value or default and the inherited one.
+  // value or default and the inherited one. `None` folds as `Replace`; the tree never links one.
   #[test]
   fn resolve_folds_own_default_and_inherited() {
     let replace = |own, inherited| Inheritance::<i32>::Replace.resolve(own, &0, inherited, |value| *value);
+    let none = |own, inherited| Inheritance::<i32>::None.resolve(own, &0, inherited, |value| *value);
     let and = |own, inherited| Inheritance::Combine(inherit::and).resolve(own, &true, inherited, |value| *value);
 
     assert_eq!(
       [replace(Some(&3), Some(&7)), replace(None, Some(&7)), replace(None, None)],
       [3, 7, 0]
     );
+    assert_eq!([none(Some(&3), Some(&7)), none(None, Some(&7)), none(None, None)], [3, 7, 0]);
     assert_eq!(
       [
         and(Some(&true), Some(&false)),

@@ -7,7 +7,8 @@
 //! ancestor. Nodes without the property are skipped, and inheritance never follows the visual tree.
 //!
 //! It holds no state of its own: it reads the objects, their attached values and the logical
-//! tree's links.
+//! tree's links. [`with_property`], the lookup of a node's property by key it walks with, also
+//! serves [`UiTree::attached`](super::UiTree::attached).
 
 use crate::object::for_each_property;
 use crate::property::{AnyProperty, KeyId};
@@ -19,7 +20,7 @@ use std::iter::once;
 
 /// Makes each inheritable property of `root` and its logical descendants, fields and attached
 /// values alike, follow its nearest logical ancestor.
-pub(super) fn resolve(objects: &Objects, attached: &AttachedValues, logical: &Tree, root: NodeId) {
+pub(super) fn relink(objects: &Objects, attached: &AttachedValues, logical: &Tree, root: NodeId) {
   for node in once(root).chain(logical.descendants(root)) {
     let mut follow = |property: AnyProperty<'_>| {
       if property.inherits() {

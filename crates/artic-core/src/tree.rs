@@ -321,6 +321,7 @@ impl UiTree {
   /// panics at the next [`take_pending`](UiTree::take_pending) or [`free`](UiTree::free).
   #[must_use]
   pub fn get_mut(&mut self, id: NodeId) -> Option<&mut dyn Object> {
+    let object = self.objects.get_mut(id)?;
     #[cfg(debug_assertions)]
     {
       let touched = self.touched.get_mut();
@@ -328,7 +329,7 @@ impl UiTree {
         touched.push(id);
       }
     }
-    self.objects.get_mut(id)
+    Some(object)
   }
 
   /// Returns a mutable reference to the node referred to by `id` as a `T`.
@@ -521,7 +522,7 @@ impl UiTree {
   pub fn detach(&mut self, tree: TreeKind, node: NodeId) -> Option<NodeId> {
     let parent = self.unlink(tree, node)?;
     if tree == TreeKind::Logical {
-      inheritance::resolve(&self.objects, &self.attached_values, &self.logical, node);
+      inheritance::relink(&self.objects, &self.attached_values, &self.logical, node);
     }
     Some(parent)
   }
@@ -589,7 +590,9 @@ impl UiTree {
   ///
   /// # Panics
   ///
-  /// Panics if `id` is stale: it was already freed, or never returned by this tree.
+  /// Panics if `id` is stale: it was already freed, or never returned by this tree. In debug
+  /// builds it also panics, before freeing anything, if a node handed out by
+  /// [`get_mut`](UiTree::get_mut) since the last check had a property field replaced.
   ///
   /// # Examples
   ///
@@ -677,6 +680,11 @@ impl UiTree {
   /// a new node and a change to a node's visual children. Clearing flags doesn't. The frame
   /// pipeline asks after each change it handles, so it needn't walk the tree to know a frame is
   /// needed.
+  ///
+  /// # Panics
+  ///
+  /// In debug builds, if a node handed out by [`get_mut`](UiTree::get_mut) since the last check had
+  /// a property field replaced: write a property with `set` instead.
   #[must_use = "the flag is cleared, so a caller that ignores it loses the request for a frame"]
   pub fn take_pending(&self) -> bool {
     self.check_touched();
@@ -700,15 +708,14 @@ impl UiTree {
       return property.get();
     }
     let inheritance = key.key().inheritance();
-    let default = key.default_value();
     let source = key
       .key()
       .inherits()
       .then(|| self.logical.ancestors(node).find_map(|ancestor| self.held(ancestor, key)))
       .flatten();
     match source {
-      Some(source) => source.with(|inherited| inheritance.resolve(None, &default, Some(inherited), T::clone)),
-      None => default,
+      Some(source) => source.with(|inherited| inheritance.resolve(None, &key.default_value(), Some(inherited), T::clone)),
+      None => key.default_value(),
     }
   }
 
@@ -757,7 +764,7 @@ impl UiTree {
     Erased::attach(&property, self.dirty_flags.shared(node));
     self.attached_values.insert(node, Box::new(property));
     if key.key().inherits() {
-      inheritance::resolve(&self.objects, &self.attached_values, &self.logical, node);
+      inheritance::relink(&self.objects, &self.attached_values, &self.logical, node);
     }
     property
   }
@@ -793,7 +800,7 @@ impl UiTree {
     self.tree_mut(tree).link(parent, index, child);
     self.children_changed(tree, parent);
     if tree == TreeKind::Logical {
-      inheritance::resolve(&self.objects, &self.attached_values, &self.logical, child);
+      inheritance::relink(&self.objects, &self.attached_values, &self.logical, child);
     }
   }
 
@@ -821,9 +828,6 @@ impl UiTree {
   fn check_touched(&self) {
     #[cfg(debug_assertions)]
     for node in self.touched.take() {
-      if !self.objects.contains(node) {
-        continue;
-      }
       let flags = self.dirty_flags.shared(node);
       for_each_property(self.objects.object(node), |property| {
         assert!(

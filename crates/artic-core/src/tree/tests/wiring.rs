@@ -66,14 +66,13 @@ fn touching_other_fields_passes() {
   tree.free(node);
 }
 
-// A touched node freed before the check is skipped.
+// `get_mut` on a stale id hands out nothing, so it leaves nothing to check.
 #[test]
-fn a_touched_node_freed_first_is_skipped() {
+fn get_mut_on_a_stale_id_records_nothing() {
   let mut tree = UiTree::new();
-  let [first, second] = [(); 2].map(|_| tree.alloc(Box::new(Panel::new())));
-  tree.get_as_mut::<Panel>(first).unwrap().items.push(1);
-  tree.free(first);
+  let node = tree.alloc(Box::new(Panel::new()));
+  tree.free(node);
 
-  tree.free(second);
-  assert!(tree.is_empty());
+  assert!(tree.get_mut(node).is_none());
+  let _ = tree.take_pending();
 }
