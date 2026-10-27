@@ -163,10 +163,10 @@ Two checks keep the struct and the file together:
 | `#[ui_class]`, `#[ui(required)]` | `artic-macros`, re-exported as `artic::ui_class` |
 | `TypeInfo::new` as an `Option` | `artic-registry` |
 | `ElementImpl`'s fill default | `artic-element` |
-| Code type, field visibility, `CODE_TYPE`, the root as the code type, the output path | the UI-language-neutral view compiler |
-| Reading `x:Class` and `x:FieldModifier` into the code type and field visibility | `artic-xaml-compiler` |
+| Code type, field visibility, `CODE_TYPE`, the root as the code type, the output path | `artic-view` and `artic-view-compiler` |
+| Reading `x:Class` and `x:FieldModifier` into the code type and field visibility | `artic-xaml-lang` |
 
-Today the view model, Rust emission, member resolution and `compile_dir` sit in the XAML crates. An issue of their own moves them into neutral crates before #52's compiler changes, so the code type and field visibility land in the neutral model the first time, and only their XAML spellings land in the XAML crate.
+#325 moved the view model, Rust emission, member resolution and `compile_dir` into neutral crates before #52's compiler changes, so the code type and field visibility land in the neutral model the first time, and only their XAML spellings land in the XAML crate.
 
 ## What is reported
 
@@ -194,8 +194,8 @@ Today the view model, Rust emission, member resolution and `compile_dir` sit in 
 - `artic-element`: an element with no `ElementImpl` methods fills its box with its children; `UserControl` and `Surface` layouts are unchanged.
 - `artic-macros` (trybuild): a code type builds; a field named `ui`; generics; a missing compiled file, with `.stderr` naming the `.xaml`.
 - `artic-registry`: a type with a required field registers `new: None`; every other type `Some`.
-- The view compiler: snapshots of a view with a code type and field visibilities; each new diagnostic.
-- The fixture app (`crates/artic-xaml-compiler/fixtures/app`) gains a code type:
+- The view compiler (`artic-view`, `artic-view-compiler`) and `artic-xaml-lang`: snapshots of a view with a code type and field visibilities; each new diagnostic.
+- The fixture app (`crates/artic-xaml-lang/fixtures/app`) gains a code type:
   - `build_returns_code_type_root`: `create` returns the code type at the root of the tree, with the view's root content as its child;
   - two named nodes resolve to the right nodes;
   - a mismatched or missing `x:Class` fails (trybuild, against the fixture's views);
@@ -222,7 +222,7 @@ Today the view model, Rust emission, member resolution and `compile_dir` sit in 
 | --- | --- |
 | 1 | this document and the changes above |
 | 2 | `ElementImpl`'s fill default; `UserControl` and `Surface` lose their layout methods |
-| 3 | the view compiler: code type and field visibility, the root as the code type, `CODE_TYPE`, output paths relative to the crate, the diagnostics above; XAML reads `x:Class` and `x:FieldModifier` into them |
+| 3 | `artic-view` and `artic-view-compiler`: code type and field visibility, the root as the code type, `CODE_TYPE`, output paths relative to the crate, the diagnostics above; XAML reads `x:Class` and `x:FieldModifier` into them |
 | 4 | `#[ui(required)]`, `TypeInfo::new` as an `Option`, `#[ui_class]`, the facade's `artic::ui_class`, the fixture app's code type and the trybuild cases; closes #52 |
 
-PR 3 waits for the issue that moves the neutral pieces out of the XAML crates.
+#325 moved the neutral pieces out of the XAML crates, so PR 3 can start.

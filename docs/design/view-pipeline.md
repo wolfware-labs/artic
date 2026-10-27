@@ -4,7 +4,7 @@ Issue: #325. Builds on: the [XAML compiler](xaml-compiler.md) (#49), [UI languag
 
 The compiler #49 built sits in the XAML crates, but most of it isn't XAML: diagnostics with source spans, checking a view's members against the registry, writing Rust, and driving a build script would be the same for any language. This design moves those parts into three crates no language owns. A language then writes one front end, from its syntax to a plain `Document`, and gets the compiler and, with #59, the loader from it. The XAML crates keep XAML's syntax and meaning only.
 
-Apart from a name's field, now in snake_case, which changes the `names.xaml` snapshot's fields and drops `#[allow(non_snake_case)]` from every compiled snapshot, and the help a duplicate name gets when two spellings give one field ([What changes for an app](#what-changes-for-an-app)), the generated code and every diagnostic stay the same: every other snapshot line and the fixture app stay unchanged, except the render snapshot of `artic-diagnostics`, whose test now uses a neutral file name and message; the header insta writes above a moved snapshot, which names its source file, follows the move. Three differences touch only a misconfigured path, [below](#writing-rust): the help of "isn't a Rust path" names `CratePaths::path` in place of `NamespaceMap::path`, which goes; the element with such a path has its members checked; and a value provider written as an element with such a path is reported as a value provider. No snapshot has any of them; the one test of the message checks only its text, not its help. One difference touches names: a name is taken as written, so spaces or a comment around it make it invalid, where `syn`'s parser dropped them from the field, and `gen` gives `r#gen`. A few names an app's build script can reach move; [What changes for an app](#what-changes-for-an-app) lists them.
+Apart from a name's field, now in snake_case, which changes the `names.xaml` snapshot's fields and drops `#[allow(non_snake_case)]` from every compiled snapshot, and the help a duplicate name gets when two spellings give one field ([What changes for an app](#what-changes-for-an-app)), the generated code and every diagnostic stay the same: every other snapshot line and the fixture app stay unchanged, except the render snapshot of `artic-diagnostics`, whose test now uses a neutral file name and message; the header insta writes above a moved snapshot, which names its source file, follows the move. PR 4 changes three lines of every compiled file: the tree types come from `::artic::core::tree` in place of `::artic::prelude`, the file links `::artic::core` beside the other crates, and the `View` doc says "one handle per named element" in place of "per `x:Name`". Three differences touch only a misconfigured path, [below](#writing-rust): the help of "isn't a Rust path" names `CratePaths::path` in place of `NamespaceMap::path`, which goes; the element with such a path has its members checked; and a value provider written as an element with such a path is reported as a value provider. No snapshot has any of them; the one test of the message checks only its text, not its help. One difference touches names: a name is taken as written, so spaces or a comment around it make it invalid, where `syn`'s parser dropped them from the field, and `gen` gives `r#gen`. A few names an app's build script can reach move; [What changes for an app](#what-changes-for-an-app) lists them.
 
 ## The pipeline
 
@@ -27,9 +27,9 @@ CheckedView                   artic-view: every member found, content placed, na
 | `artic-view` | `Document`, `check`, `CheckedView`, the `Language` trait, the field-name rule | `artic-registry`, `artic-diagnostics`, `artic-ident` |
 | `artic-view-compiler` | `emit`, literals, `CratePaths`, `compile_str`, `compile_dir`, `CompileError` | `artic-view`, `artic-registry` (with `literals`), `artic-diagnostics`, `syn`, `quote`, `proc-macro2`, `prettyplease`, `thiserror` |
 | `artic-xaml` | the parser, the infoset, `NamespaceMap` (URIs only) | `artic-diagnostics`, `artic-ident` |
-| `artic-xaml-lang` (was `artic-xaml-compiler`) | `Xaml`, the front end | `artic-xaml`, `artic-view`, `artic-registry`, `artic-diagnostics` |
+| `artic-xaml-lang` (was the XAML compiler crate) | `Xaml`, the front end | `artic-xaml`, `artic-view`, `artic-registry`, `artic-diagnostics` |
 
-`artic-diagnostics` has no dependencies, so `artic-style`'s selector errors and the parser use spans without the registry. `artic-view` has no `syn`, so the loader doesn't carry a code generator at run time. `artic-xaml` stays free of the registry, as `docs/architecture.md` requires, so its tests still need no registry. `artic-view-compiler` turns on the registry's `literals` feature, which `artic-xaml-compiler` turns on today.
+`artic-diagnostics` has no dependencies, so `artic-style`'s selector errors and the parser use spans without the registry. `artic-view` has no `syn`, so the loader doesn't carry a code generator at run time. `artic-xaml` stays free of the registry, as `docs/architecture.md` requires, so its tests still need no registry. `artic-view-compiler` turns on the registry's `literals` feature, which the XAML compiler crate turned on before.
 
 The moved code keeps its behavior; its own tests and docs, which use XAML file names and messages as examples, are rewritten with neutral ones, so `scripts/check-ui-neutral.sh` passes over the new crates. The render snapshot's test uses a neutral file name and message, so its text changes with its file name and `source:` header; every other snapshot keeps its content.
 
@@ -176,8 +176,19 @@ pub struct CheckedView {
   pub root: Option<usize>,
   /// Where the root element is written, for problems with the whole file.
   pub span: Span,
-  /// Each valid name with its element's index, in the order the elements are built.
-  pub names: Vec<(Text, usize)>,
+  /// Each valid name, its field and its element's index, in the order the elements are built.
+  pub names: Vec<CheckedName>,
+}
+
+/// A valid name: what the view writes and the field a back end gives the element.
+#[derive(Debug, Clone)]
+pub struct CheckedName {
+  /// The name as the view writes it.
+  pub name: Text,
+  /// The field it gives, unique in the view.
+  pub field: String,
+  /// The named element's index.
+  pub element: usize,
 }
 
 /// An element ready to build: its type, its properties and its children.
@@ -207,11 +218,11 @@ Values stay text. The compiler writes each one as Rust at build time, and the lo
 - a property's group trait path that isn't a Rust path, at each property that uses the trait, before that property's value, as today: a trait is recorded only once its path parses;
 - a value that can't be written as Rust, its type's refusal, and a `ToRust` impl that writes invalid Rust, at the value's span;
 - a type path that isn't a Rust path, at the type's name;
-- the prelude or a linked crate path that isn't a Rust path, at the root element.
+- the tree module's path or a linked crate path that isn't a Rust path, at the root element.
 
 Each "isn't a Rust path" error keeps its message and its help says "check the paths set with `CratePaths::path`", since `NamespaceMap::path` goes.
 
-Each name becomes the field `field_name` gives. A type path that isn't a Rust path is an error, so `emit` returns no code for the view and no reference to that element is ever written; the one difference from today is that the checker has already checked that element's members, so a misconfigured `CratePaths` or `using:` path can add property and content errors for it. No snapshot has such an element.
+Each name becomes the field its `CheckedName` holds, the one `field_name` gives. A type path that isn't a Rust path is an error, so `emit` returns no code for the view and no reference to that element is ever written; the one difference from today is that the checker has already checked that element's members, so a misconfigured `CratePaths` or `using:` path can add property and content errors for it. No snapshot has such an element.
 
 ```rust,ignore
 /// The path generated code reaches each crate by.
@@ -225,6 +236,10 @@ impl CratePaths {
   pub fn path_of(&self, krate: &str) -> String;
   /// Every crate given a path, sorted.
   pub fn crates_named(&self) -> impl Iterator<Item = &str>;
+  /// Where generated code reaches the item at `rust_path`: its crate's path and the item's name.
+  pub fn item(&self, rust_path: &str) -> String;
+  /// Where generated code reaches `module`: its crate's path, then the rest of `module`.
+  pub fn module(&self, module: &str) -> String;
 }
 
 /// The module body for `view`, compiled from the file at `path`, referencing every crate of
@@ -244,32 +259,42 @@ pub fn compile_str(
 /// Compiles every file of `language` under `dir` to `$OUT_DIR/views/<path under dir>.rs`, for a
 /// build script. #52 changes the output to the path in the crate.
 pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), paths: &CratePaths) -> Result<(), CompileError>;
+
+/// `compile_dir`'s work with every input passed in, for a tool that isn't a build script.
+pub fn compile_into(
+  dir: &Path,
+  out: &Path,
+  language: &(impl Language + ?Sized),
+  registry: &Registry,
+  paths: &CratePaths,
+) -> Result<Vec<PathBuf>, CompileError>;
 ```
 
-`compile_str` reads, checks and emits. When `read` returns no document it returns the language's diagnostics. Otherwise it gathers the diagnostics of the three stages, sorts them by where they start, keeping the order they were found in for one position, and returns them all if any is an error, or the Rust. A view with warnings only returns the Rust and drops them, as `Diagnostics::into_result` does today; #51 decides how cargo shows them. The generated file references every crate of `language.crates()` and `paths.crates_named()`, each once and sorted, as it references every crate the namespace map names today. `compile_dir` is `dir.rs` with the extension and the language passed in; the doc-hidden `compile_into`, which its tests use, moves with it.
+`compile_str` reads, checks and emits. When `read` returns no document it returns the language's diagnostics. Otherwise it gathers the diagnostics of the three stages, sorts them by where they start, keeping the order they were found in for one position, and returns them all if any is an error, or the Rust. A view with warnings only returns the Rust and drops them, as `Diagnostics::into_result` does today; #51 decides how cargo shows them. The generated file references every crate of `language.crates()` and `paths.crates_named()`, each once and sorted, as it references every crate the namespace map names today. `compile_dir` is `dir.rs` with the extension and the language passed in. It reads `OUT_DIR` and `CARGO_MANIFEST_DIR`, and no other part of the compiler reads the environment. `compile_into`, which its tests use, moves with it and becomes documented: it takes every input `compile_dir` reads, the output directory and the registry included, and reads no environment.
 
-`CratePaths` is the half of `NamespaceMap` that isn't XAML: `path`, `path_of` and the paths part of `crates_named` move here. `NamespaceMap` keeps `alias` and `crates`, plus a `crates_named` over the crates its URIs stand for, which `Xaml::crates` returns.
+`CratePaths` is the half of `NamespaceMap` that isn't XAML: `path`, `path_of` and the paths part of `crates_named` move here. `item` and `module` translate a Rust path through it, with `artic-registry`'s `crate_of` and `crate_and_item`, the only readers of a Rust path's ends. Generated code names `Handle` and `UiTree` as `module("artic_core::tree")`, so the facade re-exports `artic_core` as `artic::core` and maps it. `NamespaceMap` keeps `alias` and `crates`, plus a `crates_named` over the crates its URIs stand for, which `Xaml::crates` returns.
 
 ## The XAML front end
 
 `artic-xaml-lang` holds `Xaml`, which implements `Language` with `extension` `xaml`. Its `read` parses the file and builds the `Document` from the infoset, member for member:
 
-- each object element's type through a URI's crates or a `using:` module, or a problem: an undeclared URI (`once` set to `namespace:` and the URI), an unknown type with the linking hint, an ambiguous one ("use a `using:` namespace to pick one"), an `x:` primitive (#62), or a value provider written as an element;
+- each object element's type through a URI's crates or a `using:` module, or a problem: an undeclared URI (`once` set to `namespace:` and the URI), an unknown type with the linking hint when the type's crate is the one `with_app_crate` names, an ambiguous one ("use a `using:` namespace to pick one"), an `x:` primitive (#62), or a value provider written as an element;
 - each property member, attribute or property element, as one `Member::Property`; a markup extension in it (the issue that adds it, or an unknown value provider) or an element in it (#57) is the value's problem;
 - `x:Name` as `Member::Name`, or the problem "`x:Name` takes a name written as text"; `x:Key` (#111) and attached properties (#50) as `Unsupported`; `x:Class`, `x:FieldModifier` and `x:DataType` as nothing for now, as today, until #52 reads the first two into the document's code type and field visibility and #94 the third into its data type; `x:Uid` as nothing until localization (#168);
 - content as `Member::Content`, its text with its MS-XAML form and its raw form. XAML's parser writes markup extensions only in attribute values, so XAML's content has no `Unsupported` node; the variant is for a language whose content can hold one.
 
-Every message keeps its text and its span, and the checker reaches each problem where `lower.rs` reported it, so the snapshots don't change. `artic-xaml-compiler` becomes `artic-xaml-lang` because the loader will use the front end too; a crate named "compiler" would be wrong for it. The crate's fixture packages keep their names, so the generated `use … as _;` lines in their views don't change.
+Every message keeps its text and its span, and the checker reaches each problem where `lower.rs` reported it, so the snapshots don't change. The XAML compiler crate becomes `artic-xaml-lang` because the loader will use the front end too; a crate named "compiler" would be wrong for it. The crate's fixture packages keep their names, so the generated `use … as _;` lines in their views don't change.
 
 ## What changes for an app
 
 | Name | Feature | What it is |
 | --- | --- | --- |
-| `artic::xaml::compile_dir(dir, &namespaces)` | `xaml-compiler` | `artic::view::compile_dir(dir, &Xaml::new(namespaces.clone()), &artic::view::crate_paths())`: unchanged for an app that sets no crate paths of its own; one that does uses the long form below |
+| `artic::xaml::compile_dir(dir, &namespaces)` | `xaml-compiler` | `artic::view::compile_dir(dir, &Xaml::new(namespaces.clone()).with_app_crate(name), &artic::view::crate_paths())`, with `name` read from `CARGO_PKG_NAME`: unchanged for an app that sets no crate paths of its own; one that does uses the long form below |
 | `artic::xaml::namespaces()` | `xaml` | artic's URI only: `https://artic.rs/ui` → `artic_element`, `artic_controls` |
-| `artic::xaml::Xaml` | `xaml-compiler` | the language, for the long form below |
-| `artic::view::crate_paths()` | `view-compiler` | artic's crate paths: `artic_controls` → `::artic::controls` and the others |
+| `artic::xaml::Xaml` | `xaml-compiler` | the language, for the long form below; `Xaml::with_app_crate(name)` names the crate whose build script runs, for the build-dependency help |
+| `artic::view::crate_paths()` | `view-compiler` | artic's crate paths: `artic_controls` → `::artic::controls` and the others, `artic_core` → `::artic::core` included, which generated code reaches `Handle` and `UiTree` by |
 | `artic::view::compile_dir`, `artic::view::CompileError` | `view-compiler` | the generic driver and its error |
+| `artic::view::CratePaths` | `view-compiler` | the paths, for the long form below |
 
 `xaml-compiler` turns `view-compiler` on. Two names move, so a build script that used them changes:
 
@@ -279,9 +304,11 @@ Every message keeps its text and its span, and the checker reaches each problem 
 ```rust,ignore
 let mut paths = artic::view::crate_paths();
 paths.path("acme_controls", "::acme::controls");
-let xaml = artic::xaml::Xaml::new(artic::xaml::namespaces());
+let xaml = artic::xaml::Xaml::new(artic::xaml::namespaces()).with_app_crate(env!("CARGO_PKG_NAME"));
 artic::view::compile_dir("src/views", &xaml, &paths)?;
 ```
+
+An app that renamed its `artic` dependency, such as `ui = { package = "artic" }`, used to set `path("artic", "::ui")` on the map. Generated code no longer names the facade: it names each crate through its path, so the app starts from `artic::view::crate_paths()` and sets all five again, `artic_controls`, `artic_core`, `artic_element`, `artic_layout` and `artic_render`, such as `paths.path("artic_core", "::ui::core")`.
 
 Beside the move, a name gives its field in snake_case, with each run of underscores inside it written as one, so the generated `View` needs no `#[allow(non_snake_case)]`: app code that read `view.Email` reads `view.email`. That changes the fields of the `names.xaml` snapshot and drops the `allow` line from every compiled snapshot. Two names with one field, such as `Email` and `email`, are reported as two elements with one name, with help naming both spellings.
 
@@ -289,10 +316,10 @@ Beside the move, a name gives its field in snake_case, with each run of undersco
 
 - `artic-diagnostics` joins layer 0, and `artic-xaml`, which now depends on it, moves to layer 1.
 - `artic-view` is in layer 2; `artic-view-compiler` and `artic-xaml-lang` are in layer 3.
-- `artic-lsp`, which depends on `artic-xaml-lang`, moves to layer 4, and `artic-cli`, planned to depend on `artic-lsp`, to layer 5. These moves land with PR 3: `artic-xaml-compiler` starts depending on `artic-view` there, so it moves to layer 3, and `artic-lsp` and `artic-cli`, which depend on it, move above it.
+- `artic-lsp`, which depends on `artic-xaml-lang`, moves to layer 4, and `artic-cli`, planned to depend on `artic-lsp`, to layer 5. These moves land with PR 3: the XAML compiler crate starts depending on `artic-view` there, so it moves to layer 3, and `artic-lsp` and `artic-cli`, which depend on it, move above it.
 - `artic-xaml-runtime` depends on neither new crate yet and stays in layer 2; #59 moves it when the loader uses them.
-- `artic-xaml-lang`'s tests compile XAML end to end, so it dev-depends on `artic-view-compiler`, in the same layer; `docs/architecture.md` lists that beside its other dev-dependency rules. Cargo allows it, since `artic-view-compiler` doesn't depend on `artic-xaml-lang`.
-- `scripts/check-ui-neutral.sh` allows `artic-xaml-lang` in place of `artic-xaml-compiler`, and covers the three new crates like every other.
+- `artic-xaml-lang`'s tests compile XAML end to end, so it dev-depends on `artic-view-compiler`, in the same layer, and on the facade (`xaml`, `view-compiler`), whose real paths its snapshots pin; `docs/architecture.md` lists that beside its other dev-dependency rules. Cargo allows these dev-only loops: `artic-xaml-lang` itself depends on neither, and the facade depends on it only with `xaml-compiler`.
+- `scripts/check-ui-neutral.sh` allows `artic-xaml-lang` in place of the XAML compiler crate, and covers the three new crates like every other.
 
 ## Testing
 
@@ -301,7 +328,7 @@ Beside the move, a name gives its field in snake_case, with each run of undersco
 | `artic-diagnostics` | the tests and the render snapshot that move from `artic-xaml`, with neutral file names in the examples |
 | `artic-view` | `check` on hand-built documents: an unknown property, an event, a property set twice, a value's problem reported only once its property is found, each content rule, an element in a value collection never reached, a name invalid twice, two elements with one name, an element whose type isn't found with a checked child, a `once` problem reported once; `keywords_match_syn` |
 | `artic-view-compiler` | `hand_built_view_compiles`: a test language whose `read` returns a document built in code compiles to Rust that `syn` parses and names the types through `CratePaths`; `CratePaths`' tests, moved from `artic-xaml`; `diagnostics_are_sorted_across_stages`; the `dir.rs` tests, run with the test language |
-| `artic-xaml-lang` | every snapshot, the #28 fixture run and the fixture app, moved from `artic-xaml-compiler` with no change below any `.snap` header; the headers name the moved test and fixture paths; the test helper sets paths on a `CratePaths` instead of the namespace map |
+| `artic-xaml-lang` | every snapshot, the #28 fixture run and the fixture app, moved from the XAML compiler crate with no change below any `.snap` header other than PR 4's three lines; the headers name the moved test and fixture paths; the test helper sets paths on a `CratePaths` instead of the namespace map |
 | `artic` | the facade's map tests split: `namespaces()` holds the URI, `crate_paths()` the paths; `tests/xaml.rs`'s `defining_crates_have_facade_paths` reads `crate_paths()` under `view-compiler` |
 
 ## Changes to other documents
@@ -311,12 +338,12 @@ Documents that describe the code change with the pull request that changes it.
 | Where | Change | PR |
 | --- | --- | --- |
 | `docs/architecture.md` | `artic-diagnostics` in layer 0, `artic-xaml` in layer 1; the layer roles; the planned span move for `artic-style` is done | 2 |
-| `docs/architecture.md` | `artic-view` in layer 2, `artic-xaml-compiler` in layer 3, `artic-lsp` in 4, `artic-cli` in 5; the UI-language seam's interface includes `Document` and `Language`; `check-ui-neutral.sh` catches `x:` directives | 3 |
+| `docs/architecture.md` | `artic-view` in layer 2, the XAML compiler crate in layer 3, `artic-lsp` in 4, `artic-cli` in 5; the UI-language seam's interface includes `Document` and `Language`; `check-ui-neutral.sh` catches `x:` directives | 3 |
 | `docs/architecture.md` | `artic-view-compiler` and `artic-xaml-lang` in layer 3; the crates allowed to say XAML; the dev-dependency rule; the dependency table and graph | 4 |
 | `docs/spec/dsl.md` | the intro and a section on what artic gives a language: `Document`, `check`, `Language`, the compiler; §10 says which problems `check` reports for a language; §11's last paragraph names `CratePaths` for the paths and `NamespaceMap` for the URIs | 3 and 4 |
 | `docs/design/xaml-compiler.md` | each part names the crate that now owns it; the API section shows the generic driver and the facade's short form; `NamespaceMap::path` becomes `CratePaths::path` | 4 |
-| `docs/design/ui-class.md` | "the UI-language-neutral view compiler" becomes `artic-view` and `artic-view-compiler`; `artic-xaml-compiler` becomes `artic-xaml-lang`, including the fixture app's path | 4 |
-| `docs/design/dsl-neutral.md` | `NamespaceMap` holds URIs, the paths are `CratePaths`, and `artic-xaml-compiler` is `artic-xaml-lang` | 4 |
+| `docs/design/ui-class.md` | "the UI-language-neutral view compiler" becomes `artic-view` and `artic-view-compiler`; the XAML compiler crate becomes `artic-xaml-lang`, including the fixture app's path | 4 |
+| `docs/design/dsl-neutral.md` | `NamespaceMap` holds URIs, the paths are `CratePaths`, and the XAML compiler crate is `artic-xaml-lang` | 4 |
 | `docs/spec/technical_spec.md` §2 and §5, `README.md` | the crate lists and the build pipeline name the new crates | 2 to 4, each for its crates |
 
 ## Not in this design
@@ -331,6 +358,6 @@ Documents that describe the code change with the pull request that changes it.
 | 1 | this document |
 | 2 | `artic-diagnostics`, moved from `artic-xaml`; every user updated |
 | 3 | `artic-view`: `Document`, `check`, `CheckedView`, `Language`; the XAML compiler reads into a `Document` and emits from a `CheckedView` |
-| 4 | `artic-view-compiler`: emission, `CratePaths`, the generic `compile_str` and `compile_dir`, the test language; `NamespaceMap` keeps URIs only; `artic-xaml-compiler` becomes `artic-xaml-lang`; the facade's `artic::view`; closes #325 |
+| 4 | `artic-view-compiler`: emission, `CratePaths`, the generic `compile_str` and `compile_dir`, the test language; `NamespaceMap` keeps URIs only; the XAML compiler crate becomes `artic-xaml-lang`; the facade's `artic::view`; closes #325 |
 
-Each pull request keeps every snapshot's content and the fixture app unchanged, apart from that render snapshot in PR 2 and the snake_case fields above.
+Each pull request keeps every snapshot's content and the fixture app unchanged, apart from that render snapshot in PR 2, the snake_case fields above, and PR 4's three lines of every compiled file: the tree types' `use`, the link to `::artic::core` and the `View` doc.
