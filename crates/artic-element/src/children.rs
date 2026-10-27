@@ -89,11 +89,15 @@ impl Child {
     if child == old {
       return;
     }
-    if let Some(Err(error)) = child.map(|child| tree.link_both(parent, None, child)) {
+    if let Some(child) = child
+      && let Err(error) = tree.link_both(parent, None, child)
+    {
       panic!("{error}");
     }
-    if let Some(Err(error)) = old.map(|old| tree.unlink_both(parent, old)) {
-      panic!("{error}");
+    if let Some(old) = old {
+      tree
+        .unlink_both(parent, old)
+        .expect("the old child is still a shared child of the parent");
     }
   }
 }

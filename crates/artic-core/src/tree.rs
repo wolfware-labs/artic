@@ -162,10 +162,8 @@ pub enum LinkError {
     parent: NodeId,
   },
   /// A node expected under `parent` isn't its child.
-  #[error("node {child:?} is not a child of {parent:?} in the {tree:?} tree")]
+  #[error("node {child:?} is not a child of {parent:?}")]
   NotAChild {
-    /// The tree that was checked.
-    tree: TreeKind,
     /// The expected parent.
     parent: NodeId,
     /// The node.
@@ -495,7 +493,7 @@ impl UiTree {
   /// [`LinkError::ChildrenDiffer`] when `parent`'s logical and visual children differ, and every
   /// case [`insert_child`](UiTree::insert_child) panics on, in either tree.
   pub fn link_both(&mut self, parent: NodeId, index: Option<usize>, child: NodeId) -> Result<(), LinkError> {
-    self.shared_children(parent)?;
+    self.shared(parent)?;
     for tree in TreeKind::ALL {
       self.check_link(tree, parent, index, child)?;
     }
@@ -512,12 +510,8 @@ impl UiTree {
   /// [`LinkError::ChildrenDiffer`] when `parent`'s logical and visual children differ, and
   /// [`LinkError::NotAChild`] when `child` isn't `parent`'s child. Nothing changes then.
   pub fn unlink_both(&mut self, parent: NodeId, child: NodeId) -> Result<(), LinkError> {
-    self.shared_children(parent)?;
-    if let Some(tree) = TreeKind::ALL
-      .into_iter()
-      .find(|tree| self.parent(*tree, child) != Some(parent))
-    {
-      return Err(LinkError::NotAChild { tree, parent, child });
+    if !self.shared(parent)?.contains(&child) {
+      return Err(LinkError::NotAChild { parent, child });
     }
     for tree in TreeKind::ALL {
       self.detach(tree, child);
@@ -532,12 +526,7 @@ impl UiTree {
   /// [`LinkError::ChildrenDiffer`] when the two trees hold different children, or the same in a
   /// different order.
   pub fn shared_children(&self, parent: NodeId) -> Result<Vec<NodeId>, LinkError> {
-    let [logical, visual] = TreeKind::ALL.map(|tree| self.tree(tree).children(parent));
-    if logical == visual {
-      Ok(logical.to_vec())
-    } else {
-      Err(LinkError::ChildrenDiffer { parent })
-    }
+    self.shared(parent).map(<[NodeId]>::to_vec)
   }
 
   /// Removes `node` from its parent's children in `tree` and returns that parent.
@@ -849,6 +838,15 @@ impl UiTree {
       }
     }
     Ok(())
+  }
+
+  fn shared(&self, parent: NodeId) -> Result<&[NodeId], LinkError> {
+    let [logical, visual] = TreeKind::ALL.map(|tree| self.tree(tree).children(parent));
+    if logical == visual {
+      Ok(logical)
+    } else {
+      Err(LinkError::ChildrenDiffer { parent })
+    }
   }
 
   fn place(&mut self, tree: TreeKind, parent: NodeId, index: Option<usize>, child: NodeId) {

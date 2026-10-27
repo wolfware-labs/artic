@@ -1,19 +1,6 @@
-use crate::Object;
-use crate::property::PropertyVisitor;
+use super::nodes;
 use crate::tree::{LinkError, NodeId, TreeKind, UiTree};
 use pretty_assertions::assert_eq;
-
-#[derive(Debug)]
-struct Control;
-
-impl Object for Control {
-  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
-}
-
-/// Allocates `N` nodes and returns their ids, in order.
-fn nodes<const N: usize>(tree: &mut UiTree) -> [NodeId; N] {
-  std::array::from_fn(|_| tree.alloc(Box::new(Control)))
-}
 
 /// The logical and the visual children of `parent`.
 fn both(tree: &UiTree, parent: NodeId) -> [Vec<NodeId>; 2] {
@@ -32,7 +19,7 @@ fn link_both_links_in_both_trees() {
   assert_eq!(both(&tree, panel), [vec![b, a], vec![b, a]]);
 }
 
-// A child under another parent, in one tree only, leaves it in that tree and joins the new one in both.
+// A child under another parent in one tree leaves that parent and joins the new one in both trees.
 #[test]
 fn link_both_moves_a_child_from_any_parent() {
   let mut tree = UiTree::new();
@@ -116,11 +103,7 @@ fn unlink_both_refuses_a_node_that_is_not_the_child() {
 
   assert_eq!(
     tree.unlink_both(panel, child),
-    Err(LinkError::NotAChild {
-      tree: TreeKind::Logical,
-      parent: panel,
-      child,
-    })
+    Err(LinkError::NotAChild { parent: panel, child })
   );
 
   assert_eq!(both(&tree, other), [vec![child], vec![child]]);

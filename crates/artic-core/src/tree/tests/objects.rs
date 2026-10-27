@@ -1,3 +1,4 @@
+use super::Control;
 use crate::Object;
 use crate::property::PropertyVisitor;
 use crate::tree::{NodeId, TreeKind, UiTree};
@@ -10,14 +11,7 @@ assert_not_impl_any!(UiTree: Send);
 assert_impl_all!(NodeId: Copy, Send, Sync);
 
 #[derive(Debug, PartialEq, Eq)]
-struct Control;
-
-#[derive(Debug, PartialEq, Eq)]
 struct OtherControl;
-
-impl Object for Control {
-  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
-}
 
 impl Object for OtherControl {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}

@@ -1,26 +1,14 @@
-use crate::Object;
-use crate::property::{Affects, PropertyVisitor};
+use super::{Control, nodes};
+use crate::property::Affects;
 use crate::tree::{LinkError, NodeId, TreeKind, UiTree};
 use pretty_assertions::assert_eq;
 use std::panic::{AssertUnwindSafe, catch_unwind};
-
-#[derive(Debug)]
-struct Control;
-
-impl Object for Control {
-  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
-}
 
 /// Clears every node's dirty flags.
 fn clean(tree: &mut UiTree, ids: &[NodeId]) {
   for id in ids {
     tree.clear_dirty(*id, Affects::LAYOUT | Affects::RENDER);
   }
-}
-
-/// Allocates `count` nodes and returns their ids, in order.
-fn nodes(tree: &mut UiTree, count: usize) -> Vec<NodeId> {
-  (0..count).map(|_| tree.alloc(Box::new(Control))).collect()
 }
 
 /// Collects the children of `id` in the `kind` tree.
@@ -33,9 +21,7 @@ fn children(tree: &UiTree, kind: TreeKind, id: NodeId) -> Vec<NodeId> {
 #[test]
 fn logical_and_visual_parents_are_independent() {
   let mut tree = UiTree::new();
-  let [button, border, text] = nodes(&mut tree, 3)[..] else {
-    unreachable!()
-  };
+  let [button, border, text] = nodes(&mut tree);
 
   tree.add_child(TreeKind::Logical, button, text);
   tree.add_child(TreeKind::Visual, button, border);
@@ -52,9 +38,7 @@ fn logical_and_visual_parents_are_independent() {
 #[test]
 fn reparent_removes_from_old_parent() {
   let mut tree = UiTree::new();
-  let [old_parent, new_parent, child] = nodes(&mut tree, 3)[..] else {
-    unreachable!()
-  };
+  let [old_parent, new_parent, child] = nodes(&mut tree);
   tree.add_child(TreeKind::Logical, old_parent, child);
 
   tree.add_child(TreeKind::Logical, new_parent, child);
@@ -69,9 +53,7 @@ fn reparent_removes_from_old_parent() {
 #[test]
 fn insert_child_places_the_child_at_its_index() {
   let mut tree = UiTree::new();
-  let [parent, a, b, c] = nodes(&mut tree, 4)[..] else {
-    unreachable!()
-  };
+  let [parent, a, b, c] = nodes(&mut tree);
   tree.add_child(TreeKind::Visual, parent, a);
   tree.add_child(TreeKind::Visual, parent, b);
 
@@ -87,9 +69,7 @@ fn insert_child_places_the_child_at_its_index() {
 #[test]
 fn detach_returns_the_former_parent() {
   let mut tree = UiTree::new();
-  let [parent, child] = nodes(&mut tree, 2)[..] else {
-    unreachable!()
-  };
+  let [parent, child] = nodes(&mut tree);
   tree.add_child(TreeKind::Logical, parent, child);
 
   assert_eq!(tree.detach(TreeKind::Logical, child), Some(parent));
@@ -101,9 +81,7 @@ fn detach_returns_the_former_parent() {
 #[test]
 fn stale_node_has_no_children() {
   let mut tree = UiTree::new();
-  let [parent, child] = nodes(&mut tree, 2)[..] else {
-    unreachable!()
-  };
+  let [parent, child] = nodes(&mut tree);
   tree.add_child(TreeKind::Logical, parent, child);
 
   tree.free(parent);
@@ -116,9 +94,7 @@ fn stale_node_has_no_children() {
 #[test]
 fn stale_id_does_not_reach_the_node_in_its_slot() {
   let mut tree = UiTree::new();
-  let [root, parent, child, other] = nodes(&mut tree, 4)[..] else {
-    unreachable!()
-  };
+  let [root, parent, child, other] = nodes(&mut tree);
   tree.add_child(TreeKind::Logical, parent, child);
   tree.free(parent);
   let reused = tree.alloc(Box::new(Control));
@@ -134,9 +110,7 @@ fn stale_id_does_not_reach_the_node_in_its_slot() {
 #[should_panic(expected = "is not in the arena")]
 fn adding_a_stale_child_panics() {
   let mut tree = UiTree::new();
-  let [parent, child] = nodes(&mut tree, 2)[..] else {
-    unreachable!()
-  };
+  let [parent, child] = nodes(&mut tree);
   tree.free(child);
 
   tree.add_child(TreeKind::Logical, parent, child);
@@ -147,9 +121,7 @@ fn adding_a_stale_child_panics() {
 #[should_panic(expected = "child index 1 is out of range for 0 children")]
 fn insert_past_the_end_panics() {
   let mut tree = UiTree::new();
-  let [parent, child] = nodes(&mut tree, 2)[..] else {
-    unreachable!()
-  };
+  let [parent, child] = nodes(&mut tree);
 
   tree.insert_child(TreeKind::Logical, parent, 1, child);
 }
@@ -159,9 +131,7 @@ fn insert_past_the_end_panics() {
 #[test]
 fn failed_edit_leaves_the_tree_unchanged() {
   let mut tree = UiTree::new();
-  let [parent, child, stale] = nodes(&mut tree, 3)[..] else {
-    unreachable!()
-  };
+  let [parent, child, stale] = nodes(&mut tree);
   tree.add_child(TreeKind::Logical, parent, child);
   tree.free(stale);
 
@@ -177,9 +147,7 @@ fn failed_edit_leaves_the_tree_unchanged() {
 #[test]
 fn ancestors_walk_up_to_the_root() {
   let mut tree = UiTree::new();
-  let [root, middle, leaf] = nodes(&mut tree, 3)[..] else {
-    unreachable!()
-  };
+  let [root, middle, leaf] = nodes(&mut tree);
   tree.add_child(TreeKind::Logical, root, middle);
   tree.add_child(TreeKind::Logical, middle, leaf);
 
@@ -192,9 +160,7 @@ fn ancestors_walk_up_to_the_root() {
 #[test]
 fn cycle_insert_is_rejected() {
   let mut tree = UiTree::new();
-  let [root, middle, leaf] = nodes(&mut tree, 3)[..] else {
-    unreachable!()
-  };
+  let [root, middle, leaf] = nodes(&mut tree);
   tree.add_child(TreeKind::Logical, root, middle);
   tree.add_child(TreeKind::Logical, middle, leaf);
 
@@ -211,9 +177,7 @@ fn cycle_insert_is_rejected() {
 #[test]
 fn cycle_check_looks_at_one_tree_only() {
   let mut tree = UiTree::new();
-  let [root, leaf] = nodes(&mut tree, 2)[..] else {
-    unreachable!()
-  };
+  let [root, leaf] = nodes(&mut tree);
   tree.add_child(TreeKind::Logical, root, leaf);
 
   tree.add_child(TreeKind::Visual, leaf, root);
@@ -226,7 +190,7 @@ fn cycle_check_looks_at_one_tree_only() {
 #[should_panic(expected = "would create a cycle in the Visual tree")]
 fn cycle_panic_names_the_tree() {
   let mut tree = UiTree::new();
-  let [node] = nodes(&mut tree, 1)[..] else { unreachable!() };
+  let [node] = nodes(&mut tree);
 
   tree.add_child(TreeKind::Visual, node, node);
 }
@@ -235,9 +199,7 @@ fn cycle_panic_names_the_tree() {
 #[test]
 fn descendants_preorder() {
   let mut tree = UiTree::new();
-  let [a, b, c, d, e] = nodes(&mut tree, 5)[..] else {
-    unreachable!()
-  };
+  let [a, b, c, d, e] = nodes(&mut tree);
   // Logical: a(b(c, d), e)
   tree.add_child(TreeKind::Logical, a, b);
   tree.add_child(TreeKind::Logical, b, c);
@@ -259,9 +221,7 @@ fn descendants_preorder() {
 #[test]
 fn free_frees_all_descendants() {
   let mut tree = UiTree::new();
-  let [panel, button, border, presenter, text, sibling] = nodes(&mut tree, 6)[..] else {
-    unreachable!()
-  };
+  let [panel, button, border, presenter, text, sibling] = nodes(&mut tree);
   tree.add_child(TreeKind::Logical, panel, button);
   tree.add_child(TreeKind::Logical, panel, sibling);
   tree.add_child(TreeKind::Logical, button, text);
@@ -283,9 +243,7 @@ fn free_frees_all_descendants() {
 #[test]
 fn free_detaches_nodes_from_outside_parents() {
   let mut tree = UiTree::new();
-  let [owner, popup_root, content] = nodes(&mut tree, 3)[..] else {
-    unreachable!()
-  };
+  let [owner, popup_root, content] = nodes(&mut tree);
   tree.add_child(TreeKind::Logical, owner, content);
   tree.add_child(TreeKind::Visual, popup_root, content);
 
@@ -300,9 +258,7 @@ fn free_detaches_nodes_from_outside_parents() {
 #[test]
 fn free_of_a_root_empties_the_arena() {
   let mut tree = UiTree::new();
-  let [root, a, b] = nodes(&mut tree, 3)[..] else {
-    unreachable!()
-  };
+  let [root, a, b] = nodes(&mut tree);
   tree.add_child(TreeKind::Logical, root, a);
   tree.add_child(TreeKind::Visual, a, b);
 
@@ -315,7 +271,7 @@ fn free_of_a_root_empties_the_arena() {
 #[test]
 fn visual_edits_mark_the_parent_for_layout() {
   let mut tree = UiTree::new();
-  let ids = nodes(&mut tree, 3);
+  let ids = nodes::<3>(&mut tree);
   let [panel, other, child] = ids[..] else { unreachable!() };
   clean(&mut tree, &ids);
 
@@ -342,9 +298,7 @@ fn visual_edits_mark_the_parent_for_layout() {
 #[test]
 fn check_link_reports_without_changing_anything() {
   let mut tree = UiTree::new();
-  let [parent, child, stale] = nodes(&mut tree, 3)[..] else {
-    unreachable!()
-  };
+  let [parent, child, stale] = nodes(&mut tree);
   tree.free(stale);
   tree.add_child(TreeKind::Visual, parent, child);
 
@@ -373,9 +327,7 @@ fn check_link_reports_without_changing_anything() {
 #[test]
 fn free_detaches_and_frees_the_subtree() {
   let mut tree = UiTree::new();
-  let [root, parent, child] = nodes(&mut tree, 3)[..] else {
-    unreachable!()
-  };
+  let [root, parent, child] = nodes(&mut tree);
   tree.add_child(TreeKind::Logical, root, parent);
   tree.add_child(TreeKind::Logical, parent, child);
 
@@ -390,7 +342,7 @@ fn free_detaches_and_frees_the_subtree() {
 #[should_panic(expected = "is not in the arena")]
 fn free_of_a_stale_id_panics() {
   let mut tree = UiTree::new();
-  let [node] = nodes(&mut tree, 1)[..] else { unreachable!() };
+  let [node] = nodes(&mut tree);
   tree.free(node);
 
   tree.free(node);
