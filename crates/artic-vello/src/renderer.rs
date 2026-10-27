@@ -42,7 +42,7 @@ impl Renderer {
   ///
   /// # Errors
   ///
-  /// Returns a [`Error`] when no adapter supports the platform's GPU API, the only one is WARP,
+  /// Returns a [`Error`] when no adapter supports the platform's GPU API, the one found is WARP,
   /// the device can't be opened, or vello's pipelines can't be built.
   pub fn new() -> Result<Renderer, Error> {
     let mut descriptor = InstanceDescriptor::new_without_display_handle();
