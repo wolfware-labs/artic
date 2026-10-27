@@ -6,6 +6,7 @@ use crate::infoset::{NamespaceDecl, XamlNamespace};
 use crate::namespaces::{ARTIC_UI, MARKUP};
 use artic_diagnostics::{Diagnostic, Diagnostics, SourceId, Span};
 use artic_ident::{is_identifier, is_keyword, is_path_keyword, snake_case};
+use std::ops::Range;
 
 /// A namespace URI artic rejects: why, and the artic URI it stands for, which its prefix binds so
 /// that its uses aren't reported again.
@@ -30,7 +31,7 @@ const REJECTED: [Rejected; 2] = [
 ];
 
 /// Why a `clr-namespace:` value is rejected.
-const CLR_NAMESPACE: &str = "prefixes map to Rust modules, not .NET namespaces";
+const CLR_NAMESPACE_REASON: &str = "prefixes map to Rust modules, not .NET namespaces";
 
 /// The namespace an `xmlns` or `xmlns:prefix` declaration (`prefix` is `None` for the default
 /// namespace) binds, written at `declaration` with the value `uri`.
@@ -64,7 +65,7 @@ pub(super) fn classify(
   }
   if let Some(namespace) = text.strip_prefix("clr-namespace:") {
     diagnostics.push(
-      unsupported::not_supported("clr-namespace:", CLR_NAMESPACE, declaration).with_help(format!(
+      unsupported::not_supported("clr-namespace:", CLR_NAMESPACE_REASON, declaration).with_help(format!(
         "artic maps prefixes to Rust modules; for example `{attribute}=\"using:{}\"`",
         rust_path(namespace)
       )),
@@ -107,22 +108,17 @@ struct UsingPath<'a> {
 impl UsingPath<'_> {
   /// Why the path isn't a module path from a crate name, if it isn't.
   fn problem(&self, attribute: &str) -> Option<Diagnostic> {
-    let from_crate = format!("write the full path from the crate name, like `{attribute}=\"using:my_app::views\"`");
-    if self.path.is_empty() {
-      return Some(Diagnostic::error(self.span(0, 0), "`using:` needs a Rust module path").with_help(from_crate));
-    }
-    let mut offset = 0;
-    for (index, segment) in self.path.split("::").enumerate() {
-      let span = self.span(offset, offset + segment.len());
-      offset += segment.len() + "::".len();
-      if index == 0 && (segment.is_empty() || is_path_keyword(segment)) {
-        return Some(Diagnostic::error(span, "a `using:` path starts with a crate name").with_help(from_crate));
-      }
-      if let Some(problem) = segment_problem(segment) {
-        return Some(Diagnostic::error(span, problem));
-      }
-    }
-    None
+    let (refusal, range) = refusal(self.path)?;
+    let span = self.span(range.start, range.end);
+    let segment = &self.path[range];
+    let from_crate = || format!("write the full path from the crate name, like `{attribute}=\"using:my_app::views\"`");
+    Some(match refusal {
+      Refusal::Empty => Diagnostic::error(span, "`using:` needs a Rust module path").with_help(from_crate()),
+      Refusal::NoCrate => Diagnostic::error(span, "a `using:` path starts with a crate name").with_help(from_crate()),
+      Refusal::EmptySegment => Diagnostic::error(span, "empty segment in a `using:` path"),
+      Refusal::NotIdentifier => Diagnostic::error(span, format!("`{segment}` isn't a Rust identifier")),
+      Refusal::Keyword => Diagnostic::error(span, format!("`{segment}` is a Rust keyword")),
+    })
   }
 
   /// The source span of bytes `start..end` of the path.
@@ -145,26 +141,51 @@ fn rust_path(clr_namespace: &str) -> String {
     .filter(|segment| !segment.is_empty())
     .map(snake_case)
     .collect();
-  let usable = segments.first().is_some_and(|first| !is_path_keyword(first))
-    && segments.iter().all(|segment| segment_problem(segment).is_none());
-  if usable {
-    segments.join("::")
+  let path = segments.join("::");
+  if refusal(&path).is_none() {
+    path
   } else {
     "my_app::views".to_owned()
   }
 }
 
-/// Why `segment` can't be a segment of a `using:` path after the first, if it can't.
-fn segment_problem(segment: &str) -> Option<String> {
-  if segment.is_empty() {
-    Some("empty segment in a `using:` path".to_owned())
-  } else if !is_identifier(segment) {
-    Some(format!("`{segment}` isn't a Rust identifier"))
-  } else if is_keyword(segment) {
-    Some(format!("`{segment}` is a Rust keyword"))
-  } else {
-    None
+/// Why the parser refuses a `using:` path.
+enum Refusal {
+  /// `using:` with nothing after it.
+  Empty,
+  /// The first segment isn't a crate name: empty, or `crate`, `self`, `super` or `Self`.
+  NoCrate,
+  /// A segment after the first is empty.
+  EmptySegment,
+  /// A segment has a character no Rust identifier has, such as `-`, or starts with a digit.
+  NotIdentifier,
+  /// A segment is a Rust keyword, such as `type`, which `using:` can't write raw.
+  Keyword,
+}
+
+/// The first reason the parser refuses `path` as a `using:` path, with the bytes of `path` it's at.
+fn refusal(path: &str) -> Option<(Refusal, Range<usize>)> {
+  if path.is_empty() {
+    return Some((Refusal::Empty, 0..0));
   }
+  let mut start = 0;
+  for (index, segment) in path.split("::").enumerate() {
+    let range = start..start + segment.len();
+    start = range.end + "::".len();
+    let refusal = if index == 0 && (segment.is_empty() || is_path_keyword(segment)) {
+      Refusal::NoCrate
+    } else if segment.is_empty() {
+      Refusal::EmptySegment
+    } else if !is_identifier(segment) {
+      Refusal::NotIdentifier
+    } else if is_keyword(segment) {
+      Refusal::Keyword
+    } else {
+      continue;
+    };
+    return Some((refusal, range));
+  }
+  None
 }
 
 #[cfg(test)]

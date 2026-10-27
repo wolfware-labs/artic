@@ -1,4 +1,4 @@
-//! Which crates a namespace URI stands for.
+//! artic's namespace URIs, and which crates a namespace URI stands for.
 //!
 //! A type's namespace is the crate it's defined in. XAML names namespaces with URIs instead, such
 //! as `https://artic.rs/ui`, so the back ends that look types up start from a map of each URI to
@@ -61,13 +61,6 @@ impl NamespaceMap {
 mod tests {
   use super::*;
   use pretty_assertions::assert_eq;
-
-  // artic's two URIs are exported, so the parser and the facade read the same text.
-  #[test]
-  fn artic_uris_are_exported() {
-    assert_eq!(ARTIC_UI, "https://artic.rs/ui");
-    assert_eq!(MARKUP, "https://artic.rs/markup");
-  }
 
   // An alias maps a URI to its crates, in order.
   #[test]

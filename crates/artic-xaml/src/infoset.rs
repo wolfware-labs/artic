@@ -179,7 +179,6 @@ pub struct TypeRef {
   pub span: Span,
 }
 
-/// Shows the type as written: `local:Gauge`, or `Gauge` in the default namespace.
 impl fmt::Display for TypeRef {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     Written {
