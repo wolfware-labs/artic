@@ -24,10 +24,31 @@ impl Kind {
       Kind::Group => "UiProperties",
     }
   }
+
+  /// The names a member can't take, with what already holds each: a type's builder start and
+  /// finish and `UiType::TYPE_INFO`, which a constant would hide; for a group, the builder items
+  /// of every type that flattens it.
+  fn reserved(self) -> Vec<(String, String)> {
+    match self {
+      Kind::Type => [
+        ("new", "the builder's start"),
+        ("build", "the builder's finish"),
+        ("TYPE_INFO", "`UiType::TYPE_INFO`"),
+      ]
+      .into_iter()
+      .map(|(name, what)| (name.to_owned(), what.to_owned()))
+      .collect(),
+      Kind::Group => ["new", "build", "child", "children"]
+        .into_iter()
+        .map(|name| (name.to_owned(), format!("the `{name}` of every type that flattens the group")))
+        .collect(),
+    }
+  }
 }
 
 /// A struct's fields read for a derive, sorted by what they are.
 pub struct Members<'a> {
+  kind: Kind,
   pub properties: Vec<PropertyField<'a>>,
   pub events: Vec<EventField<'a>>,
   pub groups: Vec<GroupField<'a>>,
@@ -142,6 +163,7 @@ impl<'a> Members<'a> {
       ));
     }
     let mut members = Members {
+      kind,
       properties: Vec::new(),
       events: Vec::new(),
       groups: Vec::new(),
@@ -193,6 +215,62 @@ impl<'a> Members<'a> {
     check_collections(&collections)?;
     Ok(members)
   }
+}
+
+impl Members<'_> {
+  /// Rejects two items of one name in the `impl`s the derive writes: the reserved names, the
+  /// content method, each property's method and key constant, then each of `others` (a type's
+  /// attached property helpers), as name, what it is and where it comes from. The error points at
+  /// the second item's source.
+  pub fn check_names(&self, others: impl IntoIterator<Item = (String, String, Span)>) -> syn::Result<()> {
+    let mut taken = self.kind.reserved();
+    if let Some(Content::Collection {
+      ident,
+      method: Some(method),
+      ..
+    }) = &self.content
+    {
+      take(
+        &mut taken,
+        method.name().to_owned(),
+        format!("the content method of `{ident}`"),
+        ident.span(),
+      )?;
+    }
+    for field in &self.properties {
+      let ident = field.ident;
+      take(
+        &mut taken,
+        ident.unraw().to_string(),
+        format!("the method of the property `{ident}`"),
+        ident.span(),
+      )?;
+      if let Key::Own { constant, .. } = &field.key {
+        take(
+          &mut taken,
+          constant.to_string(),
+          format!("the key constant of the property `{ident}`"),
+          ident.span(),
+        )?;
+      }
+    }
+    for (name, what, source) in others {
+      take(&mut taken, name, what, source)?;
+    }
+    Ok(())
+  }
+}
+
+/// Records that `what` is named `name`, or fails if an earlier item already is.
+fn take(taken: &mut Vec<(String, String)>, name: String, what: String, source: Span) -> syn::Result<()> {
+  if let Some((_, earlier)) = taken.iter().find(|(other, _)| *other == name) {
+    return Err(Error::new(
+      source,
+      format_args!("`{name}` would be both {earlier} and {what}; rename one"),
+    ));
+  }
+  taken.push((name, what));
+  Ok(())
 }
 
 /// A `#[ui]` field read by `classify`, before `Members::analyze` files it.

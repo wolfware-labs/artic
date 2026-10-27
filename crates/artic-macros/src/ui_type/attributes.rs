@@ -1,4 +1,6 @@
 use crate::members::attributes::{PropertySpec, parse_spec_setting, unknown_key};
+use artic_ident::{IdentError, rust_identifier, screaming_snake_case, snake_case};
+use quote::format_ident;
 use syn::meta::ParseNestedMeta;
 use syn::{DeriveInput, Error, Ident, LitStr, Path, Type};
 
@@ -13,13 +15,19 @@ pub struct TypeAttributes {
   pub override_defaults: bool,
 }
 
-/// One `attached(...)` entry on the struct: an attached property the type owns.
+/// One `attached(...)` entry on the struct: an attached property the type owns, with the names of
+/// the items the derive writes for it.
 #[cfg_attr(test, derive(Debug))]
 pub struct Attached {
   pub name: LitStr,
   pub ty: Type,
   pub spec: PropertySpec,
   pub target: Target,
+  /// The static the key lives in, such as `__ATTACHED_COLUMN_SPAN`.
+  pub key_static: Ident,
+  pub constant: Ident,
+  pub getter: Ident,
+  pub setter: Ident,
 }
 
 /// Where an attached property may be set, from `target = children | any`.
@@ -127,11 +135,34 @@ fn parse_attached(attached: &ParseNestedMeta) -> syn::Result<Attached> {
     Ok(())
   })?;
   let missing = |key: &str| attached.error(format_args!("`attached(...)` needs `{key} = ...`"));
+  let name = name.ok_or_else(|| missing("name"))?;
+  let ty = ty.ok_or_else(|| missing("ty"))?;
+  let target = target.ok_or_else(|| missing("target"))?;
+  let text = name.value();
+  let snake = snake_case(&text);
+  let getter = match rust_identifier(&snake) {
+    Ok(getter) => syn::parse_str::<Ident>(&getter).expect("a Rust identifier parses"),
+    Err(error) => {
+      let why = match error {
+        IdentError::NotIdentifier => "isn't a Rust identifier",
+        IdentError::PathKeyword => "can't be a raw identifier",
+      };
+      return Err(Error::new_spanned(
+        &name,
+        format_args!("`{text}` can't name an attached property: its getter would be `{snake}`, which {why}"),
+      ));
+    }
+  };
+  let constant = screaming_snake_case(&text);
   Ok(Attached {
-    name: name.ok_or_else(|| missing("name"))?,
-    ty: ty.ok_or_else(|| missing("ty"))?,
+    key_static: format_ident!("__ATTACHED_{constant}"),
+    constant: format_ident!("{constant}"),
+    setter: format_ident!("set_{snake}"),
+    getter,
+    name,
+    ty,
     spec,
-    target: target.ok_or_else(|| missing("target"))?,
+    target,
   })
 }
 

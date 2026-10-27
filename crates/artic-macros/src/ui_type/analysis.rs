@@ -1,7 +1,5 @@
-use crate::members::{Content, Key, Kind, Members};
+use crate::members::{Kind, Members};
 use crate::ui_type::attributes::{TypeAttributes, parse_type_attributes};
-use artic_ident::{IdentError, rust_identifier, screaming_snake_case, snake_case};
-use quote::ToTokens;
 use syn::ext::IdentExt;
 use syn::{DeriveInput, Error, Ident};
 
@@ -17,7 +15,21 @@ pub fn analyze(input: &DeriveInput) -> syn::Result<TypeAnalysis<'_>> {
   let attributes = parse_type_attributes(input)?;
   let members = Members::analyze(input, Kind::Type)?;
   check_attached(&attributes)?;
-  check_generated_names(&attributes, &members)?;
+  members.check_names(attributes.attached.iter().flat_map(|attached| {
+    let name = attached.name.value();
+    [
+      (&attached.getter, "getter"),
+      (&attached.setter, "setter"),
+      (&attached.constant, "constant"),
+    ]
+    .map(|(item, role)| {
+      (
+        item.unraw().to_string(),
+        format!("the {role} of the attached property `{name}`"),
+        attached.name.span(),
+      )
+    })
+  }))?;
   check_positional(&input.ident, &attributes, &members)?;
   Ok(TypeAnalysis {
     ident: &input.ident,
@@ -40,93 +52,6 @@ fn check_attached(attributes: &TypeAttributes) -> syn::Result<()> {
       ));
     }
   }
-  Ok(())
-}
-
-/// Rejects two items of one name in the inherent `impl` the derive writes: the builder's `new`
-/// and `build`, the content method, each property's method and key constant, and each attached
-/// property's getter, setter and constant. `TYPE_INFO` is taken too, since a constant of that name
-/// would hide `UiType::TYPE_INFO`. The error points at the second item's source.
-fn check_generated_names(attributes: &TypeAttributes, members: &Members) -> syn::Result<()> {
-  let mut taken: Vec<(String, String)> = [
-    ("new", "the builder's start"),
-    ("build", "the builder's finish"),
-    ("TYPE_INFO", "`UiType::TYPE_INFO`"),
-  ]
-  .into_iter()
-  .map(|(name, what)| (name.to_owned(), what.to_owned()))
-  .collect();
-  if let Some(Content::Collection {
-    ident,
-    method: Some(method),
-    ..
-  }) = &members.content
-  {
-    take(
-      &mut taken,
-      method.name().to_owned(),
-      format!("the content method of `{ident}`"),
-      ident,
-    )?;
-  }
-  for field in &members.properties {
-    let ident = field.ident;
-    take(
-      &mut taken,
-      ident.unraw().to_string(),
-      format!("the method of the property `{ident}`"),
-      ident,
-    )?;
-    if let Key::Own { constant, .. } = &field.key {
-      take(
-        &mut taken,
-        constant.to_string(),
-        format!("the key constant of the property `{ident}`"),
-        ident,
-      )?;
-    }
-  }
-  for attached in &attributes.attached {
-    let name = attached.name.value();
-    let getter = snake_case(&name);
-    if let Err(error) = rust_identifier(&getter) {
-      let why = match error {
-        IdentError::NotIdentifier => "isn't a Rust identifier",
-        IdentError::PathKeyword => "can't be a raw identifier",
-      };
-      return Err(Error::new_spanned(
-        &attached.name,
-        format_args!("`{name}` can't name an attached property: its getter would be `{getter}`, which {why}"),
-      ));
-    }
-    let items = [(format!("set_{getter}"), "setter"), (screaming_snake_case(&name), "constant")];
-    take(
-      &mut taken,
-      getter,
-      format!("the getter of the attached property `{name}`"),
-      &attached.name,
-    )?;
-    for (item, role) in items {
-      take(
-        &mut taken,
-        item,
-        format!("the {role} of the attached property `{name}`"),
-        &attached.name,
-      )?;
-    }
-  }
-  Ok(())
-}
-
-/// Records that `what` is named `name`, or fails if an earlier item already is.
-fn take(taken: &mut Vec<(String, String)>, name: String, what: String, source: &impl ToTokens) -> syn::Result<()> {
-  if let Some((_, earlier)) = taken.iter().find(|(other, _)| *other == name) {
-    return Err(Error::new_spanned(
-      source,
-      format_args!("`{name}` would be both {earlier} and {what}; rename one"),
-    ));
-  }
-  taken.push((name, what));
   Ok(())
 }
 

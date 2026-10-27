@@ -4,7 +4,6 @@ use crate::members::{Content, Key, PropertyField, generic_argument};
 use crate::ui_type::analysis::TypeAnalysis;
 use crate::ui_type::attributes::{Attached, Target, Whitespace};
 use crate::ui_type::builders::builders;
-use artic_ident::{rust_identifier, screaming_snake_case, snake_case};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::ext::IdentExt;
@@ -285,15 +284,15 @@ fn arg_info(field: &PropertyField) -> TokenStream {
   quote!(__artic::ArgInfo { name: #key.name(), value_type: ::core::stringify!(#inner) })
 }
 
-/// The static an attached property's key lives in, such as `__ATTACHED_COLUMN_SPAN`.
-fn attached_static(attached: &Attached) -> Ident {
-  format_ident!("__ATTACHED_{}", screaming_snake_case(&attached.name.value()))
-}
-
 /// The `static AttachedKey` of one attached property.
 fn attached_key(attached: &Attached) -> TokenStream {
-  let key = attached_static(attached);
-  let Attached { name, ty, spec, .. } = attached;
+  let Attached {
+    name,
+    ty,
+    spec,
+    key_static: key,
+    ..
+  } = attached;
   let default = match &spec.default {
     Some(expression) => quote!(#expression),
     None => quote_spanned!(ty.span()=> <#ty as ::core::default::Default>::default()),
@@ -307,15 +306,16 @@ fn attached_key(attached: &Attached) -> TokenStream {
 
 /// The key constant and the `set_<name>` and `<name>` helpers of one attached property.
 fn attached_helpers(owner: &Ident, attached: &Attached) -> TokenStream {
-  let key = attached_static(attached);
-  let ty = &attached.ty;
+  let Attached {
+    ty,
+    key_static: key,
+    constant,
+    getter,
+    setter,
+    ..
+  } = attached;
   let name = attached.name.value();
-  let snake = snake_case(&name);
-  let constant = format_ident!("{}", screaming_snake_case(&name));
-  let getter: Ident =
-    syn::parse_str(&rust_identifier(&snake).expect("the analysis checks the getter")).expect("a Rust identifier parses");
-  let setter = format_ident!("set_{snake}");
-  let value = &getter;
+  let value = getter;
   let property = format!("`{owner}.{name}`");
   let constant_doc = format!("The {property} attached property.");
   let setter_doc = format!("Sets {property} on `node`, at local precedence.");

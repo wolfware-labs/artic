@@ -5,8 +5,7 @@ use crate::ui_type::builders::{Setter, key_constant, setter};
 use crate::ui_type::generate::{default_field, key_static, property_info, value_check};
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
-use syn::ext::IdentExt;
-use syn::{DeriveInput, Error, Ident, LitStr, Path, Visibility};
+use syn::{DeriveInput, Ident, LitStr, Path, Visibility};
 
 /// A struct read for `UiProperties`: its fields and the crate path its `#[ui(crate = "...")]`
 /// names, if any.
@@ -16,7 +15,7 @@ struct GroupAnalysis<'a> {
   crate_path: Option<Path>,
 }
 
-/// Reads a group's struct attribute and fields, and rejects a field named like a builder method.
+/// Reads a group's struct attribute and fields, and checks the names they generate.
 fn analyze(input: &DeriveInput) -> syn::Result<GroupAnalysis<'_>> {
   let mut crate_path = None;
   for attribute in input.attrs.iter().filter(|attribute| attribute.path().is_ident("ui")) {
@@ -30,15 +29,7 @@ fn analyze(input: &DeriveInput) -> syn::Result<GroupAnalysis<'_>> {
     })?;
   }
   let members = Members::analyze(input, Kind::Group)?;
-  for field in &members.properties {
-    let name = field.ident.unraw().to_string();
-    if ["new", "build", "child", "children"].contains(&name.as_str()) {
-      return Err(Error::new_spanned(
-        field.ident,
-        format_args!("a group field can't be named `{name}`: every type that flattens the group has its own `{name}`"),
-      ));
-    }
-  }
+  members.check_names([])?;
   Ok(GroupAnalysis {
     ident: &input.ident,
     members,
@@ -260,7 +251,7 @@ mod tests {
 
     assert_eq!(
       error,
-      "a group field can't be named `build`: every type that flattens the group has its own `build`"
+      "`build` would be both the `build` of every type that flattens the group and the method of the property `build`; rename one"
     );
   }
 }
