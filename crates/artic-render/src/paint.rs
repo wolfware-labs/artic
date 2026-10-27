@@ -1,4 +1,5 @@
 use crate::{Brush, Color, GradientStop};
+use artic_layout::finite;
 use artic_layout::geometry::{Point, Rect};
 
 /// A [`Brush`] resolved against the bounds of what it fills, as every renderer draws it: what
@@ -68,8 +69,8 @@ impl Brush {
       }
       Brush::Radial(radial) => {
         let center = radial.center.resolve(bounds);
-        let radius_x = radius(radial.radius_x.resolve(bounds.width));
-        let radius_y = radius(radial.radius_y.resolve(bounds.height));
+        let radius_x = finite::usable(radial.radius_x.resolve(bounds.width));
+        let radius_y = finite::usable(radial.radius_y.resolve(bounds.height));
         let geometry = (finite(center) && radius_x > 0.0 && radius_y > 0.0).then_some(Geometry::Radial {
           center,
           radius_x,
@@ -117,11 +118,6 @@ enum Geometry {
 /// `value` in `0..=1`, NaN counting as `0`.
 fn unit(value: f32) -> f32 {
   if value > 0.0 { value.min(1.0) } else { 0.0 }
-}
-
-/// `value` if it's finite and above `0`, else `0`.
-fn radius(value: f32) -> f32 {
-  if value > 0.0 && value.is_finite() { value } else { 0.0 }
 }
 
 fn finite(point: Point) -> bool {

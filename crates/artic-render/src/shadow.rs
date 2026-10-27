@@ -1,5 +1,6 @@
 use crate::{Color, ParseColorError, Shape};
 use artic_core::{RustExpr, ToRust};
+use artic_layout::finite::{self, NumberProblem};
 use artic_layout::geometry::{CornerRadius, Point, Rect, RoundedRect};
 use std::str::FromStr;
 
@@ -58,10 +59,9 @@ impl BoxShadow {
   /// infinite spread as `0`.
   #[must_use]
   pub fn drawable(&self) -> Option<BoxShadow> {
-    let finite = |value: f32| if value.is_finite() { value } else { 0.0 };
     (self.offset.x.is_finite() && self.offset.y.is_finite()).then(|| BoxShadow {
-      blur: finite(self.blur).max(0.0),
-      spread: finite(self.spread),
+      blur: finite::usable(self.blur),
+      spread: finite::or_zero(self.spread),
       ..self.clone()
     })
   }
@@ -132,12 +132,9 @@ pub enum ShadowProblem {
   /// More than four numbers before the color.
   #[error("it has more than four numbers")]
   TooManyNumbers,
-  /// A part before the color isn't a number.
-  #[error("'{0}' is not a number")]
-  NotANumber(String),
-  /// A part before the color is NaN or infinite.
-  #[error("'{0}' is not a finite number")]
-  NotFinite(String),
+  /// A part before the color isn't a finite number.
+  #[error(transparent)]
+  Number(#[from] NumberProblem),
   /// The blur is negative.
   #[error("the blur '{0}' is negative")]
   NegativeBlur(String),
@@ -191,12 +188,8 @@ fn parse_shadow(text: &str) -> Result<BoxShadow, ShadowProblem> {
   }
   let values = numbers
     .iter()
-    .map(|token| match token.parse::<f32>() {
-      Ok(value) if value.is_finite() => Ok(value),
-      Ok(_) => Err(ShadowProblem::NotFinite((*token).to_owned())),
-      Err(_) => Err(ShadowProblem::NotANumber((*token).to_owned())),
-    })
-    .collect::<Result<Vec<f32>, ShadowProblem>>()?;
+    .map(|token| finite::parse(token))
+    .collect::<Result<Vec<f32>, NumberProblem>>()?;
   let blur = values.get(2).copied().unwrap_or(0.0);
   if blur < 0.0 {
     return Err(ShadowProblem::NegativeBlur(numbers[2].to_owned()));
@@ -269,8 +262,18 @@ mod tests {
     assert_eq!(parse("4 4"), Err(ShadowProblem::MissingColor));
     assert_eq!(parse("4 Black"), Err(ShadowProblem::TooFewNumbers));
     assert_eq!(parse("1 2 3 4 5 Black"), Err(ShadowProblem::TooManyNumbers));
-    assert_eq!(parse("4 x Black"), Err(ShadowProblem::NotANumber("x".to_owned())));
-    assert_eq!(parse("4 NaN Black"), Err(ShadowProblem::NotFinite("NaN".to_owned())));
+    assert_eq!(
+      parse("4 x Black"),
+      Err(ShadowProblem::Number(NumberProblem::NotANumber("x".to_owned())))
+    );
+    assert_eq!(
+      parse("4 NaN Black"),
+      Err(ShadowProblem::Number(NumberProblem::NotFinite("NaN".to_owned())))
+    );
+    assert_eq!(
+      "4 NaN Black".parse::<BoxShadow>().unwrap_err().to_string(),
+      "invalid BoxShadow '4 NaN Black': 'NaN' is not a finite number; expected forms like '0 2 8 #40000000' or '4 4 Black'"
+    );
     assert_eq!(parse("4 4 -8 Black"), Err(ShadowProblem::NegativeBlur("-8".to_owned())));
     assert!(matches!(parse("4 4 #4000000"), Err(ShadowProblem::Color(_))));
     let error = "4 4".parse::<BoxShadow>().expect_err("no color");

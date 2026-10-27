@@ -197,6 +197,8 @@ It never panics and never fails:
 | A `max_height` that is NaN or infinite | no limit |
 | A negative `max_height` | one line |
 
+`TextLimits::usable_width()` and `usable_height()` apply the limit rows of this table: `None` for a limit that is missing or not finite, 0 for a negative one. The engine shapes with them, and a control that decides whether a new box changes its paragraph, as `TextBlock` does, reads them too, so both agree on which limits count.
+
 The default family is the engine's policy, as the default font is a browser's setting rather than part of a page's `font-family`; `FontFamily` knows nothing about it. `system()`'s, `system-ui`, is mapped to a real font by `fontique`, per desktop, so artic keeps no font list of its own and a new OS release changes nothing here. `with_fonts` turns system fonts off, points every generic family at the given fonts, and falls back to the first, so an unknown name such as `"Nope"` lands on them too: in tests every family resolves and nothing depends on what the machine has installed. `Engine`'s `Debug` is written by hand, since `parley`'s contexts have none worth printing.
 
 ## 5. The scene

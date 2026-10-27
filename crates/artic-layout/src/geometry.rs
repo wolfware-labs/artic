@@ -180,8 +180,12 @@ impl Thickness {
   /// rule borders and padding follow.
   #[must_use]
   pub fn usable(self) -> Thickness {
-    let side = |side: f32| if side.is_finite() && side > 0.0 { side } else { 0.0 };
-    Thickness::new(side(self.left), side(self.top), side(self.right), side(self.bottom))
+    Thickness::new(
+      finite::usable(self.left),
+      finite::usable(self.top),
+      finite::usable(self.right),
+      finite::usable(self.bottom),
+    )
   }
 }
 
@@ -281,13 +285,7 @@ impl RoundedRect {
   /// changes nothing.
   #[must_use]
   pub fn fitted(self) -> RoundedRect {
-    let drawable = |radius: f32| {
-      if radius > 0.0 && radius.is_finite() {
-        f64::from(radius)
-      } else {
-        0.0
-      }
-    };
+    let drawable = |radius: f32| f64::from(finite::usable(radius));
     let CornerRadius {
       top_left,
       top_right,

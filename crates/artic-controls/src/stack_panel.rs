@@ -2,6 +2,7 @@ use crate::Panel;
 use artic_core::property::Property;
 use artic_core::tree::NodeId;
 use artic_element::{Children, ElementImpl, RenderCx};
+use artic_layout::finite;
 use artic_layout::geometry::{Rect, Size};
 use artic_layout::{ArrangeCx, MeasureCx, Orientation};
 use artic_macros::element;
@@ -53,17 +54,6 @@ impl Axis {
   }
 }
 
-fn sum(a: f32, b: f32) -> f32 {
-  (a + b).min(f32::MAX)
-}
-
-impl StackPanel {
-  fn usable_spacing(&self) -> f32 {
-    let spacing = self.spacing.get();
-    if spacing.is_finite() && spacing >= 0.0 { spacing } else { 0.0 }
-  }
-}
-
 impl ElementImpl for StackPanel {
   fn measure_override(&self, cx: &mut MeasureCx<'_>, available: Size) -> Size {
     let axis = Axis(self.orientation.get());
@@ -73,10 +63,10 @@ impl ElementImpl for StackPanel {
     let mut widest = 0.0_f32;
     for (index, child) in children.into_iter().enumerate() {
       if index > 0 {
-        along = sum(along, self.usable_spacing());
+        along = finite::add(along, finite::usable(self.spacing.get()));
       }
       let (child_along, child_across) = axis.split(cx.measure(child, axis.join(f32::INFINITY, across)));
-      along = sum(along, child_along);
+      along = finite::add(along, child_along);
       widest = widest.max(child_across);
     }
     axis.join(along, widest)
@@ -89,12 +79,12 @@ impl ElementImpl for StackPanel {
     let mut start = 0.0;
     for (index, child) in children.into_iter().enumerate() {
       if index > 0 {
-        start = sum(start, self.usable_spacing());
+        start = finite::add(start, finite::usable(self.spacing.get()));
       }
       let (along, _) = axis.split(cx.desired(child));
       let along = along.min(f32::MAX - start);
       cx.arrange(child, axis.slot(start, along, across));
-      start = sum(start, along);
+      start = finite::add(start, along);
     }
   }
 

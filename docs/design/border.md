@@ -51,7 +51,7 @@ One even-odd fill of `ring` draws any border, whether its sides are equal or not
 
 `BoxShadow` exists in `artic-render` (#36), and vello already draws it outside its caster only, so it never shows through a semi-transparent background (#283). UI languages need it from text, so `impl FromStr for BoxShadow` goes in `shadow.rs`.
 
-The grammar is CSS's and Avalonia's: `offset-x offset-y [blur [spread]] color`, separated by whitespace. Every token but the last is a finite number, two to four of them; the last is the color, parsed by `Color::from_str`. Blur and spread default to 0. Blur can't be negative; spread can, and shrinks the shadow. `"0 2 8 #40000000"`, `"4 4 Black"` and `"0 0 12 -2 #80000000"` are valid. One value is one shadow. `inset` (#275) is refused: a token equal to `inset`, ignoring case, anywhere in the value is checked for before the numbers are read, so it reports `Inset` rather than `NotANumber`.
+The grammar is CSS's and Avalonia's: `offset-x offset-y [blur [spread]] color`, separated by whitespace. Every token but the last is a finite number, two to four of them; the last is the color, parsed by `Color::from_str`. Blur and spread default to 0. Blur can't be negative; spread can, and shrinks the shadow. `"0 2 8 #40000000"`, `"4 4 Black"` and `"0 0 12 -2 #80000000"` are valid. One value is one shadow. `inset` (#275) is refused: a token equal to `inset`, ignoring case, anywhere in the value is checked for before the numbers are read, so it reports `Inset` rather than a `Number` problem.
 
 The color is required: CSS defaults it to the text color, which artic doesn't have, and a required part can later get a default without breaking anything.
 
@@ -69,14 +69,13 @@ pub enum ShadowProblem {
   MissingColor,
   TooFewNumbers,
   TooManyNumbers,
-  NotANumber(String),
-  NotFinite(String),
+  Number(NumberProblem),
   NegativeBlur(String),
   Color(ParseColorError),
 }
 ```
 
-`artic-render` re-exports `ParseBoxShadowError` and `ShadowProblem` from its root, beside `BoxShadow`, as it does `ParseColorError` beside `Color`. The message quotes the text and shows the forms, in the same shape as `ParseColorError`'s: `invalid BoxShadow '4 4': it needs a color last; expected forms like '0 2 8 #40000000' or '4 4 Black'`. A last token that parses as a number is `MissingColor`; any other last token is the color, so a mistyped color such as `#4000000` reports `Color`, worded as "its color '#4000000' …" with the color error's own reason, not a number problem.
+`artic-render` re-exports `ParseBoxShadowError` and `ShadowProblem` from its root, beside `BoxShadow`, as it does `ParseColorError` beside `Color`. The message quotes the text and shows the forms, in the same shape as `ParseColorError`'s: `invalid BoxShadow '4 4': it needs a color last; expected forms like '0 2 8 #40000000' or '4 4 Black'`. A last token that parses as a number is `MissingColor`; any other last token is the color, so a mistyped color such as `#4000000` reports `Color`, worded as "its color '#4000000' …" with the color error's own reason, not a number problem. A token that isn't a finite number is `Number`, the `artic_layout::finite::NumberProblem` geometry text reports too, read by the same `finite::parse`.
 
 ## 4. `Border`
 

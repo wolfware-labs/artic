@@ -17,6 +17,7 @@ mod shadow;
 mod shape;
 mod stroke;
 
+pub use artic_layout::finite::NumberProblem;
 pub use brush::{Brush, GradientStop, LinearGradientBrush, RadialGradientBrush, SolidColorBrush};
 pub use builder::SceneBuilder;
 pub use color::{Color, ColorProblem, ParseColorError};

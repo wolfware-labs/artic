@@ -5,6 +5,7 @@
 //! a leading or trailing comma, is an error, and so are NaN and infinity. Percentages are read only
 //! by the relative values, such as `RelativePoint`; the rest reject them.
 
+use crate::finite::{self, NumberProblem};
 use crate::geometry::{CornerRadius, Point, Rect, RelativePoint, RelativeScalar, Scaling, Size, Thickness, Transform};
 use artic_core::{RustExpr, ToRust};
 use std::str::FromStr;
@@ -31,12 +32,9 @@ pub enum GeometryProblem {
   /// A value between separators is missing.
   #[error("a value is empty")]
   Empty,
-  /// A value isn't a number.
-  #[error("'{0}' is not a number")]
-  NotANumber(String),
-  /// A value is NaN or infinite.
-  #[error("'{0}' is not a finite number")]
-  NotFinite(String),
+  /// A value isn't a finite number.
+  #[error(transparent)]
+  Number(#[from] NumberProblem),
   /// A value that must not be negative is.
   #[error("'{0}' is negative")]
   Negative(String),
@@ -327,10 +325,7 @@ fn values(text: &str) -> Result<Vec<&str>, GeometryProblem> {
 }
 
 fn number(text: &str, sign: Sign) -> Result<f32, GeometryProblem> {
-  let number: f32 = text.parse().map_err(|_| GeometryProblem::NotANumber(text.to_owned()))?;
-  if !number.is_finite() {
-    return Err(GeometryProblem::NotFinite(text.to_owned()));
-  }
+  let number = finite::parse(text)?;
   if sign == Sign::NotNegative && number < 0.0 {
     return Err(GeometryProblem::Negative(text.to_owned()));
   }
@@ -430,10 +425,26 @@ mod tests {
   // Non-numbers, NaN and infinity are rejected.
   #[test]
   fn non_numbers_and_non_finite_values_are_rejected() {
-    assert_eq!(problem::<Thickness>("abc"), GeometryProblem::NotANumber("abc".to_owned()));
-    assert_eq!(problem::<Thickness>("4,NaN"), GeometryProblem::NotFinite("NaN".to_owned()));
-    assert_eq!(problem::<Size>("inf,4"), GeometryProblem::NotFinite("inf".to_owned()));
-    assert_eq!(problem::<Point>("50%,50%"), GeometryProblem::NotANumber("50%".to_owned()));
+    assert_eq!(
+      problem::<Thickness>("abc"),
+      GeometryProblem::Number(NumberProblem::NotANumber("abc".to_owned()))
+    );
+    assert_eq!(
+      problem::<Thickness>("4,NaN"),
+      GeometryProblem::Number(NumberProblem::NotFinite("NaN".to_owned()))
+    );
+    assert_eq!(
+      problem::<Size>("inf,4"),
+      GeometryProblem::Number(NumberProblem::NotFinite("inf".to_owned()))
+    );
+    assert_eq!(
+      problem::<Point>("50%,50%"),
+      GeometryProblem::Number(NumberProblem::NotANumber("50%".to_owned()))
+    );
+    assert_eq!(
+      "4,NaN".parse::<Thickness>().unwrap_err().to_string(),
+      r#"invalid Thickness '4,NaN': 'NaN' is not a finite number; expected "4", "4,8" or "1,2,3,4""#
+    );
   }
 
   // Sizes, radii and a rectangle's extent can't be negative.
@@ -493,7 +504,7 @@ mod tests {
     );
     assert_eq!(
       problem::<RelativeScalar>("abc%"),
-      GeometryProblem::NotANumber("abc".to_owned())
+      GeometryProblem::Number(NumberProblem::NotANumber("abc".to_owned()))
     );
   }
 
@@ -542,7 +553,10 @@ mod tests {
 
     assert_eq!(problem("skew(10)"), GeometryProblem::UnknownFunction("skew".to_owned()));
     assert_eq!(problem("rotate(1, 2)"), GeometryProblem::Count(2));
-    assert_eq!(problem("translate(a, 2)"), GeometryProblem::NotANumber("a".to_owned()));
+    assert_eq!(
+      problem("translate(a, 2)"),
+      GeometryProblem::Number(NumberProblem::NotANumber("a".to_owned()))
+    );
     assert_eq!(
       problem("translate(1, 2"),
       GeometryProblem::UnknownFunction("translate(1, 2".to_owned())

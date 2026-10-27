@@ -1,5 +1,6 @@
 //! What a [`TextStyle`] and a [`ParagraphStyle`] become on a `parley` builder.
 
+use artic_layout::finite;
 use artic_layout::text::{
   FamilyName, FontFamily, FontStyle, FontWeight, GenericFamily, ParagraphStyle, TextStyle, TextWrapping,
 };
@@ -73,9 +74,9 @@ fn wrap(wrapping: TextWrapping) -> (TextWrapMode, OverflowWrap) {
 }
 
 fn line_height(height: Option<f32>) -> LineHeight {
-  match height {
-    Some(height) if height.is_finite() && height > 0.0 => LineHeight::Absolute(height),
-    _ => LineHeight::MetricsRelative(1.0),
+  match height.and_then(finite::positive) {
+    Some(height) => LineHeight::Absolute(height),
+    None => LineHeight::MetricsRelative(1.0),
   }
 }
 

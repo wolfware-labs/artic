@@ -66,6 +66,24 @@ impl TextLimits {
       max_height: None,
     }
   }
+
+  /// The width limit as an engine applies it: `None` when there is none or it isn't finite, and
+  /// 0 for a negative one.
+  #[must_use]
+  pub fn usable_width(self) -> Option<f32> {
+    usable(self.max_width)
+  }
+
+  /// The height limit as an engine applies it: `None` when there is none or it isn't finite, and
+  /// 0 for a negative one.
+  #[must_use]
+  pub fn usable_height(self) -> Option<f32> {
+    usable(self.max_height)
+  }
+}
+
+fn usable(limit: Option<f32>) -> Option<f32> {
+  limit.filter(|limit| limit.is_finite()).map(crate::finite::usable)
 }
 
 /// Shapes text into paragraphs: finds fonts, places glyphs and breaks lines.
@@ -128,6 +146,26 @@ mod tests {
     assert_eq!(style.size, 14.0);
     assert_eq!(style.weight, FontWeight::NORMAL);
     assert_eq!(style.style, FontStyle::Normal);
+  }
+
+  // A limit counts only when it's finite, and a negative one is 0; NaN and infinities mean none.
+  #[test]
+  fn usable_limits_drop_what_isnt_finite_and_clamp_negatives() {
+    let limits = |limit: Option<f32>| TextLimits {
+      max_width: limit,
+      max_height: limit,
+    };
+
+    for (limit, expected) in [
+      (Some(10.0), Some(10.0)),
+      (Some(-3.0), Some(0.0)),
+      (Some(f32::NAN), None),
+      (Some(f32::INFINITY), None),
+      (None, None),
+    ] {
+      assert_eq!(limits(limit).usable_width(), expected, "width {limit:?}");
+      assert_eq!(limits(limit).usable_height(), expected, "height {limit:?}");
+    }
   }
 
   // An engine is reached through `&mut dyn TextEngine`, as layout holds it, and gets the text and
