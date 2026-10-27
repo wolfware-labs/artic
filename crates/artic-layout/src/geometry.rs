@@ -314,8 +314,14 @@ impl RoundedRect {
         rounded
       }
     };
-    let [top_left, top_right, bottom_right, bottom_left] =
-      [top_left, top_right, bottom_right, bottom_left].map(|radius| down(radius * scale));
+    let mut radii = [top_left, top_right, bottom_right, bottom_left].map(|radius| down(radius * scale));
+    for (side, first, second) in [(width, 0, 1), (width, 3, 2), (height, 0, 3), (height, 1, 2)] {
+      if f64::from(radii[first]) + f64::from(radii[second]) > side {
+        radii[first] = radii[first].next_down().max(0.0);
+        radii[second] = radii[second].next_down().max(0.0);
+      }
+    }
+    let [top_left, top_right, bottom_right, bottom_left] = radii;
     RoundedRect::new(self.rect, CornerRadius::new(top_left, top_right, bottom_right, bottom_left))
   }
 }
@@ -853,21 +859,22 @@ mod tests {
   }
 
   // Fitting a fitted shape changes nothing, so `path` and every renderer that fits again draw the
-  // radii the first fit gave: scaled radii are rounded down, never past their side.
+  // radii the first fit gave: scaled radii never add up past their side, whatever the rounding.
   #[test]
   fn fitted_is_idempotent() {
+    let mut state = 0x2545_f491_4f6c_dd1d_u64;
+    let mut next = || {
+      state ^= state << 13;
+      state ^= state >> 7;
+      state ^= state << 17;
+      f32::from_bits(0x3f80_0000 | (state as u32 >> 9)) * 10f32.powi((state >> 40) as i32 % 7)
+    };
     let mut refitted = Vec::new();
-    for width in [1.0, 3.0, 7.3, 10.0, 33.3, 99.9, 0.1, 1e6] {
-      for height in [1.0, 2.2, 9.7, 50.0, 0.3, 1e5] {
-        for a in [0.1, 1.0, 3.3, 7.7, 25.0, 100.0, 1e6] {
-          for b in [0.0, 0.7, 5.1, 33.0, 1e3] {
-            let radius = CornerRadius::new(a, b, a * 0.37, b + 1.3);
-            let once = RoundedRect::new(Rect::new(0.0, 0.0, width, height), radius).fitted();
-            if once.fitted() != once {
-              refitted.push(once);
-            }
-          }
-        }
+    for _ in 0..200_000 {
+      let rect = Rect::new(0.0, 0.0, next(), next());
+      let once = RoundedRect::new(rect, CornerRadius::new(next(), next(), next(), next())).fitted();
+      if once.fitted() != once {
+        refitted.push(once);
       }
     }
     assert_eq!(refitted, []);
