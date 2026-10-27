@@ -184,14 +184,14 @@ impl<'a> Members<'a> {
       if kind == Kind::Group && !matches!(member, Member::Property(_)) {
         return Err(Error::new_spanned(&field.ty, "a property group holds only `Property` fields"));
       }
-      let resolved = match member {
+      let marks = match member {
         Member::Property(property) => {
           members.properties.push(*property);
-          Some(Content::Property(members.properties.len() - 1))
+          Some(Marked::Content(Content::Property(members.properties.len() - 1)))
         }
         Member::Event(event) => {
           members.events.push(event);
-          None
+          Some(Marked::Event)
         }
         Member::Group(group) => {
           members.groups.push(group);
@@ -199,16 +199,16 @@ impl<'a> Members<'a> {
         }
         Member::Collection => {
           collections.push((&field.ty, content.is_some()));
-          Some(Content::Collection {
+          Some(Marked::Content(Content::Collection {
             ident,
             vis: &field.vis,
             ty: &field.ty,
             method: content_method(&field.ty),
-          })
+          }))
         }
       };
-      if let Some(span) = content {
-        marked.push((span, resolved));
+      if let (Some(span), Some(marks)) = (content, marks) {
+        marked.push((span, marks));
       }
     }
     members.content = resolve_content(marked)?;
@@ -336,23 +336,30 @@ fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttributes)
   })
 }
 
-/// The content from the members marked `#[ui(content)]`, in field order: at most one, and not an
-/// event, which resolves to `None`.
-fn resolve_content(marked: Vec<(Span, Option<Content<'_>>)>) -> syn::Result<Option<Content<'_>>> {
+/// What a member marked `#[ui(content)]` would make the content: itself, or nothing, for an event.
+/// A group can't be marked: `flatten` takes no other settings.
+enum Marked<'a> {
+  Content(Content<'a>),
+  Event,
+}
+
+/// The content from the members marked `#[ui(content)]`, in field order. The first mark on an
+/// event is an error, and so is a second mark.
+fn resolve_content(marked: Vec<(Span, Marked<'_>)>) -> syn::Result<Option<Content<'_>>> {
   let mut marked = marked.into_iter();
-  let Some((span, content)) = marked.next() else {
+  let Some((span, first)) = marked.next() else {
     return Ok(None);
   };
-  if content.is_none() {
+  let Marked::Content(content) = first else {
     return Err(Error::new(
       span,
       "`content` goes on a `Property` or a collection field, not an event",
     ));
-  }
+  };
   if let Some((span, _)) = marked.next() {
     return Err(Error::new(span, "a type has at most one `#[ui(content)]` member"));
   }
-  Ok(content)
+  Ok(Some(content))
 }
 
 /// Rejects a collection field that isn't the content: a type's children reach it only through
