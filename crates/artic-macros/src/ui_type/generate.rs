@@ -1,5 +1,6 @@
 use crate::crate_root::{REGISTRY, crate_root};
-use crate::ui_type::attributes::{Affects, Attached, Inherits, Target, Whitespace};
+use crate::members::attributes::Inherits;
+use crate::ui_type::attributes::{Attached, Target, Whitespace};
 use crate::ui_type::builders::{builders, content_method};
 use crate::ui_type::fields::{Analysis, Role, UiField, generic_argument, ui_name};
 use artic_ident::{rust_identifier, screaming_snake_case, snake_case};
@@ -304,20 +305,13 @@ fn attached_static(attached: &Attached) -> Ident {
 /// The `static AttachedKey` of one attached property.
 fn attached_key(attached: &Attached) -> TokenStream {
   let key = attached_static(attached);
-  let Attached {
-    name,
-    ty,
-    default,
-    affects,
-    inherits,
-    ..
-  } = attached;
-  let default = match default {
+  let Attached { name, ty, spec, .. } = attached;
+  let default = match &spec.default {
     Some(expression) => quote!(#expression),
     None => quote_spanned!(ty.span()=> <#ty as ::core::default::Default>::default()),
   };
-  let affects = affects_tokens(*affects);
-  let inheritance = inheritance_tokens(inherits.as_ref());
+  let affects = affects_tokens(&spec.affects);
+  let inheritance = inheritance_tokens(spec.inherits.as_ref());
   quote! {
     static #key: __artic::AttachedKey<#ty> = __artic::AttachedKey::new(#name, #affects, #inheritance, || #default);
   }
@@ -412,23 +406,21 @@ pub fn key_static(field: &UiField) -> TokenStream {
   };
   let key = generated_key(field.ident);
   let name = ui_name(field);
-  let affects = affects_tokens(field.attributes.affects.unwrap_or_default());
-  let inheritance = inheritance_tokens(field.attributes.inherits.as_ref());
+  let affects = affects_tokens(&field.attributes.spec.affects);
+  let inheritance = inheritance_tokens(field.attributes.spec.inherits.as_ref());
   quote! {
     static #key: __artic::PropertyKey<#inner> = __artic::PropertyKey::new(#name, #affects, #inheritance);
   }
 }
 
-fn affects_tokens(affects: Affects) -> TokenStream {
-  let stages: Vec<TokenStream> = [
-    (affects.layout, quote!(LAYOUT)),
-    (affects.render, quote!(RENDER)),
-    (affects.surface, quote!(SURFACE)),
-  ]
-  .into_iter()
-  .filter(|(listed, _)| *listed)
-  .map(|(_, stage)| quote!(__artic::Affects::#stage))
-  .collect();
+fn affects_tokens(affects: &[Ident]) -> TokenStream {
+  let stages: Vec<TokenStream> = affects
+    .iter()
+    .map(|stage| {
+      let constant = format_ident!("{}", stage.to_string().to_uppercase(), span = stage.span());
+      quote_spanned!(stage.span()=> __artic::Affects::#constant)
+    })
+    .collect();
   match stages.split_first() {
     None => quote!(__artic::Affects::NONE),
     Some((first, rest)) => quote!(#first #(.union(#rest))*),
@@ -452,7 +444,7 @@ pub fn default_field(field: &UiField) -> TokenStream {
   match field.role {
     Role::Property { inner, .. } => {
       let key = key_path(field);
-      let value = match (&field.attributes.key, &field.attributes.default) {
+      let value = match (&field.attributes.key, &field.attributes.spec.default) {
         (Some(shared), Some(expression)) => {
           quote_spanned!(expression.span()=> __artic::default_beside(&#shared, #expression))
         }

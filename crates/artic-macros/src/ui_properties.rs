@@ -1,5 +1,5 @@
 use crate::crate_root::{REGISTRY, crate_root};
-use crate::ui_type::attributes::parse_field_attributes;
+use crate::members::attributes::parse_field_attributes;
 use crate::ui_type::builders::{Setter, key_constant, setter};
 use crate::ui_type::fields::{Role, UiField, check_content, classify, reject_unmarked_member};
 use crate::ui_type::generate::{default_field, key_static, property_info, value_check};

@@ -1,4 +1,5 @@
-use crate::ui_type::attributes::{FieldAttributes, TypeAttributes, parse_field_attributes, parse_type_attributes};
+use crate::members::attributes::{FieldAttributes, parse_field_attributes};
+use crate::ui_type::attributes::{TypeAttributes, parse_type_attributes};
 use crate::ui_type::builders::{content_method, key_constant_name};
 use artic_ident::{IdentError, pascal_case, rust_identifier, screaming_snake_case, snake_case};
 use quote::ToTokens;
@@ -274,8 +275,10 @@ pub fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttribu
     Role::Collection
   };
   if matches!(role, Role::Event { .. } | Role::Collection) {
-    let property_only =
-      attributes.default.is_some() || attributes.key.is_some() || attributes.affects.is_some() || attributes.inherits.is_some();
+    let property_only = attributes.spec.default.is_some()
+      || attributes.key.is_some()
+      || !attributes.spec.affects.is_empty()
+      || attributes.spec.inherits.is_some();
     if property_only {
       return Err(Error::new_spanned(
         &field.ty,

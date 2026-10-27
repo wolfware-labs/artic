@@ -2,6 +2,7 @@
 
 mod crate_root;
 mod element;
+mod members;
 mod ui_enum;
 mod ui_properties;
 mod ui_type;
