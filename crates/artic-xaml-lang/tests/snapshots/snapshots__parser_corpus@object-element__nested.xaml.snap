@@ -1,0 +1,8 @@
+---
+source: crates/artic-xaml-lang/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/object-element/nested.xaml
+---
+valid/object-element/nested.xaml:3:6: error: no type `Image` in `https://artic.rs/ui`
+3 |     <Image/>
+  |      ^^^^^ unknown type

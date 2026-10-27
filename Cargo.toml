@@ -26,11 +26,12 @@ members = [
     "crates/artic-theme",
     "crates/artic-vello",
     "crates/artic-view",
+    "crates/artic-view-compiler",
     "crates/artic-winit",
     "crates/artic-xaml",
-    "crates/artic-xaml-compiler",
-    "crates/artic-xaml-compiler/fixtures/app",
-    "crates/artic-xaml-compiler/fixtures/controls",
+    "crates/artic-xaml-lang",
+    "crates/artic-xaml-lang/fixtures/app",
+    "crates/artic-xaml-lang/fixtures/controls",
     "crates/artic-xaml-runtime",
     "crates/docs-check",
 ]
@@ -65,9 +66,10 @@ artic-text = { path = "crates/artic-text", version = "0.1.0" }
 artic-theme = { path = "crates/artic-theme", version = "0.1.0" }
 artic-vello = { path = "crates/artic-vello", version = "0.1.0" }
 artic-view = { path = "crates/artic-view", version = "0.1.0" }
+artic-view-compiler = { path = "crates/artic-view-compiler", version = "0.1.0" }
 artic-winit = { path = "crates/artic-winit", version = "0.1.0" }
 artic-xaml = { path = "crates/artic-xaml", version = "0.1.0" }
-artic-xaml-compiler = { path = "crates/artic-xaml-compiler", version = "0.1.0" }
+artic-xaml-lang = { path = "crates/artic-xaml-lang", version = "0.1.0" }
 artic-xaml-runtime = { path = "crates/artic-xaml-runtime", version = "0.1.0" }
 
 accesskit = "0.25.1"

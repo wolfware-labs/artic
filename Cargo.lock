@@ -105,8 +105,9 @@ dependencies = [
  "artic-render",
  "artic-style",
  "artic-theme",
+ "artic-view-compiler",
  "artic-xaml",
- "artic-xaml-compiler",
+ "artic-xaml-lang",
  "artic-xaml-runtime",
 ]
 
@@ -115,7 +116,7 @@ name = "artic-cli"
 version = "0.1.0"
 dependencies = [
  "artic-xaml",
- "artic-xaml-compiler",
+ "artic-xaml-lang",
 ]
 
 [[package]]
@@ -203,7 +204,7 @@ name = "artic-lsp"
 version = "0.1.0"
 dependencies = [
  "artic-xaml",
- "artic-xaml-compiler",
+ "artic-xaml-lang",
 ]
 
 [[package]]
@@ -371,6 +372,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "artic-view-compiler"
+version = "0.1.0"
+dependencies = [
+ "artic-core",
+ "artic-diagnostics",
+ "artic-registry",
+ "artic-view",
+ "pretty_assertions",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "artic-winit"
 version = "0.1.0"
 dependencies = [
@@ -398,26 +415,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "artic-xaml-compiler"
-version = "0.1.0"
-dependencies = [
- "artic",
- "artic-core",
- "artic-diagnostics",
- "artic-macros",
- "artic-registry",
- "artic-view",
- "artic-xaml",
- "insta",
- "pretty_assertions",
- "prettyplease",
- "proc-macro2",
- "quote",
- "syn 3.0.9",
- "thiserror 2.0.21",
-]
-
-[[package]]
 name = "artic-xaml-compiler-fixture-app"
 version = "0.1.0"
 dependencies = [
@@ -434,6 +431,23 @@ dependencies = [
  "artic-core",
  "artic-macros",
  "artic-registry",
+]
+
+[[package]]
+name = "artic-xaml-lang"
+version = "0.1.0"
+dependencies = [
+ "artic",
+ "artic-core",
+ "artic-diagnostics",
+ "artic-macros",
+ "artic-registry",
+ "artic-view",
+ "artic-view-compiler",
+ "artic-xaml",
+ "insta",
+ "pretty_assertions",
+ "syn 3.0.9",
 ]
 
 [[package]]

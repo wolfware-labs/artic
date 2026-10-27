@@ -1,0 +1,12 @@
+---
+source: crates/artic-xaml-lang/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/namespaces/declared_after_use.xaml
+---
+valid/namespaces/declared_after_use.xaml:2:2: error: no type `Card` in `using:app::widgets`
+2 | <a:Card a:Dock.Side="Left" xmlns:a="using:app::widgets"/>
+  |  ^^^^^^ unknown type
+
+valid/namespaces/declared_after_use.xaml:2:9: error: attached properties come with #50
+2 | <a:Card a:Dock.Side="Left" xmlns:a="using:app::widgets"/>
+  |         ^^^^^^^^^^^

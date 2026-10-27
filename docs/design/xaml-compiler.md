@@ -8,7 +8,7 @@ The compiler turns each `.xaml` file into plain Rust before the app compiles. Th
 
 The compiler runs inside `build.rs`, a separate program that Cargo builds for the host and runs before the app. Its registry holds the types of the crates it links: its build-dependencies, each referenced once in `build.rs` with `use <crate> as _;`, as the spike found. A type defined in the app crate itself doesn't exist yet when `build.rs` runs.
 
-So a compiled view uses types from build-dependencies only. A name that resolves to nothing gets the unknown-type diagnostic, with a note when the namespace points at the app's own crate (`CARGO_PKG_NAME`, with `-` read as `_`): move the type to a library crate and add it to `[build-dependencies]`. A type index read from source (#183) could become a second source of types later; the registry stays the only one here.
+So a compiled view uses types from build-dependencies only. A name that resolves to nothing gets the unknown-type diagnostic, with a note when the namespace points at the app's own crate: move the type to a library crate and add it to `[build-dependencies]`. The app's crate is the one `Xaml::with_app_crate` names, with `-` read as `_`; `artic::xaml::compile_dir` sets it from `CARGO_PKG_NAME`. A type index read from source (#183) could become a second source of types later; the registry stays the only one here.
 
 Build-dependencies are compiled for the host, with their own features: a type behind a `cfg` the target has and the host lacks isn't in the build script's registry. That is the same limit, stated once in the guide.
 
@@ -17,21 +17,26 @@ Build-dependencies are compiled for the host, with their own features: a type be
 Generated code lives in the app crate, which depends on the `artic` facade, not on `artic_controls` or `artic_layout`. The registry's paths name where an item is defined (`artic_controls::border::Border`), often in a private module, and Rust can't learn where an item is re-exported. So the rule is a convention plus a map:
 
 - A UI type, a value type set from text and a group's methods trait are each reachable at their crate's root, as `<crate>::<Name>`. `artic-controls` and `artic-element` already are; `artic-layout` re-exports its geometry and text values at its root (`Thickness`, `CornerRadius`, `FontFamily`, `TextWrapping`, …). A test in the facade, which links every artic crate, checks against the registry that every one of them is reachable there. A third-party control crate follows the same rule.
-- `NamespaceMap`, which maps URIs to crates (`dsl-neutral.md` §3), also maps a crate to the path the app reaches it by:
+- `CratePaths`, in `artic-view-compiler`, maps a crate to the path the app reaches it by. `NamespaceMap` in `artic-xaml` maps URIs to crates (`dsl-neutral.md` §3) and holds no paths:
 
 ```rust,ignore
-impl NamespaceMap {
+impl CratePaths {
   /// Generated code reaches `krate` as `path`, such as `artic_controls` as `::artic::controls`.
+  /// A second call for the same crate replaces the first.
   pub fn path(&mut self, krate: &str, path: &str);
   /// The path for `krate`: the one set with `path`, or `::krate`.
   pub fn path_of(&self, krate: &str) -> String;
-  /// Every crate the map names, through a URI or a path, each once and sorted.
+  /// Every crate given a path, in sorted order.
   pub fn crates_named(&self) -> impl Iterator<Item = &str>;
+  /// Where generated code reaches the item at `rust_path`: its crate's path and the item's name.
+  pub fn item(&self, rust_path: &str) -> String;
+  /// Where generated code reaches `module`: its crate's path, then the rest of `module`.
+  pub fn module(&self, module: &str) -> String;
 }
 ```
 
-- The facade re-exports `artic_controls`, `artic_element`, `artic_layout` and `artic_render` as `artic::controls`, `artic::element`, `artic::layout` and `artic::render`, and `artic::xaml::namespaces()` sets those paths beside artic's URI. `Handle` and `UiTree`, which every generated file names, come through `artic::prelude`, which gains `UiTree`. An app adds its control crates with `alias` for the URI and `path` when its `Cargo.toml` renames the crate.
-- A type found through a URI is written as `<crate path>::<Name>`: the crate from the first segment of `TypeInfo::rust_path`, the name from `TypeInfo::name`. A type found through `using:my_crate::views` is written with the module path the document gave, its crate segment translated through the map: `<path of my_crate>::views::Gauge`, since the author named that module and `type_by_rust_path` found the type there. A type off the written path fails to compile in the generated file, with the path in the error. The crate that defines a type or a group's methods trait is the one written, so an app maps it with `path` when it reaches that crate through another, such as a control crate that flattens a group from its core crate.
+- The facade re-exports `artic_controls`, `artic_core`, `artic_element`, `artic_layout` and `artic_render` as `artic::controls`, `artic::core`, `artic::element`, `artic::layout` and `artic::render`, and `artic::view::crate_paths()` sets those paths. `Handle` and `UiTree`, which every generated file names, come from `artic_core::tree` through the paths, as `::artic::core::tree`. An app adds its control crates with `NamespaceMap::alias` for the URI, and sets `CratePaths::path` when its `Cargo.toml` renames the crate.
+- A type found through a URI is written as `<crate path>::<Name>`: the crate from the first segment of `TypeInfo::rust_path`, the name from `TypeInfo::name`. A type found through `using:my_crate::views` is written with the module path the document gave, its crate translated by `CratePaths::module`: `<path of my_crate>::views::Gauge`, since the author named that module and `type_by_rust_path` found the type there. A type off the written path fails to compile in the generated file, with the path in the error. The crate that defines a type or a group's methods trait is the one written, so an app maps it with `CratePaths::path` when it reaches that crate through another, such as a control crate that flattens a group from its core crate.
 
 ## Literals
 
@@ -65,25 +70,26 @@ impl RustExpr {
 - `artic-core` implements it for the numbers, `bool`, `char`, `String` and the `NonZero` integers. The value types implement it beside their `FromStr`: the geometry types, `Color`, `Brush` and its gradients, `BoxShadow`, `FontFamily`, `FontWeight` and `Classes`, which gain the public constructors their output calls (`FontFamily::from_names`, `FontWeight` as a constant per weight, `Classes::from` a list). `#[derive(UiEnum)]` writes it for every enum (`::artic::layout::Orientation::Horizontal`).
 - `PropertyInfo` gains `literal: Option<fn(&str, &mut RustExpr) -> Result<(), String>>`. For a `Property<Option<V>>` it parses and writes `V`, which is what the builder method takes. The derive writes it beside the value check, with the same dispatch: a value type that parses from text gets "parse with `FromStr`, then `to_rust`"; a `NodeId` or a `UiType` value, which never comes from text, gets a function that returns the error "this property takes an element, not text".
 - A value type set from text must implement `ToRust`. The value check's bound becomes `FromStr + ToRust`, and its method, whose name is the error message, becomes `value_must_parse_from_text_and_implement_torust_or_derive_uitype`.
-- The registry exposes a `literal!` macro to the derive, defined as `Some($f)` when `artic-registry`'s `literals` feature is on and `None` when it's off. `artic-xaml-compiler` turns the feature on; Cargo's resolver keeps build-dependency features apart from the app's, so only the build script's registry holds the functions, and a release app keeps neither them nor the `ToRust` code they reach.
-- `artic-registry` re-exports `ToRust` and `RustExpr` at its root, since `PropertyInfo::literal` names them, so the compiler builds a `RustExpr` through the registry and keeps its two dependencies, `artic-xaml` and `artic-registry` ([architecture](../architecture.md)).
+- The registry exposes a `literal!` macro to the derive, defined as `Some($f)` when `artic-registry`'s `literals` feature is on and `None` when it's off. `artic-view-compiler` turns the feature on; Cargo's resolver keeps build-dependency features apart from the app's, so only the build script's registry holds the functions, and a release app keeps neither them nor the `ToRust` code they reach.
+- `artic-registry` re-exports `ToRust` and `RustExpr` at its root, since `PropertyInfo::literal` names them, so `artic-view-compiler` builds a `RustExpr` through the registry without depending on `artic-core` ([architecture](../architecture.md)).
 - `RustExpr` is a string builder, so `artic-core` stays free of `syn`. The compiler parses every expression it gets with `syn::parse_str::<syn::Expr>`; an impl that writes invalid Rust fails the build naming the property, never the app.
 - A literal is checked on the host. A `usize` that fits the host and not a 32-bit target fails to compile in the generated file, where rustc reports the literal out of range.
 
 ## What a compiled view gives the app
 
-Each `src/views/<name>.xaml` becomes `$OUT_DIR/views/src/views/<name>.rs`, at its path in the crate, a module body with one constant, one struct and one function:
+Each `src/views/<name>.xaml` becomes `$OUT_DIR/views/<name>.rs`, at its path under the directory `compile_dir` reads (#52 moves it to its path in the crate, `$OUT_DIR/views/src/views/<name>.rs`), a module body with one constant, one struct and one function:
 
 ```rust,ignore
 // Generated from src/views/login_view.xaml.
-use ::artic::prelude::{Handle, UiTree};
+use ::artic::core::tree::{Handle, UiTree};
 use ::artic::controls as _;
+use ::artic::core as _;
 use ::artic::element::LayoutMethods as _;
 
 /// The Rust type `x:Class` names, which `#[ui_class]` checks against its struct.
 pub const CODE_TYPE: Option<&str> = None;
 
-/// The nodes of `login_view.xaml`: its root and one handle per `x:Name`.
+/// The nodes of `login_view.xaml`: its root and one handle per named element.
 #[derive(Clone, Copy, Debug)]
 pub struct View {
   pub root: Handle<::artic::controls::UserControl>,
@@ -107,12 +113,12 @@ pub fn build(tree: &mut UiTree) -> View {
 - The sample compiles spec §4's example view, whose root element is a `UserControl`; the compiler adds no wrapper, and `View::root` is typed by whatever the document's root element is, such as `Handle<StackPanel>` for a view rooted in a panel.
 - `TextBox` and `Button` aren't built yet; the sample shows the shape once they are.
 - One `let` per element, in post-order, named `__e0`, `__e1`, … in that order, so no name in the view can shadow `tree` or another local.
-- A property becomes its builder method, named after the field (`PropertyInfo::field`). A group's property uses the same name through the group's methods trait. `PropertyGroupInfo` gains `methods: &'static str`, the trait's defining path from `PropertyGroup::METHODS`. The compiler never writes that path, which may name a private module: it takes the crate (first segment) and the trait's name (last segment), and since the trait sits at its crate's root, imports it once per file as `use <crate path>::<Trait> as _;` with the crate's path from the map, such as `use ::artic::element::LayoutMethods as _;`.
+- A property becomes its builder method, named after the field (`PropertyInfo::field`). A group's property uses the same name through the group's methods trait. `PropertyGroupInfo` gains `methods: &'static str`, the trait's defining path from `PropertyGroup::METHODS`. The compiler never writes that path, which may name a private module: it takes the crate (first segment) and the trait's name (last segment), and since the trait sits at its crate's root, imports it once per file as `use <crate path>::<Trait> as _;` with the crate's path from `CratePaths`, such as `use ::artic::element::LayoutMethods as _;`.
 - Content comes last, after the property methods, because `.child` and `.children` return a `WithChildren` that has only `build`. `ContentInfo::Collection` gains `method: Option<ContentMethod>`, the method the derive generated (`ContentMethod::Child` or `ContentMethod::Children`) or `None` for a collection of values; a `ContentInfo::Property` content is that property's method, given text or a literal. Text content takes the node's `text`, or its `raw` text for a type marked `whitespace = "significant"`.
 - `x:Name` adds a field to `View`, typed by the element, named by the name in snake_case, each run of underscores inside it written as one: `SubmitButton` gives `submit_button`, `URLField` gives `url_field`, `first__name` gives `first_name`. The name is taken as written and its field must be a Rust identifier; a field that is a keyword becomes a raw identifier (`r#type`), and a field `self`, `crate`, `super` or `root` is rejected. Two names with one field, such as `Email` and `email`, are a duplicate, and the error's help names both spellings.
 - `CODE_TYPE` is `None` for a view without `x:Class`, as here. With one, it is `Some("<crate>::<path>")` and the root is the code type.
 - `x:Class` makes the view's root its code type, and `x:FieldModifier` sets a named node's field visibility ([code type design](ui-class.md)); `x:DataType` is recorded for #94; `x:Uid` is accepted and ignored until localization (#168).
-- The file references every crate the namespace map names, with `use <path> as _;`, so their types stay in the app's link (below).
+- The file references every crate the namespace map names and every crate `CratePaths` names, with `use <path> as _;`, so their types stay in the app's link (below).
 
 The block above is a view without a code type. The builder design's sample is a view with one: its `build` returns the code type at the root, `View` holds only the named nodes, and `CODE_TYPE` names the type ([code type design](ui-class.md#building-it)).
 
@@ -147,24 +153,39 @@ Rendering them as `file:line:col` lines in `cargo build` output is #51. Here `co
 
 ## The API
 
+`artic-view-compiler` compiles the views of any UI language; `Xaml` in `artic-xaml-lang` is the language for `.xaml` files:
+
 ```rust,ignore
-/// Compiles one document to the Rust module body for it.
+/// Compiles one document of `language` to the Rust module body for it.
 pub fn compile_str(
   sources: &SourceMap,
   file: SourceId,
+  language: &(impl Language + ?Sized),
   registry: &Registry,
-  namespaces: &NamespaceMap,
+  paths: &CratePaths,
 ) -> Result<String, Diagnostics>;
 
-/// Compiles every `.xaml` file under `dir` to `$OUT_DIR/views/<path in the crate>.rs`, for a build script.
-pub fn compile_dir(dir: impl AsRef<Path>, namespaces: &NamespaceMap) -> Result<(), CompileError>;
+/// Compiles every file of `language` under `dir` into `$OUT_DIR/views/`, for a build script.
+pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), paths: &CratePaths) -> Result<(), CompileError>;
+
+/// Compiles every file of `language` under `dir` into `out`, mirroring the layout, and returns the
+/// views read, sorted.
+pub fn compile_into(
+  dir: &Path,
+  out: &Path,
+  language: &(impl Language + ?Sized),
+  registry: &Registry,
+  paths: &CratePaths,
+) -> Result<Vec<PathBuf>, CompileError>;
 ```
+
+A build script reaches them through the facade: `artic::view::compile_dir(dir, &xaml, &paths)`, with `xaml` from `artic::xaml::Xaml::new(namespaces)` and `paths` from `artic::view::crate_paths()`. The short form `artic::xaml::compile_dir(dir, &namespaces)` does the same with artic's paths and sets `Xaml::with_app_crate` from `CARGO_PKG_NAME`; a build script using the long form passes `env!("CARGO_PKG_NAME")` itself. `compile_into` is `compile_dir`'s work with every input passed in, for a tool that isn't a build script: it reads no environment and prints nothing for Cargo.
 
 `compile_dir` builds the registry with `Registry::from_link_time()`, reads each file into one `SourceMap` and calls `compile_str`. `CompileError` holds the `SourceMap` and the `Diagnostics`, or an I/O error with its path. It also reports the registry's duplicates and a missing `OUT_DIR`. `compile_str` writes the file's path into the output, so `compile_dir` names each view by its path in the crate, and writes it at that path under `$OUT_DIR/views/` ([code type design](ui-class.md#the-file-argument)). A `dir` outside the crate names its views relative to `dir`.
 
 ## Writing the code
 
-The compiler builds `quote!` tokens, parses the file with `syn` and formats it with `prettyplease`. The round trip checks every emitted expression, and the output is deterministic: elements in document order, crates and imports in a `BTreeSet`, files in sorted order, no timestamps and no absolute paths.
+`artic-view-compiler` builds `quote!` tokens, parses the file with `syn` and formats it with `prettyplease`. The round trip checks every emitted expression, and the output is deterministic: elements in document order, crates and imports in a `BTreeSet`, files in sorted order, no timestamps and no absolute paths.
 
 ## The build script
 
@@ -182,8 +203,8 @@ fn main() {
 ```
 
 - `compile_dir` walks the directory in sorted order, writes one file per view under `$OUT_DIR/views/` at the view's path in the crate, which `#[ui_class]` finds it by ([code type design](ui-class.md#the-file-argument)), and prints `cargo:rerun-if-changed` for the directory and each file.
-- Linking: each generated file references every crate in `namespaces.crates_named()` through its path, so a control crate the map names keeps its types in the app's registry even when no view uses them. Every crate the map names is therefore a normal dependency of the app as well as a build-dependency; one that isn't fails to compile in the generated file, at its `use` line. A crate the map doesn't name can't be reached by a view; an app that wants its types for the runtime loader references it itself, as `dsl-neutral.md` §3 says. No `cargo metadata` runs inside the build.
-- The facade's `xaml-compiler` feature adds `artic-xaml-compiler` and re-exports `compile_dir`; apps don't name the compiler crate. A build-dependency on the facade compiles it once more for the host, the usual cost of a code generator.
+- Linking: each generated file references every crate in `namespaces.crates_named()` and `paths.crates_named()` through its path, so a control crate the map names keeps its types in the app's registry even when no view uses them. Every crate the map names is therefore a normal dependency of the app as well as a build-dependency; one that isn't fails to compile in the generated file, at its `use` line. A crate the map doesn't name can't be reached by a view; an app that wants its types for the runtime loader references it itself, as `dsl-neutral.md` §3 says. No `cargo metadata` runs inside the build.
+- The facade's `xaml-compiler` feature adds `artic-xaml-lang` and turns on `view-compiler`, which adds `artic-view-compiler` as `artic::view`; apps don't name either crate. A build-dependency on the facade compiles it once more for the host, the usual cost of a code generator.
 
 ## Testing
 
@@ -192,9 +213,10 @@ fn main() {
 | `artic-core` | `ToRust` for each primitive and `NonZero` integer; `RustExpr::f32` writes NaN, the infinities and `-0.0` as constants and other values so they read back exactly; `str` escapes quotes, backslashes and newlines |
 | value-type crates | for each value type, text parsed and written with `to_rust` gives an expression that `syn` parses; a trybuild pass case compiles a few and compares them with the parsed values |
 | `artic-macros` | a `UiEnum` writes its variant's path; a property whose value type lacks `ToRust` fails with the message above; `literal` is `None` without the feature |
-| `artic-xaml` | `NamespaceMap::path`, `path_of`, `crates_named` |
+| `artic-xaml` | `NamespaceMap::crates_named` |
+| `artic-view-compiler` | `CratePaths::path`, `path_of`, `crates_named`, `item`, `module` |
 | `artic` | every UI type, methods trait and property value type in the registry is reachable at its crate's root; every crate defining a UI type or group has a facade path; the facade's paths build a control |
-| `artic-xaml-compiler` | `insta` snapshots of the generated Rust for every #28 fixture that uses only supported constructs; `output_is_deterministic`; `unknown_element_reports_error`, `unknown_property_reports_error`, `bad_literal_reports_error` and one test per row of the table above; a `syn` walk of each output finding no `Registry`, as #57's `compiled_output_has_no_loader_values` does |
+| `artic-xaml-lang` | `insta` snapshots of the generated Rust for every #28 fixture that uses only supported constructs; `output_is_deterministic`; `unknown_element_reports_error`, `unknown_property_reports_error`, `bad_literal_reports_error` and one test per row of the table above; a `syn` walk of each output finding no `Registry`, as #57's `compiled_output_has_no_loader_values` does |
 | integration crate | a `build.rs` compiles a `Border` / `StackPanel` / `TextBlock` view; a test builds it and checks the tree and the `View` handles; a control crate the map names and no view uses still has its types in the registry |
 
 ## Changes to other documents and issues

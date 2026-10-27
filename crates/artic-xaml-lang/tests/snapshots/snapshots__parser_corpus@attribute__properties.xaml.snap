@@ -1,0 +1,8 @@
+---
+source: crates/artic-xaml-lang/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/attribute/properties.xaml
+---
+valid/attribute/properties.xaml:2:2: error: no type `Button` in `https://artic.rs/ui`
+2 | <Button xmlns="https://artic.rs/ui" Width="100" Content="Sign in" Margin="4,8" Padding=" 2 , 4 "/>
+  |  ^^^^^^ unknown type

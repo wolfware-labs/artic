@@ -51,16 +51,28 @@ pub trait UiType {
   const TYPE_INFO: &'static TypeInfo;
 }
 
+/// The crate a Rust path starts in: its first segment, such as `artic_controls` in
+/// `artic_controls::border::Border`.
+#[must_use]
+pub fn crate_of(path: &str) -> &str {
+  path.split_once("::").map_or(path, |(krate, _)| krate)
+}
+
+/// The crate and the item of a Rust path, its first and last segments: `artic_controls` and
+/// `Border` in `artic_controls::border::Border`. A UI crate re-exports each item at its root, so the
+/// two reach it.
+#[must_use]
+pub fn crate_and_item(path: &str) -> (&str, &str) {
+  (crate_of(path), path.rsplit_once("::").map_or(path, |(_, item)| item))
+}
+
 impl TypeInfo {
   /// The type's namespace: the crate it's defined in, the first segment of its
   /// [`rust_path`](TypeInfo::rust_path), such as `artic_controls`. A language reaches types by
   /// namespace and name, or by Rust path.
   #[must_use]
   pub fn namespace(&self) -> &'static str {
-    self
-      .rust_path
-      .split_once("::")
-      .map_or(self.rust_path, |(crate_name, _)| crate_name)
+    crate_of(self.rust_path)
   }
 
   /// The type's property named `name`: one of its own, or one from a group it embeds.
@@ -265,6 +277,20 @@ mod tests {
   use static_assertions::assert_impl_all;
 
   assert_impl_all!(TypeInfo: Sync);
+
+  // A Rust path's crate is its first segment.
+  #[test]
+  fn crate_of_is_the_first_segment() {
+    assert_eq!(crate_of("artic_controls::border::Border"), "artic_controls");
+    assert_eq!(crate_of("acme"), "acme");
+  }
+
+  // A Rust path's crate and item are its first and last segments.
+  #[test]
+  fn crate_and_item_reads_both_ends() {
+    assert_eq!(crate_and_item("artic_controls::border::Border"), ("artic_controls", "Border"));
+    assert_eq!(crate_and_item("acme"), ("acme", "acme"));
+  }
 
   // Each content method is named as the builder method the derive writes.
   #[test]

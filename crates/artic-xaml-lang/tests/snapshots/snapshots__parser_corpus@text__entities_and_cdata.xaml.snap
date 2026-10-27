@@ -1,0 +1,8 @@
+---
+source: crates/artic-xaml-lang/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/text/entities_and_cdata.xaml
+---
+valid/text/entities_and_cdata.xaml:2:40: error: `TextBlock` takes no text content
+2 | <TextBlock xmlns="https://artic.rs/ui">a &lt; b &amp;&amp; &#65;&#x42; <![CDATA[<raw> &amp;]]> end</TextBlock>
+  |                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

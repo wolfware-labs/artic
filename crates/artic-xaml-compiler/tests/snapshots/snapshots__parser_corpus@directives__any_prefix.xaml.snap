@@ -1,8 +1,0 @@
----
-source: crates/artic-xaml-compiler/tests/snapshots.rs
-expression: output
-input_file: crates/artic-xaml/tests/fixtures/valid/directives/any_prefix.xaml
----
-valid/directives/any_prefix.xaml:2:2: error: no type `Button` in `https://artic.rs/ui`
-2 | <Button xmlns="https://artic.rs/ui" xmlns:m="https://artic.rs/markup" m:Name="ok"/>
-  |  ^^^^^^ unknown type

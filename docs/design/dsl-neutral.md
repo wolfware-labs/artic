@@ -2,7 +2,7 @@
 
 Issue: #305. Builds on: [naming review](naming-review.md) (#30, D20), [value objects](value-objects.md) (#32), [elements](element.md) (#42), [TextBlock](text-block.md) (#46). Unblocks: #43, #49.
 
-An app picks its host, its renderer and its UI language. Host and renderer already sit behind traits: no layer depends on winit or vello. The language is separate by dependency too: no crate that defines types, layout, drawing or controls depends on `artic-xaml`, `artic-xaml-compiler` or `artic-xaml-runtime`; only the XAML crates themselves, the facade's `runtime-xaml` and `xaml-compiler` features, `artic-lsp` and `artic-cli` do. `docs/architecture.md` planned one more edge, `artic-style` → `artic-xaml`, for `Span` and `Diagnostic` in selector errors; this design drops it (section 5), and both types now live in `artic-diagnostics` (#325). Its names, though, reach into the layers below it. Every UI type derives `XamlType`, states an XML namespace, and marks its fields `#[xaml(...)]`; layout enums derive `XamlEnum`; the registry's traits and lists are named after XAML.
+An app picks its host, its renderer and its UI language. Host and renderer already sit behind traits: no layer depends on winit or vello. The language is separate by dependency too: no crate that defines types, layout, drawing or controls depends on `artic-xaml`, `artic-xaml-lang` or `artic-xaml-runtime`; only the XAML crates themselves, the facade's `runtime-xaml` and `xaml-compiler` features, `artic-lsp` and `artic-cli` do. `docs/architecture.md` planned one more edge, `artic-style` → `artic-xaml`, for `Span` and `Diagnostic` in selector errors; this design drops it (section 5), and both types now live in `artic-diagnostics` (#325). Its names, though, reach into the layers below it. Every UI type derives `XamlType`, states an XML namespace, and marks its fields `#[xaml(...)]`; layout enums derive `XamlEnum`; the registry's traits and lists are named after XAML.
 
 D20 keeps WPF framing out of the APIs while the markup keeps the XAML name. This design extends it: the layers below a language describe types in neutral terms, and only the XAML crates speak XAML. A new spec, `docs/spec/dsl.md`, states the contract any language follows, so someone can write their own or plug in one that exists. It keeps XAML's ideas (attached properties, content, values written as text, markup extensions, namespaces) and names them neutrally. XAML is the first language that follows it.
 
@@ -74,11 +74,11 @@ A namespace stays a crate rather than a name each type picks: picking one per ty
 
 ## 3. The XAML layer
 
-The XAML back ends that look types up, the loader and the compiler, aren't built yet: `artic-xaml` parses, `artic-xaml-runtime` and `artic-xaml-compiler` are empty, and the spec makes resolving types their first step. So this design gives the XAML layer the map they'll use, without a registry:
+The XAML back ends that look types up, the loader and the compiler, weren't built when this design was written, and the spec makes resolving types their first step. So this design gives the XAML layer the map they use, without a registry:
 
 ```rust,ignore
-/// Which crates each namespace URI stands for, and the path generated code reaches each crate by.
-pub struct NamespaceMap { /* URI -> crate names, crate -> path */ }
+/// Which crates each namespace URI stands for.
+pub struct NamespaceMap { /* URI -> crate names */ }
 
 impl NamespaceMap {
   /// Adds `crates` to what `uri` stands for. A crate it already stands for is kept once, so
@@ -86,19 +86,15 @@ impl NamespaceMap {
   pub fn alias(&mut self, uri: &str, crates: &[&str]);
   /// The crates `uri` stands for, or `None` for a URI nobody declared.
   pub fn crates(&self, uri: &str) -> Option<&[String]>;
-  /// Generated code reaches `krate` as `path`, such as `artic_controls` as `::artic::controls`.
-  pub fn path(&mut self, krate: &str, path: &str);
-  /// The path for `krate`: the one set with `path`, or `::krate`.
-  pub fn path_of(&self, krate: &str) -> String;
-  /// Every crate the map names, through a URI or a path, each once and sorted.
+  /// Every crate a URI stands for, each once and in sorted order.
   pub fn crates_named(&self) -> impl Iterator<Item = &str>;
 }
 ```
 
-It lives in `artic-xaml`, beside the parser, and depends on nothing:
+It lives in `artic-xaml`, beside the parser, and depends on nothing. The path generated code reaches each crate by isn't XAML's: it's set on a `CratePaths` in `artic-view-compiler`, for every UI language ([view pipeline design](view-pipeline.md)).
 
 - `using:my_crate::views` keeps working as the spec describes, and needs no entry: the back end joins the module and the local name into a Rust path, `my_crate::views::Gauge`, and calls `Registry::type_by_rust_path`, so it finds exactly the type in that module even when another module of the crate has one of the same name.
-- Nothing is built in. The `artic` facade, which already depends on every artic crate with UI types, owns artic's entry: `artic::xaml::namespaces() -> NamespaceMap` returns a map holding `https://artic.rs/ui` → `artic_element`, `artic_controls` (and the style crates when they define types), added through `alias`, the call an app uses for its own URIs, such as `https://acme.com/ui` → `acme_controls`. It also maps each artic crate to the facade module that re-exports it, such as `artic_controls` → `::artic::controls`, through `path`. A new artic crate is added where the crates are composed.
+- Nothing is built in. The `artic` facade, which already depends on every artic crate with UI types, owns artic's entry: `artic::xaml::namespaces() -> NamespaceMap` returns a map holding `https://artic.rs/ui` → `artic_element`, `artic_controls` (and the style crates when they define types), added through `alias`, the call an app uses for its own URIs, such as `https://acme.com/ui` → `acme_controls`. `artic::view::crate_paths()` maps each artic crate to the facade module that re-exports it, such as `artic_controls` → `::artic::controls`. A new artic crate is added where the crates are composed.
 - Both back ends start from that map. The runtime loader takes it when the app sets it up. The compiler runs in the app's `build.rs`, which can't see anything the app does at run time, so the app passes it the same map there: `build.rs` calls `artic::xaml::namespaces()` through its build-dependency on `artic` with the `xaml-compiler` feature, which turns `xaml` on (adding `artic-xaml`) and adds the compiler, then adds its own aliases and calls `artic::xaml::compile_dir` ([XAML compiler design](xaml-compiler.md)). The facade's `runtime-xaml` and `hot-reload` features turn `xaml` on, so the loader has the same function. One function gives both paths the same names.
 - A URI that maps to several crates finds a name in each; a name found in two of them is ambiguous, and the back end reports it.
 - The registry only knows the crates the app links: `UI_TYPES` is collected at link time, so a crate the app depends on but never references is left out, as `docs/architecture.md` notes. Every crate a document reaches, through an alias or a `using:` prefix, must therefore be linked. The facade's `xaml` module refers to each crate artic's URI names (`use artic_controls as _;`), so they're linked in every app that uses it; an app that names a crate it doesn't otherwise use references it once with `use acme_controls as _;`. That line uses the name the app's `Cargo.toml` gives the dependency, while documents, aliases and `using:` paths use the crate's own name, the one in its types' Rust paths: a dependency renamed to `acme` is linked with `use acme as _;` and still named `acme_controls` in a document. A back end that finds no type in a URI's crates, or no type at a `using:` path whose crate registered nothing, says so, and names that line as the likely fix. The same holds for the compiler, which resolves names in the app's `build.rs`, a separate program with its own link: as spec §5 says, `build.rs` lists the facade and the app's control crates as build-dependencies, and references each one it reaches the same way, so their types are in the registry it builds.

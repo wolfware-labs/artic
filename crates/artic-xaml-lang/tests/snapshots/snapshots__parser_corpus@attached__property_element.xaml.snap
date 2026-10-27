@@ -1,0 +1,16 @@
+---
+source: crates/artic-xaml-lang/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/attached/property_element.xaml
+---
+valid/attached/property_element.xaml:1:2: error: no type `Grid` in `https://artic.rs/ui`
+1 | <Grid xmlns="https://artic.rs/ui">
+  |  ^^^^ unknown type
+
+valid/attached/property_element.xaml:2:4: error: no type `Button` in `https://artic.rs/ui`
+2 |   <Button>
+  |    ^^^^^^ unknown type
+
+valid/attached/property_element.xaml:3:6: error: attached properties come with #50
+3 |     <Grid.Row>1</Grid.Row>
+  |      ^^^^^^^^

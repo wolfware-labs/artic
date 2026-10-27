@@ -1,0 +1,8 @@
+---
+source: crates/artic-xaml-lang/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/markup-extension/nested.xaml
+---
+valid/markup-extension/nested.xaml:1:2: error: no type `Button` in `https://artic.rs/ui`
+1 | <Button xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup" Tag="{Binding Source={StaticResource Key={x:Static a::B}}, Mode=OneWay}"/>
+  |  ^^^^^^ unknown type

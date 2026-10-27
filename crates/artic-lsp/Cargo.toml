@@ -10,7 +10,7 @@ repository.workspace = true
 
 [dependencies]
 artic-xaml.workspace = true
-artic-xaml-compiler.workspace = true
+artic-xaml-lang.workspace = true
 
 [lints]
 workspace = true

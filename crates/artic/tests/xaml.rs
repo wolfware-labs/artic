@@ -4,8 +4,7 @@
 #![cfg(feature = "xaml")]
 
 use artic::xaml::{ARTIC_UI, namespaces};
-use artic_registry::{Registry, UI_TYPES};
-use std::collections::BTreeSet;
+use artic_registry::Registry;
 
 // Each crate artic's URI stands for registers at least one type in an app that links only the
 // facade.
@@ -25,18 +24,4 @@ fn artic_uri_crates_are_linked() {
       "{name}::{probe} isn't linked"
     );
   }
-}
-
-// Every crate that defines a registered UI type or group has a facade path, so generated code
-// reaches it in an app that depends only on the facade.
-#[test]
-fn defining_crates_have_facade_paths() {
-  let map = namespaces();
-  let unmapped: BTreeSet<_> = UI_TYPES
-    .iter()
-    .flat_map(|info| std::iter::once(info.rust_path).chain(info.groups.iter().map(|group| group.methods)))
-    .map(|path| path.split("::").next().unwrap_or(path))
-    .filter(|krate| !map.path_of(krate).starts_with("::artic::"))
-    .collect();
-  assert!(unmapped.is_empty(), "no facade path: {unmapped:?}");
 }

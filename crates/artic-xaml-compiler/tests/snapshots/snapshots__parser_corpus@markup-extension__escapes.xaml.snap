@@ -1,8 +1,0 @@
----
-source: crates/artic-xaml-compiler/tests/snapshots.rs
-expression: output
-input_file: crates/artic-xaml/tests/fixtures/valid/markup-extension/escapes.xaml
----
-valid/markup-extension/escapes.xaml:2:53: error: `TextBlock` has no property `Tag`
-2 | <TextBlock xmlns="https://artic.rs/ui" Text="{}{0}" Tag="{Binding Total, StringFormat={}{0:N2}, Mode=OneWay}"/>
-  |                                                     ^^^ unknown property

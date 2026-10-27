@@ -236,7 +236,7 @@ fn two_elements_with_one_name() {
   assert_eq!(diagnostic.labels[0].span, span(10, 11));
   assert_eq!(diagnostic.help, None);
   assert_eq!(view.names.len(), 1);
-  assert_eq!((view.names[0].0.text.as_str(), view.names[0].1), ("email", 1));
+  assert_eq!((view.names[0].name.text.as_str(), view.names[0].element), ("email", 1));
 }
 
 // Two names with one snake_case field name two elements, and the help names both spellings.
@@ -256,6 +256,25 @@ fn two_spellings_of_one_field() {
     Some("`email` and `Email` both give the field `email`")
   );
   assert_eq!(view.names.len(), 1);
+}
+
+// Each checked name carries the field it gives, in the order the elements are built.
+#[test]
+fn checked_name_carries_its_field() {
+  let child = element(&IMAGE, 21, vec![name("EmailAddress", 30)]);
+  let document = Document {
+    root: element(&PANEL, 0, vec![name("Type", 10), content(20, vec![Content::Element(child)])]),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  assert!(diagnostics.is_empty());
+  let names: Vec<(&str, &str, usize)> = view
+    .names
+    .iter()
+    .map(|name| (name.name.text.as_str(), name.field.as_str(), name.element))
+    .collect();
+  assert_eq!(names, [("EmailAddress", "email_address", 0), ("Type", "r#type", 1)]);
 }
 
 // An element whose type isn't found still has its name and the elements in its content checked,
@@ -358,5 +377,5 @@ fn view_lists_children_first() {
   assert_eq!(view.root, Some(2));
   assert_eq!(view.span, span(0, 1));
   assert_eq!(view.elements[2].content, CheckedContent::Children(vec![0, 1]));
-  assert_eq!((view.names[0].0.text.as_str(), view.names[0].1), ("form", 2));
+  assert_eq!((view.names[0].name.text.as_str(), view.names[0].element), ("form", 2));
 }

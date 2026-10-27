@@ -1,8 +1,0 @@
----
-source: crates/artic-xaml-compiler/tests/snapshots.rs
-expression: output
-input_file: crates/artic-xaml/tests/fixtures/valid/whitespace/trim_and_collapse.xaml
----
-valid/whitespace/trim_and_collapse.xaml:1:40: error: `TextBlock` takes no text content
-1 | <TextBlock xmlns="https://artic.rs/ui">
-  |                                        ^

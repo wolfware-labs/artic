@@ -1,0 +1,12 @@
+---
+source: crates/artic-xaml-lang/tests/snapshots.rs
+expression: output
+input_file: crates/artic-xaml/tests/fixtures/valid/markup-types/extensions.xaml
+---
+valid/markup-types/extensions.xaml:1:2: error: no type `Style` in `https://artic.rs/ui`
+1 | <Style xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup" x:Key="{x:Type Button}" TargetType="{x:Type Button}" Tag="{x:Null}" Width="{x:Static app::SIZES::WIDE}"/>
+  |  ^^^^^ unknown type
+
+valid/markup-types/extensions.xaml:1:70: error: resources come with #111
+1 | <Style xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup" x:Key="{x:Type Button}" TargetType="{x:Type Button}" Tag="{x:Null}" Width="{x:Static app::SIZES::WIDE}"/>
+  |                                                                      ^^^^^

@@ -54,7 +54,7 @@ flowchart BT
   L0["Layer 0: artic-core, artic-diagnostics, artic-ident, artic-test-fonts"]
   L1["Layer 1: artic-macros, artic-registry, artic-i18n, artic-xaml"]
   L2["Layer 2: artic-layout, artic-style, artic-view, artic-xaml-runtime"]
-  L3["Layer 3: artic-render, artic-text, artic-xaml-compiler"]
+  L3["Layer 3: artic-render, artic-text, artic-view-compiler, artic-xaml-lang"]
   L4["Layer 4: artic-element, artic-vello, artic-lsp"]
   L5["Layer 5: artic-controls, artic-platform, artic-cli"]
   L6["Layer 6: artic-theme, artic-test, artic-winit"]
@@ -73,7 +73,8 @@ Each layer builds on the ones below it. The exact dependency edges and the rules
 | `artic-ident` | Rust identifier rules the code generators share: case conversions, keywords, and how a name is written as an identifier | `rust_identifier()`, `snake_case()`, `screaming_snake_case()`, `pascal_case()`, `is_identifier()`, `is_keyword()`, `is_path_keyword()` |
 | `artic-view` | The view every UI language reads its files into (`Document`), the checks on it, and the trait a language implements | `Document`, `check()`, `CheckedView`, `Language` |
 | `artic-xaml` | Parser: XML → XAML Infoset (MS-XAML §5), markup-extension grammar | `XamlDocument`, `XamlNode`, `MarkupExtensionAst` |
-| `artic-xaml-compiler` | Infoset → Rust source (`build.rs` API and `cargo artic` CLI), reached through the facade's `xaml-compiler` feature | `compile_str()`, `compile_dir()` |
+| `artic-view-compiler` | Checked view → Rust source for any UI language (`build.rs` API), reached through the facade's `view-compiler` feature | `compile_str()`, `compile_dir()`, `CratePaths` |
+| `artic-xaml-lang` | XAML as a UI language: infoset → `Document`, reached through the facade's `xaml-compiler` feature | `Xaml` |
 | `artic-xaml-runtime` | Infoset → live object tree using the registry; file watcher and hot-swap | `XamlLoader`, `HotReload` |
 | `artic-xaml-macros` (planned) | `xaml!`: a view written inline in XAML, compiled like a `.xaml` file. It sits beside the XAML compiler, so no generic crate names XAML | proc macro |
 | `artic-layout` | Measure/arrange protocol, invalidation; the text values layout and renderers share, and the `TextEngine` seam | `Layoutable`, `MeasureCx`, `ArrangeCx`, `LayoutManager`, `Size`, `Rect`, `Thickness`, `TextEngine`, `FontFamily`, `TextStyle`, `Paragraph` |
@@ -85,7 +86,7 @@ Each layer builds on the ones below it. The exact dependency edges and the rules
 | `artic-platform` | `Host`, `AppHandler` and `HostContext` with its capabilities, `artic::run`, frame pipeline (with facade-registered hooks). No backend dependencies | `Host`, `AppHandler`, `HostContext`, `SurfaceInfo` |
 | `artic-winit` | Adapter: the desktop and mobile `Host` on `winit`, with `muda`, `rfd`, `arboard`, `accesskit_winit` | `Host` |
 | `artic-vello` | Adapter: the default `Renderer`, `vello` on `wgpu` | `Renderer` |
-| `artic` | Facade re-exporting the public API with feature flags (`xaml`, `xaml-compiler`, `hot-reload`, `runtime-xaml`) | `App`, `prelude`, `run`, `xaml::namespaces`, `xaml::compile_dir` |
+| `artic` | Facade re-exporting the public API with feature flags (`xaml`, `view-compiler`, `xaml-compiler`, `hot-reload`, `runtime-xaml`) | `App`, `prelude`, `run`, `view::compile_dir`, `xaml::namespaces`, `xaml::compile_dir` |
 | `artic-theme` | Default theme: token dictionaries (light, dark, touch density) and the default `ControlTemplate` for every v1 control (D18) | `ArticTheme` |
 | `artic-i18n` | Optional fluent-rs implementation of the `Localizer` trait (D6) | `FluentLocalizer` |
 | `artic-test` | Dev-dependency test utilities: `TestHost`, headless tree helpers, tree serializer (D14) | `TestHost` |
@@ -101,7 +102,7 @@ An app picks three things. Each sits behind an interface no layer below it knows
 | --- | --- | --- |
 | Host | `Host` in `artic-platform` | `artic-winit` |
 | Renderer | `Renderer` in `artic-render` | `artic-vello` |
-| UI language | `Document` and `Language` in `artic-view`, over the registry and the tree, as [the contract](dsl.md) states | XAML: `artic-xaml`, `artic-xaml-compiler`, `artic-xaml-runtime` |
+| UI language | `Document` and `Language` in `artic-view`, over the registry and the tree, as [the contract](dsl.md) states | XAML: `artic-xaml`, `artic-xaml-lang`, `artic-xaml-runtime` |
 
 ### Object model in one paragraph
 
@@ -279,7 +280,7 @@ flowchart LR
 
 ### Build-time compiler (release path)
 
-1. `build.rs` calls `artic::xaml::compile_dir("src/views", &namespaces)` (the facade's `xaml-compiler` feature), with the namespace map from `artic::xaml::namespaces()` and the app's own aliases; every `.xaml` becomes `$OUT_DIR/views/<path in the crate>.rs`, such as `$OUT_DIR/views/src/views/login.rs`, included via `include!` by the `#[ui_class]` macro.
+1. `build.rs` calls `artic::xaml::compile_dir("src/views", &namespaces)` (the facade's `xaml-compiler` feature), with the namespace map from `artic::xaml::namespaces()` and the app's own aliases; `artic-xaml-lang` reads each file and `artic-view-compiler` writes it as Rust, so every `.xaml` becomes `$OUT_DIR/views/<path under the directory>.rs`, such as `$OUT_DIR/views/login.rs`. #52 moves it to its path in the crate, `$OUT_DIR/views/src/views/login.rs`, which the `#[ui_class]` macro includes with `include!`.
 2. Type and property names resolve against the registry of all dependency crates. Because the registry is link-time, the compiler runs in a build script that links `artic-controls` and the app's own control crates as build-dependencies.
 3. Output is plain Rust in the [builder shape](../design/builder-api.md): `let sign_in = Button::new().content("Sign in").build(tree);`, one statement per element, children before their parents. No string lookups survive to runtime.
 4. Bindings compile to typed closures (`|vm: &LoginVm| vm.email.get()`) over the `x:DataType` in scope, whether declared, inherited or inferred (§6, D2). A binding with no resolvable `x:DataType` is a compile error that names the attribute to add and where. Unknown property on a known `x:DataType` is a compile error. There is no reflective fallback (D1).

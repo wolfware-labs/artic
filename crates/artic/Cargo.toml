@@ -11,7 +11,8 @@ repository.workspace = true
 [features]
 default = []
 xaml = ["dep:artic-xaml"]
-xaml-compiler = ["xaml", "dep:artic-xaml-compiler"]
+view-compiler = ["dep:artic-view-compiler"]
+xaml-compiler = ["xaml", "view-compiler", "dep:artic-xaml-lang"]
 hot-reload = ["xaml", "dep:artic-xaml-runtime"]
 runtime-xaml = ["xaml", "dep:artic-xaml-runtime"]
 skia = []
@@ -27,8 +28,9 @@ artic-style.workspace = true
 artic-platform.workspace = true
 artic-controls.workspace = true
 artic-theme.workspace = true
+artic-view-compiler = { workspace = true, optional = true }
 artic-xaml = { workspace = true, optional = true }
-artic-xaml-compiler = { workspace = true, optional = true }
+artic-xaml-lang = { workspace = true, optional = true }
 artic-xaml-runtime = { workspace = true, optional = true }
 
 [lints]

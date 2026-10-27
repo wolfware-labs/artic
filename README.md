@@ -75,7 +75,8 @@ The workspace is layered. A crate depends only on crates in lower layers, so the
 | 2 | `artic-xaml-runtime` | Runtime loader for hot reload and `runtime-xaml` |
 | 3 | `artic-render` | `Renderer` trait and retained scene (backends are adapter crates) |
 | 3 | `artic-text` | Text shaping and line breaking with `parley`, fonts with `fontique` |
-| 3 | `artic-xaml-compiler` | Build-time compiler from XAML to Rust |
+| 3 | `artic-view-compiler` | Build-time compiler from any UI language to Rust |
+| 3 | `artic-xaml-lang` | XAML as a UI language, read into the view the compiler takes |
 | 4 | `artic-element` | The `Element` trait and its contexts, the property groups every control has (`layout`, `appearance`, `interaction`, `identity`), and the table that finds a node's element |
 | 4 | `artic-lsp` | Language server for `.xaml` files |
 | 4 | `artic-vello` | Default renderer adapter: `vello` on `wgpu` |
@@ -92,7 +93,7 @@ flowchart BT
   L0["Layer 0: artic-core, artic-diagnostics, artic-ident, artic-test-fonts"]
   L1["Layer 1: artic-macros, artic-registry, artic-i18n, artic-xaml"]
   L2["Layer 2: artic-layout, artic-style, artic-view, artic-xaml-runtime"]
-  L3["Layer 3: artic-render, artic-text, artic-xaml-compiler"]
+  L3["Layer 3: artic-render, artic-text, artic-view-compiler, artic-xaml-lang"]
   L4["Layer 4: artic-element, artic-vello, artic-lsp"]
   L5["Layer 5: artic-controls, artic-platform, artic-cli"]
   L6["Layer 6: artic-theme, artic-test, artic-winit"]
@@ -105,7 +106,7 @@ flowchart BT
 ### How a view becomes pixels
 
 1. `artic-xaml` parses a `.xaml` file into an infoset.
-2. In a normal build, `artic-xaml-compiler` turns the infoset into Rust from `build.rs`. With hot reload, `artic-xaml-runtime` builds the same tree at runtime. A conformance test keeps the two paths identical.
+2. In a normal build, `artic-xaml-lang` reads the infoset into a view and `artic-view-compiler` turns it into Rust from `build.rs`. With hot reload, `artic-xaml-runtime` builds the same tree at runtime. A conformance test keeps the two paths identical.
 3. `artic-core` holds the tree and the signals. Bindings and styles write to properties through one invalidation path.
 4. Each frame runs only the dirty stages: style, layout (`artic-layout`), scene building and rendering (`artic-render`), then the accessibility update (`artic-platform`).
 
