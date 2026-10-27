@@ -4,7 +4,7 @@
 use artic_diagnostics::{Diagnostic, Diagnostics, Span};
 use artic_registry::{PropertyInfo, PropertyRef, RustExpr, TypeInfo};
 use artic_view::document::{Text, TypeUse};
-use artic_view::{CheckedContent, CheckedElement, CheckedView, field_name};
+use artic_view::{CheckedContent, CheckedElement, CheckedView};
 use artic_xaml::namespaces::NamespaceMap;
 use std::collections::BTreeMap;
 use syn::parse::Parser;
@@ -65,7 +65,16 @@ pub(crate) fn lower(view: &CheckedView, namespaces: &NamespaceMap) -> (Option<Vi
     .crates_named()
     .map(|krate| parse_path(&namespaces.path_of(krate), view.span, &mut lower.diagnostics))
     .collect();
-  let names = view.names.iter().map(|(name, index)| (field(name), *index)).collect();
+  let names = view
+    .names
+    .iter()
+    .map(|name| {
+      (
+        syn::parse_str(&name.field).expect("a field name is an identifier"),
+        name.element,
+      )
+    })
+    .collect();
   let elements: Option<Vec<Element>> = elements.into_iter().collect();
   let links: Option<Vec<Path>> = links.into_iter().collect();
   let lowered = match (view.root, prelude, elements, links) {
@@ -80,12 +89,6 @@ pub(crate) fn lower(view: &CheckedView, namespaces: &NamespaceMap) -> (Option<Vi
     _ => None,
   };
   (lowered, lower.diagnostics)
-}
-
-/// The `View` field `name` gives; the checker kept only names that give one.
-fn field(name: &Text) -> Ident {
-  let field = field_name(&name.text).expect("the checker keeps only valid names");
-  syn::parse_str(&field).expect("a field name is an identifier")
 }
 
 /// Parses `text`, built from the namespace map's paths, as the path of an item, or records that

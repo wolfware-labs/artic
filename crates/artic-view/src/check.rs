@@ -17,8 +17,19 @@ pub struct CheckedView {
   pub root: Option<usize>,
   /// Where the root element is written, for problems with the whole file.
   pub span: Span,
-  /// Each valid name with its element's index, in the order the elements are built.
-  pub names: Vec<(Text, usize)>,
+  /// Each valid name, its field and its element's index, in the order the elements are built.
+  pub names: Vec<CheckedName>,
+}
+
+/// A valid name: what the view writes and the field a back end gives the element.
+#[derive(Debug, Clone)]
+pub struct CheckedName {
+  /// The name as the view writes it.
+  pub name: Text,
+  /// The field it gives, unique in the view.
+  pub field: String,
+  /// The named element's index.
+  pub element: usize,
 }
 
 /// An element ready to build: its type, its properties and its children.
@@ -69,7 +80,7 @@ pub fn check(document: &Document) -> (CheckedView, Diagnostics) {
 /// The walk's state.
 struct Check {
   elements: Vec<CheckedElement>,
-  names: Vec<(Text, usize)>,
+  names: Vec<CheckedName>,
   diagnostics: Diagnostics,
   /// The name that first gave each field, where it's written.
   named: HashMap<String, Text>,
@@ -84,7 +95,7 @@ struct Members {
   /// Where each property was set, by field, to report one set twice.
   set: HashMap<&'static str, Span>,
   content: CheckedContent,
-  name: Option<Text>,
+  name: Option<(Text, String)>,
 }
 
 impl Check {
@@ -119,8 +130,12 @@ impl Check {
       content: gathered.content,
     });
     let index = self.elements.len() - 1;
-    if let Some(name) = gathered.name {
-      self.names.push((name, index));
+    if let Some((name, field)) = gathered.name {
+      self.names.push(CheckedName {
+        name,
+        field,
+        element: index,
+      });
     }
     Some(index)
   }
@@ -177,7 +192,7 @@ impl Check {
   }
 
   /// The name an element is given, or `None` after reporting it.
-  fn name(&mut self, name: &Result<Text, Problem>) -> Option<Text> {
+  fn name(&mut self, name: &Result<Text, Problem>) -> Option<(Text, String)> {
     let name = match name {
       Ok(name) => name,
       Err(problem) => {
@@ -211,8 +226,9 @@ impl Check {
         None
       }
       Entry::Vacant(slot) => {
+        let field = slot.key().clone();
         slot.insert(name.clone());
-        Some(name.clone())
+        Some((name.clone(), field))
       }
     }
   }

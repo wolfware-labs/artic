@@ -11,7 +11,7 @@ mod language;
 mod names;
 pub mod unsupported;
 
-pub use check::{CheckedContent, CheckedElement, CheckedView, check};
+pub use check::{CheckedContent, CheckedElement, CheckedName, CheckedView, check};
 pub use document::Document;
 pub use language::Language;
 pub use names::field_name;
