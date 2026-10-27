@@ -13,7 +13,7 @@ use pretty_assertions::assert_eq;
 fn application(tree: &mut UiTree) -> (NodeId, NodeId) {
   let application = tree.alloc(Box::new(Application::default()));
   let surface = tree.alloc(Box::new(Surface::default()));
-  for kind in [TreeKind::Logical, TreeKind::Visual] {
+  for kind in TreeKind::ALL {
     tree.add_child(kind, application, surface);
   }
   (application, surface)
@@ -117,7 +117,7 @@ fn application_builder_takes_surfaces() {
 
   let application = Application::new().children([main, tools]).build(&mut tree);
 
-  for kind in [TreeKind::Logical, TreeKind::Visual] {
+  for kind in TreeKind::ALL {
     assert_eq!(
       tree.children(kind, application.id()).collect::<Vec<NodeId>>(),
       [main.id(), tools.id()]
@@ -133,7 +133,7 @@ fn surface_builder_takes_one_child() {
 
   let surface = Surface::new().child(content).build(&mut tree);
 
-  for kind in [TreeKind::Logical, TreeKind::Visual] {
+  for kind in TreeKind::ALL {
     assert_eq!(tree.children(kind, surface.id()).collect::<Vec<NodeId>>(), [content.id()]);
   }
 }

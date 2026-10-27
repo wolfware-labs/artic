@@ -745,7 +745,7 @@ fn child_builder_links_in_both_trees() {
 
   let frame = Frame::new().child(leaf).build(&mut tree);
 
-  for kind in [TreeKind::Logical, TreeKind::Visual] {
+  for kind in TreeKind::ALL {
     assert_eq!(tree.children(kind, frame.id()).collect::<Vec<_>>(), [leaf.id()]);
   }
 }
