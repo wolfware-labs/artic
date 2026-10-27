@@ -77,6 +77,52 @@ jobs:
       - name: Test the registry without literals
         run: cargo test -p artic-registry
 
+  coverage:
+    name: Coverage
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-rust
+      - name: Install llvm-tools
+        run: rustup component add llvm-tools
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      # The test jobs are the gate: a test that fails here, such as trybuild's comparison of
+      # compiler output under instrumentation, still leaves a report. The GPU goldens skip on a
+      # runner without a GPU, so the renderer's draw paths read as uncovered.
+      - name: Measure
+        run: cargo llvm-cov --workspace --ignore-run-fail --lcov --output-path lcov.info
+      - uses: actions/upload-artifact@v7
+        with:
+          name: lcov
+          path: lcov.info
+
+  # Uploading takes the job's OIDC token, so there's no Codecov token to store. It's a job of its
+  # own so that the token is never reachable while the workspace's build scripts and tests run, and
+  # every action it runs is pinned by commit. A pull request from a fork can't get a token; its
+  # upload fails, and so does nothing else.
+  codecov:
+    name: Codecov
+    needs: coverage
+    if: ${{ !cancelled() && needs.coverage.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: lcov
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: lcov.info
+          use_oidc: true
+          fail_ci_if_error: false
+
   test-windows:
     name: Test (windows-latest)
     needs: changes
