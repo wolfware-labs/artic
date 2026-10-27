@@ -117,7 +117,7 @@ pub enum MemberKey {
 ///
 /// An attribute is a directive when its prefix stands for [`XamlNamespace::Markup`], whatever the
 /// prefix is.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Directive {
   /// `x:Name`
   Name,
@@ -131,6 +131,37 @@ pub enum Directive {
   Uid,
   /// `x:FieldModifier`
   FieldModifier,
+}
+
+impl Directive {
+  /// Every directive, in the order the spec lists them.
+  pub const ALL: [Directive; 6] = [
+    Directive::Name,
+    Directive::Key,
+    Directive::Class,
+    Directive::DataType,
+    Directive::Uid,
+    Directive::FieldModifier,
+  ];
+
+  /// The name it's written with after the markup prefix, such as `Name` for `x:Name`.
+  #[must_use]
+  pub fn name(self) -> &'static str {
+    match self {
+      Directive::Name => "Name",
+      Directive::Key => "Key",
+      Directive::Class => "Class",
+      Directive::DataType => "DataType",
+      Directive::Uid => "Uid",
+      Directive::FieldModifier => "FieldModifier",
+    }
+  }
+
+  /// The directive written as `name` after the markup prefix, if `name` is one.
+  #[must_use]
+  pub fn from_name(name: &str) -> Option<Directive> {
+    Directive::ALL.into_iter().find(|directive| directive.name() == name)
+  }
 }
 
 /// A type named in markup, with its namespace resolved but not yet resolved to a Rust type.
@@ -167,4 +198,20 @@ pub struct NamespaceDecl {
   pub uri: String,
   /// The whole `xmlns…="…"` attribute.
   pub span: Span,
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use pretty_assertions::assert_eq;
+
+  // Each directive is found by the name it's written with after `x:`, and every one is listed.
+  #[test]
+  fn directive_names_round_trip() {
+    assert_eq!(Directive::ALL.len(), 6);
+    for directive in Directive::ALL {
+      assert_eq!(Directive::from_name(directive.name()), Some(directive));
+    }
+    assert_eq!(Directive::from_name("Shared"), None);
+  }
 }

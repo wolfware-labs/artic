@@ -1,6 +1,6 @@
 //! The MS-XAML and WPF constructs artic rejects, each with why and what to write instead.
 
-use crate::infoset::{TypeRef, XamlNamespace};
+use crate::infoset::{Directive, TypeRef, XamlNamespace};
 use crate::namespaces::ARTIC_UI;
 use artic_diagnostics::{Diagnostic, Span};
 
@@ -51,40 +51,45 @@ pub(crate) const UNSUPPORTED: &[Unsupported] = &[
     reason: "elements refer to each other through bindings",
     suggestion: "use `{Binding ElementName=name}`",
   },
-  Unsupported {
-    construct: "Trigger",
-    reason: "styles react to state with selectors",
-    suggestion: "use a selector with a pseudo-class, like `Button:pointerover`",
-  },
-  Unsupported {
-    construct: "MultiTrigger",
-    reason: "styles react to state with selectors",
-    suggestion: "use a selector with a pseudo-class, like `Button:pointerover`",
-  },
-  Unsupported {
-    construct: "DataTrigger",
-    reason: "styles react to state with selectors",
-    suggestion: "use a selector with a pseudo-class, like `Button:pointerover`",
-  },
-  Unsupported {
-    construct: "MultiDataTrigger",
-    reason: "styles react to state with selectors",
-    suggestion: "use a selector with a pseudo-class, like `Button:pointerover`",
-  },
-  Unsupported {
-    construct: "EventTrigger",
-    reason: "styles react to state with selectors",
-    suggestion: "use a selector with a pseudo-class, like `Button:pointerover`",
-  },
+  trigger("Trigger"),
+  trigger("MultiTrigger"),
+  trigger("DataTrigger"),
+  trigger("MultiDataTrigger"),
+  trigger("EventTrigger"),
 ];
 
 /// The types of the markup namespace artic supports: `x:Type`, `x:Static`, `x:Null` and the XAML
 /// 2009 primitives.
 const MARKUP_TYPES: &[&str] = &["Type", "Static", "Null", "String", "Int32", "Double", "Boolean"];
 
-/// Everything the markup namespace supports, for the help of an unknown name.
-const MARKUP_NAMES: &str = "directives `x:Name`, `x:Key`, `x:Class`, `x:DataType`, `x:Uid` and `x:FieldModifier`; \
-  types `x:Type`, `x:Static`, `x:Null`, `x:String`, `x:Int32`, `x:Double` and `x:Boolean`";
+/// A WPF trigger, which artic's styles replace with selectors.
+const fn trigger(construct: &'static str) -> Unsupported {
+  Unsupported {
+    construct,
+    reason: "styles react to state with selectors",
+    suggestion: "use a selector with a pseudo-class, like `Button:pointerover`",
+  }
+}
+
+/// Everything the markup namespace supports, for the help of an unknown name: its directives,
+/// then its types.
+fn markup_names() -> String {
+  format!(
+    "directives {}; types {}",
+    listed(Directive::ALL.map(Directive::name)),
+    listed(MARKUP_TYPES.iter().copied())
+  )
+}
+
+/// `names` as `x:` names in a sentence: `` `x:A`, `x:B` and `x:C` ``.
+fn listed(names: impl IntoIterator<Item = &'static str>) -> String {
+  let names: Vec<String> = names.into_iter().map(|name| format!("`x:{name}`")).collect();
+  match names.split_last() {
+    Some((last, [])) => last.clone(),
+    Some((last, rest)) => format!("{} and {last}", rest.join(", ")),
+    None => String::new(),
+  }
+}
 
 /// The error for `construct`, written at `span`, if the table rejects it.
 pub(super) fn rejection(construct: &str, span: Span) -> Option<Diagnostic> {
@@ -118,6 +123,6 @@ pub(super) fn markup_problem(prefix: Option<&str>, name: &str, span: Span) -> Di
       None => name.to_owned(),
     };
     Diagnostic::error(span, format!("`{written}` isn't part of the XAML language namespace"))
-      .with_help(format!("it has {MARKUP_NAMES}"))
+      .with_help(format!("it has {}", markup_names()))
   })
 }

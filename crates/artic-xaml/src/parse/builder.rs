@@ -380,7 +380,7 @@ impl<'a> Builder<'a> {
           );
           return None;
         }
-        let Some(directive) = directive(name) else {
+        let Some(directive) = Directive::from_name(name) else {
           let problem = unsupported::markup_problem(Some(prefix), name, name_span);
           self.diagnostics.push(problem);
           return None;
@@ -642,17 +642,4 @@ fn same_type(a: &TypeRef, b: &TypeRef) -> bool {
 /// The length of `prefix:` in front of a name, or 0 without a prefix.
 fn prefix_len(prefix: &str) -> usize {
   if prefix.is_empty() { 0 } else { prefix.len() + 1 }
-}
-
-/// The directive `name` names in the markup namespace, if artic supports it.
-fn directive(name: &str) -> Option<Directive> {
-  match name {
-    "Name" => Some(Directive::Name),
-    "Key" => Some(Directive::Key),
-    "Class" => Some(Directive::Class),
-    "DataType" => Some(Directive::DataType),
-    "Uid" => Some(Directive::Uid),
-    "FieldModifier" => Some(Directive::FieldModifier),
-    _ => None,
-  }
 }
