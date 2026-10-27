@@ -1,5 +1,7 @@
 use proc_macro2::Span;
+use syn::ext::IdentExt;
 use syn::meta::ParseNestedMeta;
+use syn::parse::ParseStream;
 use syn::{Error, Expr, Field, Ident, LitStr, Meta, Path, Token};
 
 /// The settings a field property and an attached property share.
@@ -30,17 +32,17 @@ pub enum Inherits {
 }
 
 /// Reads `meta` into `spec` if it's `default`, `affects` or `inherits`, and returns whether it
-/// was. `affects` takes stage names joined with `|` as written: artic-core's `Affects` names the
+/// was. `affects` takes lowercase stage names joined with `|`: artic-core's `Affects` names the
 /// stages, so one it doesn't have fails to compile at its span.
 pub fn parse_spec_setting(meta: &ParseNestedMeta, spec: &mut PropertySpec) -> syn::Result<bool> {
   if meta.path.is_ident("default") {
     spec.default = Some(meta.value()?.parse::<Expr>()?);
   } else if meta.path.is_ident("affects") {
     let input = meta.value()?;
-    spec.affects = vec![input.parse()?];
+    spec.affects = vec![parse_stage(input)?];
     while input.peek(Token![|]) {
       input.parse::<Token![|]>()?;
-      spec.affects.push(input.parse()?);
+      spec.affects.push(parse_stage(input)?);
     }
   } else if meta.path.is_ident("inherits") {
     spec.inherits = Some(if meta.input.peek(Token![=]) {
@@ -52,6 +54,20 @@ pub fn parse_spec_setting(meta: &ParseNestedMeta, spec: &mut PropertySpec) -> sy
     return Ok(false);
   }
   Ok(true)
+}
+
+/// Reads one stage of `affects`, which is written in lowercase: `layout`, not `Layout`.
+fn parse_stage(input: ParseStream) -> syn::Result<Ident> {
+  let stage: Ident = input.parse()?;
+  let name = stage.unraw().to_string();
+  let lowercase = name.to_lowercase();
+  if name != lowercase {
+    return Err(Error::new_spanned(
+      &stage,
+      format_args!("write the stage `{name}` in lowercase, as `{lowercase}`"),
+    ));
+  }
+  Ok(stage)
 }
 
 /// Reads a field's `#[ui]` or `#[ui(...)]` attribute, or returns `None` if it has none.
@@ -159,6 +175,17 @@ mod tests {
 
     let stages: Vec<String> = attributes.spec.affects.iter().map(ToString::to_string).collect();
     assert_eq!(stages, ["render", "layut"]);
+  }
+
+  // A stage is written in lowercase, as artic's docs and every example write it, so there is one
+  // spelling of each.
+  #[test]
+  fn affects_takes_lowercase_stages() {
+    let input: DeriveInput = parse_quote! { struct Text { #[ui(affects = render | Layout)] size: u8 } };
+
+    let error = parse_field_attributes(first_field(&input)).expect_err("a capitalized stage");
+
+    assert_eq!(error.to_string(), "write the stage `Layout` in lowercase, as `layout`");
   }
 
   // A bare `inherits` replaces what the field inherits, and `inherits = path` combines with it.
