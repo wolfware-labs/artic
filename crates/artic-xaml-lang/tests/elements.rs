@@ -83,7 +83,7 @@ fn name_in_two_crates_is_ambiguous() {
 }
 
 // A `using:` type is written with the module path the document gave, its crate translated
-// through the map.
+// through the crate paths.
 #[test]
 fn using_type_keeps_its_module_path() {
   let rust = compile(r#"<c:Border xmlns:c="using:artic_controls::border"/>"#).expect("a valid view");
@@ -197,7 +197,7 @@ fn absolute_path_has_one_separator() {
   assert!(rust.starts_with("// Generated from src/views/a.xaml.\n"), "{rust}");
 }
 
-// The prelude is reached through the map's path for `artic`, so an app that renames it can map it.
+// The tree types are reached through the path for `artic_core`, so an app that renames artic can set it.
 #[test]
 fn tree_types_follow_the_paths() {
   let rust = compile_with(r#"<Border xmlns="https://artic.rs/ui"/>"#, "view.xaml", |_, paths| {
@@ -217,7 +217,7 @@ fn view_doc_names_no_language_syntax() {
   );
 }
 
-// Every crate the map names is referenced, sorted, so its types stay in the app's link.
+// Every crate the language and the paths name is referenced, sorted, so its types stay in the app's link.
 #[test]
 fn every_named_crate_is_linked() {
   let rust = compile(r#"<Border xmlns="https://artic.rs/ui"/>"#).expect("a valid view");
