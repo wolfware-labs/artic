@@ -114,7 +114,8 @@ A renderer maps the `Paint` to its own paint without checking anything. `artic-v
 | --- | --- |
 | `artic-layout` | `relative_point_parses_percent_and_fixed`, `relative_point_rejects_mixed_units`, `relative_scalar_parses_percent_and_fixed`, `relative_scalar_rejects_invalid` (empty, two values, a bare or doubled `%`) |
 | `artic-render` | `color_parses_short_hex` (`#RGB`, `#ARGB`), `color_parses_rrggbb`, `color_parses_aarrggbb`, `color_parses_named_case_insensitive`, `color_rejects_invalid` (bad length, a non-hex digit, an unknown name, each message naming the input), `brush_from_color_string_is_solid` |
-| `artic-vello` | `brush_to_peniko_roundtrip` (color, stops, resolved points, opacity), `gradient_values_are_clamped_and_sorted` (out-of-range and NaN offsets, opacity and radii; unordered stops), `linear_gradient_fills_rect` (pixels: the left edge is the first stop, the right edge the last), `radial_gradient_fills_an_ellipse` (pixels in a wide box: the center is the first stop, and the points at the ends of both radii are the last, so unequal radii scale the circle into an ellipse) |
+| `artic-render` | `brushes_resolve_against_the_bounds`, `gradient_values_are_clamped_and_sorted` (out-of-range and NaN offsets, opacity and radii; unordered stops), `degenerate_gradients_fill_with_their_last_color`, `non_finite_gradients_fill_with_their_last_color` |
+| `artic-vello` | `brush_to_peniko_roundtrip` (color, stops, resolved points, opacity), `linear_gradient_fills_rect` (pixels: the left edge is the first stop, the right edge the last), `radial_gradient_fills_an_ellipse` (pixels in a wide box: the center is the first stop, and the points at the ends of both radii are the last, so unequal radii scale the circle into an ellipse) |
 
 ## 7. Pull requests
 

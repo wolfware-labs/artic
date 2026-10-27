@@ -4,9 +4,10 @@ use artic_layout::geometry::{Point, Rect};
 /// A [`Brush`] resolved against the bounds of what it fills, as every renderer draws it: what
 /// [`Brush::drawable`] returns.
 ///
-/// Its values are always drawable: points are finite, radii finite and above `0`, a line's ends
-/// apart, a gradient has at least two stops, with offsets in `0..=1` and sorted, and `opacity` is
-/// in `0..=1`. A renderer maps it to its own paint without checking anything.
+/// A `Paint` from `drawable` is always drawable: points are finite, radii finite and above `0`, a
+/// line's ends apart, a gradient has at least two stops, with offsets in `0..=1` and sorted, and
+/// `opacity` is in `0..=1`. A renderer maps it to its own paint without checking anything. Every
+/// renderer must support every variant, so a new variant is a breaking change on purpose.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Paint {
   /// One color.
@@ -53,7 +54,7 @@ impl Brush {
   /// with its last color.
   #[must_use]
   pub fn drawable(&self, bounds: Rect) -> Option<Paint> {
-    let (stops, opacity, spread) = match self {
+    let (stops, opacity, geometry) = match self {
       Brush::Solid(solid) => {
         return Some(Paint::Solid {
           color: solid.color,
@@ -62,19 +63,19 @@ impl Brush {
       }
       Brush::Linear(linear) => {
         let (start, end) = (linear.start.resolve(bounds), linear.end.resolve(bounds));
-        let spread = (finite(start) && finite(end) && start != end).then_some(Spread::Linear { start, end });
-        (&linear.stops, linear.opacity, spread)
+        let geometry = (finite(start) && finite(end) && start != end).then_some(Geometry::Linear { start, end });
+        (&linear.stops, linear.opacity, geometry)
       }
       Brush::Radial(radial) => {
         let center = radial.center.resolve(bounds);
         let radius_x = radius(radial.radius_x.resolve(bounds.width));
         let radius_y = radius(radial.radius_y.resolve(bounds.height));
-        let spread = (finite(center) && radius_x > 0.0 && radius_y > 0.0).then_some(Spread::Radial {
+        let geometry = (finite(center) && radius_x > 0.0 && radius_y > 0.0).then_some(Geometry::Radial {
           center,
           radius_x,
           radius_y,
         });
-        (&radial.stops, radial.opacity, spread)
+        (&radial.stops, radial.opacity, geometry)
       }
     };
     let opacity = unit(opacity);
@@ -84,31 +85,31 @@ impl Brush {
       .collect();
     stops.sort_by(|a, b| a.offset.total_cmp(&b.offset));
     let color = stops.last()?.color;
-    Some(match spread {
-      Some(Spread::Linear { start, end }) if stops.len() > 1 => Paint::Linear {
+    Some(match geometry.filter(|_| stops.len() > 1) {
+      Some(Geometry::Linear { start, end }) => Paint::Linear {
         start,
         end,
         stops,
         opacity,
       },
-      Some(Spread::Radial {
+      Some(Geometry::Radial {
         center,
         radius_x,
         radius_y,
-      }) if stops.len() > 1 => Paint::Radial {
+      }) => Paint::Radial {
         center,
         radius_x,
         radius_y,
         stops,
         opacity,
       },
-      _ => Paint::Solid { color, opacity },
+      None => Paint::Solid { color, opacity },
     })
   }
 }
 
-/// Where a gradient spreads its stops, once its geometry is known to be drawable.
-enum Spread {
+/// Where a gradient lays its stops, once that is known to be drawable.
+enum Geometry {
   Linear { start: Point, end: Point },
   Radial { center: Point, radius_x: f32, radius_y: f32 },
 }

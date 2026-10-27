@@ -135,8 +135,8 @@ impl Layout {
 }
 
 impl Appearance {
-  /// The element's layers in composition for its arranged `size`: its opacity held to 0–1 (NaN
-  /// counts as 1), its render transform around its centre in its own coordinates, whether it's
+  /// The element's layers in composition for its arranged `size`: its opacity as set, made
+  /// [drawable](artic_render::drawable_opacity) when drawn, its render transform around its centre in its own coordinates, whether it's
   /// visible, its z-index, and the control's `clip`.
   #[must_use]
   pub fn layers(&self, size: Size, clip: Option<Shape>) -> Layers {

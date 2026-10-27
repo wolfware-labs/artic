@@ -16,8 +16,8 @@ pub struct Layers {
   /// Keeps the node's descendants inside this shape, in the node's coordinates, as CSS's
   /// `overflow: hidden` does; the node's own drawing isn't clipped.
   pub clip: Option<Shape>,
-  /// Blends the node and its descendants as one group, from 0 to 1, made
-  /// [drawable](crate::drawable_opacity) when drawn. At `1` or more, or NaN, no layer is pushed.
+  /// Blends the node and its descendants as one group: 0 is clear, 1 opaque. Any value is kept,
+  /// and made [drawable](crate::drawable_opacity) when drawn. At `1` or more, or NaN, no layer is pushed.
   pub opacity: f32,
   /// Whether the node and its descendants are drawn at all.
   pub visible: bool,

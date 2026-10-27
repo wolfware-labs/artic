@@ -154,7 +154,7 @@ Glyph runs (#37), images (#71), golden images (#38) and blend modes other than `
 | Crate | Tests |
 | --- | --- |
 | `artic-layout` | `path_builder_records_figures`, `path_bounds_include_curve_extrema`, `path_fill_rule_defaults_to_even_odd`, `rounded_rect_fitted_scales_overlapping_radii` (and negative and NaN radii) |
-| `artic-render` | `opacity_is_clamped`, `layers_balance_by_construction`, `opacity_layer_nests` (two nested opacity layers record in order), `fill_and_stroke_record_shapes`, `shape_bounds_cover_each_variant`, `stroke_has_the_usual_defaults` |
+| `artic-render` | `opacity_is_made_drawable_when_drawn`, `layers_balance_by_construction`, `opacity_layer_nests` (two nested opacity layers record in order), `fill_and_stroke_record_shapes`, `shape_bounds_cover_each_variant`, `stroke_has_the_usual_defaults` |
 | `artic-vello` | `shapes_convert_to_kurbo` (per-corner radii, curves), `stroke_converts_join_cap_and_miter`, `invalid_shapes_and_strokes_draw_nothing` (each row of section 4's table, infinities included), `box_shadow_values_are_made_drawable`, `box_shadow_grows_moves_and_blurs` (spread, offset, standard deviation) |
 | `artic-vello` pixels | `rounded_rect_leaves_corners_clear`, `stroke_paints_only_the_outline`, `path_clip_masks_drawing`, `fill_rule_decides_a_star_center`, `box_shadow_fades_outside_the_rect`, `unequal_radii_shadow_matches_each_corner` (each corner matches a shadow with that corner's radius everywhere), `box_shadow_stays_outside_its_caster`, `gradient_on_path_uses_its_bounds` |
 

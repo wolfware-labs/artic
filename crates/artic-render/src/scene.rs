@@ -15,8 +15,8 @@ pub enum Layer {
   /// Only draws inside the shape, in the coordinates the clip is pushed in. A shape that
   /// [draws nothing](Shape::drawable) hides everything inside.
   Clip(Shape),
-  /// Draws everything inside as one group, then blends it at this opacity, from 0 to 1, made
-  /// [drawable](drawable_opacity) when drawn.
+  /// Draws everything inside as one group, then blends it at this opacity: 0 is clear, 1 opaque.
+  /// Any value is kept, and made [drawable](drawable_opacity) when drawn.
   Opacity(f32),
 }
 
