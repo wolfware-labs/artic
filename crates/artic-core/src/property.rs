@@ -258,8 +258,12 @@ where
   }
 
   /// Frees the property's reactive state, as the tree does when it frees the property's node. A
-  /// handle kept past that panics when read.
+  /// handle kept past that panics when read. A property already disposed, by its scope or an
+  /// earlier call, is left as it is.
   pub(crate) fn dispose(self) {
+    if !self.0.is_alive() {
+      return;
+    }
     self.unfollow(self.0.with_untracked(|state| state.levels.inherited()));
     self.0.dispose();
   }

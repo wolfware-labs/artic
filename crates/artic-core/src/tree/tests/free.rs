@@ -87,3 +87,42 @@ fn free_keeps_the_parent_working() {
   assert_eq!(tree.get_as::<Label>(sibling).unwrap().font_size.get(), 20);
   assert_eq!(tree.dirty(sibling), Affects::LAYOUT);
 }
+
+/// A node that lists the same property twice.
+#[derive(Debug)]
+struct Twice(Property<i32>);
+
+impl Object for Twice {
+  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
+    visit(&self.0);
+    visit(&self.0);
+  }
+}
+
+// A property listed twice, or shared by two nodes, is disposed once and freeing goes on.
+#[test]
+fn free_disposes_a_property_listed_twice_once() {
+  let baseline = live_counts();
+  let mut tree = UiTree::new();
+  let twice = tree.alloc(Box::new(Twice(Property::new(&FOREGROUND, 0))));
+
+  tree.free(twice);
+
+  assert_eq!(live_counts(), baseline);
+}
+
+// A property whose scope was disposed first is skipped: the tree frees the node anyway.
+#[test]
+fn free_after_the_scope_was_disposed_is_fine() {
+  let baseline = live_counts();
+  let view = Scope::new_root();
+  let mut tree = UiTree::new();
+  let [parent, child] = [(); 2].map(|_| tree.alloc(Box::new(view.run(Label::new))));
+  tree.add_child(TreeKind::Logical, parent, child);
+  view.dispose();
+
+  tree.free(parent);
+
+  assert!(tree.is_empty());
+  assert_eq!(live_counts(), baseline);
+}
