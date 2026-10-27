@@ -1,5 +1,5 @@
 use crate::Object;
-use crate::property::AnyProperty;
+use crate::property::PropertyVisitor;
 use crate::tree::{NodeId, TreeKind, UiTree};
 use pretty_assertions::{assert_eq, assert_ne};
 use static_assertions::{assert_eq_size, assert_impl_all, assert_not_impl_any};
@@ -16,11 +16,11 @@ struct Control;
 struct OtherControl;
 
 impl Object for Control {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 impl Object for OtherControl {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 #[test]
@@ -42,7 +42,7 @@ fn get_as_mut_wrong_type_returns_none() {
 struct Counter(u32);
 
 impl Object for Counter {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 #[test]

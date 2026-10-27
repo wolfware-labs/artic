@@ -9,7 +9,7 @@
 // Run with `cargo run -p artic-winit --example frames`.
 
 use artic_core::Object;
-use artic_core::property::{Affects, AnyProperty, Inheritance, Property, PropertyKey};
+use artic_core::property::{Affects, Inheritance, Property, PropertyKey, PropertyVisitor};
 use artic_core::tree::{TreeKind, UiTree};
 use artic_element::{AccessCx, Application, Desktop, Element, RenderCx, Surface};
 use artic_layout::geometry::{Rect, Size};
@@ -29,8 +29,8 @@ struct Swatch {
 }
 
 impl Object for Swatch {
-  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
-    visit(self.red.as_ref());
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+    visitor.visit(&self.red);
   }
 }
 

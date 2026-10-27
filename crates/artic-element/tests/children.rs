@@ -2,7 +2,7 @@
 // would leave the two trees apart.
 
 use artic_core::Object;
-use artic_core::property::AnyProperty;
+use artic_core::property::PropertyVisitor;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{Child, Children};
 use artic_registry::{UiCollection, ValueError};
@@ -15,7 +15,7 @@ struct Node {
 }
 
 impl Object for Node {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 fn node(tree: &mut UiTree) -> NodeId {

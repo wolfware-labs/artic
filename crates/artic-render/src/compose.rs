@@ -166,7 +166,7 @@ mod tests {
   use super::*;
   use crate::{Color, Command};
   use artic_core::Object;
-  use artic_core::property::{AnyProperty, Inheritance, Property, PropertyKey};
+  use artic_core::property::{Inheritance, Property, PropertyKey, PropertyVisitor};
   use artic_layout::geometry::Rect;
   use pretty_assertions::assert_eq;
   use std::collections::HashSet;
@@ -175,7 +175,7 @@ mod tests {
   struct Node;
 
   impl Object for Node {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
   /// Answers composition from a table, and counts how often each node is recorded.
@@ -529,8 +529,8 @@ mod tests {
   struct Painted(Property<i32>);
 
   impl Object for Painted {
-    fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
-      visit(self.0.as_ref());
+    fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+      visitor.visit(&self.0);
     }
   }
 

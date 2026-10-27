@@ -1,5 +1,5 @@
 use crate::Object;
-use crate::property::{Affects, AnyProperty, AttachedKey, Inheritance, Property, PropertyKey};
+use crate::property::{Affects, AttachedKey, Inheritance, Property, PropertyKey, PropertyVisitor};
 use crate::reactive::{Scope, live_counts};
 use crate::tree::{TreeKind, UiTree};
 use pretty_assertions::assert_eq;
@@ -24,9 +24,9 @@ impl Label {
 }
 
 impl Object for Label {
-  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
-    visit(self.font_size.as_ref());
-    visit(self.foreground.as_ref());
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+    visitor.visit(&self.font_size);
+    visitor.visit(&self.foreground);
   }
 }
 
@@ -93,9 +93,9 @@ fn free_keeps_the_parent_working() {
 struct Twice(Property<i32>);
 
 impl Object for Twice {
-  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
-    visit(self.0.as_ref());
-    visit(self.0.as_ref());
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+    visitor.visit(&self.0);
+    visitor.visit(&self.0);
   }
 }
 

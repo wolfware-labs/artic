@@ -1,5 +1,5 @@
 use crate::Object;
-use crate::property::{Affects, AnyProperty};
+use crate::property::{Affects, PropertyVisitor};
 use crate::tree::{LinkError, NodeId, TreeKind, UiTree};
 use pretty_assertions::assert_eq;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -8,7 +8,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 struct Control;
 
 impl Object for Control {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 /// Clears every node's dirty flags.

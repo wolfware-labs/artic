@@ -2,7 +2,7 @@
 // on purpose.
 
 use artic_core::Object;
-use artic_core::property::AnyProperty;
+use artic_core::property::PropertyVisitor;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_layout::geometry::{Rect, Size};
 use artic_layout::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx};
@@ -239,7 +239,7 @@ struct Growing {
 }
 
 impl Object for Growing {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 impl Layoutable for Growing {
@@ -255,7 +255,7 @@ impl Layoutable for Growing {
 struct Shove;
 
 impl Object for Shove {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 impl Layoutable for Shove {
@@ -277,7 +277,7 @@ impl Layoutable for Shove {
 struct FirstOnly;
 
 impl Object for FirstOnly {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 impl Layoutable for FirstOnly {

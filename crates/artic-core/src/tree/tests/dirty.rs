@@ -1,5 +1,5 @@
 use crate::Object;
-use crate::property::{Affects, AnyProperty, AttachedKey, Inheritance, Precedence, Property, PropertyKey};
+use crate::property::{Affects, AttachedKey, Inheritance, Precedence, Property, PropertyKey, PropertyVisitor};
 use crate::tree::{NodeId, TreeKind, UiTree};
 use pretty_assertions::assert_eq;
 
@@ -13,9 +13,9 @@ struct Label {
 }
 
 impl Object for Label {
-  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
-    visit(self.font_size.as_ref());
-    visit(self.foreground.as_ref());
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+    visitor.visit(&self.font_size);
+    visitor.visit(&self.foreground);
   }
 }
 
@@ -123,8 +123,8 @@ struct Named {
 }
 
 impl Object for Named {
-  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
-    visit(self.name.as_ref());
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+    visitor.visit(&self.name);
   }
 }
 

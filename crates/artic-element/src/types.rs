@@ -99,7 +99,7 @@ impl LayoutNodes for ElementTypes {
 mod tests {
   use super::*;
   use crate::{AccessCx, RenderCx};
-  use artic_core::property::AnyProperty;
+  use artic_core::property::PropertyVisitor;
   use artic_layout::geometry::{Rect, Size};
   use artic_layout::{ArrangeCx, MeasureCx};
   use artic_render::SceneBuilder;
@@ -110,7 +110,7 @@ mod tests {
   struct Dot;
 
   impl Object for Dot {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
   impl Layoutable for Dot {
@@ -137,7 +137,7 @@ mod tests {
   struct Plain;
 
   impl Object for Plain {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
   // A registered type is found, by shared and mutable reference; another type isn't.

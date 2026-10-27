@@ -6,34 +6,47 @@ use std::fmt::{self, Debug, Formatter};
 
 /// The identity of a property kind: the address of its [`PropertyKey`] static.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub struct KeyId(*const ());
+pub(crate) struct KeyId(*const ());
 
 impl KeyId {
   /// Returns the identity of `key`.
-  #[must_use]
-  pub fn of<T>(key: &'static PropertyKey<T>) -> KeyId {
+  pub(crate) fn of<T>(key: &'static PropertyKey<T>) -> KeyId {
     KeyId(std::ptr::from_ref(key).cast())
   }
 }
 
-/// One of a node's properties without its value type, as
-/// [`Object::visit_properties`](crate::Object::visit_properties) hands it out. Make one with
-/// [`Property::as_ref`].
+/// What [`Object::visit_properties`](crate::Object::visit_properties) lists a node's properties
+/// to: call [`visit`](PropertyVisitor::visit) with each one.
 ///
-/// The tree uses it to connect a node's properties to the node and to find a property by key. The
-/// hooks it does that with are private to artic-core, so no other crate can unplug a node from its
-/// dirty flags:
-///
-/// ```compile_fail,E0599
-/// use artic_core::property::{Affects, Inheritance, Property, PropertyKey};
-///
-/// static WIDTH: PropertyKey<f64> = PropertyKey::new("Width", Affects::LAYOUT, Inheritance::None);
-///
-/// let width = Property::new(&WIDTH, 0.0);
-/// width.as_ref().dispose();
-/// ```
+/// The tree makes one to connect a node's properties to the node, to find a property by key and
+/// to free them with the node. What it does with each property stays inside artic-core.
+pub struct PropertyVisitor<'a>(&'a mut (dyn FnMut(AnyProperty<'_>) + 'a));
+
+impl<'a> PropertyVisitor<'a> {
+  /// A visitor that calls `action` with each property.
+  pub(crate) fn new(action: &'a mut (dyn FnMut(AnyProperty<'_>) + 'a)) -> PropertyVisitor<'a> {
+    PropertyVisitor(action)
+  }
+
+  /// Lists `property`, one of the node's own.
+  pub fn visit<T>(&mut self, property: &Property<T>)
+  where
+    T: PartialEq + 'static,
+  {
+    (self.0)(AnyProperty(property));
+  }
+}
+
+impl Debug for PropertyVisitor<'_> {
+  fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+    formatter.debug_struct("PropertyVisitor").finish_non_exhaustive()
+  }
+}
+
+/// One of a node's properties without its value type, as the tree sees it through a
+/// [`PropertyVisitor`].
 #[derive(Clone, Copy)]
-pub struct AnyProperty<'a>(&'a dyn Erased);
+pub(crate) struct AnyProperty<'a>(&'a dyn Erased);
 
 impl<'a> AnyProperty<'a> {
   /// Erases the value type of `property`.
@@ -42,14 +55,12 @@ impl<'a> AnyProperty<'a> {
   }
 
   /// The identity of the property's kind.
-  #[must_use]
-  pub fn key_id(self) -> KeyId {
+  pub(crate) fn key_id(self) -> KeyId {
     self.0.key_id()
   }
 
   /// The property as a `Property<T>`, or `None` if its value isn't a `T`.
-  #[must_use]
-  pub fn downcast<T: 'static>(self) -> Option<&'a Property<T>> {
+  pub(crate) fn downcast<T: 'static>(self) -> Option<&'a Property<T>> {
     self.0.as_any().downcast_ref()
   }
 

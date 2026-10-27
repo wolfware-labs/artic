@@ -68,8 +68,8 @@ mod state;
 
 use crate::reactive::{Change, Signal};
 pub use affects::Affects;
-pub(crate) use any::Erased;
-pub use any::{AnyProperty, KeyId};
+pub use any::PropertyVisitor;
+pub(crate) use any::{AnyProperty, Erased, KeyId};
 pub use attached::AttachedKey;
 pub use key::{Inheritance, PropertyKey};
 use levels::Levels;
@@ -177,13 +177,6 @@ where
   #[track_caller]
   pub(crate) fn new_unowned(key: &'static PropertyKey<T>, default: T) -> Property<T> {
     Property(Signal::new_unowned(PropertyState::new(key, default)))
-  }
-
-  /// The property without its value type, for
-  /// [`Object::visit_properties`](crate::Object::visit_properties) to hand to the tree.
-  #[must_use]
-  pub fn as_ref(&self) -> AnyProperty<'_> {
-    AnyProperty::new(self)
   }
 
   /// Returns the key that identifies this property's kind and holds its metadata.

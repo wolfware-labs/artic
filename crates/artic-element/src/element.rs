@@ -103,7 +103,7 @@ pub trait HasState<S> {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use artic_core::property::AnyProperty;
+  use artic_core::property::PropertyVisitor;
   use artic_core::tree::UiTree;
   use pretty_assertions::assert_eq;
 
@@ -116,7 +116,7 @@ mod tests {
   struct Leaf;
 
   impl Object for Leaf {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
   impl Layoutable for Leaf {

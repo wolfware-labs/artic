@@ -3,7 +3,7 @@
 
 use artic_controls::{StackPanel, TextBlock, TextElement};
 use artic_core::Object;
-use artic_core::property::AnyProperty;
+use artic_core::property::PropertyVisitor;
 use artic_core::property::{Affects, Precedence};
 use artic_core::tree::{NodeId, UiTree};
 use artic_element::{AccessCx, Children, ElementTypes};
@@ -383,7 +383,7 @@ struct Frame {
 }
 
 impl Object for Frame {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 impl Layoutable for Frame {

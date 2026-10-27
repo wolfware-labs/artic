@@ -188,7 +188,7 @@ mod tests {
   use crate::text::{Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
   use crate::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx, PixelGrid};
   use artic_core::Object;
-  use artic_core::property::AnyProperty;
+  use artic_core::property::PropertyVisitor;
   use artic_core::tree::{NodeId, UiTree};
   use pretty_assertions::assert_eq;
   use std::cell::Cell;
@@ -311,7 +311,7 @@ mod tests {
   }
 
   impl Object for Element {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
   impl Layoutable for Element {

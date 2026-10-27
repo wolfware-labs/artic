@@ -138,7 +138,7 @@ mod tests {
   use crate::{AttachedTarget, PropertyGroupInfo, PropertyInfo, Whitespace};
   use artic_core::Object;
   use artic_core::property::Affects;
-  use artic_core::property::AnyProperty;
+  use artic_core::property::PropertyVisitor;
   use artic_core::tree::{NodeId, UiTree};
   use pretty_assertions::assert_eq;
 
@@ -146,7 +146,7 @@ mod tests {
   struct Node;
 
   impl Object for Node {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
   fn new_node(tree: &mut UiTree) -> NodeId {

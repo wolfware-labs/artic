@@ -44,7 +44,8 @@ mod objects;
 
 use crate::Object;
 use crate::arena::SlotId;
-use crate::property::{Affects, AttachedKey, Inheritance, KeyId, Property};
+use crate::object::for_each_property;
+use crate::property::{Affects, AttachedKey, Erased, Inheritance, KeyId, Property};
 use attached::AttachedValues;
 use dirty::DirtyFlags;
 pub(crate) use dirty::DirtyHandle;
@@ -71,13 +72,13 @@ const TREES: [TreeKind; 2] = [TreeKind::Logical, TreeKind::Visual];
 ///
 /// ```
 /// use artic_core::Object;
-/// use artic_core::property::AnyProperty;
+/// use artic_core::property::PropertyVisitor;
 /// use artic_core::tree::UiTree;
 ///
 /// #[derive(Debug)]
 /// struct Label(&'static str);
 /// impl Object for Label {
-///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+///   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 /// }
 ///
 /// let mut tree = UiTree::new();
@@ -204,13 +205,13 @@ impl UiTree {
   ///
   /// ```
   /// use artic_core::{Object};
-  /// use artic_core::property::AnyProperty;
+  /// use artic_core::property::PropertyVisitor;
   /// use artic_core::tree::UiTree;
   ///
   /// #[derive(Debug)]
   /// struct Label;
   /// impl Object for Label {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  ///   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   /// }
   ///
   /// let mut tree = UiTree::new();
@@ -225,10 +226,7 @@ impl UiTree {
     self.logical.insert(id);
     self.visual.insert(id);
     let dirty = self.dirty_flags.insert(id);
-    self
-      .objects
-      .object(id)
-      .visit_properties(&mut |property| property.attach(dirty.clone()));
+    for_each_property(self.objects.object(id), |property| property.attach(dirty.clone()));
     id
   }
 
@@ -243,7 +241,7 @@ impl UiTree {
   /// links are left to [`free`](UiTree::free), which only calls this once no surviving node names it.
   fn free_node(&mut self, node_id: NodeId) {
     let object = self.objects.free(node_id).expect("free passes only live nodes");
-    object.visit_properties(&mut |property| property.dispose());
+    for_each_property(object.as_ref(), |property| property.dispose());
     self.attached_values.of(node_id).for_each(|property| property.dispose());
     self.attached_values.remove(node_id);
     self.dirty_flags.remove(node_id);
@@ -267,19 +265,19 @@ impl UiTree {
   ///
   /// ```
   /// use artic_core::{Object};
-  /// use artic_core::property::AnyProperty;
+  /// use artic_core::property::PropertyVisitor;
   /// use artic_core::tree::UiTree;
   ///
   /// #[derive(Debug)]
   /// struct Label(&'static str);
   /// impl Object for Label {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  ///   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   /// }
   ///
   /// #[derive(Debug)]
   /// struct Button;
   /// impl Object for Button {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  ///   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   /// }
   ///
   /// let mut tree = UiTree::new();
@@ -313,13 +311,13 @@ impl UiTree {
   ///
   /// ```
   /// use artic_core::{Object};
-  /// use artic_core::property::AnyProperty;
+  /// use artic_core::property::PropertyVisitor;
   /// use artic_core::tree::UiTree;
   ///
   /// #[derive(Debug)]
   /// struct Counter(u32);
   /// impl Object for Counter {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  ///   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   /// }
   ///
   /// let mut tree = UiTree::new();
@@ -363,13 +361,13 @@ impl UiTree {
   ///
   /// ```
   /// use artic_core::{Object};
-  /// use artic_core::property::AnyProperty;
+  /// use artic_core::property::PropertyVisitor;
   /// use artic_core::tree::UiTree;
   ///
   /// #[derive(Debug)]
   /// struct Label;
   /// impl Object for Label {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  ///   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   /// }
   ///
   /// let mut tree = UiTree::new();
@@ -406,13 +404,13 @@ impl UiTree {
   ///
   /// ```
   /// use artic_core::Object;
-  /// use artic_core::property::AnyProperty;
+  /// use artic_core::property::PropertyVisitor;
   /// use artic_core::tree::{TreeKind, UiTree};
   ///
   /// #[derive(Debug)]
   /// struct Stack;
   /// impl Object for Stack {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  ///   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   /// }
   ///
   /// let mut tree = UiTree::new();
@@ -518,13 +516,13 @@ impl UiTree {
   ///
   /// ```
   /// use artic_core::Object;
-  /// use artic_core::property::AnyProperty;
+  /// use artic_core::property::PropertyVisitor;
   /// use artic_core::tree::{TreeKind, UiTree};
   ///
   /// #[derive(Debug)]
   /// struct Stack;
   /// impl Object for Stack {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  ///   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   /// }
   ///
   /// let mut tree = UiTree::new();
@@ -564,13 +562,13 @@ impl UiTree {
   ///
   /// ```
   /// use artic_core::Object;
-  /// use artic_core::property::AnyProperty;
+  /// use artic_core::property::PropertyVisitor;
   /// use artic_core::tree::{TreeKind, UiTree};
   ///
   /// #[derive(Debug)]
   /// struct Panel;
   /// impl Object for Panel {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  ///   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   /// }
   ///
   /// let mut tree = UiTree::new();
@@ -695,7 +693,7 @@ impl UiTree {
   ///
   /// ```
   /// use artic_core::Object;
-  /// use artic_core::property::{Affects, AnyProperty, AttachedKey, Inheritance, Precedence};
+  /// use artic_core::property::{Affects, PropertyVisitor, AttachedKey, Inheritance, Precedence};
   /// use artic_core::tree::UiTree;
   ///
   /// static ROW: AttachedKey<usize> = AttachedKey::new("Row", Affects::LAYOUT, Inheritance::None, || 0);
@@ -703,7 +701,7 @@ impl UiTree {
   /// #[derive(Debug)]
   /// struct Button;
   /// impl Object for Button {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
+  ///   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   /// }
   ///
   /// let mut tree = UiTree::new();
@@ -723,7 +721,7 @@ impl UiTree {
       return property;
     }
     let property = Property::new_unowned(key.key(), key.default_value());
-    property.as_ref().attach(self.dirty_flags.shared(node));
+    Erased::attach(&property, self.dirty_flags.shared(node));
     self.attached_values.insert(node, Box::new(property));
     if key.key().inherits() {
       inheritance::resolve(&self.objects, &self.attached_values, &self.logical, node);
@@ -786,7 +784,7 @@ impl UiTree {
   {
     let id = KeyId::of(key.key());
     let mut field = None;
-    self.objects.object(node).visit_properties(&mut |property| {
+    for_each_property(self.objects.object(node), |property| {
       if field.is_none() && property.key_id() == id {
         field = property.downcast::<T>().copied();
       }
