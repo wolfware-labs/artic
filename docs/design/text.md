@@ -215,7 +215,7 @@ impl SceneBuilder {
 }
 ```
 
-One command draws a whole paragraph. Any `Brush` works, and its relative points and radii resolve against `Rect::new(origin, paragraph.size())`, as a `Fill` resolves against its shape's bounds, so a gradient runs across the whole text rather than restarting with each run. A paragraph without runs records nothing.
+One command draws a whole paragraph. Any `Brush` works, and its relative points and radii resolve against `Rect::new(origin, paragraph.size())`, as a `Fill` resolves against its shape's bounds, so a gradient runs across the whole text rather than restarting with each run. A paragraph without glyphs records nothing (`Paragraph::has_glyphs`): the one an engine gives for text it can't shape, and shaped empty text alike.
 
 A brush per span of text (inline `Run`s, #47) can extend this later with a brush per run, without changing the command's shape.
 
