@@ -182,3 +182,17 @@ fn a_refused_node_leaves_the_tree_unchanged() {
   tree.free(first);
   assert!(tree.is_empty());
 }
+
+// A node holding a disposed property is refused before anything changes, too.
+#[test]
+fn a_node_with_a_disposed_property_is_refused_unchanged() {
+  let mut tree = UiTree::new();
+  let view = Scope::new_root();
+  let gone = view.run(|| Property::new(&FOREGROUND, 0));
+  view.dispose();
+
+  let refused = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| tree.alloc(Box::new(Twice(gone)))));
+
+  assert!(refused.is_err());
+  assert!(tree.is_empty());
+}

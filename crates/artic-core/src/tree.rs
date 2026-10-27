@@ -199,8 +199,8 @@ impl UiTree {
   ///
   /// # Panics
   ///
-  /// Panics if the tree would need more than `u32::MAX` slots, or if `value` lists a property
-  /// another node in a tree already lists, leaving the tree as it was.
+  /// Panics if the tree would need more than `u32::MAX` slots, or, leaving the tree as it was, if
+  /// `value` lists a property that was disposed or that another node in a tree already lists.
   ///
   /// # Examples
   ///

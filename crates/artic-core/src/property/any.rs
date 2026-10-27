@@ -1,3 +1,4 @@
+use crate::property::state::PropertyState;
 use crate::property::{Property, PropertyKey};
 use crate::reactive::Change;
 use crate::tree::DirtyHandle;
@@ -75,6 +76,10 @@ impl<'a> AnyProperty<'a> {
   }
 
   /// Whether a node in a tree already lists the property.
+  ///
+  /// # Panics
+  ///
+  /// If the property was disposed, as any read of it does.
   pub(crate) fn is_listed(self) -> bool {
     self.0.is_listed()
   }
@@ -142,7 +147,7 @@ where
   }
 
   fn is_listed(&self) -> bool {
-    self.0.is_alive() && self.0.with_untracked(|state| state.is_listed())
+    self.0.with_untracked(PropertyState::is_listed)
   }
 
   fn attach(&self, dirty: DirtyHandle) {
