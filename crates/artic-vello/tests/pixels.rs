@@ -4,7 +4,7 @@
 mod common;
 
 use artic_core::Object;
-use artic_core::property::AnyProperty;
+use artic_core::property::PropertyVisitor;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_layout::geometry::{CornerRadius, FillRule, Path, Point, Rect, RelativePoint, RoundedRect, Transform};
 use artic_layout::text::{FontFamily, FontStyle, FontWeight, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
@@ -34,7 +34,7 @@ const AWAY: f32 = 64.0;
 struct Node;
 
 impl Object for Node {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 type Draw = Box<dyn Fn(&mut SceneBuilder)>;

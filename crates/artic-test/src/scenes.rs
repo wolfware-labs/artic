@@ -3,7 +3,7 @@
 
 use crate::text::engine;
 use artic_core::Object;
-use artic_core::property::AnyProperty;
+use artic_core::property::PropertyVisitor;
 use artic_core::tree::{NodeId, UiTree};
 use artic_layout::geometry::{CornerRadius, FillRule, Path, Point, Rect, RelativePoint, RelativeScalar, RoundedRect};
 use artic_layout::text::{FontFamily, ParagraphStyle, TextEngine, TextLimits, TextStyle, TextWrapping};
@@ -178,7 +178,7 @@ fn star() -> Path {
 struct Node;
 
 impl Object for Node {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 struct Drawing<F>(Option<F>);

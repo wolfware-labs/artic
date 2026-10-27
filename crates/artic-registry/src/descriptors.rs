@@ -1,6 +1,6 @@
 use crate::ValueError;
 use artic_core::RustExpr;
-use artic_core::property::{Affects, AnyProperty};
+use artic_core::property::{Affects, PropertyVisitor};
 use artic_core::tree::{NodeId, UiTree};
 
 /// What the registry knows about one Rust type that UI languages can name.
@@ -136,7 +136,7 @@ pub trait PropertyGroup {
 
   /// Lists the group's properties, as [`Object::visit_properties`](artic_core::Object::visit_properties)
   /// does for a node.
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty));
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>);
 }
 
 /// A node that holds the property group `G` in a `#[ui(flatten)]` field. `#[derive(UiType)]`
@@ -259,7 +259,7 @@ pub struct ArgInfo {
 mod tests {
   use super::*;
   use artic_core::Object;
-  use artic_core::property::AnyProperty;
+  use artic_core::property::PropertyVisitor;
   use artic_core::property::{Inheritance, Property, PropertyKey};
   use pretty_assertions::assert_eq;
   use static_assertions::assert_impl_all;
@@ -281,7 +281,7 @@ mod tests {
   }
 
   impl Object for Border {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
   fn new_border(tree: &mut UiTree) -> NodeId {

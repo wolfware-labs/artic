@@ -72,7 +72,7 @@ pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
   let checks = properties.iter().map(value_check);
   let visits = properties.iter().map(|field| {
     let field_ident = field.ident;
-    quote!(visit(&self.#field_ident);)
+    quote!(visitor.visit(&self.#field_ident);)
   });
   let count = properties.len();
   let methods = methods_trait(input, &properties, &root);
@@ -104,7 +104,7 @@ pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
         const METHODS: &'static str = ::core::concat!(::core::module_path!(), "::", #trait_name);
         #content
 
-        fn visit_properties(&self, visit: &mut dyn ::core::ops::FnMut(&dyn __artic::AnyProperty)) {
+        fn visit_properties(&self, visitor: &mut __artic::PropertyVisitor<'_>) {
           #(#visits)*
         }
       }

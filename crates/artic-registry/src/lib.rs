@@ -37,14 +37,14 @@ use linkme::distributed_slice;
 ///
 /// ```
 /// use artic_core::Object;
-/// use artic_core::property::AnyProperty;
+/// use artic_core::property::PropertyVisitor;
 /// use artic_core::tree::{NodeId, UiTree};
 /// use artic_registry::{Registry, TypeInfo, Whitespace};
 ///
 /// #[derive(Debug)]
 /// struct Gauge;
 /// impl Object for Gauge {
-///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+///   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 /// }
 ///
 /// static GAUGE: TypeInfo = TypeInfo {
@@ -93,14 +93,14 @@ pub static UI_TYPES: [&'static TypeInfo];
 ///
 /// ```
 /// use artic_core::Object;
-/// use artic_core::property::AnyProperty;
+/// use artic_core::property::PropertyVisitor;
 /// use artic_core::tree::{NodeId, UiTree};
 /// use artic_registry::{Registry, TypeInfo, Whitespace};
 ///
 /// #[derive(Debug)]
 /// struct Dial;
 /// impl Object for Dial {
-///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+///   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 /// }
 ///
 /// static DIAL: TypeInfo = TypeInfo {

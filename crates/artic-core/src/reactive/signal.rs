@@ -79,6 +79,13 @@ impl<TValue> Signal<TValue> {
     Signal(Runtime::create_signal(initial_value), Origin::caller(), PhantomData)
   }
 
+  /// Creates a signal no scope owns, for state whose owner disposes it explicitly, as the tree does
+  /// with a node's attached values.
+  #[track_caller]
+  pub(crate) fn new_unowned(initial_value: TValue) -> Signal<TValue> {
+    Signal(Runtime::create_unowned_signal(initial_value), Origin::caller(), PhantomData)
+  }
+
   /// Calls `function` with a reference to the value and returns its result.
   ///
   /// Use this instead of [`get`](Signal::get) to read part of a value, or a value that isn't
@@ -201,6 +208,12 @@ impl<TValue> Signal<TValue> {
     Runtime::update_signal_value_with(self.0, action);
   }
 
+  /// Frees the signal now rather than with its scope. Disposing it again, or disposing its scope
+  /// later, does nothing more.
+  pub(crate) fn dispose(self) {
+    Runtime::dispose_signal(self.0);
+  }
+
   pub(crate) fn is_alive(&self) -> bool {
     Runtime::contains_signal(self.0)
   }
@@ -212,7 +225,7 @@ impl<TValue> Signal<TValue> {
 
   fn ensure_alive(&self) {
     if !Runtime::contains_signal(self.0) {
-      self.1.panic("signal used after its scope was disposed");
+      self.1.panic("signal used after it was disposed");
     }
   }
 }

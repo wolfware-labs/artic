@@ -1,6 +1,6 @@
 use super::*;
 use artic_core::Object;
-use artic_core::property::AnyProperty;
+use artic_core::property::PropertyVisitor;
 use pretty_assertions::assert_eq;
 use std::cell::Cell;
 
@@ -15,7 +15,7 @@ struct Node {
 }
 
 impl Object for Node {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 impl Layoutable for Node {
@@ -265,7 +265,7 @@ mod bounds {
   use crate::geometry::{Rect, Size};
   use crate::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx};
   use artic_core::Object;
-  use artic_core::property::AnyProperty;
+  use artic_core::property::PropertyVisitor;
   use artic_core::tree::{NodeId, TreeKind, UiTree};
   use pretty_assertions::assert_eq;
   use std::cell::Cell;
@@ -277,7 +277,7 @@ mod bounds {
   }
 
   impl Object for Inset {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
   impl Layoutable for Inset {
@@ -349,7 +349,7 @@ mod skipped {
   use crate::geometry::{Rect, Size};
   use crate::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx};
   use artic_core::Object;
-  use artic_core::property::AnyProperty;
+  use artic_core::property::PropertyVisitor;
   use artic_core::tree::{NodeId, TreeKind, UiTree};
   use pretty_assertions::assert_eq;
   use std::cell::Cell;
@@ -363,7 +363,7 @@ mod skipped {
   }
 
   impl Object for Toggle {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
   impl Layoutable for Toggle {
@@ -534,7 +534,7 @@ mod misuse {
   use crate::geometry::{Rect, Size};
   use crate::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx};
   use artic_core::Object;
-  use artic_core::property::AnyProperty;
+  use artic_core::property::PropertyVisitor;
   use artic_core::tree::{NodeId, TreeKind, UiTree};
 
   /// Measures its first grandchild directly, skipping the child in between.
@@ -542,7 +542,7 @@ mod misuse {
   struct Skipper;
 
   impl Object for Skipper {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
   impl Layoutable for Skipper {
@@ -730,7 +730,7 @@ mod overlay {
   use crate::geometry::{Rect, Size};
   use crate::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx};
   use artic_core::Object;
-  use artic_core::property::AnyProperty;
+  use artic_core::property::PropertyVisitor;
   use artic_core::tree::{NodeId, TreeKind, UiTree};
   use pretty_assertions::assert_eq;
 
@@ -739,7 +739,7 @@ mod overlay {
   struct Overlay;
 
   impl Object for Overlay {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
   impl Layoutable for Overlay {
@@ -796,7 +796,7 @@ mod collapsed {
   use crate::geometry::{Rect, Size};
   use crate::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx};
   use artic_core::Object;
-  use artic_core::property::AnyProperty;
+  use artic_core::property::PropertyVisitor;
   use artic_core::tree::{NodeId, TreeKind, UiTree};
   use pretty_assertions::assert_eq;
   use std::cell::Cell;
@@ -817,11 +817,11 @@ mod collapsed {
   }
 
   impl Object for Item {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
   impl Object for Column {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
   impl Layoutable for Item {
@@ -1036,7 +1036,7 @@ mod collapsed {
   struct Direct;
 
   impl Object for Direct {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
   impl Layoutable for Direct {
@@ -1150,7 +1150,7 @@ struct Shaper {
 }
 
 impl Object for Shaper {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 impl Layoutable for Shaper {
@@ -1195,7 +1195,7 @@ impl Layoutable for Shaper {
 struct Holder;
 
 impl Object for Holder {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 impl Layoutable for Holder {

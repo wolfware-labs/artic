@@ -2,7 +2,7 @@
 // everywhere, and one that draws on window handles only.
 
 use artic_core::Object;
-use artic_core::property::AnyProperty;
+use artic_core::property::PropertyVisitor;
 use artic_core::tree::UiTree;
 use artic_element::{AccessCx, Element, ElementTypes, RenderCx};
 use artic_layout::geometry::{Rect, Size};
@@ -66,7 +66,7 @@ struct Swatch {
 }
 
 impl Object for Swatch {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 impl Layoutable for Swatch {

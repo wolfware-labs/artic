@@ -1,5 +1,5 @@
 use crate::Object;
-use crate::property::{Affects, AnyProperty, AttachedKey, Inheritance, Precedence, Property, inherit};
+use crate::property::{Affects, AttachedKey, Inheritance, Precedence, Property, PropertyVisitor, inherit};
 use crate::tree::{NodeId, TreeKind, UiTree};
 use pretty_assertions::assert_eq;
 
@@ -10,7 +10,7 @@ static LABEL: AttachedKey<String> = AttachedKey::new("Label", Affects::RENDER, I
 struct Button;
 
 impl Object for Button {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 /// A tree with one button whose dirty flags are already cleared.
@@ -180,8 +180,8 @@ struct Themed {
 }
 
 impl Object for Themed {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.chrome);
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+    visitor.visit(&self.chrome);
   }
 }
 

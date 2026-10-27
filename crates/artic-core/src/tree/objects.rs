@@ -44,6 +44,11 @@ impl Objects {
     }
   }
 
+  /// The ids of every live node.
+  pub(super) fn ids(&self) -> impl Iterator<Item = NodeId> + '_ {
+    self.arena.ids().map(NodeId)
+  }
+
   pub(super) fn len(&self) -> usize {
     self.arena.len()
   }

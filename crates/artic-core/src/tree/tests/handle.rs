@@ -1,5 +1,5 @@
 use crate::Object;
-use crate::property::AnyProperty;
+use crate::property::PropertyVisitor;
 use crate::tree::{Handle, NodeId, UiTree};
 use pretty_assertions::assert_eq;
 use static_assertions::{assert_eq_size, assert_impl_all};
@@ -8,7 +8,7 @@ use static_assertions::{assert_eq_size, assert_impl_all};
 struct Label(&'static str);
 
 impl Object for Label {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 assert_eq_size!(Handle<Label>, NodeId);

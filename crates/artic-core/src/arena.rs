@@ -125,6 +125,17 @@ impl<TValue> Arena<TValue> {
     self.get(id).is_some()
   }
 
+  /// The ids of the occupied slots, in slot order.
+  pub fn ids(&self) -> impl Iterator<Item = SlotId> + '_ {
+    self.slots.iter().zip(0..).filter_map(|(slot, index)| match slot {
+      Slot::Occupied { generation, .. } => Some(SlotId {
+        index,
+        generation: *generation,
+      }),
+      Slot::Free { .. } => None,
+    })
+  }
+
   fn alloc_new_slot(&mut self, value: TValue) -> SlotId {
     let Ok(index) = self.slots.len().try_into() else {
       panic!("the arena capacity is full");
@@ -331,6 +342,15 @@ mod tests {
     let n1 = arena.alloc(1);
     *arena.get_mut(n1).unwrap() += 41;
     assert_eq!(arena.get(n1), Some(&42));
+  }
+
+  // `ids` lists the occupied slots and skips freed ones.
+  #[test]
+  fn ids_lists_the_occupied_slots() {
+    let mut arena = Arena::new();
+    let [first, second, third] = [1, 2, 3].map(|value| arena.alloc(value));
+    arena.free(second);
+    assert_eq!(arena.ids().collect::<Vec<_>>(), [first, third]);
   }
 
   #[test]

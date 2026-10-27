@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use artic_core::Object;
-use artic_core::property::{Affects, AnyProperty, Inheritance, Property, PropertyKey};
+use artic_core::property::{Affects, Inheritance, Property, PropertyKey, PropertyVisitor};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{AccessCx, Application, Element, RenderCx, Surface};
 use artic_layout::geometry::{Rect, Size, Transform};
@@ -30,8 +30,8 @@ pub struct Column {
 }
 
 impl Object for Column {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.visible);
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+    visitor.visit(&self.visible);
   }
 }
 
@@ -83,10 +83,10 @@ pub struct Leaf {
 }
 
 impl Object for Leaf {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.height);
-    visit(&self.color);
-    visit(&self.turn);
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+    visitor.visit(&self.height);
+    visitor.visit(&self.color);
+    visitor.visit(&self.turn);
   }
 }
 
@@ -130,7 +130,7 @@ artic_element::element_type!(Leaf);
 pub struct Wrap;
 
 impl Object for Wrap {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 impl Layoutable for Wrap {
@@ -344,8 +344,8 @@ pub struct Label {
 }
 
 impl Object for Label {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.text);
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+    visitor.visit(&self.text);
   }
 }
 

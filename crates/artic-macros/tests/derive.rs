@@ -381,7 +381,8 @@ struct Gadget {
   common: Common,
 }
 
-// A flattened group's properties are registered as the type's, with its field, and visited.
+// A flattened group's properties are registered as the type's, with its field, and visited: the
+// tree frees all three with the node.
 #[test]
 fn flattened_group_is_registered_and_visited() {
   let info = <Widget as UiType>::TYPE_INFO;
@@ -389,9 +390,15 @@ fn flattened_group_is_registered_and_visited() {
   assert_eq!(info.property("Margin").map(|found| found.group), Some(Some("common")));
   assert_eq!(info.property("Size").map(|found| found.group), Some(None));
 
-  let mut visited = 0;
-  artic_core::Object::visit_properties(&Widget::default(), &mut |_| visited += 1);
-  assert_eq!(visited, 3);
+  let baseline = artic_core::reactive::live_counts();
+  let mut tree = UiTree::new();
+  let widget = tree.alloc(Box::new(Widget::default()));
+  tree.free(widget);
+  assert_eq!(
+    artic_core::reactive::live_counts(),
+    baseline,
+    "freeing disposes only the properties visited"
+  );
 }
 
 // A group names its methods trait by the module it's defined in.

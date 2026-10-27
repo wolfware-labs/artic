@@ -328,7 +328,7 @@ Signals are the only change-propagation mechanism; `Property<T>`, bindings, styl
 - `Memo<T>`: derived signal, recomputed lazily when a dependency changes and its value is read.
 - `effect`: a function that registers a closure re-run when its dependencies change. `set()` never runs effects directly; it marks dependents dirty and queues effects. Queued effects run in topological order (glitch-free) at a flush point: the end of the current dispatcher task, the end of the outermost `batch`, or an explicit `flush_effects()`. Memos are pull-based, so a read always sees current values.
 - `batch(|| …)` makes its closure one flush point: several `set`s inside it produce one flush when the outermost `batch` returns. Inside a dispatcher task every task is already a flush point (D26).
-- Ownership: signals and effects belong to a `Scope`; disposing a scope (a view subtree) disposes everything created in it. No leaks when a view is unloaded, no manual unsubscribe.
+- Ownership: signals and effects belong to a `Scope`; disposing a scope (a view subtree) disposes everything created in it. A node's properties are disposed with their scope or their node, whichever goes first, and its attached values with the node alone: `UiTree::free`, or dropping the tree, disposes them. Memos and effects a control creates still need the per-view scope. No leaks when a view is unloaded, no manual unsubscribe.
 - `set()` always marks dependents dirty; `set_if_changed()`, for `T: PartialEq`, skips propagation when the value is unchanged.
 
 ### `Property<T>`

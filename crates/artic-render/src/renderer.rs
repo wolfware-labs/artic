@@ -160,7 +160,7 @@ mod tests {
   use super::*;
   use crate::{Brush, Color, Command, Compositor, Layers, Nodes, SceneBuilder, SceneItem, SolidColorBrush};
   use artic_core::Object;
-  use artic_core::property::AnyProperty;
+  use artic_core::property::PropertyVisitor;
   use artic_core::tree::{NodeId, UiTree};
   use artic_layout::geometry::Rect;
   use pretty_assertions::assert_eq;
@@ -202,7 +202,7 @@ mod tests {
   struct Node;
 
   impl Object for Node {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
   struct Red;

@@ -8,7 +8,7 @@
 // no host crate.
 
 use artic_core::Object;
-use artic_core::property::{Affects, AnyProperty};
+use artic_core::property::{Affects, PropertyVisitor};
 use artic_core::tree::{NodeId, UiTree};
 use artic_layout::geometry::{CornerRadius, Path, Point, Rect, RelativePoint, RelativeScalar, RoundedRect, Transform};
 use artic_layout::text::{FontFamily, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle, TextWrapping};
@@ -53,7 +53,7 @@ fn main() {
 struct Node;
 
 impl Object for Node {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 /// One node that draws every tile, laid out by hand until layout (#41) exists.

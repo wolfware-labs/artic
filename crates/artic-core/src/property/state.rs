@@ -34,6 +34,16 @@ where
     self.dirty = Some(dirty);
   }
 
+  /// Whether a node in a tree already lists the property.
+  pub fn is_listed(&self) -> bool {
+    self.dirty.is_some()
+  }
+
+  /// Whether the node whose flags `dirty` holds is the one that lists the property.
+  pub fn is_listed_by(&self, dirty: &DirtyHandle) -> bool {
+    self.dirty.as_ref().is_some_and(|held| held.is_same_node(dirty))
+  }
+
   pub fn mark_dirty(&self) {
     if let Some(dirty) = &self.dirty {
       dirty.mark(self.key.affects());

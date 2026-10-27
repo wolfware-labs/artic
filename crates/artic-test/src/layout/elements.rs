@@ -1,5 +1,5 @@
 use artic_core::Object;
-use artic_core::property::AnyProperty;
+use artic_core::property::PropertyVisitor;
 use artic_core::tree::{NodeId, UiTree};
 use artic_layout::geometry::{Rect, Size};
 use artic_layout::{ArrangeCx, LayoutNodes, Layoutable, MeasureCx};
@@ -44,7 +44,7 @@ impl Fixed {
 }
 
 impl Object for Fixed {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 impl Layoutable for Fixed {
@@ -87,7 +87,7 @@ impl Stack {
 }
 
 impl Object for Stack {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 impl Layoutable for Stack {

@@ -2,7 +2,7 @@
 // their shared work: layout, hit testing, input, accessibility and layers.
 
 use artic_core::Object;
-use artic_core::property::{Affects, AnyProperty};
+use artic_core::property::{Affects, PropertyVisitor};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{AccessCx, Appearance, Classes, HitTestCx, HitTestResult, Identity, Interaction, Layout, Visibility};
 use artic_layout::geometry::{Point, Rect, Size, Thickness, Transform};
@@ -122,9 +122,9 @@ impl Boxed {
 }
 
 impl Object for Boxed {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    self.layout.visit_properties(visit);
-    self.appearance.visit_properties(visit);
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+    self.layout.visit_properties(visitor);
+    self.appearance.visit_properties(visitor);
   }
 }
 

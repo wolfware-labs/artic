@@ -1,5 +1,5 @@
 use crate::Object;
-use crate::property::{Affects, AnyProperty, Inheritance, Precedence, Property, PropertyKey, inherit};
+use crate::property::{Affects, Inheritance, Precedence, Property, PropertyKey, PropertyVisitor, inherit};
 use crate::tree::{NodeId, TreeKind, UiTree};
 use pretty_assertions::assert_eq;
 
@@ -14,8 +14,8 @@ struct Window {
 }
 
 impl Object for Window {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.font_size);
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+    visitor.visit(&self.font_size);
   }
 }
 
@@ -24,7 +24,7 @@ impl Object for Window {
 struct StackPanel;
 
 impl Object for StackPanel {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 /// A leaf with an inheritable font size and a width that doesn't inherit.
@@ -35,9 +35,9 @@ struct TextBlock {
 }
 
 impl Object for TextBlock {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.font_size);
-    visit(&self.width);
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+    visitor.visit(&self.font_size);
+    visitor.visit(&self.width);
   }
 }
 
@@ -48,8 +48,8 @@ struct Toggle {
 }
 
 impl Object for Toggle {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.enabled);
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+    visitor.visit(&self.enabled);
   }
 }
 
@@ -192,14 +192,14 @@ fn freeing_a_subtree_unlinks_its_followers() {
   let mut tree = UiTree::new();
   let (window, window_font_size) = new_window(&mut tree, 20);
   let panel = tree.alloc(Box::new(StackPanel));
-  let (text, font_size, _) = new_text_block(&mut tree);
+  let (text, _, _) = new_text_block(&mut tree);
   tree.add_child(TreeKind::Logical, window, panel);
   tree.add_child(TreeKind::Logical, panel, text);
 
-  tree.free_subtree(panel);
+  tree.free(panel);
   window_font_size.set(24);
 
-  assert_eq!(font_size.effective_source(), Precedence::Default);
+  assert_eq!(window_font_size.get(), 24);
   assert!(!tree.contains(text));
 }
 

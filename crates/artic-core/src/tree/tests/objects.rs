@@ -1,9 +1,8 @@
 use crate::Object;
-use crate::property::AnyProperty;
+use crate::property::PropertyVisitor;
 use crate::tree::{NodeId, TreeKind, UiTree};
 use pretty_assertions::{assert_eq, assert_ne};
 use static_assertions::{assert_eq_size, assert_impl_all, assert_not_impl_any};
-use std::any::Any;
 
 assert_eq_size!(NodeId, Option<NodeId>);
 assert_eq_size!(NodeId, u64);
@@ -17,11 +16,11 @@ struct Control;
 struct OtherControl;
 
 impl Object for Control {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 impl Object for OtherControl {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 #[test]
@@ -43,7 +42,7 @@ fn get_as_mut_wrong_type_returns_none() {
 struct Counter(u32);
 
 impl Object for Counter {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 #[test]
@@ -75,15 +74,6 @@ fn get_and_get_mut_return_the_node_as_object() {
 }
 
 #[test]
-fn free_returns_the_node_with_its_concrete_type() {
-  let mut tree = UiTree::new();
-  let n1 = tree.alloc(Box::new(Counter(5)));
-  let node: Box<dyn Any> = tree.free(n1).unwrap();
-  assert_eq!(node.downcast_ref::<Counter>(), Some(&Counter(5)));
-  assert!(tree.is_empty());
-}
-
-#[test]
 fn stale_id_returns_none_from_every_accessor() {
   let mut tree = UiTree::new();
   let n1 = tree.alloc(Box::new(Control));
@@ -94,7 +84,6 @@ fn stale_id_returns_none_from_every_accessor() {
   assert!(tree.get_as::<Control>(n1).is_none());
   assert!(tree.get_as_mut::<Control>(n1).is_none());
   assert!(!tree.contains(n1));
-  assert!(tree.free(n1).is_none());
   assert!(tree.contains(n2));
   assert_eq!(tree.len(), 1);
 }

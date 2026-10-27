@@ -84,7 +84,8 @@ impl Runtime {
     }
   }
 
-  fn dispose_signal(signal_id: SignalId) {
+  /// Frees one signal and cuts its edges, whatever scope owns it. A stale id frees nothing.
+  pub fn dispose_signal(signal_id: SignalId) {
     RUNTIME.with(|runtime| {
       runtime.graph.remove(Node::Signal(signal_id));
       runtime.signals.free(signal_id);

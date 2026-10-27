@@ -49,9 +49,12 @@
 //! is never stale, and a change on the ancestor marks the nodes that depend on it dirty. The tree
 //! sets the link when a node moves in the logical tree; the visual tree plays no part.
 //!
-//! A property belongs to the [`Scope`](crate::reactive::Scope) it was created in, and a node to its
-//! tree. Dispose a node's scope only once the node has left the tree: a descendant that still
-//! inherits from a disposed property panics when read.
+//! A property has two owners: the [`Scope`](crate::reactive::Scope) that was active when it was
+//! created, and the node it ends up on. Whichever lets go first disposes it: disposing the scope,
+//! or the tree [freeing](crate::tree::UiTree::free) the node. A copy kept past that panics when
+//! read, and so does reading it through the node, so dispose a scope only once the nodes built in
+//! it have left the tree. Attached values are created by the tree and belong to their node alone.
+//! Dropping the tree disposes what its nodes still hold.
 
 mod affects;
 mod any;
@@ -65,7 +68,8 @@ mod state;
 
 use crate::reactive::{Change, Signal};
 pub use affects::Affects;
-pub use any::{AnyProperty, KeyId};
+pub use any::PropertyVisitor;
+pub(crate) use any::{AnyProperty, Erased, KeyId};
 pub use attached::AttachedKey;
 pub use key::{Inheritance, PropertyKey};
 use levels::Levels;
@@ -117,8 +121,9 @@ pub enum Precedence {
 /// value or the level it comes from. A write to a level below the winning one wakes nobody.
 ///
 /// `Property<T>` is a `Copy` handle, like [`Signal`], and is neither `Send` nor `Sync`. Two handles
-/// compare equal when they refer to the same property. It belongs to the
-/// [`Scope`](crate::reactive::Scope) that was active when it was created.
+/// compare equal when they refer to the same property. It's disposed with the
+/// [`Scope`](crate::reactive::Scope) that was active when it was created, or with its node when the
+/// tree frees it, whichever comes first.
 ///
 /// # Examples
 ///
@@ -166,6 +171,12 @@ where
   #[track_caller]
   pub fn new(key: &'static PropertyKey<T>, default: T) -> Property<T> {
     Property(Signal::new(PropertyState::new(key, default)))
+  }
+
+  /// Creates a property no scope owns, for the tree, which disposes it with its node.
+  #[track_caller]
+  pub(crate) fn new_unowned(key: &'static PropertyKey<T>, default: T) -> Property<T> {
+    Property(Signal::new_unowned(PropertyState::new(key, default)))
   }
 
   /// Returns the key that identifies this property's kind and holds its metadata.
@@ -254,6 +265,17 @@ where
     self.edit(|levels| levels.clear(level));
   }
 
+  /// Frees the property's reactive state, as the tree does when it frees the property's node. A
+  /// handle kept past that panics when read. A property already disposed, by its scope or an
+  /// earlier call, is left as it is.
+  fn dispose(self) {
+    if !self.0.is_alive() {
+      return;
+    }
+    self.unfollow(self.0.with_untracked(|state| state.levels.inherited()));
+    self.0.dispose();
+  }
+
   /// Makes the `Inherited` level follow `source`, or no property, and keeps `source`'s followers
   /// list in step.
   fn follow(&self, source: Option<Property<T>>) {
@@ -261,12 +283,7 @@ where
     if previous == source {
       return;
     }
-    if let Some(previous) = previous.filter(|previous| previous.0.is_alive()) {
-      previous.0.update_with(|state| {
-        state.remove_follower(*self);
-        Change::Hidden
-      });
-    }
+    self.unfollow(previous);
     if let Some(source) = source {
       source.0.update_with(|state| {
         state.add_follower(*self);
@@ -274,6 +291,16 @@ where
       });
     }
     self.edit(|levels| levels.set_inherited(source));
+  }
+
+  /// Takes the property off `source`'s followers list, if `source` is still alive.
+  fn unfollow(self, source: Option<Property<T>>) {
+    if let Some(source) = source.filter(|source| source.0.is_alive()) {
+      source.0.update_with(|state| {
+        state.remove_follower(self);
+        Change::Hidden
+      });
+    }
   }
 
   /// Applies `edit` to the levels and, if readers can see it, marks the property's node dirty and

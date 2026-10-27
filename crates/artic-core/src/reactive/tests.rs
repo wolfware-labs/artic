@@ -891,7 +891,7 @@ fn reading_disposed_signal_panics_with_creation_location() {
     count.get();
   });
 
-  assert!(message.starts_with("signal used after its scope was disposed"), "{message}");
+  assert!(message.starts_with("signal used after it was disposed"), "{message}");
   if cfg!(debug_assertions) {
     assert!(message.contains(&format!("(created at {}:", file!())), "{message}");
   }
@@ -907,7 +907,7 @@ fn writing_disposed_signal_panics_after_slot_reuse() {
 
   let message = panic_message(|| old.set(1));
 
-  assert!(message.starts_with("signal used after its scope was disposed"), "{message}");
+  assert!(message.starts_with("signal used after it was disposed"), "{message}");
   assert_eq!(new.get(), 0);
 }
 

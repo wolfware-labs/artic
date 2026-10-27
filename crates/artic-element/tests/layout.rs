@@ -2,7 +2,7 @@
 // frame pipeline will.
 
 use artic_core::Object;
-use artic_core::property::AnyProperty;
+use artic_core::property::PropertyVisitor;
 use artic_core::tree::{TreeKind, UiTree};
 use artic_element::{AccessCx, ElementImpl, ElementTypes, RenderCx};
 use artic_layout::geometry::{Rect, Size};
@@ -17,7 +17,7 @@ use pretty_assertions::assert_eq;
 struct Column;
 
 impl Object for Column {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 impl ElementImpl for Column {
@@ -65,7 +65,7 @@ artic_element::element_type!(Column);
 struct Block(f32);
 
 impl Object for Block {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 impl Layoutable for Block {
@@ -91,7 +91,7 @@ artic_element::element_type!(Block);
 struct Spacer;
 
 impl Object for Spacer {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 impl ElementImpl for Spacer {}
@@ -121,7 +121,7 @@ artic_element::element_type!(Spacer);
 struct Unregistered;
 
 impl Object for Unregistered {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
 // A registered column stacks its registered children; an unregistered node and a spacer using

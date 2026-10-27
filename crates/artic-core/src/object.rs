@@ -1,6 +1,6 @@
 //! The [`Object`] trait that every node type in the tree implements.
 
-use crate::property::AnyProperty;
+use crate::property::{AnyProperty, PropertyVisitor};
 use std::any::Any;
 use std::fmt::Debug;
 
@@ -26,7 +26,7 @@ use std::fmt::Debug;
 ///
 /// ```
 /// use artic_core::Object;
-/// use artic_core::property::AnyProperty;
+/// use artic_core::property::PropertyVisitor;
 /// use artic_core::tree::UiTree;
 ///
 /// #[derive(Debug)]
@@ -35,7 +35,7 @@ use std::fmt::Debug;
 /// }
 ///
 /// impl Object for Label {
-///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+///   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 /// }
 ///
 /// let mut tree = UiTree::new();
@@ -48,7 +48,7 @@ use std::fmt::Debug;
 ///
 /// ```
 /// use artic_core::Object;
-/// use artic_core::property::{Affects, AnyProperty, Inheritance, Property, PropertyKey};
+/// use artic_core::property::{Affects, PropertyVisitor, Inheritance, Property, PropertyKey};
 /// use artic_core::tree::UiTree;
 ///
 /// static FONT_SIZE: PropertyKey<f32> = PropertyKey::new("FontSize", Affects::LAYOUT, Inheritance::Replace);
@@ -59,8 +59,8 @@ use std::fmt::Debug;
 /// }
 ///
 /// impl Object for TextBlock {
-///   fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-///     visit(&self.font_size);
+///   fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+///     visitor.visit(&self.font_size);
 ///   }
 /// }
 ///
@@ -79,5 +79,10 @@ pub trait Object: Debug + Any {
   /// changes mark the node dirty, and to find a property by its key. A node type without properties
   /// implements it with an empty body. It has no default on purpose: a type that has properties
   /// but forgot to visit them would compile and silently never update.
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty));
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>);
+}
+
+/// Calls `action` with each property `object` lists.
+pub(crate) fn for_each_property(object: &dyn Object, mut action: impl FnMut(AnyProperty<'_>)) {
+  object.visit_properties(&mut PropertyVisitor::new(&mut action));
 }
