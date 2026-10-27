@@ -7,6 +7,7 @@ use artic_core::tree::{Handle, NodeId, TreeKind, UiTree};
 use artic_core::{RustExpr, ToRust};
 use artic_element::{Child, Children};
 use artic_macros::{UiProperties, UiType};
+use artic_registry as registry_alias;
 use artic_registry::{
   AttachedTarget, ContentInfo, OverrideDefaults, PropertyGroup, PropertyRef, Registry, TypeInfo, UiCollection, UiType,
   ValueError, Whitespace,
@@ -363,6 +364,38 @@ struct Common {
   margin: Property<i32>,
   #[ui(default = true, inherits)]
   enabled: Property<bool>,
+}
+
+/// An owner whose attached properties are named like the setter's other parameters.
+#[derive(Debug, UiType)]
+#[ui(attached(name = "Node", ty = usize, target = any), attached(name = "Tree", ty = usize, target = any))]
+struct Dock;
+
+// An attached property named `Node` or `Tree` gets a setter whose value parameter doesn't clash
+// with its `node` and `tree` parameters.
+#[test]
+fn attached_named_like_setter_parameters() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Dock));
+
+  Dock::set_node(&mut tree, node, 3);
+  Dock::set_tree(&mut tree, node, 4);
+
+  assert_eq!((Dock::node(&tree, node), Dock::tree(&tree, node)), (3, 4));
+}
+
+/// A property group that reaches the registry through a path of its own.
+#[derive(Debug, UiProperties)]
+#[ui(crate = "registry_alias")]
+struct Spacing {
+  #[ui]
+  gap: Property<i32>,
+}
+
+// A group takes `#[ui(crate = "...")]` like a type, for crates that reach artic through a re-export.
+#[test]
+fn group_takes_a_crate_path() {
+  assert_eq!(<Spacing as PropertyGroup>::PROPERTIES.len(), 1);
 }
 
 /// A widget that flattens `Common` and adds a property of its own.

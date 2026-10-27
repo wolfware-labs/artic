@@ -1,0 +1,342 @@
+---
+source: crates/artic-macros/src/ui_type.rs
+expression: "prettyplease::unparse(&file)"
+---
+const _: () = {
+    use ::artic_registry::__private as __artic;
+    static __KEY_WIDTH: __artic::PropertyKey<f32> = __artic::PropertyKey::new(
+        "Width",
+        __artic::Affects::LAYOUT.union(__artic::Affects::RENDER),
+        __artic::Inheritance::None,
+    );
+    static __KEY_ENABLED: __artic::PropertyKey<bool> = __artic::PropertyKey::new(
+        "Enabled",
+        __artic::Affects::RENDER,
+        __artic::Inheritance::Combine(__artic::inherit::and),
+    );
+    static __KEY_TEXT: __artic::PropertyKey<Option<String>> = __artic::PropertyKey::new(
+        "Label",
+        __artic::Affects::NONE,
+        __artic::Inheritance::None,
+    );
+    impl ::core::default::Default for Panel {
+        fn default() -> Self {
+            let __artic_value = Self {
+                width: __artic::Property::new((&__KEY_WIDTH), 1.0),
+                enabled: __artic::Property::new(
+                    (&__KEY_ENABLED),
+                    <bool as ::core::default::Default>::default(),
+                ),
+                shared: __artic::Property::new(
+                    SHARED.key(),
+                    __artic::default_beside(&SHARED, 2),
+                ),
+                text: __artic::Property::new(
+                    (&__KEY_TEXT),
+                    <Option<String> as ::core::default::Default>::default(),
+                ),
+                clicked: ::core::default::Default::default(),
+                layout: ::core::default::Default::default(),
+                children: ::core::default::Default::default(),
+                cache: ::core::default::Default::default(),
+            };
+            <Self as __artic::OverrideDefaults>::override_defaults(&__artic_value);
+            __artic_value
+        }
+    }
+    impl __artic::Object for Panel {
+        fn visit_properties(&self, visitor: &mut __artic::PropertyVisitor<'_>) {
+            visitor.visit(&self.width);
+            visitor.visit(&self.enabled);
+            visitor.visit(&self.shared);
+            visitor.visit(&self.text);
+            __artic::PropertyGroup::visit_properties(&self.layout, visitor);
+        }
+    }
+    impl __artic::HasGroup<Layout> for Panel {
+        fn group(&self) -> &Layout {
+            &self.layout
+        }
+    }
+    const _: () = {
+        ::core::assert!(
+            ! __artic::group_has_field(< Layout as __artic::PropertyGroup > ::PROPERTIES,
+            "width"),
+            "the property `width` has the name of a field of a group this type flattens; its method would hide the group's"
+        );
+        ::core::assert!(
+            ! __artic::group_has_field(< Layout as __artic::PropertyGroup > ::PROPERTIES,
+            "enabled"),
+            "the property `enabled` has the name of a field of a group this type flattens; its method would hide the group's"
+        );
+        ::core::assert!(
+            ! __artic::group_has_field(< Layout as __artic::PropertyGroup > ::PROPERTIES,
+            "shared"),
+            "the property `shared` has the name of a field of a group this type flattens; its method would hide the group's"
+        );
+        ::core::assert!(
+            ! __artic::group_has_field(< Layout as __artic::PropertyGroup > ::PROPERTIES,
+            "text"),
+            "the property `text` has the name of a field of a group this type flattens; its method would hide the group's"
+        );
+    };
+    static __PROPERTIES: [__artic::PropertyInfo; 4usize] = [
+        __artic::PropertyInfo {
+            name: (&__KEY_WIDTH).name(),
+            field: "width",
+            value_type: ::core::stringify!(f32),
+            affects: (&__KEY_WIDTH).affects(),
+            inherits: (&__KEY_WIDTH).inherits(),
+            literal: __artic::literal!(f32),
+        },
+        __artic::PropertyInfo {
+            name: (&__KEY_ENABLED).name(),
+            field: "enabled",
+            value_type: ::core::stringify!(bool),
+            affects: (&__KEY_ENABLED).affects(),
+            inherits: (&__KEY_ENABLED).inherits(),
+            literal: __artic::literal!(bool),
+        },
+        __artic::PropertyInfo {
+            name: SHARED.key().name(),
+            field: "shared",
+            value_type: ::core::stringify!(i32),
+            affects: SHARED.key().affects(),
+            inherits: SHARED.key().inherits(),
+            literal: __artic::literal!(i32),
+        },
+        __artic::PropertyInfo {
+            name: (&__KEY_TEXT).name(),
+            field: "text",
+            value_type: ::core::stringify!(Option < String >),
+            affects: (&__KEY_TEXT).affects(),
+            inherits: (&__KEY_TEXT).inherits(),
+            literal: __artic::literal!(String),
+        },
+    ];
+    static __EVENTS: [__artic::EventInfo; 1usize] = [
+        __artic::EventInfo {
+            name: "Clicked",
+            args_type: ::core::stringify!(()),
+        },
+    ];
+    static __ATTACHED: [__artic::AttachedPropertyInfo; 2usize] = [
+        __artic::AttachedPropertyInfo {
+            name: "Row",
+            value_type: ::core::stringify!(usize),
+            target: __artic::AttachedTarget::ChildrenOfOwner,
+        },
+        __artic::AttachedPropertyInfo {
+            name: "ColumnSpan",
+            value_type: ::core::stringify!(usize),
+            target: __artic::AttachedTarget::Any,
+        },
+    ];
+    static __GROUPS: [__artic::PropertyGroupInfo; 1usize] = [
+        __artic::PropertyGroupInfo {
+            field: "layout",
+            properties: <Layout as __artic::PropertyGroup>::PROPERTIES,
+            methods: <Layout as __artic::PropertyGroup>::METHODS,
+        },
+    ];
+    static __ATTACHED_ROW: __artic::AttachedKey<usize> = __artic::AttachedKey::new(
+        "Row",
+        __artic::Affects::LAYOUT,
+        __artic::Inheritance::None,
+        || 0,
+    );
+    static __ATTACHED_COLUMN_SPAN: __artic::AttachedKey<usize> = __artic::AttachedKey::new(
+        "ColumnSpan",
+        __artic::Affects::LAYOUT.union(__artic::Affects::RENDER),
+        __artic::Inheritance::Replace,
+        || <usize as ::core::default::Default>::default(),
+    );
+    static __POSITIONAL: [__artic::ArgInfo; 1usize] = [
+        __artic::ArgInfo {
+            name: (&__KEY_WIDTH).name(),
+            value_type: ::core::stringify!(f32),
+        },
+    ];
+    static __NAMED: [__artic::ArgInfo; 4usize] = [
+        __artic::ArgInfo {
+            name: (&__KEY_WIDTH).name(),
+            value_type: ::core::stringify!(f32),
+        },
+        __artic::ArgInfo {
+            name: (&__KEY_ENABLED).name(),
+            value_type: ::core::stringify!(bool),
+        },
+        __artic::ArgInfo {
+            name: SHARED.key().name(),
+            value_type: ::core::stringify!(i32),
+        },
+        __artic::ArgInfo {
+            name: (&__KEY_TEXT).name(),
+            value_type: ::core::stringify!(Option < String >),
+        },
+    ];
+    static __VALUE_PROVIDER: __artic::ValueProviderInfo = __artic::ValueProviderInfo {
+        positional: &__POSITIONAL,
+        named: &__NAMED,
+    };
+    fn __content_field<'a>(
+        tree: &'a mut __artic::UiTree,
+        owner: __artic::NodeId,
+    ) -> ::core::option::Option<&'a mut Children> {
+        tree.get_as_mut::<Panel>(owner).map(|node| &mut node.children)
+    }
+    fn __add_child(
+        tree: &mut __artic::UiTree,
+        owner: __artic::NodeId,
+        child: __artic::NodeId,
+    ) -> ::core::result::Result<(), __artic::ValueError> {
+        <Children as __artic::UiCollection>::push_child(
+            tree,
+            owner,
+            child,
+            __content_field,
+        )
+    }
+    impl Panel {
+        ///The key of `Width`, for styles.
+        pub const WIDTH: &'static __artic::PropertyKey<f32> = &__KEY_WIDTH;
+        ///The key of `Enabled`, for styles.
+        pub const ENABLED: &'static __artic::PropertyKey<bool> = &__KEY_ENABLED;
+        ///The key of `Label`, for styles.
+        pub const TEXT: &'static __artic::PropertyKey<Option<String>> = &__KEY_TEXT;
+        ///Creates a `Panel` with each property at its default.
+        #[must_use]
+        pub fn new() -> Self {
+            <Self as ::core::default::Default>::default()
+        }
+        ///Adds this `Panel` to `tree` and returns its handle.
+        #[must_use = "the handle is needed to link or reach the node"]
+        pub fn build(self, tree: &mut __artic::UiTree) -> __artic::Handle<Self> {
+            tree.alloc_typed(self)
+        }
+        /// Sets the children, linked in order when the node is built.
+        #[must_use]
+        pub fn children<I>(self, children: I) -> __artic::WithChildren<Self, I>
+        where
+            I: ::core::iter::IntoIterator,
+            I::Item: ::core::convert::Into<__artic::NodeId>,
+        {
+            __artic::WithChildren::new(self, children)
+        }
+        ///Sets `Width`, the local value.
+        #[must_use]
+        pub fn width(self, value: f32) -> Self {
+            self.width.set(value);
+            self
+        }
+        ///Sets `Enabled`, the local value.
+        #[must_use]
+        pub fn enabled(self, value: impl ::core::convert::Into<bool>) -> Self {
+            self.enabled.set(::core::convert::Into::into(value));
+            self
+        }
+        ///Sets `Shared`, the local value.
+        #[must_use]
+        pub fn shared(self, value: i32) -> Self {
+            self.shared.set(value);
+            self
+        }
+        ///Sets `Label` to `Some(value)`, the local value.
+        #[must_use]
+        pub fn text(self, value: impl ::core::convert::Into<String>) -> Self {
+            self.text
+                .set(::core::option::Option::Some(::core::convert::Into::into(value)));
+            self
+        }
+        ///The `Panel.Row` attached property.
+        pub const ROW: &'static __artic::AttachedKey<usize> = &__ATTACHED_ROW;
+        ///Sets `Panel.Row` on `node`, at local precedence.
+        pub fn set_row(
+            tree: &mut __artic::UiTree,
+            node: impl ::core::convert::Into<__artic::NodeId>,
+            value: usize,
+        ) {
+            tree.attached_property(node.into(), Self::ROW).set(value);
+        }
+        ///Returns `Panel.Row` of `node`, or its default when nothing set it.
+        #[must_use]
+        pub fn row(
+            tree: &__artic::UiTree,
+            node: impl ::core::convert::Into<__artic::NodeId>,
+        ) -> usize {
+            tree.attached(node.into(), Self::ROW)
+        }
+        ///The `Panel.ColumnSpan` attached property.
+        pub const COLUMN_SPAN: &'static __artic::AttachedKey<usize> = &__ATTACHED_COLUMN_SPAN;
+        ///Sets `Panel.ColumnSpan` on `node`, at local precedence.
+        pub fn set_column_span(
+            tree: &mut __artic::UiTree,
+            node: impl ::core::convert::Into<__artic::NodeId>,
+            value: usize,
+        ) {
+            tree.attached_property(node.into(), Self::COLUMN_SPAN).set(value);
+        }
+        ///Returns `Panel.ColumnSpan` of `node`, or its default when nothing set it.
+        #[must_use]
+        pub fn column_span(
+            tree: &__artic::UiTree,
+            node: impl ::core::convert::Into<__artic::NodeId>,
+        ) -> usize {
+            tree.attached(node.into(), Self::COLUMN_SPAN)
+        }
+    }
+    fn __new(tree: &mut __artic::UiTree) -> __artic::NodeId {
+        tree.alloc(
+            ::std::boxed::Box::new(<Panel as ::core::default::Default>::default()),
+        )
+    }
+    static __TYPE_INFO: __artic::TypeInfo = __artic::TypeInfo {
+        name: ::core::stringify!(Panel),
+        rust_path: ::core::concat!(
+            ::core::module_path!(), "::", ::core::stringify!(Panel)
+        ),
+        new: __new,
+        content: __artic::one_content(
+            &[
+                ::core::option::Option::Some(__artic::ContentInfo::Collection {
+                    field: "children",
+                    method: ::core::option::Option::Some(
+                        __artic::ContentMethod::Children,
+                    ),
+                    add_child: __add_child,
+                }),
+                __artic::group_content(
+                    "layout",
+                    <Layout as __artic::PropertyGroup>::CONTENT,
+                ),
+            ],
+        ),
+        properties: &__PROPERTIES,
+        groups: &__GROUPS,
+        events: &__EVENTS,
+        attached_properties: &__ATTACHED,
+        value_provider: ::core::option::Option::Some(&__VALUE_PROVIDER),
+        whitespace: __artic::Whitespace::Significant,
+    };
+    impl __artic::UiType for Panel {
+        const TYPE_INFO: &'static __artic::TypeInfo = &__TYPE_INFO;
+    }
+    __artic::register_type!(__TYPE_INFO);
+    #[allow(dead_code, clippy::needless_borrow)]
+    fn __checks() {
+        use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+        (&&__artic::ValueCheck::<f32>(__artic::PhantomData))
+            .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+        (&&__artic::ValueCheck::<bool>(__artic::PhantomData))
+            .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+        (&&__artic::ValueCheck::<i32>(__artic::PhantomData))
+            .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+        (&&__artic::ValueCheck::<String>(__artic::PhantomData))
+            .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+        __artic::assert_property_group::<Layout>();
+        (&&__artic::ValueCheck::<usize>(__artic::PhantomData))
+            .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+        (&&__artic::ValueCheck::<usize>(__artic::PhantomData))
+            .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+    }
+};

@@ -1,0 +1,11 @@
+error[E0599]: no associated function or constant named `LAYUT` found for struct `Affects` in the current scope
+ --> tests/ui/unknown_affects_stage.rs:6:18
+  |
+6 |   #[ui(affects = layut)]
+  |                  ^^^^^ associated function or constant not found in `Affects`
+  |
+help: there is an associated constant `LAYOUT` with a similar name
+  |
+6 -   #[ui(affects = layut)]
+6 +   #[ui(affects = LAYOUT)]
+  |

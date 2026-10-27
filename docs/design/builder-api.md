@@ -157,7 +157,7 @@ An attached property is stored on its target node, so it can only be set once th
 ```rust,ignore
 impl Grid {
   pub const ROW: &'static AttachedKey<usize>;
-  pub fn set_row(tree: &mut UiTree, node: impl Into<NodeId>, row: usize);
+  pub fn set_row(tree: &mut UiTree, node: impl Into<NodeId>, value: usize);
   pub fn row(tree: &UiTree, node: impl Into<NodeId>) -> usize;
 }
 

@@ -1,99 +1,71 @@
 use crate::crate_root::{REGISTRY, crate_root};
-use crate::ui_type::attributes::parse_field_attributes;
-use crate::ui_type::builders::{Setter, key_constant, setter};
-use crate::ui_type::fields::{Role, UiField, check_content, classify, reject_unmarked_member};
-use crate::ui_type::generate::{default_field, key_static, property_info, value_check};
+use crate::members::attributes::unknown_key;
+use crate::members::emit::{Setter, checks, default_impl, key_constant, key_static, properties_static, setter, visits};
+use crate::members::{Content, Kind, Members, PropertyField};
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
-use syn::ext::IdentExt;
-use syn::{Data, DeriveInput, Error, Fields, Visibility};
+use syn::{DeriveInput, Ident, LitStr, Path, Visibility};
+
+/// A struct read for `UiProperties`: its fields and the crate path its `#[ui(crate = "...")]`
+/// names, if any.
+struct GroupAnalysis<'a> {
+  ident: &'a Ident,
+  members: Members<'a>,
+  crate_path: Option<Path>,
+}
+
+/// Reads a group's struct attribute and fields, and checks the names they generate.
+fn analyze(input: &DeriveInput) -> syn::Result<GroupAnalysis<'_>> {
+  let mut crate_path = None;
+  for attribute in input.attrs.iter().filter(|attribute| attribute.path().is_ident("ui")) {
+    attribute.parse_nested_meta(|meta| {
+      if !meta.path.is_ident("crate") {
+        return Err(unknown_key(&meta, "`crate`"));
+      }
+      let value: LitStr = meta.value()?.parse()?;
+      crate_path = Some(value.parse::<Path>()?);
+      Ok(())
+    })?;
+  }
+  let members = Members::analyze(input, Kind::Group)?;
+  members.check_names([])?;
+  Ok(GroupAnalysis {
+    ident: &input.ident,
+    members,
+    crate_path,
+  })
+}
 
 /// Writes a property group: its keys and their public constants, `Default`, `PropertyGroup` with
 /// its descriptors, and its methods trait.
 pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
-  let ident = &input.ident;
-  let Data::Struct(data) = &input.data else {
-    return Err(Error::new_spanned(ident, "`UiProperties` can only be derived for a struct"));
-  };
-  let Fields::Named(fields) = &data.fields else {
-    return Err(Error::new_spanned(
-      &data.fields,
-      "`UiProperties` needs a struct with named fields",
-    ));
-  };
-  if !input.generics.params.is_empty() {
-    return Err(Error::new_spanned(
-      &input.generics,
-      "`UiProperties` can't be derived for a generic struct",
-    ));
-  }
-  if let Some(attribute) = input.attrs.iter().find(|attribute| attribute.path().is_ident("ui")) {
-    return Err(Error::new_spanned(
-      attribute,
-      "a property group takes no `#[ui(...)]` on the struct",
-    ));
-  }
-  let mut properties = Vec::new();
-  let mut others = Vec::new();
-  for field in &fields.named {
-    let field_ident = field.ident.as_ref().expect("named fields have names");
-    match parse_field_attributes(field)? {
-      Some(attributes) => {
-        let classified = classify(field, field_ident, attributes)?;
-        if !matches!(classified.role, Role::Property { .. }) {
-          return Err(Error::new_spanned(&field.ty, "a property group holds only `Property` fields"));
-        }
-        properties.push(classified);
-      }
-      None => {
-        reject_unmarked_member(field)?;
-        others.push(field_ident);
-      }
-    }
-  }
-  check_content(&properties)?;
-  for field in &properties {
-    let name = field.ident.unraw().to_string();
-    if ["new", "build", "child", "children"].contains(&name.as_str()) {
-      return Err(Error::new_spanned(
-        field.ident,
-        format_args!("a group field can't be named `{name}`: every type that flattens the group has its own `{name}`"),
-      ));
-    }
-  }
-  let content = properties
-    .iter()
-    .position(|field| field.attributes.content.is_some())
-    .map(|index| quote!(const CONTENT: ::core::option::Option<&'static __artic::PropertyInfo> = ::core::option::Option::Some(&__PROPERTIES[#index]);));
-  let root = crate_root(None, ident, REGISTRY)?;
-  let keys = properties.iter().map(key_static);
-  let defaults = properties.iter().map(default_field);
-  let infos = properties.iter().map(property_info);
-  let checks = properties.iter().map(value_check);
-  let visits = properties.iter().map(|field| {
-    let field_ident = field.ident;
-    quote!(visitor.visit(&self.#field_ident);)
-  });
-  let count = properties.len();
-  let methods = methods_trait(input, &properties, &root);
+  let analysis = analyze(input)?;
+  let ident = analysis.ident;
+  let members = &analysis.members;
+  let root = crate_root(analysis.crate_path.as_ref(), ident, REGISTRY)?;
+  let keys = members.properties.iter().map(key_static);
+  let default_impl = default_impl(ident, members, None);
+  let properties = properties_static(members);
+  let constants = members.properties.iter().filter_map(key_constant);
   let trait_name = format_ident!("{ident}Methods").to_string();
-  let constants = properties.iter().filter_map(key_constant);
+  let content = match members.content {
+    Some(Content::Property(index)) => Some(
+      quote!(const CONTENT: ::core::option::Option<&'static __artic::PropertyInfo> = ::core::option::Option::Some(&__PROPERTIES[#index]);),
+    ),
+    _ => None,
+  };
+  let visits = visits(members);
+  let checks = checks(members, []);
+  let methods = methods_trait(input, &members.properties, &root);
   Ok(quote! {
     const _: () = {
       use #root::__private as __artic;
 
       #(#keys)*
 
-      impl ::core::default::Default for #ident {
-        fn default() -> Self {
-          Self {
-            #(#defaults,)*
-            #(#others: ::core::default::Default::default(),)*
-          }
-        }
-      }
+      #default_impl
 
-      static __PROPERTIES: [__artic::PropertyInfo; #count] = [#(#infos),*];
+      #properties
 
       impl #ident {
         #(#constants)*
@@ -105,15 +77,11 @@ pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
         #content
 
         fn visit_properties(&self, visitor: &mut __artic::PropertyVisitor<'_>) {
-          #(#visits)*
+          #visits
         }
       }
 
-      #[allow(dead_code, clippy::needless_borrow)]
-      fn __checks() {
-        use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-        #(#checks)*
-      }
+      #checks
     };
 
     #methods
@@ -123,21 +91,21 @@ pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
 /// The group's methods trait: one provided method per field the trait can expose, reaching the
 /// group through `HasGroup`, and a blanket impl for every type that holds the group. It is
 /// written beside the group, outside the derive's anonymous block, so it can be named.
-fn methods_trait(input: &DeriveInput, properties: &[UiField], root: &TokenStream) -> TokenStream {
+fn methods_trait(input: &DeriveInput, properties: &[PropertyField], root: &TokenStream) -> TokenStream {
   let (ident, vis) = (&input.ident, &input.vis);
   let name = format_ident!("{ident}Methods");
   let doc = format!("The builder methods of the `{ident}` group, on every type that flattens it.");
-  let methods = properties.iter().filter(|field| exposed(field.vis, vis)).filter_map(|field| {
-    let Setter { parameter, stored, doc } = setter(field)?;
+  let methods = properties.iter().filter(|field| exposed(field.vis, vis)).map(|field| {
+    let Setter { parameter, stored, doc } = setter(field);
     let field_ident = field.ident;
-    Some(quote! {
+    quote! {
       #[doc = #doc]
       #[must_use]
       fn #field_ident(self, value: #parameter) -> Self {
         <Self as #root::__private::HasGroup<#ident>>::group(&self).#field_ident.set(#stored);
         self
       }
-    })
+    }
   });
   quote! {
     #[doc = #doc]
@@ -181,18 +149,8 @@ mod tests {
 
   /// The methods trait for `input`, pretty-printed.
   fn expand_trait(input: &DeriveInput) -> String {
-    let properties: Vec<UiField> = match &input.data {
-      Data::Struct(data) => data
-        .fields
-        .iter()
-        .map(|field| {
-          let attributes = parse_field_attributes(field).expect("valid").expect("marked");
-          classify(field, field.ident.as_ref().expect("named"), attributes).expect("a property")
-        })
-        .collect(),
-      _ => unreachable!("a struct"),
-    };
-    let file: syn::File = syn::parse2(methods_trait(input, &properties, &quote!(::artic_registry))).expect("parses");
+    let members = Members::analyze(input, Kind::Group).expect("a valid group");
+    let file: syn::File = syn::parse2(methods_trait(input, &members.properties, &quote!(::artic_registry))).expect("parses");
     prettyplease::unparse(&file)
   }
 
@@ -242,6 +200,77 @@ mod tests {
     assert!(!expanded.contains("fn narrow("));
   }
 
+  // A group expanded whole: the snapshot pins everything the derive writes.
+  #[test]
+  fn whole_group_expansion() {
+    let input: DeriveInput = parse_quote! {
+      pub struct Layout {
+        #[ui(content)] pub width: Property<f32>,
+        #[ui(affects = layout)] pub margin: Property<Thickness>,
+        cache: u8,
+      }
+    };
+
+    let file: syn::File = syn::parse2(expand(&input).expect("valid")).expect("parses");
+    insta::assert_snapshot!(prettyplease::unparse(&file));
+  }
+
+  // A group's methods live in its trait and its key constants on the group, so a field whose
+  // method and constant share a name is fine, while two constants of one name aren't.
+  #[test]
+  fn group_methods_and_constants_are_checked_apart() {
+    let screaming: DeriveInput = parse_quote! { struct Sizing { #[ui] WIDTH: Property<f32> } };
+    let twins: DeriveInput = parse_quote! { struct Sizing { #[ui] row_span: Property<f32>, #[ui] rowSpan: Property<f32> } };
+
+    assert!(expand(&screaming).is_ok());
+    assert_eq!(
+      expand(&twins).expect_err("one constant name").to_string(),
+      "`ROW_SPAN` would be both the key constant of the property `row_span` and the key constant of the property `rowSpan`; rename one"
+    );
+  }
+
+  // A group's key constant named like `PropertyGroup`'s descriptors would hide them, so it's
+  // rejected. `CONTENT` stays free: a `content` property's key is `CONTENT`, like any other key
+  // constant, and the group's content is reached through the trait.
+  #[test]
+  fn group_constants_named_like_property_group_items_are_an_error() {
+    let content: DeriveInput = parse_quote! { struct ContentState { #[ui(content)] content: Property<f32> } };
+
+    assert!(expand(&content).is_ok());
+    for (field, item) in [("properties", "PROPERTIES"), ("methods", "METHODS")] {
+      let field = Ident::new(field, proc_macro2::Span::call_site());
+      let input: DeriveInput = parse_quote! { struct Sizing { #[ui] #field: Property<f32> } };
+
+      assert_eq!(
+        expand(&input).expect_err("a hidden item").to_string(),
+        format!("`{item}` would be both `PropertyGroup::{item}` and the key constant of the property `{field}`; rename one")
+      );
+    }
+  }
+
+  // The crate path a group names is the one its expansion reaches artic through.
+  #[test]
+  fn group_crate_path_is_used() {
+    let input: DeriveInput = parse_quote! { #[ui(crate = "registry_alias")] struct Sizing { #[ui] gap: Property<f32> } };
+
+    assert!(
+      expand(&input)
+        .expect("valid")
+        .to_string()
+        .contains("use registry_alias :: __private as __artic")
+    );
+  }
+
+  // A group's struct takes `crate` and nothing else in `#[ui(...)]`.
+  #[test]
+  fn group_struct_keys_other_than_crate_are_an_error() {
+    let input: DeriveInput = parse_quote! { #[ui(whitespace = "collapse")] struct Sizing { #[ui] width: Property<f32> } };
+
+    let error = expand(&input).expect_err("an unknown key").to_string();
+
+    assert_eq!(error, "unknown `ui` key `whitespace`; expected `crate`");
+  }
+
   // A group field named like a builder method every type has is rejected.
   #[test]
   fn group_fields_with_builder_names_are_an_error() {
@@ -251,7 +280,7 @@ mod tests {
 
     assert_eq!(
       error,
-      "a group field can't be named `build`: every type that flattens the group has its own `build`"
+      "`build` would be both the `build` of every type that flattens the group and the method of the property `build`; rename one"
     );
   }
 }
