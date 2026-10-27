@@ -12,7 +12,7 @@ pub use font::{
   FamilyName, FamilyProblem, FontFamily, FontStyle, FontWeight, GenericFamily, ParseFontFamilyError, ParseFontWeightError,
   WeightProblem,
 };
-pub use paragraph::{FontData, Glyph, GlyphRun, Line, Paragraph, Synthesis};
+pub use paragraph::{FontBytes, FontData, Glyph, GlyphRun, Line, Paragraph, Synthesis};
 pub use paragraph_style::{ParagraphStyle, TextAlignment, TextTrimming, TextWrapping};
 
 /// How the characters look: their font.

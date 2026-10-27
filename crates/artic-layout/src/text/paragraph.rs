@@ -198,6 +198,9 @@ pub struct Glyph {
 /// The next id [`FontData::new`] hands out.
 static NEXT_FONT_ID: AtomicU64 = AtomicU64::new(1);
 
+/// A font file's bytes, shared: the shaper and every renderer read the same copy.
+pub type FontBytes = Arc<dyn AsRef<[u8]> + Send + Sync>;
+
 /// A font file's bytes and the face in it that a glyph run draws from.
 ///
 /// Each one gets an id when it's created, unique in the process and kept for as long as the bytes
@@ -205,7 +208,7 @@ static NEXT_FONT_ID: AtomicU64 = AtomicU64::new(1);
 /// cache what it derives from a font, such as outlines or a typeface, keyed by id and index.
 #[derive(Clone)]
 pub struct FontData {
-  bytes: Arc<dyn AsRef<[u8]> + Send + Sync>,
+  bytes: FontBytes,
   index: u32,
   id: u64,
 }
@@ -214,7 +217,7 @@ impl FontData {
   /// The face at `index` in the font file `bytes`, with a new id. A file with one face has only
   /// index 0; a collection (`.ttc`) has one index per face.
   #[must_use]
-  pub fn new(bytes: Arc<dyn AsRef<[u8]> + Send + Sync>, index: u32) -> FontData {
+  pub fn new(bytes: FontBytes, index: u32) -> FontData {
     FontData {
       bytes,
       index,
@@ -224,7 +227,7 @@ impl FontData {
 
   /// The font file's bytes.
   #[must_use]
-  pub fn bytes(&self) -> &Arc<dyn AsRef<[u8]> + Send + Sync> {
+  pub fn bytes(&self) -> &FontBytes {
     &self.bytes
   }
 
@@ -318,7 +321,7 @@ mod tests {
   // Each new font data gets its own id, even from the same bytes, and a clone keeps it.
   #[test]
   fn font_data_compares_by_id() {
-    let bytes: Arc<dyn AsRef<[u8]> + Send + Sync> = Arc::new(vec![1_u8, 2, 3]);
+    let bytes: FontBytes = Arc::new(vec![1_u8, 2, 3]);
     let first = FontData::new(Arc::clone(&bytes), 0);
     let second = FontData::new(bytes, 0);
 

@@ -3,7 +3,7 @@
 use crate::candidates::Candidates;
 use crate::shaping::Shaping;
 use crate::{lines, paragraph};
-use artic_layout::text::{FamilyName, GenericFamily, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
+use artic_layout::text::{FamilyName, FontBytes, GenericFamily, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
 use fontique::{Blob, Collection, CollectionOptions, SourceCache};
 use parley::FontContext;
 use std::fmt::{self, Debug, Formatter};
@@ -30,18 +30,28 @@ impl Engine {
     Engine::new(fonts, FamilyName::Generic(GenericFamily::SystemUi))
   }
 
+  /// An engine that knows no font, so every paragraph has no lines: for layout with no text in it.
+  #[must_use]
+  pub fn without_fonts() -> Engine {
+    Engine::with_fonts::<&[u8]>([])
+  }
+
   /// An engine that knows only `fonts`, with every generic family pointing at them, in order.
   ///
   /// Its default family is the first font's, so a family it doesn't know lands on that font too.
   /// Bytes that aren't a font are skipped; with no font at all, every paragraph is empty.
   #[must_use]
-  pub fn with_fonts(fonts: impl IntoIterator<Item = Arc<dyn AsRef<[u8]> + Send + Sync>>) -> Engine {
+  pub fn with_fonts<F>(fonts: impl IntoIterator<Item = F>) -> Engine
+  where
+    F: AsRef<[u8]> + Send + Sync + 'static,
+  {
     let mut collection = Collection::new(CollectionOptions {
       shared: false,
       system_fonts: false,
     });
     let mut families = Vec::new();
     for bytes in fonts {
+      let bytes: FontBytes = Arc::new(bytes);
       for (family, _) in collection.register_fonts(Blob::new(bytes), None) {
         if !families.contains(&family) {
           families.push(family);
@@ -100,7 +110,7 @@ mod tests {
   use pretty_assertions::assert_eq;
 
   fn engine() -> Engine {
-    Engine::with_fonts([Arc::new(artic_test_fonts::REGULAR) as Arc<dyn AsRef<[u8]> + Send + Sync>])
+    Engine::with_fonts([artic_test_fonts::REGULAR])
   }
 
   // A candidate keeps every cluster but the direction mark in front of it, and its cluster starts

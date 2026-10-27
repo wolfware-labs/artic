@@ -10,12 +10,8 @@ use std::sync::Arc;
 
 const LINE: f32 = 19.84;
 
-fn font(bytes: &'static [u8]) -> Arc<dyn AsRef<[u8]> + Send + Sync> {
-  Arc::new(bytes)
-}
-
 fn engine() -> Engine {
-  Engine::with_fonts([font(REGULAR), font(BOLD)])
+  Engine::with_fonts([REGULAR, BOLD])
 }
 
 fn style() -> TextStyle {
@@ -79,7 +75,7 @@ fn bad_sizes_give_an_empty_paragraph() {
 // An engine without fonts gives an empty paragraph of size 0.
 #[test]
 fn no_font_gives_an_empty_paragraph() {
-  let paragraph = shape(&mut Engine::with_fonts([]), "Hello", &style());
+  let paragraph = shape(&mut Engine::without_fonts(), "Hello", &style());
 
   assert_eq!(paragraph, Paragraph::default());
 }
@@ -87,7 +83,7 @@ fn no_font_gives_an_empty_paragraph() {
 // Bytes that aren't a font are skipped, and the first font that loads is the default family.
 #[test]
 fn unreadable_font_bytes_are_skipped() {
-  let mut engine = Engine::with_fonts([font(b"not a font"), font(REGULAR)]);
+  let mut engine = Engine::with_fonts([&b"not a font"[..], REGULAR]);
   let nope = TextStyle::new("Nope".parse().unwrap(), 16.0);
 
   assert!(std::ptr::eq(face(&shape(&mut engine, "Hello", &nope)), REGULAR));
@@ -100,6 +96,17 @@ fn missing_family_falls_back() {
   let listed = TextStyle::new("Nope, 'Atkinson Hyperlegible'".parse().unwrap(), 16.0);
 
   assert_eq!(shape(&mut engine, "Hello", &listed), shape(&mut engine, "Hello", &style()));
+}
+
+// Font bytes come as the caller holds them: borrowed, owned or already shared.
+#[test]
+fn with_fonts_takes_any_bytes() {
+  let owned = Engine::with_fonts([REGULAR.to_vec()]);
+  let shared = Engine::with_fonts([Arc::<[u8]>::from(REGULAR)]);
+
+  for mut engine in [owned, shared] {
+    assert_eq!(shape(&mut engine, "a", &style()).runs()[0].glyphs().len(), 1);
+  }
 }
 
 // With only its own fonts, an unknown name and every generic family land on the first font.
@@ -134,7 +141,7 @@ fn missing_bold_is_synthesized() {
     weight: FontWeight::BOLD,
     ..style()
   };
-  let paragraph = shape(&mut Engine::with_fonts([font(REGULAR)]), "Hello", &style);
+  let paragraph = shape(&mut Engine::with_fonts([REGULAR]), "Hello", &style);
 
   assert!(std::ptr::eq(face(&paragraph), REGULAR));
   assert!(paragraph.runs()[0].synthesis().embolden);
@@ -248,7 +255,7 @@ fn system_font_keeps_its_id() {
 // Debug shows the default family and how many faces the engine has drawn from.
 #[test]
 fn engine_debug_shows_default_family_and_faces() {
-  let mut engine = Engine::with_fonts([font(REGULAR)]);
+  let mut engine = Engine::with_fonts([REGULAR]);
   shape(&mut engine, "Hello", &style());
 
   assert_eq!(

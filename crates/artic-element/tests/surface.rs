@@ -102,7 +102,7 @@ fn surface_lays_out_its_content() {
     surface,
     Size::new(200.0, 100.0),
     PixelGrid { scale: 1.0, snap: false },
-    &mut Engine::with_fonts([]),
+    &mut Engine::without_fonts(),
   );
 
   assert_eq!(layout.rect(content), Some(Rect::new(0.0, 0.0, 200.0, 100.0)));

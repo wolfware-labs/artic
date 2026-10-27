@@ -182,7 +182,7 @@ mod tests {
       root,
       Size::new(100.0, 100.0),
       grid,
-      &mut artic_text::Engine::with_fonts([]),
+      &mut artic_text::Engine::without_fonts(),
     );
     (tree, spot, unreached, layout)
   }
@@ -282,7 +282,7 @@ mod tests {
       node,
       Size::new(10.0, 10.0),
       grid,
-      &mut artic_text::Engine::with_fonts([]),
+      &mut artic_text::Engine::without_fonts(),
     );
     let mut builder = SceneBuilder::default();
 

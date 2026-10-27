@@ -18,7 +18,6 @@ use common::with_renderer;
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 use std::ops::Range;
-use std::sync::Arc;
 
 const SIZE: u32 = 16;
 const RED: Color = Color::rgb(255, 0, 0);
@@ -549,7 +548,7 @@ fn accepts_handles_and_pixels() {
 
 /// `text` shaped at 32 px with only the test font's regular face, in `weight` and `style`.
 fn shaped(text: &str, weight: FontWeight, style: FontStyle) -> Paragraph {
-  let fonts = [Arc::new(artic_test_fonts::REGULAR) as Arc<dyn AsRef<[u8]> + Send + Sync>];
+  let fonts = [artic_test_fonts::REGULAR];
   let style = TextStyle {
     weight,
     style,
