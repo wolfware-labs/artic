@@ -842,6 +842,7 @@ impl UiTree {
     }
   }
 
+  #[track_caller]
   fn held<T>(&self, node: NodeId, key: &'static AttachedKey<T>) -> Option<Property<T>>
   where
     T: PartialEq + 'static,
