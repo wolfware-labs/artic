@@ -110,7 +110,7 @@ flowchart BT
 ### How a view becomes pixels
 
 1. `artic-xaml` parses a `.xaml` file into an infoset.
-2. In a normal build, `artic-xaml-lang` reads the infoset into a view and `artic-view-compiler` turns it into Rust from `build.rs`. With hot reload, `artic-xaml-runtime` builds the same tree at runtime. A conformance test keeps the two paths identical.
+2. In a normal build, `artic-xaml-lang` reads the infoset into a view and `artic-view-compiler` turns it into Rust from `build.rs`. With hot reload, planned, `artic-xaml-runtime` will build the same tree at runtime, and a conformance test will keep the two paths identical.
 3. `artic-core` holds the tree and the signals. Bindings and styles write to properties through one invalidation path.
 4. Each frame runs only the dirty stages: style, layout (`artic-layout`), scene building and rendering (`artic-render`), then the accessibility update (`artic-platform`).
 
