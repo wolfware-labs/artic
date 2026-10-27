@@ -146,7 +146,7 @@ fn registered_elements_are_laid_out_through_the_cast_table() {
     column,
     Size::new(200.0, 100.0),
     PixelGrid { scale: 1.0, snap: false },
-    &mut Engine::with_fonts([]),
+    &mut Engine::without_fonts(),
   );
 
   assert_eq!(layout.desired(column), Some(Size::new(30.0, 30.0)));

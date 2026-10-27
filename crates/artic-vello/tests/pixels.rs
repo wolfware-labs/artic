@@ -18,7 +18,6 @@ use common::with_renderer;
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 use std::ops::Range;
-use std::sync::Arc;
 
 const SIZE: u32 = 16;
 const RED: Color = Color::rgb(255, 0, 0);
@@ -549,13 +548,17 @@ fn accepts_handles_and_pixels() {
 
 /// `text` shaped at 32 px with only the test font's regular face, in `weight` and `style`.
 fn shaped(text: &str, weight: FontWeight, style: FontStyle) -> Paragraph {
-  let fonts = [Arc::new(artic_test_fonts::REGULAR) as Arc<dyn AsRef<[u8]> + Send + Sync>];
   let style = TextStyle {
     weight,
     style,
     ..TextStyle::new(FontFamily::default(), 32.0)
   };
-  artic_text::Engine::with_fonts(fonts).paragraph(text, &style, &ParagraphStyle::default(), TextLimits::NONE)
+  artic_text::Engine::with_fonts([artic_test_fonts::REGULAR]).paragraph(
+    text,
+    &style,
+    &ParagraphStyle::default(),
+    TextLimits::NONE,
+  )
 }
 
 /// The alpha of each pixel of `paragraph` drawn in black at (8, 8) on 64 by 64, row by row.

@@ -140,7 +140,7 @@ The engine keeps lines in order until `max_lines` is reached or the next line's 
 - `limited_width()`: whether `max_width` shaped the paragraph, because a line broke other than at a hard break, was justified, or was trimmed and lost some of its own text to fit. A line that keeps all its text and only gains "…" because lines after it were dropped doesn't count: a wider box would draw it the same;
 - `limited_height()`: whether `max_height` dropped lines.
 
-`Paragraph::new` makes a left-to-right paragraph that no limit shaped, and `with_right_to_left` and `with_limited` set the rest, for engines outside artic.
+`Paragraph::new` makes a left-to-right paragraph that no limit shaped, and `with_right_to_left`, `with_limited_width` and `with_limited_height` set the rest, for engines outside artic.
 
 ## 4. Trimming
 

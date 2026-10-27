@@ -10,12 +10,8 @@ use std::sync::Arc;
 
 const LINE: f32 = 19.84;
 
-fn font(bytes: &'static [u8]) -> Arc<dyn AsRef<[u8]> + Send + Sync> {
-  Arc::new(bytes)
-}
-
 fn engine() -> Engine {
-  Engine::with_fonts([font(REGULAR), font(BOLD)])
+  Engine::with_fonts([REGULAR, BOLD])
 }
 
 fn style() -> TextStyle {
@@ -42,7 +38,7 @@ fn assert_close(actual: f32, expected: f32) {
 }
 
 fn face(paragraph: &Paragraph) -> &[u8] {
-  (**paragraph.runs()[0].font().bytes()).as_ref()
+  paragraph.runs()[0].font().bytes().as_ref()
 }
 
 // The test font sets "Hello, world" at 16 px in one line of its own size.
@@ -63,12 +59,12 @@ fn empty_text_has_one_line_height() {
   assert_eq!(paragraph.size().width, 0.0);
   assert_close(paragraph.size().height, LINE);
   assert_eq!(paragraph.lines().len(), 1);
-  assert!(paragraph.is_empty());
+  assert!(!paragraph.has_glyphs());
 }
 
-// A size that isn't finite or isn't above 0 gives an empty paragraph of size 0.
+// A size that isn't finite or isn't above 0 gives a paragraph with no lines, of size 0.
 #[test]
-fn bad_sizes_give_an_empty_paragraph() {
+fn bad_sizes_give_a_paragraph_with_no_lines() {
   for size in [0.0, -1.0, f32::NAN, f32::INFINITY] {
     let style = TextStyle { size, ..style() };
 
@@ -76,10 +72,10 @@ fn bad_sizes_give_an_empty_paragraph() {
   }
 }
 
-// An engine without fonts gives an empty paragraph of size 0.
+// An engine without fonts gives a paragraph with no lines, of size 0.
 #[test]
-fn no_font_gives_an_empty_paragraph() {
-  let paragraph = shape(&mut Engine::with_fonts([]), "Hello", &style());
+fn no_font_gives_a_paragraph_with_no_lines() {
+  let paragraph = shape(&mut Engine::without_fonts(), "Hello", &style());
 
   assert_eq!(paragraph, Paragraph::default());
 }
@@ -87,7 +83,7 @@ fn no_font_gives_an_empty_paragraph() {
 // Bytes that aren't a font are skipped, and the first font that loads is the default family.
 #[test]
 fn unreadable_font_bytes_are_skipped() {
-  let mut engine = Engine::with_fonts([font(b"not a font"), font(REGULAR)]);
+  let mut engine = Engine::with_fonts([&b"not a font"[..], REGULAR]);
   let nope = TextStyle::new("Nope".parse().unwrap(), 16.0);
 
   assert!(std::ptr::eq(face(&shape(&mut engine, "Hello", &nope)), REGULAR));
@@ -100,6 +96,19 @@ fn missing_family_falls_back() {
   let listed = TextStyle::new("Nope, 'Atkinson Hyperlegible'".parse().unwrap(), 16.0);
 
   assert_eq!(shape(&mut engine, "Hello", &listed), shape(&mut engine, "Hello", &style()));
+}
+
+// Font bytes come as the caller holds them: borrowed, owned, shared, or taken from a shaped run.
+#[test]
+fn with_fonts_takes_any_bytes() {
+  let owned = Engine::with_fonts([REGULAR.to_vec()]);
+  let shared = Engine::with_fonts([Arc::<[u8]>::from(REGULAR)]);
+  let first = shape(&mut engine(), "a", &style());
+  let again = Engine::with_fonts([first.runs()[0].font().bytes().clone()]);
+
+  for mut engine in [owned, shared, again] {
+    assert_eq!(shape(&mut engine, "a", &style()).runs()[0].glyphs().len(), 1);
+  }
 }
 
 // With only its own fonts, an unknown name and every generic family land on the first font.
@@ -134,7 +143,7 @@ fn missing_bold_is_synthesized() {
     weight: FontWeight::BOLD,
     ..style()
   };
-  let paragraph = shape(&mut Engine::with_fonts([font(REGULAR)]), "Hello", &style);
+  let paragraph = shape(&mut Engine::with_fonts([REGULAR]), "Hello", &style);
 
   assert!(std::ptr::eq(face(&paragraph), REGULAR));
   assert!(paragraph.runs()[0].synthesis().embolden);
@@ -216,7 +225,7 @@ fn trailing_newline_keeps_its_empty_line() {
 fn system_engine_resolves_system_ui() {
   let paragraph = shape(&mut Engine::system(), "Hello", &TextStyle::new(FontFamily::default(), 16.0));
 
-  if paragraph.is_empty() {
+  if !paragraph.has_glyphs() {
     eprintln!("skipped: no system fonts installed");
     return;
   }
@@ -233,7 +242,7 @@ fn system_font_keeps_its_id() {
   let mono = TextStyle::new(FontFamily::from(GenericFamily::Monospace), 16.0);
 
   let first = shape(&mut engine, "Hello", &ui);
-  if first.is_empty() {
+  if !first.has_glyphs() {
     eprintln!("skipped: no system fonts installed");
     return;
   }
@@ -248,7 +257,7 @@ fn system_font_keeps_its_id() {
 // Debug shows the default family and how many faces the engine has drawn from.
 #[test]
 fn engine_debug_shows_default_family_and_faces() {
-  let mut engine = Engine::with_fonts([font(REGULAR)]);
+  let mut engine = Engine::with_fonts([REGULAR]);
   shape(&mut engine, "Hello", &style());
 
   assert_eq!(
@@ -1270,7 +1279,7 @@ fn trimming_empty_text_draws_nothing() {
     },
   );
 
-  assert!(paragraph.is_empty());
+  assert!(!paragraph.has_glyphs());
 }
 
 // A line cut because the lines after it were dropped keeps its whole text and gains "…", in every

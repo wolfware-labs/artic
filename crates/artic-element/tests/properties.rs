@@ -174,7 +174,7 @@ fn bounds_of(boxed: Boxed) -> Rect {
     node,
     Size::new(200.0, 100.0),
     PixelGrid { scale: 1.0, snap: false },
-    &mut Engine::with_fonts([]),
+    &mut Engine::without_fonts(),
   );
   layout.rect(node).expect("arranged")
 }
@@ -215,7 +215,7 @@ fn min_max_clamp_desired_size() {
     node,
     Size::new(200.0, 100.0),
     PixelGrid { scale: 1.0, snap: false },
-    &mut Engine::with_fonts([]),
+    &mut Engine::without_fonts(),
   );
 
   assert_eq!(layout.desired(node), Some(Size::new(60.0, 30.0)));
@@ -237,7 +237,7 @@ fn collapsed_takes_no_space() {
     parent,
     available,
     PixelGrid { scale: 1.0, snap: false },
-    &mut Engine::with_fonts([]),
+    &mut Engine::without_fonts(),
   );
 
   tree
@@ -252,7 +252,7 @@ fn collapsed_takes_no_space() {
     parent,
     available,
     PixelGrid { scale: 1.0, snap: false },
-    &mut Engine::with_fonts([]),
+    &mut Engine::without_fonts(),
   );
   assert_eq!((layout.desired(parent), layout.rect(parent)), (None, None));
   assert_eq!((layout.desired(child), layout.rect(child)), (None, None));
@@ -264,7 +264,7 @@ fn collapsed_takes_no_space() {
     parent,
     available,
     PixelGrid { scale: 1.0, snap: false },
-    &mut Engine::with_fonts([]),
+    &mut Engine::without_fonts(),
   );
   assert_eq!(tree.get_as::<Boxed>(child).unwrap().measured.get(), 1);
 }
@@ -301,7 +301,7 @@ fn content_is_arranged_in_the_snapped_bounds() {
     parent,
     Size::new(100.0, 10.0),
     PixelGrid { scale: 1.0, snap: true },
-    &mut Engine::with_fonts([]),
+    &mut Engine::without_fonts(),
   );
 
   let width = |node| layout.rect(node).expect("arranged").width;

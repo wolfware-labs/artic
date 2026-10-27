@@ -24,8 +24,9 @@ pub struct Paragraph {
 
 impl Paragraph {
   /// A left-to-right paragraph of `size` that no limit shaped, with `lines` from top to bottom and
-  /// the glyph `runs` that draw it. [`with_right_to_left`](Paragraph::with_right_to_left) and
-  /// [`with_limited`](Paragraph::with_limited) set the rest.
+  /// the glyph `runs` that draw it. [`with_right_to_left`](Paragraph::with_right_to_left),
+  /// [`with_limited_width`](Paragraph::with_limited_width) and
+  /// [`with_limited_height`](Paragraph::with_limited_height) set the rest.
   #[must_use]
   pub fn new(size: Size, lines: impl Into<Arc<[Line]>>, runs: impl Into<Arc<[GlyphRun]>>) -> Paragraph {
     Paragraph {
@@ -45,12 +46,17 @@ impl Paragraph {
     self
   }
 
-  /// This paragraph, shaped by its width limit when `width` is true and by its height limit when
-  /// `height` is.
+  /// This paragraph, shaped by its width limit when `limited` is true.
   #[must_use]
-  pub fn with_limited(mut self, width: bool, height: bool) -> Paragraph {
-    self.limited_width = width;
-    self.limited_height = height;
+  pub fn with_limited_width(mut self, limited: bool) -> Paragraph {
+    self.limited_width = limited;
+    self
+  }
+
+  /// This paragraph, shaped by its height limit when `limited` is true.
+  #[must_use]
+  pub fn with_limited_height(mut self, limited: bool) -> Paragraph {
+    self.limited_height = limited;
     self
   }
 
@@ -73,10 +79,11 @@ impl Paragraph {
     &self.runs
   }
 
-  /// Whether it draws nothing: none of its runs has a glyph.
+  /// Whether it draws anything: one of its runs has a glyph. Shaped empty text has a line and no
+  /// glyph; the paragraph an engine gives for text it can't shape has neither.
   #[must_use]
-  pub fn is_empty(&self) -> bool {
-    self.runs.iter().all(|run| run.glyphs().is_empty())
+  pub fn has_glyphs(&self) -> bool {
+    self.runs.iter().any(|run| !run.glyphs().is_empty())
   }
 
   /// Whether the paragraph runs right to left, as its first strong character does.
@@ -198,6 +205,75 @@ pub struct Glyph {
 /// The next id [`FontData::new`] hands out.
 static NEXT_FONT_ID: AtomicU64 = AtomicU64::new(1);
 
+/// A font file's bytes, shared: the shaper and every renderer read the same copy, and a clone
+/// shares them too. It converts from a `&'static [u8]` or the array `include_bytes!` gives, a
+/// `Vec<u8>`, a `Box<[u8]>` or an `Arc<[u8]>`; [`new`](FontBytes::new) takes any other type that reads as bytes, such as a
+/// memory map.
+#[derive(Clone)]
+pub struct FontBytes(Arc<dyn AsRef<[u8]> + Send + Sync>);
+
+impl FontBytes {
+  /// Shares `bytes`.
+  #[must_use]
+  pub fn new(bytes: impl AsRef<[u8]> + Send + Sync + 'static) -> FontBytes {
+    FontBytes(Arc::new(bytes))
+  }
+
+  /// The shared allocation, for a font type that keeps its own handle to it, such as a renderer's.
+  #[must_use]
+  pub fn shared(&self) -> &Arc<dyn AsRef<[u8]> + Send + Sync> {
+    &self.0
+  }
+}
+
+impl AsRef<[u8]> for FontBytes {
+  fn as_ref(&self) -> &[u8] {
+    (*self.0).as_ref()
+  }
+}
+
+impl Debug for FontBytes {
+  fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+    write!(formatter, "FontBytes({} bytes)", self.as_ref().len())
+  }
+}
+
+impl From<Arc<dyn AsRef<[u8]> + Send + Sync>> for FontBytes {
+  fn from(shared: Arc<dyn AsRef<[u8]> + Send + Sync>) -> FontBytes {
+    FontBytes(shared)
+  }
+}
+
+impl From<&'static [u8]> for FontBytes {
+  fn from(bytes: &'static [u8]) -> FontBytes {
+    FontBytes::new(bytes)
+  }
+}
+
+impl<const N: usize> From<&'static [u8; N]> for FontBytes {
+  fn from(bytes: &'static [u8; N]) -> FontBytes {
+    FontBytes::new(bytes)
+  }
+}
+
+impl From<Vec<u8>> for FontBytes {
+  fn from(bytes: Vec<u8>) -> FontBytes {
+    FontBytes::new(bytes)
+  }
+}
+
+impl From<Box<[u8]>> for FontBytes {
+  fn from(bytes: Box<[u8]>) -> FontBytes {
+    FontBytes::new(bytes)
+  }
+}
+
+impl From<Arc<[u8]>> for FontBytes {
+  fn from(bytes: Arc<[u8]>) -> FontBytes {
+    FontBytes::new(bytes)
+  }
+}
+
 /// A font file's bytes and the face in it that a glyph run draws from.
 ///
 /// Each one gets an id when it's created, unique in the process and kept for as long as the bytes
@@ -205,7 +281,7 @@ static NEXT_FONT_ID: AtomicU64 = AtomicU64::new(1);
 /// cache what it derives from a font, such as outlines or a typeface, keyed by id and index.
 #[derive(Clone)]
 pub struct FontData {
-  bytes: Arc<dyn AsRef<[u8]> + Send + Sync>,
+  bytes: FontBytes,
   index: u32,
   id: u64,
 }
@@ -214,9 +290,9 @@ impl FontData {
   /// The face at `index` in the font file `bytes`, with a new id. A file with one face has only
   /// index 0; a collection (`.ttc`) has one index per face.
   #[must_use]
-  pub fn new(bytes: Arc<dyn AsRef<[u8]> + Send + Sync>, index: u32) -> FontData {
+  pub fn new(bytes: impl Into<FontBytes>, index: u32) -> FontData {
     FontData {
-      bytes,
+      bytes: bytes.into(),
       index,
       id: NEXT_FONT_ID.fetch_add(1, Ordering::Relaxed),
     }
@@ -224,7 +300,7 @@ impl FontData {
 
   /// The font file's bytes.
   #[must_use]
-  pub fn bytes(&self) -> &Arc<dyn AsRef<[u8]> + Send + Sync> {
+  pub fn bytes(&self) -> &FontBytes {
     &self.bytes
   }
 
@@ -262,7 +338,7 @@ impl Debug for FontData {
       .debug_struct("FontData")
       .field("id", &self.id)
       .field("index", &self.index)
-      .field("len", &(*self.bytes).as_ref().len())
+      .field("len", &self.bytes.as_ref().len())
       .finish()
   }
 }
@@ -275,7 +351,7 @@ mod tests {
   use std::thread;
 
   fn font() -> FontData {
-    FontData::new(Arc::new(vec![0_u8; 16]), 2)
+    FontData::new(vec![0_u8; 16], 2)
   }
 
   fn run(font: &FontData) -> GlyphRun {
@@ -309,17 +385,25 @@ mod tests {
     let font = font();
 
     assert!(paragraph(&font).with_right_to_left(true).right_to_left());
-    let width_only = paragraph(&font).with_limited(true, false);
+    let width_only = paragraph(&font).with_limited_width(true);
     assert!(width_only.limited_width() && !width_only.limited_height());
-    let height_only = paragraph(&font).with_limited(false, true);
+    let height_only = paragraph(&font).with_limited_height(true);
     assert!(!height_only.limited_width() && height_only.limited_height());
+  }
+
+  // Bytes embedded with `include_bytes!`, a fixed-size array, convert like a slice.
+  #[test]
+  fn font_bytes_take_an_embedded_array() {
+    static EMBEDDED: [u8; 3] = [1, 2, 3];
+
+    assert_eq!(FontBytes::from(&EMBEDDED).as_ref(), &[1, 2, 3]);
   }
 
   // Each new font data gets its own id, even from the same bytes, and a clone keeps it.
   #[test]
   fn font_data_compares_by_id() {
-    let bytes: Arc<dyn AsRef<[u8]> + Send + Sync> = Arc::new(vec![1_u8, 2, 3]);
-    let first = FontData::new(Arc::clone(&bytes), 0);
+    let bytes = FontBytes::from(vec![1_u8, 2, 3]);
+    let first = FontData::new(bytes.clone(), 0);
     let second = FontData::new(bytes, 0);
 
     assert_ne!(first.id(), second.id());
@@ -370,7 +454,7 @@ mod tests {
     let font = font();
 
     assert_eq!(paragraph(&font), paragraph(&font));
-    assert_ne!(paragraph(&font), paragraph(&FontData::new(Arc::clone(font.bytes()), 2)));
+    assert_ne!(paragraph(&font), paragraph(&FontData::new(font.bytes().clone(), 2)));
   }
 
   // A clone shares its lines and runs instead of copying them.
@@ -383,22 +467,22 @@ mod tests {
     assert!(std::ptr::eq(original.runs(), copy.runs()));
   }
 
-  // The default paragraph is empty, of size 0, and a paragraph with a run isn't empty.
+  // The default paragraph has no lines and no glyphs, of size 0; a paragraph with a run has glyphs.
   #[test]
-  fn default_paragraph_is_empty() {
-    let empty = Paragraph::default();
+  fn default_paragraph_has_no_lines_and_no_glyphs() {
+    let unshaped = Paragraph::default();
 
-    assert!(empty.is_empty());
-    assert_eq!(empty.size(), Size::ZERO);
-    assert!(empty.lines().is_empty());
-    assert!(!paragraph(&font()).is_empty());
+    assert!(!unshaped.has_glyphs());
+    assert_eq!(unshaped.size(), Size::ZERO);
+    assert!(unshaped.lines().is_empty());
+    assert!(paragraph(&font()).has_glyphs());
   }
 
-  // A paragraph whose runs hold no glyphs draws nothing, so it's empty too.
+  // A paragraph whose runs hold no glyphs draws nothing, whatever its size.
   #[test]
-  fn paragraph_of_glyphless_runs_is_empty() {
+  fn paragraph_of_glyphless_runs_has_no_glyphs() {
     let run = GlyphRun::new(font(), 16.0, Vec::<i16>::new(), Synthesis::default(), Vec::<Glyph>::new());
 
-    assert!(Paragraph::new(Size::new(10.0, 20.0), Vec::<Line>::new(), [run]).is_empty());
+    assert!(!Paragraph::new(Size::new(10.0, 20.0), Vec::<Line>::new(), [run]).has_glyphs());
   }
 }

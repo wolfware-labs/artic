@@ -148,10 +148,10 @@ impl Translation<'_> {
     };
     for run in paragraph.runs() {
       let font = run.font();
-      if skrifa::FontRef::from_index((**font.bytes()).as_ref(), font.index()).is_err() {
+      if skrifa::FontRef::from_index(font.bytes().as_ref(), font.index()).is_err() {
         continue;
       }
-      let blob = peniko::Blob::from_raw_parts(Arc::clone(font.bytes()), font.id());
+      let blob = peniko::Blob::from_raw_parts(Arc::clone(font.bytes().shared()), font.id());
       let synthesis = run.synthesis();
       let embolden = if synthesis.embolden {
         let amount = f64::from(run.size()) * EMBOLDEN;
@@ -669,7 +669,7 @@ mod tests {
   }
 
   fn face(bytes: &'static [u8]) -> FontData {
-    FontData::new(Arc::new(bytes), 0)
+    FontData::new(bytes, 0)
   }
 
   fn run(font: &FontData, synthesis: Synthesis) -> GlyphRun {
@@ -772,8 +772,8 @@ mod tests {
   #[test]
   fn unreadable_face_draws_nothing() {
     let regular = face(artic_test_fonts::REGULAR);
-    let garbage = FontData::new(Arc::new(vec![0_u8; 4]), 0);
-    let missing = FontData::new(Arc::new(artic_test_fonts::REGULAR), 3);
+    let garbage = FontData::new(vec![0_u8; 4], 0);
+    let missing = FontData::new(artic_test_fonts::REGULAR, 3);
     let text = paragraph(vec![
       run(&garbage, Synthesis::default()),
       run(&missing, Synthesis::default()),

@@ -1124,7 +1124,8 @@ mod collapsed {
 
 use crate::text::{FontFamily, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
 
-/// A text engine that records the text it's asked to shape and answers with an empty paragraph.
+/// A text engine that records the text it's asked to shape and answers with a paragraph with no
+/// lines.
 #[derive(Debug, Default)]
 struct Recorder {
   asked: Vec<String>,

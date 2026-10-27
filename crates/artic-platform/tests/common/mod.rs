@@ -15,7 +15,6 @@ use artic_render::{
 };
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::Arc;
 
 static VISIBLE: PropertyKey<bool> = PropertyKey::new("Visible", Affects::RENDER, Inheritance::None);
 static HEIGHT: PropertyKey<f32> = PropertyKey::new("Height", Affects::LAYOUT, Inheritance::None);
@@ -317,11 +316,11 @@ pub fn set_color(property: Property<u32>, color: u32) {
 
 /// The text engine the pipeline and runner tests shape with: only the test font.
 pub fn engine() -> artic_text::Engine {
-  artic_text::Engine::with_fonts([Arc::new(artic_test_fonts::REGULAR) as Arc<dyn AsRef<[u8]> + Send + Sync>])
+  artic_text::Engine::with_fonts([artic_test_fonts::REGULAR])
 }
 
 /// A text engine that shares, with every clone, the list of text it was asked to shape, and
-/// answers with an empty paragraph 8 wide per character and 16 tall.
+/// answers with a paragraph with no lines or glyphs, 8 wide per character and 16 tall.
 #[derive(Debug, Clone, Default)]
 pub struct Recorder {
   pub asked: Rc<RefCell<Vec<String>>>,

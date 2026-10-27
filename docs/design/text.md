@@ -68,8 +68,11 @@ pub struct Line { pub top: f32, pub height: f32, pub baseline: f32, pub width: f
 pub struct GlyphRun { font: FontData, size: f32, coords: Arc<[i16]>, synthesis: Synthesis, glyphs: Arc<[Glyph]> }
 pub struct Synthesis { pub embolden: bool, pub skew: f32 }
 pub struct Glyph { pub id: u32, pub x: f32, pub y: f32 }
-pub struct FontData { bytes: Arc<dyn AsRef<[u8]> + Send + Sync>, index: u32, id: u64 }
+pub struct FontBytes(Arc<dyn AsRef<[u8]> + Send + Sync>);
+pub struct FontData { bytes: FontBytes, index: u32, id: u64 }
 ```
+
+`FontBytes` is a font file's bytes, shared rather than copied: parley's `Blob` wraps the same allocation, so the shaper and a renderer that draws the run read one copy, and `shared()` hands that allocation to a renderer's own font type. It converts from a `&'static [u8]` or the array `include_bytes!` gives, a `Vec<u8>`, a `Box<[u8]>`, an `Arc<[u8]>` or another `FontBytes`, so `with_fonts` and `FontData::new` take bytes as the caller holds them; `FontBytes::new` takes any other type that reads as bytes.
 
 - `FontFamily: FromStr` reads a CSS family list: names separated by commas, each quoted with `'` or `"` or not. An unquoted name equal to a generic keyword (`serif`, `sans-serif`, `monospace`, `cursive`, `fantasy`, `system-ui`, `emoji`, `math`), ignoring case, is that generic family; a quoted one is a font named so. The default, which `TextBlock` (#46) inherits, is `system-ui`.
 - `FontWeight` is 1 to 1000, as in CSS. `FromStr` takes a number or one of WPF's `FontWeights` names, ignoring case: `Thin` 100, `ExtraLight` and `UltraLight` 200, `Light` 300, `Normal` and `Regular` 400, `Medium` 500, `SemiBold` and `DemiBold` 600, `Bold` 700, `ExtraBold` and `UltraBold` 800, `Black` and `Heavy` 900, `ExtraBlack` and `UltraBlack` 950. `FontStyle` is a `UiEnum`, as `Orientation` is.
@@ -165,7 +168,9 @@ impl Engine {
   pub fn system() -> Engine;
   /// An engine that knows only `fonts`, with every generic family pointing at them, in order.
   /// Its default family is the first font's.
-  pub fn with_fonts(fonts: impl IntoIterator<Item = Arc<dyn AsRef<[u8]> + Send + Sync>>) -> Engine;
+  pub fn with_fonts(fonts: impl IntoIterator<Item = impl Into<FontBytes>>) -> Engine;
+  /// An engine that knows no font, so every paragraph has no lines: for layout with no text in it.
+  pub fn without_fonts() -> Engine;
 }
 
 impl TextEngine for Engine { /* … */ }
@@ -186,7 +191,7 @@ It never panics and never fails:
 | A family that isn't installed | the next name in the list, then the engine's default family, then `fontique`'s fallback for the text's script |
 | A weight or style the family has no face for | the nearest face, with `synthesis` set |
 | Empty text | width 0, and the height of one line, as an empty WPF `TextBlock` |
-| A size that isn't finite or isn't above 0, or no font at all | an empty paragraph of size 0 |
+| A size that isn't finite or isn't above 0, or no font at all | a paragraph with no lines, of size 0 (`Paragraph::default()`) |
 | A `max_width` that is NaN or infinite | no width limit: lines break only at hard line breaks and no line is trimmed for its width; when `max_lines` or `max_height` drops lines, the last kept line is still trimmed |
 | A negative `max_width` | 0: `Wrap` puts each cluster on its own line; `WrapWithOverflow` breaks at every opportunity and keeps each word whole, overhanging |
 | A `max_height` that is NaN or infinite | no limit |
@@ -210,7 +215,7 @@ impl SceneBuilder {
 }
 ```
 
-One command draws a whole paragraph. Any `Brush` works, and its relative points and radii resolve against `Rect::new(origin, paragraph.size())`, as a `Fill` resolves against its shape's bounds, so a gradient runs across the whole text rather than restarting with each run. A paragraph without runs records nothing.
+One command draws a whole paragraph. Any `Brush` works, and its relative points and radii resolve against `Rect::new(origin, paragraph.size())`, as a `Fill` resolves against its shape's bounds, so a gradient runs across the whole text rather than restarting with each run. A paragraph without glyphs records nothing (`Paragraph::has_glyphs`): the one an engine gives for text it can't shape, and shaped empty text alike.
 
 A brush per span of text (inline `Run`s, #47) can extend this later with a brush per run, without changing the command's shape.
 
@@ -233,9 +238,9 @@ The test font is a font under the SIL Open Font License, picked in the plan by s
 | Crate | Tests |
 | --- | --- |
 | `artic-layout` | `font_family_parses_list` (quoted and unquoted names, generic families), one test per `FamilyProblem` and `WeightProblem`, each checking the message quotes the text; `font_weight_names_and_numbers`; `font_data_compares_by_id`; `measure_reaches_the_text_engine` (a recording fake engine, private to the tests); `measure_only_reaches_the_text_engine` (through `LayoutManager::measure`); `arrange_reaches_the_text_engine`; `measured_result_is_kept_with_the_size`, `cached_measure_keeps_its_result`, `measure_without_a_result_drops_the_old_one`, `arranged_result_replaces_the_measured_one`, `moving_keeps_the_arranged_result`, `resizing_drops_the_arranged_result`, `measuring_drops_the_arranged_result`, `dropped_node_drops_its_results`, `set_and_dropped_results_are_reported`, `results_from_measure_reach_the_next_run`, `unchanged_layout_reports_no_results`; `parent_still_sees_the_measured_size` (an arranged result doesn't touch `desired`) |
-| `artic-text` | `paragraph_size_with_test_font` (width and height within 0.5 px of the expected values), `line_breaking_respects_max_width` (the line count at two widths), `max_lines_caps_the_paragraph`, `missing_family_falls_back`, `empty_text_has_one_line_height`, `bad_sizes_give_an_empty_paragraph`, `unusable_max_width_does_not_wrap` (NaN and infinity), `negative_max_width_breaks_everywhere`, `line_height_sets_line_spacing`, `lines_stack_top_to_bottom` (each line's `top` is the previous line's `top` plus its `height`, and its `baseline` lies inside it), `bold_selects_a_heavier_face`, `missing_bold_is_synthesized` (only the regular face), `missing_italic_is_synthesized`, `right_to_left_text_stays_inside_its_size`, `same_font_keeps_its_id`, `collection_faces_get_their_own_ids`, `with_fonts_falls_back_to_its_first_font`, and `system_engine_resolves_system_ui`, which skips with a message on a machine with no fonts installed, as goldens skip without a GPU |
+| `artic-text` | `paragraph_size_with_test_font` (width and height within 0.5 px of the expected values), `line_breaking_respects_max_width` (the line count at two widths), `max_lines_caps_the_paragraph`, `missing_family_falls_back`, `empty_text_has_one_line_height`, `bad_sizes_give_a_paragraph_with_no_lines`, `unusable_max_width_does_not_wrap` (NaN and infinity), `negative_max_width_breaks_everywhere`, `line_height_sets_line_spacing`, `lines_stack_top_to_bottom` (each line's `top` is the previous line's `top` plus its `height`, and its `baseline` lies inside it), `bold_selects_a_heavier_face`, `missing_bold_is_synthesized` (only the regular face), `missing_italic_is_synthesized`, `right_to_left_text_stays_inside_its_size`, `same_font_keeps_its_id`, `collection_faces_get_their_own_ids`, `with_fonts_falls_back_to_its_first_font`, and `system_engine_resolves_system_ui`, which skips with a message on a machine with no fonts installed, as goldens skip without a GPU |
 | `artic-element` | `render_reads_the_arranged_result_first`, `render_reads_the_measured_result_without_one` |
-| `artic-render` | `text_records_one_command`, `empty_paragraph_records_nothing` |
+| `artic-render` | `text_records_one_command`, `paragraph_without_glyphs_records_nothing` |
 | `artic-platform` | the pipeline and runner tests pass the test engine; `one_engine_serves_every_surface`; `content_sized_window_measures_text` (through `Pipeline::measure`); `replaced_result_is_recorded_again` |
 | `artic-vello` | `font_id_becomes_the_blob_id`, `synthesized_bold_draws_heavier`; goldens `text_solid`, `text_gradient`, `text_wrapped`, shared like the others, since the bundled test font draws the same on every system (`per_os` in the [golden images design](golden-images.md) is for system fonts); a text tile in `examples/primitives` |
 

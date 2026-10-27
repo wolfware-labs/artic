@@ -81,7 +81,7 @@ fn element_lays_out_through_cast_table() {
     node,
     Size::new(100.0, 100.0),
     PixelGrid { scale: 1.0, snap: false },
-    &mut Engine::with_fonts([]),
+    &mut Engine::without_fonts(),
   );
 
   assert_eq!(layout.desired(node), Some(Size::new(40.0, 20.0)));
@@ -120,7 +120,7 @@ fn collapsed_element_skips_measure_override() {
     node,
     Size::new(100.0, 100.0),
     PixelGrid { scale: 1.0, snap: false },
-    &mut Engine::with_fonts([]),
+    &mut Engine::without_fonts(),
   );
 
   assert_eq!(layout.desired(node), None);

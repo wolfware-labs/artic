@@ -111,7 +111,7 @@ impl SceneBuilder {
   /// builder.text(&paragraph, Point::new(8.0, 8.0), Color::rgb(15, 23, 42));
   /// ```
   pub fn text(&mut self, paragraph: &Paragraph, origin: Point, brush: impl Into<Brush>) {
-    if paragraph.is_empty() {
+    if !paragraph.has_glyphs() {
       return;
     }
     self.commands.push(Command::Text {
@@ -193,10 +193,9 @@ mod tests {
   use artic_layout::geometry::{CornerRadius, Path, Point, Rect, RoundedRect, Size};
   use artic_layout::text::{FontData, Glyph, GlyphRun, Line, Paragraph, Synthesis};
   use pretty_assertions::assert_eq;
-  use std::sync::Arc;
 
   fn paragraph(runs: usize) -> Paragraph {
-    let font = FontData::new(Arc::new(vec![0_u8; 4]), 0);
+    let font = FontData::new(vec![0_u8; 4], 0);
     let glyphs = [Glyph { id: 1, x: 0.0, y: 12.0 }];
     let run = GlyphRun::new(font, 16.0, Vec::<i16>::new(), Synthesis::default(), glyphs);
     Paragraph::new(Size::new(30.0, 20.0), Vec::<Line>::new(), vec![run; runs])
@@ -220,12 +219,25 @@ mod tests {
     );
   }
 
-  // A paragraph without runs draws nothing, so nothing is recorded.
+  // A paragraph without glyphs draws nothing, so nothing is recorded: one with no runs, as an
+  // engine gives for text it can't shape, or one whose runs hold no glyph, as shaped empty text is.
   #[test]
-  fn empty_paragraph_records_nothing() {
+  fn paragraph_without_glyphs_records_nothing() {
     let mut builder = SceneBuilder::default();
+    let glyphless = GlyphRun::new(
+      FontData::new(vec![0_u8; 4], 0),
+      16.0,
+      Vec::<i16>::new(),
+      Synthesis::default(),
+      Vec::<Glyph>::new(),
+    );
 
     builder.text(&paragraph(0), Point::ZERO, Color::rgb(1, 2, 3));
+    builder.text(
+      &Paragraph::new(Size::new(0.0, 20.0), Vec::<Line>::new(), [glyphless]),
+      Point::ZERO,
+      Color::rgb(1, 2, 3),
+    );
 
     assert!(builder.take().is_empty());
   }

@@ -53,7 +53,7 @@ fn laid_out(arrange: bool) -> (UiTree, NodeId, LayoutManager) {
     node,
     Size::new(10.0, 10.0),
     grid,
-    &mut Engine::with_fonts([]),
+    &mut Engine::without_fonts(),
   );
   (tree, node, layout)
 }
