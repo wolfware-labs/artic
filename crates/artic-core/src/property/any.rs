@@ -84,6 +84,12 @@ impl<'a> AnyProperty<'a> {
     self.0.is_listed()
   }
 
+  /// Whether the node whose flags `dirty` holds lists the property. A disposed property is listed
+  /// by none.
+  pub(crate) fn is_listed_by(self, dirty: &DirtyHandle) -> bool {
+    self.0.is_listed_by(dirty)
+  }
+
   /// Connects the property to its node's dirty flags. After this, a change to the effective value
   /// adds the key's [`Affects`](super::Affects) to them and sets the tree's pending flag.
   pub(crate) fn attach(self, dirty: DirtyHandle) {
@@ -125,6 +131,7 @@ pub(crate) trait Erased {
   fn as_any(&self) -> &dyn Any;
   fn inherits(&self) -> bool;
   fn is_listed(&self) -> bool;
+  fn is_listed_by(&self, dirty: &DirtyHandle) -> bool;
   fn attach(&self, dirty: DirtyHandle);
   fn inherit_from(&self, source: Option<AnyProperty<'_>>);
   fn dispose(&self);
@@ -148,6 +155,10 @@ where
 
   fn is_listed(&self) -> bool {
     self.0.with_untracked(PropertyState::is_listed)
+  }
+
+  fn is_listed_by(&self, dirty: &DirtyHandle) -> bool {
+    self.0.is_alive() && self.0.with_untracked(|state| state.is_listed_by(dirty))
   }
 
   fn attach(&self, dirty: DirtyHandle) {

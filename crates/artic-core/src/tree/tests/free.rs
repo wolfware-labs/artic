@@ -196,3 +196,19 @@ fn a_node_with_a_disposed_property_is_refused_unchanged() {
   assert!(refused.is_err());
   assert!(tree.is_empty());
 }
+
+// A field swapped through `get_as_mut` for another node's property isn't this node's to dispose:
+// freeing the node leaves the other node's property working.
+#[test]
+fn free_disposes_only_the_properties_the_node_lists() {
+  let mut tree = UiTree::new();
+  let first = tree.alloc(Box::new(Label::new()));
+  let second = tree.alloc(Box::new(Label::new()));
+  let borrowed = tree.get_as::<Label>(first).unwrap().font_size;
+  tree.get_as_mut::<Label>(second).unwrap().font_size = borrowed;
+
+  tree.free(second);
+
+  borrowed.set(20);
+  assert_eq!(borrowed.get(), 20);
+}

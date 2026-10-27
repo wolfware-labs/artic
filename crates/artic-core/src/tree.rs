@@ -248,7 +248,12 @@ impl UiTree {
   /// links are left to [`free`](UiTree::free), which only calls this once no surviving node names it.
   fn free_node(&mut self, node_id: NodeId) {
     let object = self.objects.free(node_id).expect("free passes only live nodes");
-    for_each_property(object.as_ref(), |property| property.dispose());
+    let flags = self.dirty_flags.shared(node_id);
+    for_each_property(object.as_ref(), |property| {
+      if property.is_listed_by(&flags) {
+        property.dispose();
+      }
+    });
     self.attached_values.of(node_id).for_each(|property| property.dispose());
     self.attached_values.remove(node_id);
     self.dirty_flags.remove(node_id);
@@ -313,6 +318,9 @@ impl UiTree {
   /// Returns a mutable reference to the node referred to by `id` as a `T`.
   ///
   /// Returns `None` if `id` is stale or if the node isn't a `T`.
+  ///
+  /// Write a property through the property itself, with `set`, rather than replacing the field: the
+  /// tree connected the property the node had when it was added, and a replacement isn't the node's.
   ///
   /// # Examples
   ///
