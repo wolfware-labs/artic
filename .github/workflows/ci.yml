@@ -82,21 +82,12 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
-    # Codecov takes the job's OIDC token, so there's no upload token to store. A pull request from a
-    # fork can't get one; its upload fails, and so does nothing else.
-    permissions:
-      contents: read
-      id-token: write
-    # Every action this job runs is pinned by commit, since the job can mint an OIDC token: so it
-    # sets Rust up itself rather than through `setup-rust`, whose cache action is a tag.
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install toolchain from rust-toolchain.toml, with llvm-tools
-        run: rustup toolchain install && rustup component add llvm-tools && rustc --version
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-rust
+      - name: Install llvm-tools
+        run: rustup component add llvm-tools
+      - uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov
       # The test jobs are the gate: a test that fails here, such as trybuild's comparison of
@@ -104,6 +95,28 @@ jobs:
       # runner without a GPU, so the renderer's draw paths read as uncovered.
       - name: Measure
         run: cargo llvm-cov --workspace --ignore-run-fail --lcov --output-path lcov.info
+      - uses: actions/upload-artifact@v7
+        with:
+          name: lcov
+          path: lcov.info
+
+  # Uploading takes the job's OIDC token, so there's no Codecov token to store. It's a job of its
+  # own so that the token is never reachable while the workspace's build scripts and tests run, and
+  # every action it runs is pinned by commit. A pull request from a fork can't get a token; its
+  # upload fails, and so does nothing else.
+  codecov:
+    name: Codecov
+    needs: coverage
+    if: ${{ !cancelled() && needs.coverage.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: lcov
       - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: lcov.info
