@@ -111,8 +111,8 @@ fn stale_node_has_no_children() {
   assert_eq!(children(&tree, TreeKind::Logical, parent), []);
 }
 
-// A stale id doesn't reach the links of the node that reuses its slot: it has no children, and a
-// walk up from a child it left behind stops at it.
+// A stale id doesn't reach the links of the node that reuses its slot: it has no children, while
+// the new node has its own.
 #[test]
 fn stale_id_does_not_reach_the_node_in_its_slot() {
   let mut tree = UiTree::new();
@@ -126,7 +126,7 @@ fn stale_id_does_not_reach_the_node_in_its_slot() {
   tree.add_child(TreeKind::Logical, reused, other);
 
   assert_eq!(children(&tree, TreeKind::Logical, parent), []);
-  assert_eq!(tree.ancestors(TreeKind::Logical, child).collect::<Vec<_>>(), [parent]);
+  assert_eq!(children(&tree, TreeKind::Logical, reused), [other]);
 }
 
 // Adding a stale node as a child panics.
@@ -257,7 +257,7 @@ fn descendants_preorder() {
 // Freeing a control frees its logical content and the visual-only parts of its template, and
 // nothing else.
 #[test]
-fn free_subtree_frees_all_descendants() {
+fn free_frees_all_descendants() {
   let mut tree = UiTree::new();
   let [panel, button, border, presenter, text, sibling] = nodes(&mut tree, 6)[..] else {
     unreachable!()
@@ -270,7 +270,7 @@ fn free_subtree_frees_all_descendants() {
   tree.add_child(TreeKind::Visual, border, presenter);
   tree.add_child(TreeKind::Visual, presenter, text);
 
-  tree.free_subtree(button);
+  tree.free(button);
 
   assert_eq!(tree.len(), 2);
   assert!(tree.contains(panel) && tree.contains(sibling));
@@ -281,7 +281,7 @@ fn free_subtree_frees_all_descendants() {
 // A node inside the subtree in one tree but under an outside parent in the other is freed, and the
 // outside parent stops listing it.
 #[test]
-fn free_subtree_detaches_nodes_from_outside_parents() {
+fn free_detaches_nodes_from_outside_parents() {
   let mut tree = UiTree::new();
   let [owner, popup_root, content] = nodes(&mut tree, 3)[..] else {
     unreachable!()
@@ -289,7 +289,7 @@ fn free_subtree_detaches_nodes_from_outside_parents() {
   tree.add_child(TreeKind::Logical, owner, content);
   tree.add_child(TreeKind::Visual, popup_root, content);
 
-  tree.free_subtree(owner);
+  tree.free(owner);
 
   assert!(!tree.contains(content));
   assert_eq!(children(&tree, TreeKind::Visual, popup_root), []);
@@ -298,7 +298,7 @@ fn free_subtree_detaches_nodes_from_outside_parents() {
 
 // Freeing a root frees the whole tree.
 #[test]
-fn free_subtree_of_a_root_empties_the_arena() {
+fn free_of_a_root_empties_the_arena() {
   let mut tree = UiTree::new();
   let [root, a, b] = nodes(&mut tree, 3)[..] else {
     unreachable!()
@@ -306,7 +306,7 @@ fn free_subtree_of_a_root_empties_the_arena() {
   tree.add_child(TreeKind::Logical, root, a);
   tree.add_child(TreeKind::Visual, a, b);
 
-  tree.free_subtree(root);
+  tree.free(root);
 
   assert!(tree.is_empty());
 }
@@ -367,4 +367,31 @@ fn check_link_reports_without_changing_anything() {
   );
   assert_eq!(tree.check_link(TreeKind::Visual, parent, Some(0), child), Ok(()));
   assert_eq!(children(&tree, TreeKind::Visual, parent), [child]);
+}
+
+// Freeing a node frees its children and cuts it from its parent, so no live node names it.
+#[test]
+fn free_detaches_and_frees_the_subtree() {
+  let mut tree = UiTree::new();
+  let [root, parent, child] = nodes(&mut tree, 3)[..] else {
+    unreachable!()
+  };
+  tree.add_child(TreeKind::Logical, root, parent);
+  tree.add_child(TreeKind::Logical, parent, child);
+
+  tree.free(parent);
+
+  assert!(!tree.contains(child));
+  assert_eq!(children(&tree, TreeKind::Logical, root), []);
+}
+
+// Freeing a stale id is a bug, as using one anywhere else in the tree is.
+#[test]
+#[should_panic(expected = "is not in the arena")]
+fn free_of_a_stale_id_panics() {
+  let mut tree = UiTree::new();
+  let [node] = nodes(&mut tree, 1)[..] else { unreachable!() };
+  tree.free(node);
+
+  tree.free(node);
 }

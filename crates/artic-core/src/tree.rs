@@ -228,42 +228,12 @@ impl UiTree {
     Handle::new(self.alloc(Box::new(node)))
   }
 
-  /// Removes the node referred to by `node_id` and returns it.
-  ///
-  /// Returns `None`, and leaves the tree untouched, if `node_id` is stale (its node was already freed) or
-  /// was never returned by this tree.
-  ///
-  /// Freeing bumps the slot's generation, which invalidates `node_id` and every copy of it. The generation
-  /// wraps around after `u32::MAX - 1` reuses of the same slot, so an id kept across that many reuses
-  /// could in principle match a newer node.
-  ///
-  /// The node's inheritable properties stop following their ancestors. Its tree links are not touched:
-  /// its parent still lists it among its children and its children still name it as their parent.
-  /// [`detach`](UiTree::detach) it first, or use [`free_subtree`](UiTree::free_subtree), which
-  /// detaches and frees a whole subtree.
-  ///
-  /// # Examples
-  ///
-  /// ```
-  /// use artic_core::{Object};
-  /// use artic_core::property::AnyProperty;
-  /// use artic_core::tree::UiTree;
-  ///
-  /// #[derive(Debug)]
-  /// struct Label;
-  /// impl Object for Label {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
-  /// }
-  ///
-  /// let mut tree = UiTree::new();
-  /// let id = tree.alloc(Box::new(Label));
-  ///
-  /// assert!(tree.free(id).is_some());
-  /// assert!(tree.free(id).is_none()); // already freed
-  /// assert!(tree.is_empty());
-  /// ```
-  pub fn free(&mut self, node_id: NodeId) -> Option<Box<dyn Object>> {
-    let object = self.objects.free(node_id)?;
+  /// Removes one node from the arena and cuts its properties loose. Its links are left to
+  /// [`free`](UiTree::free), which only calls this once no surviving node names it.
+  fn free_node(&mut self, node_id: NodeId) {
+    let Some(object) = self.objects.free(node_id) else {
+      return;
+    };
     self.dirty_flags.remove(node_id);
     object.visit_properties(&mut |property| property.inherit_from(None));
     self.logical.remove(node_id);
@@ -273,7 +243,6 @@ impl UiTree {
       .of(node_id)
       .for_each(|property| property.inherit_from(None));
     self.attached_values.remove(node_id);
-    Some(object)
   }
 
   /// Returns a reference to the node referred to by `id`, or `None` if `id` is stale.
@@ -571,11 +540,38 @@ impl UiTree {
   /// detached from that parent first, so no live node keeps the id of a freed child, and every child
   /// of a freed node is freed with it.
   ///
+  /// Freeing bumps each slot's generation, which invalidates the freed ids and every copy of them.
+  /// The generation wraps around after `u32::MAX - 1` reuses of the same slot, so an id kept across
+  /// that many reuses could in principle match a newer node.
+  ///
   /// # Panics
   ///
-  /// Panics if `id` is stale.
+  /// Panics if `id` is stale: it was already freed, or never returned by this tree.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use artic_core::Object;
+  /// use artic_core::property::AnyProperty;
+  /// use artic_core::tree::{TreeKind, UiTree};
+  ///
+  /// #[derive(Debug)]
+  /// struct Panel;
+  /// impl Object for Panel {
+  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  /// }
+  ///
+  /// let mut tree = UiTree::new();
+  /// let [root, panel, label] = [(); 3].map(|_| tree.alloc(Box::new(Panel)));
+  /// tree.add_child(TreeKind::Logical, root, panel);
+  /// tree.add_child(TreeKind::Logical, panel, label);
+  ///
+  /// tree.free(panel);
+  /// assert!(!tree.contains(label));
+  /// assert_eq!(tree.children(TreeKind::Logical, root).count(), 0);
+  /// ```
   #[track_caller]
-  pub fn free_subtree(&mut self, id: NodeId) {
+  pub fn free(&mut self, id: NodeId) {
     self.check(id);
     let mut subtree = HashSet::from([id]);
     let mut pending = vec![id];
@@ -596,7 +592,7 @@ impl UiTree {
       }
     }
     for node in subtree {
-      self.free(node);
+      self.free_node(node);
     }
   }
 

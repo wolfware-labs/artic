@@ -196,7 +196,7 @@ fn freeing_a_subtree_unlinks_its_followers() {
   tree.add_child(TreeKind::Logical, window, panel);
   tree.add_child(TreeKind::Logical, panel, text);
 
-  tree.free_subtree(panel);
+  tree.free(panel);
   window_font_size.set(24);
 
   assert_eq!(font_size.effective_source(), Precedence::Default);
