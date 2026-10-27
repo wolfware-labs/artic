@@ -4,17 +4,17 @@ use artic_core::Object;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{ElementNodes, ElementTypes};
 use artic_layout::geometry::{Rect, Size};
-use artic_layout::{LayoutManager, LayoutNodes, LayoutStats, PixelGrid};
+use artic_layout::{LayoutManager, LayoutStats, PixelGrid};
 use artic_render::{Command, Compositor, Layers, Nodes, SceneBuilder, SceneItem};
 use std::collections::HashMap;
 
 /// A tree laid out with no window and no GPU. Nodes get a label when they're added, and failures
-/// name them by it. It lays out every registered element unless a test passes its own table.
+/// name them by it. It lays out every registered element.
 #[derive(Debug)]
-pub struct Headless<N: LayoutNodes = ElementTypes> {
+pub struct Headless {
   pub(super) tree: UiTree,
   pub(super) manager: LayoutManager,
-  pub(super) nodes: N,
+  pub(super) types: ElementTypes,
   pub(super) text: artic_text::Engine,
   pub(super) snap: bool,
   labels: HashMap<NodeId, String>,
@@ -24,7 +24,14 @@ impl Headless {
   /// An empty tree whose registered elements are laid out, with snapping on.
   #[must_use]
   pub fn new() -> Headless {
-    Headless::with_nodes(ElementTypes::from_link_time())
+    Headless {
+      tree: UiTree::new(),
+      manager: LayoutManager::default(),
+      types: ElementTypes::from_link_time(),
+      text: crate::text::engine(),
+      snap: true,
+      labels: HashMap::new(),
+    }
   }
 
   /// Records `node`'s own drawing as the frame pipeline does: at the size layout gave it, with
@@ -32,7 +39,7 @@ impl Headless {
   pub fn record(&mut self, node: NodeId) -> Vec<Command> {
     let mut one = OneNode {
       elements: ElementNodes {
-        types: &self.nodes,
+        types: &self.types,
         layout: &self.manager,
       },
       node,
@@ -46,28 +53,6 @@ impl Headless {
         _ => None,
       })
       .unwrap_or_default()
-  }
-}
-
-impl Default for Headless {
-  fn default() -> Headless {
-    Headless::new()
-  }
-}
-
-impl<N: LayoutNodes> Headless<N> {
-  /// An empty tree whose nodes `nodes` lays out, with snapping on, for a test with a table of its
-  /// own.
-  #[must_use]
-  pub fn with_nodes(nodes: N) -> Headless<N> {
-    Headless {
-      tree: UiTree::new(),
-      manager: LayoutManager::default(),
-      nodes,
-      text: crate::text::engine(),
-      snap: true,
-      labels: HashMap::new(),
-    }
   }
 
   /// Adds `object` as a node with no parent, labeled `label`.
@@ -108,7 +93,7 @@ impl<N: LayoutNodes> Headless<N> {
     let grid = PixelGrid { scale, snap: self.snap };
     self
       .manager
-      .run(&mut self.tree, &self.nodes, root, available, grid, &mut self.text)
+      .run(&mut self.tree, &self.types, root, available, grid, &mut self.text)
   }
 
   /// The label `node` was added with, or its id for a node made through [`tree`](Headless::tree).
@@ -170,6 +155,12 @@ impl<N: LayoutNodes> Headless<N> {
       "{:?}: rect expected {expected}, got {actual}",
       self.label(node)
     );
+  }
+}
+
+impl Default for Headless {
+  fn default() -> Headless {
+    Headless::new()
   }
 }
 

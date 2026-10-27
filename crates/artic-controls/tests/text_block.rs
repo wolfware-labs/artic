@@ -6,7 +6,7 @@ use artic_core::Object;
 use artic_core::property::PropertyVisitor;
 use artic_core::property::{Affects, Precedence};
 use artic_core::tree::{NodeId, UiTree};
-use artic_element::{AccessCx, Children, Element, ElementTypes, RenderCx};
+use artic_element::{AccessCx, Children, ElementTypes};
 use artic_layout::geometry::{Point, Rect, Size};
 use artic_layout::text::{
   FontFamily, FontStyle, FontWeight, Paragraph, ParagraphStyle, TextAlignment, TextEngine, TextLimits, TextStyle, TextTrimming,
@@ -14,7 +14,7 @@ use artic_layout::text::{
 };
 use artic_layout::{ArrangeCx, MeasureCx};
 use artic_layout::{Layoutable, Orientation};
-use artic_render::{Brush, Color, Command, SceneBuilder};
+use artic_render::{Brush, Color, Command};
 use artic_test::layout::Headless;
 use artic_test::layout::{Invariants, strategy};
 use proptest::prelude::*;
@@ -368,15 +368,7 @@ impl Object for Frame {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
-impl Element for Frame {
-  fn render(&self, _cx: &mut RenderCx<'_>, _scene: &mut SceneBuilder) {}
-
-  fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
-    accesskit::Node::new(accesskit::Role::GenericContainer)
-  }
-}
-
-artic_element::element_type!(Frame);
+artic_test::layout_element!(Frame);
 
 impl Layoutable for Frame {
   fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {

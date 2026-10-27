@@ -3,10 +3,11 @@
 
 use artic_core::Object;
 use artic_core::property::PropertyVisitor;
-use artic_core::tree::{NodeId, TreeKind, UiTree};
-use artic_element::ElementTypes;
+use artic_core::tree::{NodeId, TreeKind};
+use artic_element::{AccessCx, Element, ElementTypes, RenderCx};
 use artic_layout::geometry::{Rect, Size};
-use artic_layout::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx};
+use artic_layout::{ArrangeCx, LayoutManager, Layoutable, MeasureCx};
+use artic_render::{Color, SceneBuilder};
 use artic_test::layout::strategy;
 use artic_test::layout::{Fixed, Headless, Invariants, Stack};
 use pretty_assertions::assert_eq;
@@ -302,26 +303,57 @@ impl Layoutable for FirstOnly {
   }
 }
 
-/// The registered elements, then the elements above that break the rules.
+/// Fills its arranged box, so a recording shows whether it was drawn, and gives its children the
+/// same box.
 #[derive(Debug)]
-struct Broken(ElementTypes);
+struct Swatch;
 
-impl Broken {
-  fn new() -> Broken {
-    Broken(ElementTypes::from_link_time())
+impl Object for Swatch {
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+}
+
+impl Layoutable for Swatch {
+  fn measure(&self, cx: &mut MeasureCx<'_>, available: Size) -> Size {
+    for child in cx.children() {
+      cx.measure(child, available);
+    }
+    Size::new(10.0, 10.0)
+  }
+
+  fn arrange(&self, cx: &mut ArrangeCx<'_>, rect: Rect) {
+    for child in cx.children() {
+      cx.arrange(child, Rect::new(0.0, 0.0, rect.width, rect.height));
+    }
   }
 }
 
-impl LayoutNodes for Broken {
-  fn layoutable<'a>(&self, tree: &'a UiTree, node: NodeId) -> Option<&'a dyn Layoutable> {
-    self
-      .0
-      .layoutable(tree, node)
-      .or_else(|| tree.get_as::<Growing>(node).map(|node| node as &dyn Layoutable))
-      .or_else(|| tree.get_as::<Shove>(node).map(|node| node as &dyn Layoutable))
-      .or_else(|| tree.get_as::<FirstOnly>(node).map(|node| node as &dyn Layoutable))
+impl Element for Swatch {
+  fn render(&self, cx: &mut RenderCx<'_>, scene: &mut SceneBuilder) {
+    let size = cx.size();
+    scene.fill(Rect::new(0.0, 0.0, size.width, size.height), Color::rgb(0, 0, 0));
+  }
+
+  fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
+    accesskit::Node::new(accesskit::Role::GenericContainer)
   }
 }
+
+artic_element::element_type!(Swatch);
+
+// Recording a node draws only that node, not the children inside it.
+#[test]
+fn record_draws_the_node_without_its_children() {
+  let mut layout = Headless::new();
+  let child = layout.add("child", Swatch);
+  let root = layout.parent("root", Swatch, &[child]);
+  layout.run(root, WINDOW, 1.0);
+
+  assert_eq!(layout.record(root).len(), 1);
+}
+
+artic_test::layout_element!(Growing);
+artic_test::layout_element!(Shove);
+artic_test::layout_element!(FirstOnly);
 
 proptest! {
   // A stack of any fixed-size children, laid out once at another size first, gives the same answer
@@ -362,7 +394,7 @@ fn invariants_accept_children_inside_their_parent() {
 #[test]
 #[should_panic(expected = r#""pushed": rect 100,0,10,10 lies outside its parent "shove" (100,100)"#)]
 fn invariants_catch_a_child_outside_its_parent() {
-  let mut layout = Headless::with_nodes(Broken::new());
+  let mut layout = Headless::new();
   let pushed = layout.add("pushed", Fixed::new(10.0, 10.0));
   let root = layout.parent("shove", Shove, &[pushed]);
 
@@ -374,7 +406,7 @@ fn invariants_catch_a_child_outside_its_parent() {
 // Containment says nothing when an axis is infinite.
 #[test]
 fn containment_ignores_infinite_available() {
-  let mut layout = Headless::with_nodes(Broken::new());
+  let mut layout = Headless::new();
   let pushed = layout.add("pushed", Fixed::new(10.0, 10.0));
   let root = layout.parent("shove", Shove, &[pushed]);
 
@@ -386,7 +418,7 @@ fn containment_ignores_infinite_available() {
 // Without `.contained()`, the same layout passes.
 #[test]
 fn containment_is_opt_in() {
-  let mut layout = Headless::with_nodes(Broken::new());
+  let mut layout = Headless::new();
   let pushed = layout.add("pushed", Fixed::new(10.0, 10.0));
   let root = layout.parent("shove", Shove, &[pushed]);
 
@@ -398,7 +430,7 @@ fn containment_is_opt_in() {
 #[test]
 #[should_panic(expected = r#""growing": desired 10,10 from the layout, 20,10 from a fresh one"#)]
 fn invariants_catch_a_changing_answer() {
-  let mut layout = Headless::with_nodes(Broken::new());
+  let mut layout = Headless::new();
   let growing = layout.add("growing", Growing::default());
 
   Invariants::default().assert(&mut layout, growing, WINDOW, 1.0);
@@ -407,7 +439,7 @@ fn invariants_catch_a_changing_answer() {
 // A child its parent leaves out has no results in either manager, and that's consistent.
 #[test]
 fn invariants_skip_nodes_a_parent_leaves_out() {
-  let mut layout = Headless::with_nodes(Broken::new());
+  let mut layout = Headless::new();
   let shown = layout.add("shown", Fixed::new(10.0, 10.0));
   let hidden = layout.add("hidden", Fixed::new(10.0, 10.0));
   let root = layout.parent("first only", FirstOnly, &[shown, hidden]);
@@ -420,7 +452,7 @@ fn invariants_skip_nodes_a_parent_leaves_out() {
 #[test]
 #[should_panic(expected = r#""growing": desired"#)]
 fn invariants_name_the_deepest_node() {
-  let mut layout = Headless::with_nodes(Broken::new());
+  let mut layout = Headless::new();
   let growing = layout.add("growing", Growing::default());
   let root = layout.parent("stack", Stack::new(), &[growing]);
 

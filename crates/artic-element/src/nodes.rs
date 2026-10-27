@@ -130,6 +130,38 @@ mod tests {
 
   crate::element_type!(Place);
 
+  /// A 10 by 10 leaf whose measure keeps "shaped" as its layout result, and which draws only when
+  /// render reads it back.
+  #[derive(Debug)]
+  struct Shaped;
+
+  impl Object for Shaped {
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+  }
+
+  impl Layoutable for Shaped {
+    fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {
+      cx.set_measured("shaped");
+      Size::new(10.0, 10.0)
+    }
+
+    fn arrange(&self, _cx: &mut ArrangeCx<'_>, _rect: Rect) {}
+  }
+
+  impl Element for Shaped {
+    fn render(&self, cx: &mut RenderCx<'_>, scene: &mut SceneBuilder) {
+      if cx.layout_result::<&str>() == Some(&"shaped") {
+        scene.fill(Rect::new(0.0, 0.0, 1.0, 1.0), artic_render::Color::rgb(0, 0, 0));
+      }
+    }
+
+    fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
+      accesskit::Node::new(accesskit::Role::GenericContainer)
+    }
+  }
+
+  crate::element_type!(Shaped);
+
   /// A `Place` at `at` holding a `Spot` with `transform`, laid out in 100 by 100, and a second
   /// `Spot` layout never reached: the tree, the placed spot, the unreached one and the layout.
   fn laid_out(at: (f32, f32), transform: Option<Transform>) -> (UiTree, NodeId, NodeId, LayoutManager) {
@@ -215,5 +247,32 @@ mod tests {
     let mut expected = SceneBuilder::default();
     expected.fill(Rect::new(0.0, 0.0, 10.0, 10.0), artic_render::Color::rgb(0, 0, 0));
     assert_eq!(format!("{builder:?}"), format!("{expected:?}"));
+  }
+
+  // An element draws with what its layout kept, such as a shaped paragraph.
+  #[test]
+  fn record_passes_the_layout_result() {
+    let mut tree = UiTree::new();
+    let node = tree.alloc(Box::new(Shaped));
+    let mut layout = LayoutManager::default();
+    let types = ElementTypes::from_link_time();
+    let grid = PixelGrid { scale: 1.0, snap: false };
+    layout.run(
+      &mut tree,
+      &types,
+      node,
+      Size::new(10.0, 10.0),
+      grid,
+      &mut artic_text::Engine::with_fonts([]),
+    );
+    let mut builder = SceneBuilder::default();
+
+    ElementNodes {
+      types: &types,
+      layout: &layout,
+    }
+    .record(&tree, node, &mut builder);
+
+    assert_ne!(format!("{builder:?}"), format!("{:?}", SceneBuilder::default()));
   }
 }

@@ -38,8 +38,8 @@ impl Default for Layers {
   }
 }
 
-/// What composition asks about each node. The frame pipeline answers it from the elements; tests
-/// answer it directly.
+/// What composition asks about each node. The element layer answers it for laid-out elements;
+/// tests answer it directly.
 pub trait Nodes {
   /// The node's layers.
   fn layers(&self, tree: &UiTree, node: NodeId) -> Layers;
@@ -642,5 +642,21 @@ mod tests {
     Compositor::default().compose(&mut tree, root, &mut nodes);
 
     assert!(tree.dirty(root).contains(Affects::RENDER));
+  }
+
+  // A recorded scene is one fragment holding what the closure drew, with no layers around it.
+  #[test]
+  fn record_makes_one_fragment() {
+    let rect = Rect::new(0.0, 0.0, 2.0, 1.0);
+    let red = Color::rgb(255, 0, 0);
+
+    let scene = Scene::record(|builder| builder.fill(rect, red));
+
+    let mut expected = SceneBuilder::default();
+    expected.fill(rect, red);
+    let [SceneItem::Fragment(fragment)] = scene.items() else {
+      panic!("one fragment, got {:?}", scene.items());
+    };
+    assert_eq!(fragment.commands(), expected.take());
   }
 }

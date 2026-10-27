@@ -24,10 +24,10 @@ fn stack_puts_children_top_to_bottom() {
 The helpers live in `artic_test::layout`. The module imports `artic-core`, `artic-layout`, `artic-element` and `proptest`, and from `artic-render` only the scene types `Headless::record` returns, so a layout test never needs a GPU.
 
 ```rust,ignore
-pub struct Headless<N: LayoutNodes> { /* tree, manager, nodes, labels */ }
+pub struct Headless { /* tree, manager, element types, labels */ }
 
-impl<N: LayoutNodes> Headless<N> {
-  pub fn new(nodes: N) -> Headless<N>;
+impl Headless {
+  pub fn new() -> Headless;
   pub fn add(&mut self, label: &str, object: impl Object) -> NodeId;
   pub fn parent(&mut self, label: &str, object: impl Object, children: &[NodeId]) -> NodeId;
   pub fn tree(&mut self) -> &mut UiTree;
@@ -35,12 +35,13 @@ impl<N: LayoutNodes> Headless<N> {
   pub fn set_snap(&mut self, snap: bool);
   pub fn run(&mut self, root: NodeId, available: Size, scale: f32) -> LayoutStats;
   pub fn label(&self, node: NodeId) -> String;
+  pub fn record(&mut self, node: NodeId) -> Vec<Command>;
 }
 ```
 
 `Headless` owns the test text engine (`artic_test::text::engine()`, from the [text design](text.md)) and passes it to `LayoutManager::run`, so `run` keeps its arguments and text measures the same on every machine.
 
-`parent` adds the node and links `children` as its visual children, in order. `run` calls `LayoutManager::run` with the `LayoutNodes` given to `new`. Snapping is on, since a window always snaps, until `set_snap(false)`. A test that needs something else `Headless` doesn't wrap, such as invalidating a node, calls `tree()` and `manager()` directly.
+`parent` adds the node and links `children` as its visual children, in order. `run` calls `LayoutManager::run` with `ElementTypes`, so every registered element is laid out. `record` draws one node as the frame pipeline does, through `artic_element::ElementNodes`, without its children. Snapping is on, since a window always snaps, until `set_snap(false)`. A test that needs something else `Headless` doesn't wrap, such as invalidating a node, calls `tree()` and `manager()` directly.
 
 `label` returns the label given to `add` or `parent`. A node allocated through `tree()` has none and shows as its `NodeId`.
 
@@ -49,7 +50,7 @@ impl<N: LayoutNodes> Headless<N> {
 ```rust,ignore
 pub const TOLERANCE: f32 = 0.001;
 
-impl<N: LayoutNodes> Headless<N> {
+impl Headless {
   #[track_caller] pub fn assert_desired(&self, node: NodeId, expected: Size);
   #[track_caller] pub fn assert_desired_within(&self, node: NodeId, expected: Size, tolerance: f32);
   #[track_caller] pub fn assert_rect(&self, node: NodeId, expected: Rect);
@@ -76,7 +77,7 @@ Most layout tests need a leaf of a known size and a parent that places its child
 | `Fixed` | a leaf: `Fixed::new(width, height)` asks for that size whatever is available. `set_size` changes it, for tests that invalidate. `measured()` and `arranged()` count the calls |
 | `Stack` | places its children top to bottom, each as wide as the stack and as tall as it asked; asks for the widest child's width and the sum of the heights. It counts calls the same way |
 
-Both are elements that draw nothing, registered with `artic_element::element_type!`, so `Headless::new()` lays them out through `ElementTypes` beside every control. A test with its own element registers it the same way. A test that needs a `LayoutNodes` of its own, such as one with elements that break the layout rules on purpose, passes it to `Headless::with_nodes`.
+Both are elements that draw nothing, made so by `artic_test::layout_element!`, which implements `Element` for a type that only lays out and registers it. `Headless::new()` lays them out through `ElementTypes` beside every control, and a test's own layout-only element, such as one that breaks the layout rules on purpose, takes the same one line.
 
 ## 4. Strategies and invariants
 
@@ -96,7 +97,7 @@ pub struct Invariants { /* contained: bool */ }
 impl Invariants {
   pub fn contained(self) -> Invariants;
   #[track_caller]
-  pub fn assert<N: LayoutNodes>(&self, layout: &mut Headless<N>, root: NodeId, available: Size, scale: f32);
+  pub fn assert(&self, layout: &mut Headless, root: NodeId, available: Size, scale: f32);
 }
 ```
 

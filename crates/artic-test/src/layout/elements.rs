@@ -1,9 +1,25 @@
+/// Makes `$ty`, a type that only lays out, an element that draws nothing and is a generic container
+/// to accessibility, and registers it, so `ElementTypes` and [`Headless`](crate::layout::Headless)
+/// find it beside the controls. For test elements such as [`Fixed`] and [`Stack`].
+#[macro_export]
+macro_rules! layout_element {
+  ($ty:ty) => {
+    impl $crate::__private::Element for $ty {
+      fn render(&self, _cx: &mut $crate::__private::RenderCx<'_>, _scene: &mut $crate::__private::SceneBuilder) {}
+
+      fn accessibility(&self, _cx: &$crate::__private::AccessCx<'_>) -> $crate::__private::accesskit::Node {
+        $crate::__private::accesskit::Node::new($crate::__private::accesskit::Role::GenericContainer)
+      }
+    }
+
+    $crate::__private::element_type!($ty);
+  };
+}
+
 use artic_core::Object;
 use artic_core::property::PropertyVisitor;
-use artic_element::{AccessCx, Element, RenderCx};
 use artic_layout::geometry::{Rect, Size};
 use artic_layout::{ArrangeCx, Layoutable, MeasureCx};
-use artic_render::SceneBuilder;
 use std::cell::Cell;
 
 /// A leaf element that asks for the same size whatever is available and draws nothing. It counts
@@ -48,15 +64,7 @@ impl Object for Fixed {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
-impl Element for Fixed {
-  fn render(&self, _cx: &mut RenderCx<'_>, _scene: &mut SceneBuilder) {}
-
-  fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
-    accesskit::Node::new(accesskit::Role::GenericContainer)
-  }
-}
-
-artic_element::element_type!(Fixed);
+crate::layout_element!(Fixed);
 
 impl Layoutable for Fixed {
   fn measure(&self, _cx: &mut MeasureCx<'_>, _available: Size) -> Size {
@@ -101,15 +109,7 @@ impl Object for Stack {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
-impl Element for Stack {
-  fn render(&self, _cx: &mut RenderCx<'_>, _scene: &mut SceneBuilder) {}
-
-  fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
-    accesskit::Node::new(accesskit::Role::GenericContainer)
-  }
-}
-
-artic_element::element_type!(Stack);
+crate::layout_element!(Stack);
 
 impl Layoutable for Stack {
   fn measure(&self, cx: &mut MeasureCx<'_>, available: Size) -> Size {
