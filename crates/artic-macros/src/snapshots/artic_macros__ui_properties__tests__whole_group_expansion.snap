@@ -1,0 +1,99 @@
+---
+source: crates/artic-macros/src/ui_properties.rs
+expression: "prettyplease::unparse(&file)"
+---
+const _: () = {
+    use ::artic_registry::__private as __artic;
+    static __KEY_WIDTH: __artic::PropertyKey<f32> = __artic::PropertyKey::new(
+        "Width",
+        __artic::Affects::NONE,
+        __artic::Inheritance::None,
+    );
+    static __KEY_MARGIN: __artic::PropertyKey<Thickness> = __artic::PropertyKey::new(
+        "Margin",
+        __artic::Affects::LAYOUT,
+        __artic::Inheritance::None,
+    );
+    impl ::core::default::Default for Layout {
+        fn default() -> Self {
+            Self {
+                width: __artic::Property::new(
+                    (&__KEY_WIDTH),
+                    <f32 as ::core::default::Default>::default(),
+                ),
+                margin: __artic::Property::new(
+                    (&__KEY_MARGIN),
+                    <Thickness as ::core::default::Default>::default(),
+                ),
+                cache: ::core::default::Default::default(),
+            }
+        }
+    }
+    static __PROPERTIES: [__artic::PropertyInfo; 2usize] = [
+        __artic::PropertyInfo {
+            name: (&__KEY_WIDTH).name(),
+            field: "width",
+            value_type: ::core::stringify!(f32),
+            affects: (&__KEY_WIDTH).affects(),
+            inherits: (&__KEY_WIDTH).inherits(),
+            literal: __artic::literal!(f32),
+        },
+        __artic::PropertyInfo {
+            name: (&__KEY_MARGIN).name(),
+            field: "margin",
+            value_type: ::core::stringify!(Thickness),
+            affects: (&__KEY_MARGIN).affects(),
+            inherits: (&__KEY_MARGIN).inherits(),
+            literal: __artic::literal!(Thickness),
+        },
+    ];
+    impl Layout {
+        ///The key of `Width`, for styles.
+        pub const WIDTH: &'static __artic::PropertyKey<f32> = &__KEY_WIDTH;
+        ///The key of `Margin`, for styles.
+        pub const MARGIN: &'static __artic::PropertyKey<Thickness> = &__KEY_MARGIN;
+    }
+    impl __artic::PropertyGroup for Layout {
+        const PROPERTIES: &'static [__artic::PropertyInfo] = &__PROPERTIES;
+        const METHODS: &'static str = ::core::concat!(
+            ::core::module_path!(), "::", "LayoutMethods"
+        );
+        const CONTENT: ::core::option::Option<&'static __artic::PropertyInfo> = ::core::option::Option::Some(
+            &__PROPERTIES[0usize],
+        );
+        fn visit_properties(&self, visitor: &mut __artic::PropertyVisitor<'_>) {
+            visitor.visit(&self.width);
+            visitor.visit(&self.margin);
+        }
+    }
+    #[allow(dead_code, clippy::needless_borrow)]
+    fn __checks() {
+        use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+        (&&__artic::ValueCheck::<f32>(__artic::PhantomData))
+            .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+        (&&__artic::ValueCheck::<Thickness>(__artic::PhantomData))
+            .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+    }
+};
+///The builder methods of the `Layout` group, on every type that flattens it.
+pub trait LayoutMethods: ::artic_registry::__private::HasGroup<
+        Layout,
+    > + ::core::marker::Sized {
+    ///Sets `Width`, the local value.
+    #[must_use]
+    fn width(self, value: f32) -> Self {
+        <Self as ::artic_registry::__private::HasGroup<Layout>>::group(&self)
+            .width
+            .set(value);
+        self
+    }
+    ///Sets `Margin`, the local value.
+    #[must_use]
+    fn margin(self, value: impl ::core::convert::Into<Thickness>) -> Self {
+        <Self as ::artic_registry::__private::HasGroup<Layout>>::group(&self)
+            .margin
+            .set(::core::convert::Into::into(value));
+        self
+    }
+}
+impl<T: ::artic_registry::__private::HasGroup<Layout>> LayoutMethods for T {}

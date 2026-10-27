@@ -242,6 +242,21 @@ mod tests {
     assert!(!expanded.contains("fn narrow("));
   }
 
+  // A group expanded whole: the snapshot pins everything the derive writes.
+  #[test]
+  fn whole_group_expansion() {
+    let input: DeriveInput = parse_quote! {
+      pub struct Layout {
+        #[ui(content)] pub width: Property<f32>,
+        #[ui(affects = layout)] pub margin: Property<Thickness>,
+        cache: u8,
+      }
+    };
+
+    let file: syn::File = syn::parse2(expand(&input).expect("valid")).expect("parses");
+    insta::assert_snapshot!(prettyplease::unparse(&file));
+  }
+
   // A group field named like a builder method every type has is rejected.
   #[test]
   fn group_fields_with_builder_names_are_an_error() {
