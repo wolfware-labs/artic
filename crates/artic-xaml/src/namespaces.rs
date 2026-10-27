@@ -8,6 +8,12 @@
 
 use std::collections::{BTreeSet, HashMap};
 
+/// The namespace URI of artic's own UI types, such as `Button` and `Border`.
+pub const ARTIC_UI: &str = "https://artic.rs/ui";
+
+/// The namespace URI of the XAML language itself: `x:Name`, `{x:Null}`, `<x:String>`.
+pub const MARKUP: &str = "https://artic.rs/markup";
+
 /// Which crates each namespace URI stands for.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamespaceMap {
@@ -55,6 +61,13 @@ impl NamespaceMap {
 mod tests {
   use super::*;
   use pretty_assertions::assert_eq;
+
+  // artic's two URIs are exported, so the parser and the facade read the same text.
+  #[test]
+  fn artic_uris_are_exported() {
+    assert_eq!(ARTIC_UI, "https://artic.rs/ui");
+    assert_eq!(MARKUP, "https://artic.rs/markup");
+  }
 
   // An alias maps a URI to its crates, in order.
   #[test]

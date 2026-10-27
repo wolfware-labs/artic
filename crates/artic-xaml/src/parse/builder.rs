@@ -4,6 +4,7 @@ use super::text::{Decoded, Kind, decode, normalize_line_endings};
 use super::whitespace::{self, Space};
 use super::{Fatal, duplicate_of, markup, namespace, unresolved, unsupported};
 use crate::infoset::{Directive, Member, MemberKey, NamespaceDecl, TypeRef, XamlDocument, XamlNamespace, XamlNode};
+use crate::namespaces::ARTIC_UI;
 use artic_diagnostics::{Diagnostic, Diagnostics, LineCol, SourceFile, SourceId, Span};
 use std::collections::HashSet;
 use xmlparser::{ElementEnd, StrSpan, Token, Tokenizer};
@@ -450,7 +451,7 @@ impl<'a> Builder<'a> {
           "declare it here or on an ancestor, like `xmlns:{prefix}=\"using:my_app::views\"`"
         )),
         None => Diagnostic::error(span, "no default namespace is declared")
-          .with_help("add `xmlns=\"https://artic.rs/ui\"` to the root element"),
+          .with_help(format!("add `xmlns=\"{ARTIC_UI}\"` to the root element")),
       };
       self.diagnostics.push(diagnostic);
     }

@@ -3,11 +3,34 @@
 use super::text::Decoded;
 use super::{unresolved, unsupported};
 use crate::infoset::XamlNamespace;
+use crate::namespaces::{ARTIC_UI, MARKUP};
 use artic_diagnostics::{Diagnostic, Diagnostics, SourceId, Span};
 use artic_ident::{is_identifier, is_keyword, is_path_keyword, snake_case};
 
-const MARKUP_URI: &str = "https://artic.rs/markup";
-pub(super) const UI_URI: &str = "https://artic.rs/ui";
+/// A namespace URI artic rejects: why, and the artic URI it stands for, which its prefix binds so
+/// that its uses aren't reported again.
+struct Rejected {
+  uri: &'static str,
+  reason: &'static str,
+  meant: &'static str,
+}
+
+/// The Microsoft XAML URIs, which artic replaces with its own.
+const REJECTED: [Rejected; 2] = [
+  Rejected {
+    uri: "http://schemas.microsoft.com/winfx/2006/xaml",
+    reason: "artic's XAML language namespace has its own URI",
+    meant: MARKUP,
+  },
+  Rejected {
+    uri: "http://schemas.microsoft.com/winfx/2006/xaml/presentation",
+    reason: "artic's controls are their own vocabulary",
+    meant: ARTIC_UI,
+  },
+];
+
+/// Why a `clr-namespace:` value is rejected.
+const CLR_NAMESPACE: &str = "prefixes map to Rust modules, not .NET namespaces";
 
 /// The namespace an `xmlns` or `xmlns:prefix` declaration (`prefix` is `None` for the default
 /// namespace) binds, written at `declaration` with the value `uri`.
@@ -26,12 +49,6 @@ pub(super) fn classify(
     Some(prefix) => format!("xmlns:{prefix}"),
     None => "xmlns".to_owned(),
   };
-  // The table gives the message; the help names the author's own prefix.
-  let mut reject = |construct: &str, help: String, meant: XamlNamespace| {
-    let rejection = unsupported::rejection(construct, declaration).expect("rejected namespaces are in the table");
-    diagnostics.push(rejection.with_help(help));
-    meant
-  };
   let text = uri.text.as_str();
   if let Some(path) = text.strip_prefix("using:") {
     let path = UsingPath {
@@ -49,27 +66,36 @@ pub(super) fn classify(
     };
   }
   if let Some(namespace) = text.strip_prefix("clr-namespace:") {
-    let help = format!(
-      "artic maps prefixes to Rust modules; for example `{attribute}=\"using:{}\"`",
-      rust_path(namespace)
+    diagnostics.push(
+      unsupported::not_supported("clr-namespace:", CLR_NAMESPACE, declaration).with_help(format!(
+        "artic maps prefixes to Rust modules; for example `{attribute}=\"using:{}\"`",
+        rust_path(namespace)
+      )),
     );
-    return reject("clr-namespace:", help, unresolved());
+    return unresolved();
   }
-  match text {
-    MARKUP_URI => XamlNamespace::Markup,
-    "" => {
-      diagnostics.push(Diagnostic::error(declaration, "a namespace can't be empty"));
-      unresolved()
+  if text.is_empty() {
+    diagnostics.push(Diagnostic::error(declaration, "a namespace can't be empty"));
+    return unresolved();
+  }
+  match REJECTED.iter().find(|rejected| rejected.uri == text) {
+    Some(rejected) => {
+      diagnostics.push(
+        unsupported::not_supported(rejected.uri, rejected.reason, declaration)
+          .with_help(format!("use `{attribute}=\"{}\"`", rejected.meant)),
+      );
+      bound(rejected.meant)
     }
-    "http://schemas.microsoft.com/winfx/2006/xaml" => {
-      reject(text, format!("use `{attribute}=\"{MARKUP_URI}\"`"), XamlNamespace::Markup)
-    }
-    "http://schemas.microsoft.com/winfx/2006/xaml/presentation" => reject(
-      text,
-      format!("use `{attribute}=\"{UI_URI}\"`"),
-      XamlNamespace::Uri(UI_URI.to_owned()),
-    ),
-    _ => XamlNamespace::Uri(text.to_owned()),
+    None => bound(text),
+  }
+}
+
+/// The namespace `uri` names: the markup namespace, or a vocabulary URI.
+fn bound(uri: &str) -> XamlNamespace {
+  if uri == MARKUP {
+    XamlNamespace::Markup
+  } else {
+    XamlNamespace::Uri(uri.to_owned())
   }
 }
 

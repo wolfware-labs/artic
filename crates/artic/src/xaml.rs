@@ -54,8 +54,7 @@ pub fn compile_dir(dir: impl AsRef<std::path::Path>, namespaces: &NamespaceMap) 
 use artic_controls as _;
 use artic_element as _;
 
-/// The namespace URI of artic's own UI types.
-pub const ARTIC_UI: &str = "https://artic.rs/ui";
+pub use artic_xaml::namespaces::ARTIC_UI;
 
 /// A map holding artic's URI, standing for the artic crates that define UI types.
 #[must_use]

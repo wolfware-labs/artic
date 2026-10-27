@@ -1,13 +1,12 @@
 //! The MS-XAML and WPF constructs artic rejects, each with why and what to write instead.
 
-use super::namespace::UI_URI;
 use crate::infoset::{TypeRef, XamlNamespace};
+use crate::namespaces::ARTIC_UI;
 use artic_diagnostics::{Diagnostic, Span};
 
 /// A construct artic rejects.
 pub(crate) struct Unsupported {
-  /// The construct as written, which is also how it's looked up: `x:Shared`, `Trigger`,
-  /// `clr-namespace:`.
+  /// The construct as written, which is also how it's looked up: `x:Shared`, `Trigger`.
   pub(crate) construct: &'static str,
   /// Why artic doesn't support it.
   pub(crate) reason: &'static str,
@@ -77,21 +76,6 @@ pub(crate) const UNSUPPORTED: &[Unsupported] = &[
     reason: "styles react to state with selectors",
     suggestion: "use a selector with a pseudo-class, like `Button:pointerover`",
   },
-  Unsupported {
-    construct: "http://schemas.microsoft.com/winfx/2006/xaml",
-    reason: "artic's XAML language namespace has its own URI",
-    suggestion: "`xmlns:x=\"https://artic.rs/markup\"`",
-  },
-  Unsupported {
-    construct: "http://schemas.microsoft.com/winfx/2006/xaml/presentation",
-    reason: "artic's controls are their own vocabulary",
-    suggestion: "`xmlns=\"https://artic.rs/ui\"`",
-  },
-  Unsupported {
-    construct: "clr-namespace:",
-    reason: "prefixes map to Rust modules, not .NET namespaces",
-    suggestion: "`using:` with the module path, like `using:my_app::views`",
-  },
 ];
 
 /// The types of the markup namespace artic supports: `x:Type`, `x:Static`, `x:Null` and the XAML
@@ -105,7 +89,12 @@ const MARKUP_NAMES: &str = "directives `x:Name`, `x:Key`, `x:Class`, `x:DataType
 /// The error for `construct`, written at `span`, if the table rejects it.
 pub(super) fn rejection(construct: &str, span: Span) -> Option<Diagnostic> {
   let row = UNSUPPORTED.iter().find(|row| row.construct == construct)?;
-  Some(Diagnostic::error(span, format!("`{}` isn't supported: {}", row.construct, row.reason)).with_help(row.suggestion))
+  Some(not_supported(row.construct, row.reason, span).with_help(row.suggestion))
+}
+
+/// The error for `construct`, written at `span`, which artic doesn't support for `reason`.
+pub(super) fn not_supported(construct: &str, reason: &str, span: Span) -> Diagnostic {
+  Diagnostic::error(span, format!("`{construct}` isn't supported: {reason}"))
 }
 
 /// The error for a type artic doesn't support: a rejected or unknown name in the markup namespace,
@@ -115,7 +104,7 @@ pub(super) fn type_problem(ty: &TypeRef) -> Option<Diagnostic> {
     XamlNamespace::Markup if !MARKUP_TYPES.contains(&ty.name.as_str()) => {
       Some(markup_problem(ty.prefix.as_deref(), &ty.name, ty.span))
     }
-    XamlNamespace::Uri(uri) if uri == UI_URI => rejection(&ty.name, ty.span),
+    XamlNamespace::Uri(uri) if uri == ARTIC_UI => rejection(&ty.name, ty.span),
     _ => None,
   }
 }

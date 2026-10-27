@@ -758,13 +758,24 @@ fn table_lists_the_spec_constructs() {
     "Trigger",
     "DataTrigger",
     "EventTrigger",
-    "clr-namespace:",
-    "http://schemas.microsoft.com/winfx/2006/xaml",
   ];
   for construct in spec {
     assert!(
       unsupported::UNSUPPORTED.iter().any(|row| row.construct == construct),
       "{construct} is missing"
+    );
+  }
+}
+
+// The table holds constructs only: a namespace is rejected where `xmlns` is read, which knows the
+// prefix its help names.
+#[test]
+fn table_holds_no_namespace() {
+  for row in unsupported::UNSUPPORTED {
+    assert!(
+      row.construct.starts_with("x:") || !row.construct.contains([':', '/']),
+      "{} is a namespace",
+      row.construct
     );
   }
 }
