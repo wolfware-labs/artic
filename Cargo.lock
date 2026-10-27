@@ -105,7 +105,6 @@ dependencies = [
  "artic-view-compiler",
  "artic-xaml",
  "artic-xaml-lang",
- "artic-xaml-runtime",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 [package]
 name = "artic"
-description = "Cross-platform UI framework with XAML views and Rust logic."
+description = "Cross-platform UI framework with views in a UI language and logic in Rust."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,8 +13,6 @@ default = []
 xaml = ["dep:artic-xaml"]
 view-compiler = ["dep:artic-view-compiler"]
 xaml-compiler = ["xaml", "view-compiler", "dep:artic-xaml-lang"]
-xaml-runtime = ["xaml", "dep:artic-xaml-runtime"]
-xaml-hot-reload = ["xaml", "dep:artic-xaml-runtime"]
 
 [dependencies]
 artic-core.workspace = true
@@ -25,7 +23,6 @@ artic-controls.workspace = true
 artic-view-compiler = { workspace = true, optional = true }
 artic-xaml = { workspace = true, optional = true }
 artic-xaml-lang = { workspace = true, optional = true }
-artic-xaml-runtime = { workspace = true, optional = true }
 
 [dev-dependencies]
 artic-macros.workspace = true

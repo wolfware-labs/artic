@@ -1,6 +1,6 @@
 [package]
 name = "artic-xaml-runtime"
-description = "Runtime XAML loader used by the facade's xaml-runtime and xaml-hot-reload features."
+description = "Runtime XAML loader, planned: the facade's xaml-runtime and xaml-hot-reload features will add it."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

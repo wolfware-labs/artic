@@ -1,4 +1,4 @@
-//! artic: a cross-platform UI framework: views written in a UI language, logic in Rust.
+//! artic: a cross-platform UI framework with views in a UI language and logic in Rust.
 //!
 //! This facade re-exports the public API. The crates with UI and value types are its modules:
 //! [`controls`], [`core`], [`element`], [`layout`] and [`render`]. With default features it adds
@@ -6,12 +6,9 @@
 //!
 //! Features:
 //!
-//! - `xaml`: `xaml::namespaces()`, the namespace URIs XAML views use, for the runtime loader and
-//!   for `build.rs`.
-//! - `xaml-runtime`: load XAML files at runtime in release builds. Turns `xaml` on.
-//! - `xaml-hot-reload`: reload XAML views from disk during development. Turns `xaml` on.
 //! - `view-compiler`: `view::compile_dir` and `view::crate_paths()`, which compile a directory of
 //!   views of any UI language to Rust from `build.rs`.
+//! - `xaml`: `xaml::namespaces()`, the namespace URIs XAML views use, for `build.rs`.
 //! - `xaml-compiler`: `xaml::compile_dir`, the short form for XAML views. Turns `xaml` and
 //!   `view-compiler` on.
 

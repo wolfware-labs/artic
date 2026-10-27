@@ -39,7 +39,7 @@ flowchart TD
   artic --> controls[artic-controls]
   artic -. planned .-> platform[artic-platform]
   artic -. planned .-> text[artic-text]
-  artic -. xaml-runtime / xaml-hot-reload .-> runtime[artic-xaml-runtime]
+  artic -. planned: xaml-runtime / xaml-hot-reload .-> runtime[artic-xaml-runtime]
   artic -. xaml .-> xaml
   artic -. view-compiler .-> viewc[artic-view-compiler]
   artic -. xaml-compiler .-> lang
@@ -117,16 +117,16 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-test` | `artic-core`, `artic-layout`, `artic-render`, `artic-text`, `artic-test-fonts`, `artic-element`, `artic-platform`; planned: `artic-registry`, `artic-style` |
 | `artic-winit` | `artic-core`, `artic-render`, `artic-platform` |
 | `artic-vello` | `artic-layout`, `artic-render` |
-| `artic` | `artic-core`, `artic-element`, `artic-layout`, `artic-render`, `artic-controls`; planned: `artic-platform` (#55), `artic-style`, `artic-theme` (#106); `artic-xaml` with the `xaml` feature, which `xaml-runtime`, `xaml-hot-reload` and `xaml-compiler` turn on; `artic-xaml-runtime` only with `xaml-runtime` or `xaml-hot-reload`; `artic-view-compiler` with `view-compiler`, which `xaml-compiler` turns on; `artic-xaml-lang` only with `xaml-compiler`, which an app enables on its build-dependency on the facade |
+| `artic` | `artic-core`, `artic-element`, `artic-layout`, `artic-render`, `artic-controls`; planned: `artic-platform` (#55), `artic-style`, `artic-theme` (#106); `artic-xaml` with the `xaml` feature, which `xaml-compiler` turns on; planned: `artic-xaml-runtime` only with `xaml-runtime` or `xaml-hot-reload`, which will turn `xaml` on; `artic-view-compiler` with `view-compiler`, which `xaml-compiler` turns on; `artic-xaml-lang` only with `xaml-compiler`, which an app enables on its build-dependency on the facade |
 
 ## Rules
 
-- `artic-controls` does not depend on `artic-platform`. Input event types live in `artic-core`, and the facade connects the platform host to the tree. Controls stay testable without a window and portable to future targets.
+- `artic-controls` does not depend on `artic-platform`. Input event types live in `artic-core`, and the facade will connect the platform host to the tree (#55). Controls stay testable without a window and portable to future targets.
 - The `Element` trait and its contexts (`RenderCx`, `HitTestCx`, `EventCx`, `AccessCx`) live in `artic-element`, together with gesture recognizers. `Application` and `Surface`, the roots the host presents, live there too, with the `Desktop` attached properties, so `artic-platform` reads them directly ([surface design](design/surface.md)). Controls implement `Element`; the platform host drives any `dyn Element` without knowing the concrete controls. The property groups every control has (`Layout`, `Appearance`, `Interaction`, `Identity`) live there too, so a control library outside artic doesn't need `artic-controls` and its built-in controls; `#[element]` stays with the macros.
 - `artic-layout` defines `Layoutable`, `MeasureCx`, `ArrangeCx` and `LayoutManager` over `Layoutable`; `Element` extends `Layoutable`, so layout never names `Element`. Text measurement reaches layout through `TextEngine`, a trait defined in `artic-layout` and implemented by `artic-text` with `parley`, the same for every renderer. The shaped `Paragraph` is an `artic-layout` type too, so the scene carries it and renderers draw it without depending on `artic-text` ([text design](design/text.md)).
-- `artic-platform` owns the frame pipeline (dispatcher, style pass, layout, scene build, render, accesskit). Stages that need crates the platform cannot see, such as the style pass or OS theme → root pseudo-classes, are registered as hooks by the facade. The platform never depends on `artic-style`, `artic-controls` or `artic-theme`.
+- `artic-platform` owns the frame pipeline (dispatcher, style pass, layout, scene build, render, accesskit). Stages that need crates the platform cannot see, such as the style pass or OS theme → root pseudo-classes, will be registered as hooks by the facade (#55). The platform never depends on `artic-style`, `artic-controls` or `artic-theme`.
 - Tree behaviours that call `Element` (routed-event dispatch, hit testing, focus navigation) live in `artic-element`; `artic-core` keeps only the data types they use.
-- OS services that controls use (clipboard, IME requests, cursor) are traits in `artic-core`. Hosts provide them as capabilities on `HostContext` ([host design](design/host.md)), the facade registers them, and controls reach them through their context or app services, never through the `Host`.
+- OS services that controls use (clipboard, IME requests, cursor) are traits in `artic-core`. Hosts provide them as capabilities on `HostContext` ([host design](design/host.md)), the facade will register them (#55), and controls reach them through their context or app services, never through the `Host`.
 - Code that needs concrete controls but serves the runtime or tooling (hot-reload overlay and state restore, debug overlay) lives in the facade.
 - Dev-dependencies may point from any crate to `artic-test`, as long as `artic-test` does not depend back on that crate. Control, theme and language-server tests use `TestHost` this way.
 - Test data that a crate below `artic-test` needs too, such as the test font, lives in a data-only crate with no dependencies (`artic-test-fonts`), not in `artic-test`, so the crate's tests can use it without a cycle.
@@ -138,7 +138,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 - Spans and diagnostics live in `artic-diagnostics`, below every UI language, so `artic-style` can report selector errors with spans without naming one.
 - `crates/docs-check` is test-only (`publish = false`) and sits outside the layers, like the registry fixtures. It compiles the Rust code in the documents.
 - `artic-xaml` does not depend on the registry. Type references stay unresolved in the infoset, so parser tests need no registry.
-- Release builds link `artic-xaml-runtime` only when the app enables `xaml-runtime`. Compiled views never touch the loader.
+- Release builds will link `artic-xaml-runtime` only when the app enables `xaml-runtime`. Compiled views never touch the loader.
 - The facade's default features add no UI language, host or renderer. Each one comes with an opt-in feature named after it, such as `xaml`, so adding a language or a renderer never costs an app that doesn't use it. The facade depends on a crate only to re-export it.
 - App-facing crates stay free of native-only dependencies, so a web target can be added later without app changes (D24 in the spec).
 - Backend adapters (`artic-winit`, `artic-vello`, and any third-party adapter) depend only on the public API of `artic-render` and `artic-platform`. Nothing in artic depends on an adapter: each target's launcher names its host and renderer ([backend design](design/backends.md)). `artic-render` and `artic-platform` have no backend dependencies (`wgpu`, `vello`, `winit` and the OS crates live in adapters). An adapter's tests may dev-depend on `artic-controls` for control goldens, since goldens belong to each renderer ([golden images](design/golden-images.md)); its library still depends only on `artic-render` and `artic-platform`.
