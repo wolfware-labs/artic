@@ -91,18 +91,18 @@ pub struct RelativeScalar { pub value: f32, pub scaling: Scaling }
 
 Fill commands carry a brush instead of a color: `Command::Fill { shape, brush }`, recorded by `SceneBuilder::fill(shape, brush: impl Into<Brush>)`, which takes anything that converts, so passing a `Color` still works. Shapes come from the [shapes design](shapes.md) (#36); this design first had the same brush on a rectangle-only fill.
 
-`artic-render` stays free of any backend. `artic-vello` converts, in `translate.rs`:
+`artic-render` stays free of any backend, and decides how a brush is drawn, so every renderer draws the same pixels. `Brush::drawable(bounds)` resolves a brush to a `Paint`, or `None` for one that paints nothing, by these rules:
 
 - Relative points and radii resolve against the bounds of the shape being filled.
-- A linear gradient becomes a `peniko` linear gradient between the resolved points.
-- A radial gradient becomes a circular `peniko` gradient of radius 1 at the origin, with a brush transform that scales it by the two radii and moves it to the center, so unequal radii draw an ellipse.
-- `opacity` multiplies the alpha of the color or of each stop.
+- `opacity` multiplies the alpha of the color or of each stop; the `Paint` keeps it beside the colors.
 - Values outside their range are clamped, as WPF does:
   - offsets and opacity to `0..=1`;
   - radii to `0` or more;
   - a NaN offset, opacity or radius counts as `0`.
 - Stops are sorted by offset, keeping the written order among equal offsets, so two stops at one offset make a hard edge.
-- An empty stop list draws nothing. A single stop fills with its color.
+- An empty stop list draws nothing. A single stop fills with its color, and so does a gradient with nothing to spread over: ends that meet, a zero radius, or a coordinate that isn't finite. It takes the last color after sorting.
+
+A renderer maps the `Paint` to its own paint without checking anything. `artic-vello` does it in `translate.rs`: a linear `Paint` becomes a `peniko` linear gradient between its points, and a radial one a circular `peniko` gradient of radius 1 at the origin, with a brush transform that scales it by the two radii and moves it to the center, so unequal radii draw an ellipse.
 
 ## 5. What waits
 
