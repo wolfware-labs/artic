@@ -100,8 +100,6 @@ pub struct UiTree {
   visual: Tree,
   dirty_flags: DirtyFlags,
   attached_values: AttachedValues,
-  /// The nodes `get_mut` handed out since the last check of their wiring, each with the ids of the
-  /// properties it listed then, in debug builds.
   #[cfg(debug_assertions)]
   touched: RefCell<Vec<(NodeId, Vec<SignalId>)>>,
 }
@@ -821,14 +819,7 @@ impl UiTree {
     }
   }
 
-  /// Checks, in debug builds, that every node `get_mut` handed out still lists the properties it
-  /// listed then, in the same order, then forgets them. A node that fails stays recorded, so a
-  /// caught panic is raised again by the next check.
-  ///
-  /// # Panics
-  ///
-  /// If one of them lists another property in place of one it listed: a property field was
-  /// replaced through `get_mut` or `get_as_mut`, and the property it held would never be disposed.
+  /// Panics, in debug builds, if a node `get_mut` handed out lists other properties than it did then.
   fn check_touched(&self) {
     #[cfg(debug_assertions)]
     {
@@ -853,7 +844,6 @@ impl UiTree {
   }
 }
 
-/// The ids of the properties `object` lists, in the order it lists them.
 #[cfg(debug_assertions)]
 fn property_ids(object: &dyn Object) -> Vec<SignalId> {
   let mut ids = Vec::new();
