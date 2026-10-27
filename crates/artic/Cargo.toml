@@ -13,25 +13,23 @@ default = []
 xaml = ["dep:artic-xaml"]
 view-compiler = ["dep:artic-view-compiler"]
 xaml-compiler = ["xaml", "view-compiler", "dep:artic-xaml-lang"]
-hot-reload = ["xaml", "dep:artic-xaml-runtime"]
-runtime-xaml = ["xaml", "dep:artic-xaml-runtime"]
-skia = []
+xaml-runtime = ["xaml", "dep:artic-xaml-runtime"]
+xaml-hot-reload = ["xaml", "dep:artic-xaml-runtime"]
 
 [dependencies]
 artic-core.workspace = true
-artic-registry.workspace = true
 artic-element.workspace = true
-artic-macros.workspace = true
 artic-layout.workspace = true
 artic-render.workspace = true
-artic-style.workspace = true
-artic-platform.workspace = true
 artic-controls.workspace = true
-artic-theme.workspace = true
 artic-view-compiler = { workspace = true, optional = true }
 artic-xaml = { workspace = true, optional = true }
 artic-xaml-lang = { workspace = true, optional = true }
 artic-xaml-runtime = { workspace = true, optional = true }
+
+[dev-dependencies]
+artic-macros.workspace = true
+artic-registry.workspace = true
 
 [lints]
 workspace = true

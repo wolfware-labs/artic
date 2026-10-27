@@ -1,1 +1,1 @@
-//! Runtime XAML loader used by hot reload and the runtime-xaml feature.
+//! Runtime XAML loader used by the facade's `xaml-runtime` and `xaml-hot-reload` features.
