@@ -53,6 +53,21 @@ fn a_replaced_field_panics_at_free_before_freeing() {
   assert_eq!(tree.len(), 1);
 }
 
+// A caught report doesn't forget the node: the next `free` reports it again instead of freeing it
+// and leaving the replaced property undisposed.
+#[test]
+fn a_caught_report_is_raised_again() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Panel::new()));
+  tree.get_as_mut::<Panel>(node).unwrap().width = Property::new(&WIDTH, 5);
+  let _ = catch_unwind(AssertUnwindSafe(|| tree.take_pending()));
+
+  let freed = catch_unwind(AssertUnwindSafe(|| tree.free(node)));
+
+  assert!(freed.is_err());
+  assert_eq!(tree.len(), 1);
+}
+
 // Changing other fields, or writing a property through `set`, passes.
 #[test]
 fn touching_other_fields_passes() {

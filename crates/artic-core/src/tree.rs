@@ -819,7 +819,8 @@ impl UiTree {
   }
 
   /// Checks, in debug builds, that every node `get_mut` handed out still lists only properties
-  /// wired to it, then forgets them.
+  /// wired to it, then forgets them. A node that fails stays recorded, so a caught panic is raised
+  /// again by the next check.
   ///
   /// # Panics
   ///
@@ -827,14 +828,17 @@ impl UiTree {
   /// was replaced through `get_mut` or `get_as_mut`.
   fn check_touched(&self) {
     #[cfg(debug_assertions)]
-    for node in self.touched.take() {
-      let flags = self.dirty_flags.shared(node);
-      for_each_property(self.objects.object(node), |property| {
-        assert!(
-          !property.is_alive() || property.is_listed_by(&flags),
-          "node {node:?}: a property field was replaced through get_mut or get_as_mut; write it with set instead"
-        );
-      });
+    {
+      for &node in self.touched.borrow().iter() {
+        let flags = self.dirty_flags.shared(node);
+        for_each_property(self.objects.object(node), |property| {
+          assert!(
+            !property.is_alive() || property.is_listed_by(&flags),
+            "node {node:?}: a property field was replaced through get_mut or get_as_mut; write it with set instead"
+          );
+        });
+      }
+      self.touched.borrow_mut().clear();
     }
   }
 
