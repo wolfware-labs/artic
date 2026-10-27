@@ -148,8 +148,25 @@ impl Scene {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::SceneBuilder;
   use static_assertions::assert_impl_all;
 
   assert_impl_all!(Scene: Send);
   assert_impl_all!(SceneFragment: Send, Sync);
+
+  // A recorded scene is one fragment holding what the closure drew, with no layers around it.
+  #[test]
+  fn record_makes_one_fragment() {
+    let rect = artic_layout::geometry::Rect::new(0.0, 0.0, 2.0, 1.0);
+    let red = crate::Color::rgb(255, 0, 0);
+
+    let scene = Scene::record(|builder| builder.fill(rect, red));
+
+    let mut expected = SceneBuilder::default();
+    expected.fill(rect, red);
+    let [SceneItem::Fragment(fragment)] = scene.items() else {
+      panic!("one fragment, got {:?}", scene.items());
+    };
+    assert_eq!(fragment.commands(), expected.take());
+  }
 }

@@ -1,5 +1,6 @@
 use crate::{Layer, Scene, SceneBuilder, SceneFragment, SceneItem, Shape};
-use artic_core::property::Affects;
+use artic_core::Object;
+use artic_core::property::{Affects, PropertyVisitor};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_layout::geometry::Transform;
 use std::collections::HashMap;
@@ -50,6 +51,39 @@ pub trait Nodes {
   /// layout gave it a new size. A stale node is recorded again.
   fn stale(&self, _node: NodeId) -> bool {
     false
+  }
+}
+
+impl Scene {
+  /// A scene of one fragment holding what `draw` records, with no layers: for tests and tools that
+  /// draw without a tree.
+  pub fn record(draw: impl FnOnce(&mut SceneBuilder)) -> Scene {
+    let mut tree = UiTree::new();
+    let root = tree.alloc(Box::new(Canvas));
+    Compositor::default().compose(&mut tree, root, &mut Drawing(Some(draw)))
+  }
+}
+
+/// The one node of a recorded scene.
+#[derive(Debug)]
+struct Canvas;
+
+impl Object for Canvas {
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+}
+
+/// Records its closure, once, as the canvas's drawing.
+struct Drawing<F>(Option<F>);
+
+impl<F: FnOnce(&mut SceneBuilder)> Nodes for Drawing<F> {
+  fn layers(&self, _tree: &UiTree, _node: NodeId) -> Layers {
+    Layers::default()
+  }
+
+  fn record(&mut self, _tree: &UiTree, _node: NodeId, builder: &mut SceneBuilder) {
+    if let Some(draw) = self.0.take() {
+      draw(builder);
+    }
   }
 }
 

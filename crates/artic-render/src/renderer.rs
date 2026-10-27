@@ -158,10 +158,7 @@ pub enum PixelFormat {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::{Brush, Color, Command, Compositor, Layers, Nodes, SceneBuilder, SceneItem, SolidColorBrush};
-  use artic_core::Object;
-  use artic_core::property::PropertyVisitor;
-  use artic_core::tree::{NodeId, UiTree};
+  use crate::{Brush, Color, Command, SceneItem, SolidColorBrush};
   use artic_layout::geometry::Rect;
   use pretty_assertions::assert_eq;
 
@@ -198,29 +195,8 @@ mod tests {
     }
   }
 
-  #[derive(Debug)]
-  struct Node;
-
-  impl Object for Node {
-    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
-  }
-
-  struct Red;
-
-  impl Nodes for Red {
-    fn layers(&self, _tree: &UiTree, _node: NodeId) -> Layers {
-      Layers::default()
-    }
-
-    fn record(&mut self, _tree: &UiTree, _node: NodeId, builder: &mut SceneBuilder) {
-      builder.fill(Rect::new(0.0, 0.0, 2.0, 1.0), Color::rgb(255, 0, 0));
-    }
-  }
-
   fn red_scene() -> Scene {
-    let mut tree = UiTree::new();
-    let root = tree.alloc(Box::new(Node));
-    Compositor::default().compose(&mut tree, root, &mut Red)
+    Scene::record(|builder| builder.fill(Rect::new(0.0, 0.0, 2.0, 1.0), Color::rgb(255, 0, 0)))
   }
 
   fn surface(target: Target<'_>) -> SurfaceView<'_> {

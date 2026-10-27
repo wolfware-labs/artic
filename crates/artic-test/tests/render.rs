@@ -95,7 +95,7 @@ impl Element for Swatch {
 artic_element::element_type!(Swatch);
 
 fn red_scene() -> Scene {
-  artic_test::scenes::scene(|builder| builder.fill(Rect::new(0.0, 0.0, 1.0, 1.0), Color::rgb(255, 0, 0)))
+  Scene::record(|builder| builder.fill(Rect::new(0.0, 0.0, 1.0, 1.0), Color::rgb(255, 0, 0)))
 }
 
 // `render` reads the renderer's pixels into an image of the surface's size.

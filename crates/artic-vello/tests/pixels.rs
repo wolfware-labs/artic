@@ -11,7 +11,7 @@ use artic_layout::text::{FontFamily, FontStyle, FontWeight, Paragraph, Paragraph
 use artic_render::Renderer as _;
 use artic_render::{
   BoxShadow, Color, Compositor, GradientStop, Layers, LinearGradientBrush, Nodes, PhysicalSize, PixelBuffer, PixelFormat,
-  RadialGradientBrush, RenderError, SceneBuilder, Stroke, SurfaceId, SurfaceView, Target, TargetKind,
+  RadialGradientBrush, RenderError, Scene, SceneBuilder, Stroke, SurfaceId, SurfaceView, Target, TargetKind,
 };
 use artic_vello::Renderer;
 use common::with_renderer;
@@ -560,7 +560,7 @@ fn shaped(text: &str, weight: FontWeight, style: FontStyle) -> Paragraph {
 
 /// The alpha of each pixel of `paragraph` drawn in black at (8, 8) on 64 by 64, row by row.
 fn coverage(renderer: &mut Renderer, paragraph: &Paragraph) -> Vec<u32> {
-  let scene = artic_test::scenes::scene(|builder| builder.text(paragraph, Point::new(8.0, 8.0), BLACK));
+  let scene = Scene::record(|builder| builder.text(paragraph, Point::new(8.0, 8.0), BLACK));
   let image = artic_test::golden::render(renderer, &scene, PhysicalSize::new(64, 64), 1.0).expect("renders");
   image.pixels().iter().map(|pixel| u32::from(pixel[3])).collect()
 }
