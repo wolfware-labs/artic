@@ -717,7 +717,7 @@ impl UiTree {
       .then(|| self.logical.ancestors(node).find_map(|ancestor| self.held(ancestor, key)))
       .flatten();
     match source {
-      Some(source) => source.with(|inherited| inheritance.resolve(None, &key.default_value(), Some(inherited), T::clone)),
+      Some(source) => source.with(|inherited| inheritance.resolve(None, || key.default_value(), Some(inherited), T::clone)),
       None => key.default_value(),
     }
   }

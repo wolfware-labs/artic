@@ -30,12 +30,12 @@ where
   pub fn with_effective<TResult>(&self, function: impl FnOnce(&T) -> TResult) -> TResult {
     let own = self.values.iter().rev().find_map(Option::as_ref);
     let Some(source) = self.inherited.filter(|_| own.is_none() || self.combines()) else {
-      return self.inheritance.resolve(own, &self.default, None, function);
+      return self.inheritance.resolve(own, || &self.default, None, function);
     };
     let (mut function, mut result) = (Some(function), None);
     let read: &mut dyn FnMut(&T) = &mut |inherited| {
       let function = function.take().expect("a property reads its source once");
-      result = Some(self.inheritance.resolve(own, &self.default, Some(inherited), function));
+      result = Some(self.inheritance.resolve(own, || &self.default, Some(inherited), function));
     };
     source.with(read);
     result.expect("a property reads its source once")
