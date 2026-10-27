@@ -1,0 +1,23 @@
+# Codecov's defaults report only a patch status and no pull request comment. This turns on the
+# project status and the comment: a pull request then shows its effect on total coverage as well as
+# on the lines it touched.
+
+coverage:
+  status:
+    # Total coverage, against the base commit. The slack keeps a refactor that moves covered code
+    # from failing on rounding; a real drop still shows.
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    # Coverage of the lines the pull request changed.
+    patch:
+      default:
+        target: auto
+        threshold: 0%
+
+comment:
+  layout: "condensed_header, diff, flags, files"
+  behavior: default
+  # Comment even when coverage didn't change, so a missing comment always means the upload failed.
+  require_changes: false

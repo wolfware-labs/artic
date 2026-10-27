@@ -77,6 +77,36 @@ jobs:
       - name: Test the registry without literals
         run: cargo test -p artic-registry
 
+  coverage:
+    name: Coverage
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    runs-on: ubuntu-latest
+    # Codecov takes the job's OIDC token, so there's no upload token to store. A pull request from a
+    # fork can't get one; its upload fails, and so does nothing else.
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-rust
+      - name: Install llvm-tools
+        run: rustup component add llvm-tools
+      # The third-party actions in this job are pinned by commit, since the job can mint an OIDC token.
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
+        with:
+          tool: cargo-llvm-cov
+      # The test jobs are the gate: a test that fails here, such as trybuild's comparison of
+      # compiler output under instrumentation, still leaves a report. The GPU goldens skip on a
+      # runner without a GPU, so the renderer's draw paths read as uncovered.
+      - name: Measure
+        run: cargo llvm-cov --workspace --ignore-run-fail --lcov --output-path lcov.info
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: lcov.info
+          use_oidc: true
+          fail_ci_if_error: false
+
   test-windows:
     name: Test (windows-latest)
     needs: changes
