@@ -72,7 +72,8 @@ pub(crate) fn paragraph(
   }
   Paragraph::new(Size::new(width, height), lines, runs)
     .with_right_to_left(right_to_left)
-    .with_limited(limited_width, limited_height)
+    .with_limited_width(limited_width)
+    .with_limited_height(limited_height)
 }
 
 fn trim(

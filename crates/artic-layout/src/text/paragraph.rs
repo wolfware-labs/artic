@@ -24,8 +24,9 @@ pub struct Paragraph {
 
 impl Paragraph {
   /// A left-to-right paragraph of `size` that no limit shaped, with `lines` from top to bottom and
-  /// the glyph `runs` that draw it. [`with_right_to_left`](Paragraph::with_right_to_left) and
-  /// [`with_limited`](Paragraph::with_limited) set the rest.
+  /// the glyph `runs` that draw it. [`with_right_to_left`](Paragraph::with_right_to_left),
+  /// [`with_limited_width`](Paragraph::with_limited_width) and
+  /// [`with_limited_height`](Paragraph::with_limited_height) set the rest.
   #[must_use]
   pub fn new(size: Size, lines: impl Into<Arc<[Line]>>, runs: impl Into<Arc<[GlyphRun]>>) -> Paragraph {
     Paragraph {
@@ -45,12 +46,17 @@ impl Paragraph {
     self
   }
 
-  /// This paragraph, shaped by its width limit when `width` is true and by its height limit when
-  /// `height` is.
+  /// This paragraph, shaped by its width limit when `limited` is true.
   #[must_use]
-  pub fn with_limited(mut self, width: bool, height: bool) -> Paragraph {
-    self.limited_width = width;
-    self.limited_height = height;
+  pub fn with_limited_width(mut self, limited: bool) -> Paragraph {
+    self.limited_width = limited;
+    self
+  }
+
+  /// This paragraph, shaped by its height limit when `limited` is true.
+  #[must_use]
+  pub fn with_limited_height(mut self, limited: bool) -> Paragraph {
+    self.limited_height = limited;
     self
   }
 
@@ -312,9 +318,9 @@ mod tests {
     let font = font();
 
     assert!(paragraph(&font).with_right_to_left(true).right_to_left());
-    let width_only = paragraph(&font).with_limited(true, false);
+    let width_only = paragraph(&font).with_limited_width(true);
     assert!(width_only.limited_width() && !width_only.limited_height());
-    let height_only = paragraph(&font).with_limited(false, true);
+    let height_only = paragraph(&font).with_limited_height(true);
     assert!(!height_only.limited_width() && height_only.limited_height());
   }
 
