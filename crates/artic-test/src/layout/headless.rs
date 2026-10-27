@@ -2,36 +2,57 @@ use super::TOLERANCE;
 use super::compare::{rects_match, sizes_match};
 use artic_core::Object;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
-use artic_element::{ElementTypes, RenderCx};
+use artic_element::{ElementNodes, ElementTypes};
 use artic_layout::geometry::{Rect, Size};
-use artic_layout::{LayoutManager, LayoutNodes, LayoutStats, PixelGrid};
+use artic_layout::{LayoutManager, LayoutStats, PixelGrid};
 use artic_render::{Command, Compositor, Layers, Nodes, SceneBuilder, SceneItem};
 use std::collections::HashMap;
 
 /// A tree laid out with no window and no GPU. Nodes get a label when they're added, and failures
-/// name them by it.
+/// name them by it. It lays out every registered element.
 #[derive(Debug)]
-pub struct Headless<N: LayoutNodes> {
+pub struct Headless {
   pub(super) tree: UiTree,
   pub(super) manager: LayoutManager,
-  pub(super) nodes: N,
+  pub(super) types: ElementTypes,
   pub(super) text: artic_text::Engine,
   pub(super) snap: bool,
   labels: HashMap<NodeId, String>,
 }
 
-impl<N: LayoutNodes> Headless<N> {
-  /// An empty tree whose nodes `nodes` lays out, with snapping on.
+impl Headless {
+  /// An empty tree whose registered elements are laid out, with snapping on.
   #[must_use]
-  pub fn new(nodes: N) -> Headless<N> {
+  pub fn new() -> Headless {
     Headless {
       tree: UiTree::new(),
       manager: LayoutManager::default(),
-      nodes,
+      types: ElementTypes::from_link_time(),
       text: crate::text::engine(),
       snap: true,
       labels: HashMap::new(),
     }
+  }
+
+  /// Records `node`'s own drawing as the frame pipeline does: at the size layout gave it, with
+  /// the result its layout kept. Its children aren't drawn, nor is a node layout never reached.
+  pub fn record(&mut self, node: NodeId) -> Vec<Command> {
+    let mut one = OneNode {
+      elements: ElementNodes {
+        types: &self.types,
+        layout: &self.manager,
+      },
+      node,
+    };
+    Compositor::default()
+      .compose(&mut self.tree, node, &mut one)
+      .items()
+      .iter()
+      .find_map(|item| match item {
+        SceneItem::Fragment(fragment) => Some(fragment.commands().to_vec()),
+        _ => None,
+      })
+      .unwrap_or_default()
   }
 
   /// Adds `object` as a node with no parent, labeled `label`.
@@ -72,28 +93,7 @@ impl<N: LayoutNodes> Headless<N> {
     let grid = PixelGrid { scale, snap: self.snap };
     self
       .manager
-      .run(&mut self.tree, &self.nodes, root, available, grid, &mut self.text)
-  }
-
-  /// Records `node`'s own drawing as the frame pipeline would: at the size layout gave it, with
-  /// the result its layout kept. Its children aren't drawn.
-  pub fn record(&mut self, node: NodeId, types: &ElementTypes) -> Vec<Command> {
-    let size = self.manager.rect(node).map_or(Size::ZERO, |rect| rect.size());
-    let mut one = OneNode {
-      types,
-      manager: &self.manager,
-      node,
-      size,
-    };
-    Compositor::default()
-      .compose(&mut self.tree, node, &mut one)
-      .items()
-      .iter()
-      .find_map(|item| match item {
-        SceneItem::Fragment(fragment) => Some(fragment.commands().to_vec()),
-        _ => None,
-      })
-      .unwrap_or_default()
+      .run(&mut self.tree, &self.types, root, available, grid, &mut self.text)
   }
 
   /// The label `node` was added with, or its id for a node made through [`tree`](Headless::tree).
@@ -120,12 +120,12 @@ impl<N: LayoutNodes> Headless<N> {
   #[track_caller]
   pub fn assert_desired_within(&self, node: NodeId, expected: Size, tolerance: f32) {
     let Some(actual) = self.manager.desired(node) else {
-      panic!("{}: not measured", self.name(node));
+      panic!("{:?}: not measured", self.label(node));
     };
     assert!(
       sizes_match(actual, expected, tolerance),
-      "{}: desired expected {expected}, got {actual}",
-      self.name(node)
+      "{:?}: desired expected {expected}, got {actual}",
+      self.label(node)
     );
   }
 
@@ -148,42 +148,36 @@ impl<N: LayoutNodes> Headless<N> {
   #[track_caller]
   pub fn assert_rect_within(&self, node: NodeId, expected: Rect, tolerance: f32) {
     let Some(actual) = self.manager.rect(node) else {
-      panic!("{}: not arranged", self.name(node));
+      panic!("{:?}: not arranged", self.label(node));
     };
     assert!(
       rects_match(actual, expected, tolerance),
-      "{}: rect expected {expected}, got {actual}",
-      self.name(node)
+      "{:?}: rect expected {expected}, got {actual}",
+      self.label(node)
     );
-  }
-
-  pub(super) fn name(&self, node: NodeId) -> String {
-    match self.labels.get(&node) {
-      Some(label) => format!("{label:?}"),
-      None => format!("{node:?}"),
-    }
   }
 }
 
-/// Draws one node of a laid-out tree with what its layout kept.
+impl Default for Headless {
+  fn default() -> Headless {
+    Headless::new()
+  }
+}
+
+/// Composes only `node`, as the frame pipeline would.
 struct OneNode<'a> {
-  types: &'a ElementTypes,
-  manager: &'a LayoutManager,
+  elements: ElementNodes<'a>,
   node: NodeId,
-  size: Size,
 }
 
 impl Nodes for OneNode<'_> {
-  fn layers(&self, _tree: &UiTree, _node: NodeId) -> Layers {
-    Layers::default()
+  fn layers(&self, tree: &UiTree, node: NodeId) -> Layers {
+    self.elements.layers(tree, node)
   }
 
   fn record(&mut self, tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
-    if node != self.node {
-      return;
-    }
-    if let Some(element) = tree.get(node).and_then(|object| self.types.element(object)) {
-      element.render(&mut RenderCx::new(tree, node, self.size, self.manager.result(node)), builder);
+    if node == self.node {
+      self.elements.record(tree, node, builder);
     }
   }
 }

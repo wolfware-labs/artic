@@ -1,5 +1,6 @@
 use crate::{Layer, Scene, SceneBuilder, SceneFragment, SceneItem, Shape};
-use artic_core::property::Affects;
+use artic_core::Object;
+use artic_core::property::{Affects, PropertyVisitor};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_layout::geometry::Transform;
 use std::collections::HashMap;
@@ -11,7 +12,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Layers {
   /// Maps the node's coordinates to its parent's, if they differ. An element's own layers hold
-  /// only its render transform; the frame pipeline adds its layout offset.
+  /// only its render transform; what composes laid-out nodes adds their layout offset.
   pub transform: Option<Transform>,
   /// Keeps the node's descendants inside this shape, in the node's coordinates, as CSS's
   /// `overflow: hidden` does; the node's own drawing isn't clipped.
@@ -37,8 +38,8 @@ impl Default for Layers {
   }
 }
 
-/// What composition asks about each node. The frame pipeline answers it from the elements; tests
-/// answer it directly.
+/// What composition asks about each node. The element layer answers it for laid-out elements;
+/// tests answer it directly.
 pub trait Nodes {
   /// The node's layers.
   fn layers(&self, tree: &UiTree, node: NodeId) -> Layers;
@@ -50,6 +51,39 @@ pub trait Nodes {
   /// layout gave it a new size. A stale node is recorded again.
   fn stale(&self, _node: NodeId) -> bool {
     false
+  }
+}
+
+impl Scene {
+  /// A scene of one fragment holding what `draw` records, with no layers: for tests and tools that
+  /// draw without a tree.
+  pub fn record(draw: impl FnOnce(&mut SceneBuilder)) -> Scene {
+    let mut tree = UiTree::new();
+    let root = tree.alloc(Box::new(Canvas));
+    Compositor::default().compose(&mut tree, root, &mut Drawing(Some(draw)))
+  }
+}
+
+/// The one node of a recorded scene.
+#[derive(Debug)]
+struct Canvas;
+
+impl Object for Canvas {
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+}
+
+/// Records its closure, once, as the canvas's drawing.
+struct Drawing<F>(Option<F>);
+
+impl<F: FnOnce(&mut SceneBuilder)> Nodes for Drawing<F> {
+  fn layers(&self, _tree: &UiTree, _node: NodeId) -> Layers {
+    Layers::default()
+  }
+
+  fn record(&mut self, _tree: &UiTree, _node: NodeId, builder: &mut SceneBuilder) {
+    if let Some(draw) = self.0.take() {
+      draw(builder);
+    }
   }
 }
 
@@ -189,11 +223,11 @@ mod tests {
   }
 
   impl Nodes for Table {
-    fn layers(&self, _arena: &UiTree, node: NodeId) -> Layers {
+    fn layers(&self, _tree: &UiTree, node: NodeId) -> Layers {
       self.layers.get(&node).cloned().unwrap_or_default()
     }
 
-    fn record(&mut self, _arena: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
+    fn record(&mut self, _tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
       *self.recorded.entry(node).or_default() += 1;
       if let Some(property) = self.writes.get(&node) {
         property.set(property.get() + 1);
@@ -608,5 +642,21 @@ mod tests {
     Compositor::default().compose(&mut tree, root, &mut nodes);
 
     assert!(tree.dirty(root).contains(Affects::RENDER));
+  }
+
+  // A recorded scene is one fragment holding what the closure drew, with no layers around it.
+  #[test]
+  fn record_makes_one_fragment() {
+    let rect = Rect::new(0.0, 0.0, 2.0, 1.0);
+    let red = Color::rgb(255, 0, 0);
+
+    let scene = Scene::record(|builder| builder.fill(rect, red));
+
+    let mut expected = SceneBuilder::default();
+    expected.fill(rect, red);
+    let [SceneItem::Fragment(fragment)] = scene.items() else {
+      panic!("one fragment, got {:?}", scene.items());
+    };
+    assert_eq!(fragment.commands(), expected.take());
   }
 }

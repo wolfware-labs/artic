@@ -9,6 +9,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+accesskit.workspace = true
 artic-core = { workspace = true, features = ["testing"] }
 artic-element.workspace = true
 artic-layout.workspace = true
@@ -21,7 +22,6 @@ proptest.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-accesskit.workspace = true
 pretty_assertions.workspace = true
 
 [lints]

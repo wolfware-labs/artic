@@ -1,12 +1,29 @@
+/// Makes `$ty`, a type that only lays out, an element that draws nothing and is a generic container
+/// to accessibility, and registers it, so `ElementTypes` and [`Headless`](crate::layout::Headless)
+/// find it beside the controls. For test elements such as [`Fixed`] and [`Stack`].
+#[macro_export]
+macro_rules! layout_element {
+  ($ty:ty) => {
+    impl $crate::__private::Element for $ty {
+      fn render(&self, _cx: &mut $crate::__private::RenderCx<'_>, _scene: &mut $crate::__private::SceneBuilder) {}
+
+      fn accessibility(&self, _cx: &$crate::__private::AccessCx<'_>) -> $crate::__private::accesskit::Node {
+        $crate::__private::accesskit::Node::new($crate::__private::accesskit::Role::GenericContainer)
+      }
+    }
+
+    $crate::__private::element_type!($ty);
+  };
+}
+
 use artic_core::Object;
 use artic_core::property::PropertyVisitor;
-use artic_core::tree::{NodeId, UiTree};
 use artic_layout::geometry::{Rect, Size};
-use artic_layout::{ArrangeCx, LayoutNodes, Layoutable, MeasureCx};
+use artic_layout::{ArrangeCx, Layoutable, MeasureCx};
 use std::cell::Cell;
 
-/// A leaf that asks for the same size whatever is available. It counts how often it's measured
-/// and arranged.
+/// A leaf element that asks for the same size whatever is available and draws nothing. It counts
+/// how often it's measured and arranged.
 #[derive(Debug)]
 pub struct Fixed {
   size: Cell<Size>,
@@ -46,6 +63,8 @@ impl Fixed {
 impl Object for Fixed {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
+
+crate::layout_element!(Fixed);
 
 impl Layoutable for Fixed {
   fn measure(&self, _cx: &mut MeasureCx<'_>, _available: Size) -> Size {
@@ -90,6 +109,8 @@ impl Object for Stack {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
+crate::layout_element!(Stack);
+
 impl Layoutable for Stack {
   fn measure(&self, cx: &mut MeasureCx<'_>, available: Size) -> Size {
     self.measured.set(self.measured.get() + 1);
@@ -109,19 +130,5 @@ impl Layoutable for Stack {
       cx.arrange(child, Rect::new(0.0, top, rect.width, height));
       top += height;
     }
-  }
-}
-
-/// The [`LayoutNodes`] for [`Fixed`] and [`Stack`]. A test with elements of its own writes its own,
-/// and can fall back to this one.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Boxes;
-
-impl LayoutNodes for Boxes {
-  fn layoutable<'a>(&self, tree: &'a UiTree, node: NodeId) -> Option<&'a dyn Layoutable> {
-    tree
-      .get_as::<Fixed>(node)
-      .map(|fixed| fixed as &dyn Layoutable)
-      .or_else(|| tree.get_as::<Stack>(node).map(|stack| stack as &dyn Layoutable))
   }
 }

@@ -93,13 +93,13 @@ v1 renders on the UI thread, but a render thread must stay possible without chan
 
 ## 5. The render `Nodes`
 
-The pipeline answers the compositor's `Nodes` for any `dyn Element`, through `ElementTypes`:
+The compositor's `Nodes` for any laid-out `dyn Element` is `artic_element::ElementNodes`, which finds each node's element through `ElementTypes`; the pipeline wraps it to add `stale`, and `artic_test`'s `Headless::record` uses it to draw one node the same way:
 
 - `layers(tree, node)` casts the node and calls `Element::layers` with its arranged size from `LayoutManager::rect`. The element's own transform pivots on its centre in its own coordinates, so the node's layout offset is composed after it: `transform.then(translate(rect.origin))`, or the offset alone when the element has none. `LayoutManager::rect` is in the parent's coordinates, and the compositor nests children inside their parent's layers, so offsets add up down the tree.
 - `record(tree, node, builder)` casts the node and calls `Element::render` with a `RenderCx` for it, which carries the node's arranged size (`RenderCx::size`) and its layout result (`RenderCx::layout_result`, such as a shaped paragraph), so an element draws to the box layout gave it, with what layout worked out.
 - `stale(node)` is true for the nodes layout resized or changed the layout result of, and the compositor hasn't recorded since. The pipeline keeps them in a set that layout's `resized` and `results` add to and recording removes from, and drops entries for nodes that left the root's subtree, so a node resized while hidden, which the compositor skips, is still recorded again when it's shown. The compositor re-records a node that is render-dirty, stale, or has no fragment yet, so a node whose box changed without any property changing doesn't keep a drawing of the old size. A node that only moved stays as recorded: its offset is a layer.
 
-A node that isn't an element gets default layers and records nothing.
+A node that isn't an element gets default layers and records nothing. A node layout never arranged isn't drawn.
 
 ## 6. Surfaces and events
 

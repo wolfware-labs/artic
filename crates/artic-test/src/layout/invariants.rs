@@ -3,7 +3,7 @@ use super::compare::{rects_match, sizes_match};
 use super::headless::Headless;
 use artic_core::tree::{NodeId, TreeKind};
 use artic_layout::geometry::{Rect, Size};
-use artic_layout::{LayoutManager, LayoutNodes, PixelGrid};
+use artic_layout::{LayoutManager, PixelGrid};
 use std::fmt::Display;
 
 /// The rules a layout keeps for any input, checked on every node under a root.
@@ -38,14 +38,14 @@ impl Invariants {
   /// When one doesn't hold, naming the node and the input. Children are checked before their
   /// parents, so a wrong answer is reported where it starts rather than where it spreads to.
   #[track_caller]
-  pub fn assert<N: LayoutNodes>(&self, layout: &mut Headless<N>, root: NodeId, available: Size, scale: f32) {
+  pub fn assert(&self, layout: &mut Headless, root: NodeId, available: Size, scale: f32) {
     layout.run(root, available, scale);
     let mut fresh = LayoutManager::default();
     let grid = PixelGrid {
       scale,
       snap: layout.snap,
     };
-    fresh.run(&mut layout.tree, &layout.nodes, root, available, grid, &mut layout.text);
+    fresh.run(&mut layout.tree, &layout.types, root, available, grid, &mut layout.text);
     let input = format!("for available {available} at scale {scale}");
     let contained = self.contained && available.width.is_finite() && available.height.is_finite();
     let mut order = Vec::new();
@@ -58,16 +58,16 @@ impl Invariants {
       let (desired, again) = (layout.manager.desired(node), fresh.desired(node));
       assert!(
         same(desired, again, sizes_match),
-        "{}: desired {} from the layout, {} from a fresh one, {input}",
-        layout.name(node),
+        "{:?}: desired {} from the layout, {} from a fresh one, {input}",
+        layout.label(node),
         shown(desired),
         shown(again)
       );
       let (rect, again) = (layout.manager.rect(node), fresh.rect(node));
       assert!(
         same(rect, again, rects_match),
-        "{}: rect {} from the layout, {} from a fresh one, {input}",
-        layout.name(node),
+        "{:?}: rect {} from the layout, {} from a fresh one, {input}",
+        layout.label(node),
         shown(rect),
         shown(again)
       );
@@ -84,9 +84,9 @@ impl Invariants {
         if let Some(rect) = layout.manager.rect(child) {
           assert!(
             inside(rect, parent, slack),
-            "{}: rect {rect} lies outside its parent {} ({}), {input}",
-            layout.name(child),
-            layout.name(node),
+            "{:?}: rect {rect} lies outside its parent {:?} ({}), {input}",
+            layout.label(child),
+            layout.label(node),
             Size::new(parent.width, parent.height)
           );
         }

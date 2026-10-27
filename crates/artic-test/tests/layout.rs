@@ -3,11 +3,13 @@
 
 use artic_core::Object;
 use artic_core::property::PropertyVisitor;
-use artic_core::tree::{NodeId, TreeKind, UiTree};
+use artic_core::tree::{NodeId, TreeKind};
+use artic_element::{AccessCx, Element, ElementTypes, RenderCx};
 use artic_layout::geometry::{Rect, Size};
-use artic_layout::{ArrangeCx, LayoutManager, LayoutNodes, Layoutable, MeasureCx};
+use artic_layout::{ArrangeCx, LayoutManager, Layoutable, MeasureCx};
+use artic_render::{Color, SceneBuilder};
 use artic_test::layout::strategy;
-use artic_test::layout::{Boxes, Fixed, Headless, Invariants, Stack};
+use artic_test::layout::{Fixed, Headless, Invariants, Stack};
 use pretty_assertions::assert_eq;
 use proptest::prelude::*;
 use proptest::strategy::ValueTree;
@@ -20,7 +22,7 @@ const WINDOW: Size = Size::new(400.0, 300.0);
 // the sum of the heights.
 #[test]
 fn headless_lays_out_a_stack() {
-  let mut layout = Headless::new(Boxes);
+  let mut layout = Headless::new();
   let first = layout.add("first", Fixed::new(100.0, 20.0));
   let second = layout.add("second", Fixed::new(80.0, 30.0));
   let root = layout.parent("stack", Stack::new(), &[first, second]);
@@ -32,10 +34,19 @@ fn headless_lays_out_a_stack() {
   assert_eq!(layout.manager().rect(second), Some(Rect::new(0.0, 20.0, 400.0, 30.0)));
 }
 
+// The shared test elements are registered, so the element table finds them with the real ones.
+#[test]
+fn fixed_and_stack_are_elements() {
+  let types = ElementTypes::from_link_time();
+
+  assert!(types.element(&Fixed::new(1.0, 1.0)).is_some());
+  assert!(types.element(&Stack::new()).is_some());
+}
+
 // `parent` links the children as visual children, in the order given.
 #[test]
 fn parent_links_children_in_order() {
-  let mut layout = Headless::new(Boxes);
+  let mut layout = Headless::new();
   let first = layout.add("first", Fixed::new(1.0, 1.0));
   let second = layout.add("second", Fixed::new(1.0, 1.0));
   let root = layout.parent("stack", Stack::new(), &[second, first]);
@@ -48,7 +59,7 @@ fn parent_links_children_in_order() {
 // The elements count each measure and arrange, so tests can check what layout skipped.
 #[test]
 fn elements_count_their_calls() {
-  let mut layout = Headless::new(Boxes);
+  let mut layout = Headless::new();
   let leaf = layout.add("leaf", Fixed::new(10.0, 10.0));
   let root = layout.parent("stack", Stack::new(), &[leaf]);
 
@@ -65,7 +76,7 @@ fn elements_count_their_calls() {
 // A new size on a `Fixed` shows after its node is invalidated.
 #[test]
 fn set_size_shows_after_invalidating() {
-  let mut layout = Headless::new(Boxes);
+  let mut layout = Headless::new();
   let leaf = layout.add("leaf", Fixed::new(10.0, 10.0));
   let root = layout.parent("stack", Stack::new(), &[leaf]);
   layout.run(root, WINDOW, 1.0);
@@ -84,7 +95,7 @@ fn set_size_shows_after_invalidating() {
 // `run` snaps to the device grid: at 1.25, a 10.3 tall child ends at 13 device pixels, 10.4.
 #[test]
 fn run_snaps_to_the_device_grid() {
-  let mut layout = Headless::new(Boxes);
+  let mut layout = Headless::new();
   let first = layout.add("first", Fixed::new(100.0, 10.3));
   let second = layout.add("second", Fixed::new(100.0, 10.0));
   let root = layout.parent("stack", Stack::new(), &[first, second]);
@@ -98,7 +109,7 @@ fn run_snaps_to_the_device_grid() {
 // With snapping off, rectangles keep their fractions.
 #[test]
 fn set_snap_false_keeps_fractions() {
-  let mut layout = Headless::new(Boxes);
+  let mut layout = Headless::new();
   let first = layout.add("first", Fixed::new(100.0, 10.3));
   let second = layout.add("second", Fixed::new(100.0, 10.0));
   let root = layout.parent("stack", Stack::new(), &[first, second]);
@@ -112,7 +123,7 @@ fn set_snap_false_keeps_fractions() {
 // A node made through the tree directly has no label and shows as its id.
 #[test]
 fn nodes_without_a_label_show_their_id() {
-  let mut layout = Headless::new(Boxes);
+  let mut layout = Headless::new();
   let labeled = layout.add("leaf", Fixed::new(1.0, 1.0));
   let bare = layout.tree().alloc(Box::new(Fixed::new(1.0, 1.0)));
 
@@ -120,8 +131,8 @@ fn nodes_without_a_label_show_their_id() {
   assert_eq!(layout.label(bare), format!("{bare:?}"));
 }
 
-fn two_in_a_stack() -> (Headless<Boxes>, [NodeId; 3]) {
-  let mut layout = Headless::new(Boxes);
+fn two_in_a_stack() -> (Headless, [NodeId; 3]) {
+  let mut layout = Headless::new();
   let first = layout.add("first", Fixed::new(100.0, 20.0));
   let second = layout.add("second", Fixed::new(80.0, 24.0));
   let root = layout.parent("stack", Stack::new(), &[first, second]);
@@ -292,18 +303,66 @@ impl Layoutable for FirstOnly {
   }
 }
 
+/// Fills its arranged box, so a recording shows whether it was drawn, and gives its children the
+/// same box.
 #[derive(Debug)]
-struct Broken;
+struct Swatch;
 
-impl LayoutNodes for Broken {
-  fn layoutable<'a>(&self, tree: &'a UiTree, node: NodeId) -> Option<&'a dyn Layoutable> {
-    Boxes
-      .layoutable(tree, node)
-      .or_else(|| tree.get_as::<Growing>(node).map(|node| node as &dyn Layoutable))
-      .or_else(|| tree.get_as::<Shove>(node).map(|node| node as &dyn Layoutable))
-      .or_else(|| tree.get_as::<FirstOnly>(node).map(|node| node as &dyn Layoutable))
+impl Object for Swatch {
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+}
+
+impl Layoutable for Swatch {
+  fn measure(&self, cx: &mut MeasureCx<'_>, available: Size) -> Size {
+    for child in cx.children() {
+      cx.measure(child, available);
+    }
+    Size::new(10.0, 10.0)
+  }
+
+  fn arrange(&self, cx: &mut ArrangeCx<'_>, rect: Rect) {
+    for child in cx.children() {
+      cx.arrange(child, Rect::new(0.0, 0.0, rect.width, rect.height));
+    }
   }
 }
+
+impl Element for Swatch {
+  fn render(&self, cx: &mut RenderCx<'_>, scene: &mut SceneBuilder) {
+    let size = cx.size();
+    scene.fill(Rect::new(0.0, 0.0, size.width, size.height), Color::rgb(0, 0, 0));
+  }
+
+  fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
+    accesskit::Node::new(accesskit::Role::GenericContainer)
+  }
+}
+
+artic_element::element_type!(Swatch);
+
+// Recording a node draws only that node, not the children inside it.
+#[test]
+fn record_draws_the_node_without_its_children() {
+  let mut layout = Headless::new();
+  let child = layout.add("child", Swatch);
+  let root = layout.parent("root", Swatch, &[child]);
+  layout.run(root, WINDOW, 1.0);
+
+  assert_eq!(layout.record(root).len(), 1);
+}
+
+// A node layout never reached isn't drawn, as in a window.
+#[test]
+fn record_skips_a_node_layout_never_reached() {
+  let mut layout = Headless::new();
+  let node = layout.add("swatch", Swatch);
+
+  assert!(layout.record(node).is_empty());
+}
+
+artic_test::layout_element!(Growing);
+artic_test::layout_element!(Shove);
+artic_test::layout_element!(FirstOnly);
 
 proptest! {
   // A stack of any fixed-size children, laid out once at another size first, gives the same answer
@@ -316,7 +375,7 @@ proptest! {
     available in strategy::available(),
     scale in strategy::scale(),
   ) {
-    let mut layout = Headless::new(Boxes);
+    let mut layout = Headless::new();
     let children: Vec<_> = sizes
       .iter()
       .enumerate()
@@ -332,7 +391,7 @@ proptest! {
 // Children that fit pass the containment check.
 #[test]
 fn invariants_accept_children_inside_their_parent() {
-  let mut layout = Headless::new(Boxes);
+  let mut layout = Headless::new();
   let first = layout.add("first", Fixed::new(100.0, 20.0));
   let second = layout.add("second", Fixed::new(80.0, 30.0));
   let root = layout.parent("stack", Stack::new(), &[first, second]);
@@ -344,7 +403,7 @@ fn invariants_accept_children_inside_their_parent() {
 #[test]
 #[should_panic(expected = r#""pushed": rect 100,0,10,10 lies outside its parent "shove" (100,100)"#)]
 fn invariants_catch_a_child_outside_its_parent() {
-  let mut layout = Headless::new(Broken);
+  let mut layout = Headless::new();
   let pushed = layout.add("pushed", Fixed::new(10.0, 10.0));
   let root = layout.parent("shove", Shove, &[pushed]);
 
@@ -356,7 +415,7 @@ fn invariants_catch_a_child_outside_its_parent() {
 // Containment says nothing when an axis is infinite.
 #[test]
 fn containment_ignores_infinite_available() {
-  let mut layout = Headless::new(Broken);
+  let mut layout = Headless::new();
   let pushed = layout.add("pushed", Fixed::new(10.0, 10.0));
   let root = layout.parent("shove", Shove, &[pushed]);
 
@@ -368,7 +427,7 @@ fn containment_ignores_infinite_available() {
 // Without `.contained()`, the same layout passes.
 #[test]
 fn containment_is_opt_in() {
-  let mut layout = Headless::new(Broken);
+  let mut layout = Headless::new();
   let pushed = layout.add("pushed", Fixed::new(10.0, 10.0));
   let root = layout.parent("shove", Shove, &[pushed]);
 
@@ -380,7 +439,7 @@ fn containment_is_opt_in() {
 #[test]
 #[should_panic(expected = r#""growing": desired 10,10 from the layout, 20,10 from a fresh one"#)]
 fn invariants_catch_a_changing_answer() {
-  let mut layout = Headless::new(Broken);
+  let mut layout = Headless::new();
   let growing = layout.add("growing", Growing::default());
 
   Invariants::default().assert(&mut layout, growing, WINDOW, 1.0);
@@ -389,7 +448,7 @@ fn invariants_catch_a_changing_answer() {
 // A child its parent leaves out has no results in either manager, and that's consistent.
 #[test]
 fn invariants_skip_nodes_a_parent_leaves_out() {
-  let mut layout = Headless::new(Broken);
+  let mut layout = Headless::new();
   let shown = layout.add("shown", Fixed::new(10.0, 10.0));
   let hidden = layout.add("hidden", Fixed::new(10.0, 10.0));
   let root = layout.parent("first only", FirstOnly, &[shown, hidden]);
@@ -402,7 +461,7 @@ fn invariants_skip_nodes_a_parent_leaves_out() {
 #[test]
 #[should_panic(expected = r#""growing": desired"#)]
 fn invariants_name_the_deepest_node() {
-  let mut layout = Headless::new(Broken);
+  let mut layout = Headless::new();
   let growing = layout.add("growing", Growing::default());
   let root = layout.parent("stack", Stack::new(), &[growing]);
 
@@ -414,7 +473,7 @@ fn invariants_name_the_deepest_node() {
 // layout is correct, so containment allows the pixel.
 #[test]
 fn containment_allows_a_device_pixel_of_snapping() {
-  let mut layout = Headless::new(Boxes);
+  let mut layout = Headless::new();
   let top = layout.add("top", Fixed::new(10.0, 0.6));
   let leaf = layout.add("leaf", Fixed::new(10.0, 0.8));
   let inner = layout.parent("inner", Stack::new(), &[leaf]);

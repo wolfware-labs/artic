@@ -2,8 +2,8 @@
 
 use crate::{Axes, SurfaceInfo};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
-use artic_element::{ElementTypes, RenderCx};
-use artic_layout::geometry::{Rect, Size, Transform};
+use artic_element::{ElementNodes, ElementTypes};
+use artic_layout::geometry::Size;
 use artic_layout::text::TextEngine;
 use artic_layout::{LayoutManager, PixelGrid};
 use artic_render::{
@@ -122,9 +122,11 @@ impl Pipeline {
     self
       .stale
       .retain(|node| tree.contains(*node) && (*node == root || tree.ancestors(TreeKind::Visual, *node).any(|a| a == root)));
-    let mut nodes = ElementNodes {
-      types: services.types,
-      layout: &self.layout,
+    let mut nodes = PipelineNodes {
+      elements: ElementNodes {
+        types: services.types,
+        layout: &self.layout,
+      },
       stale: &mut self.stale,
     };
     let scene = self.compositor.compose(tree, root, &mut nodes);
@@ -212,39 +214,21 @@ impl Pipeline {
   }
 }
 
-/// Answers composition from the elements, with each node's layout offset and arranged size.
-struct ElementNodes<'a> {
-  types: &'a ElementTypes,
-  layout: &'a LayoutManager,
+/// Composes the elements as [`ElementNodes`] does, and records again the nodes layout resized
+/// since their last recording.
+struct PipelineNodes<'a> {
+  elements: ElementNodes<'a>,
   stale: &'a mut HashSet<NodeId>,
 }
 
-impl Nodes for ElementNodes<'_> {
+impl Nodes for PipelineNodes<'_> {
   fn layers(&self, tree: &UiTree, node: NodeId) -> Layers {
-    let Some(rect) = self.layout.rect(node) else {
-      return Layers {
-        visible: false,
-        ..Layers::default()
-      };
-    };
-    let mut layers = tree
-      .get(node)
-      .and_then(|object| self.types.element(object))
-      .map_or_else(Layers::default, |element| element.layers(rect.size()));
-    let offset = (rect.x != 0.0 || rect.y != 0.0).then(|| Transform::translate(rect.x, rect.y));
-    layers.transform = match (layers.transform, offset) {
-      (Some(own), Some(offset)) => Some(own.then(offset)),
-      (own, offset) => own.or(offset),
-    };
-    layers
+    self.elements.layers(tree, node)
   }
 
   fn record(&mut self, tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
     self.stale.remove(&node);
-    let size = self.layout.rect(node).map_or(Size::ZERO, Rect::size);
-    if let Some(element) = tree.get(node).and_then(|object| self.types.element(object)) {
-      element.render(&mut RenderCx::new(tree, node, size, self.layout.result(node)), builder);
-    }
+    self.elements.record(tree, node, builder);
   }
 
   fn stale(&self, node: NodeId) -> bool {
