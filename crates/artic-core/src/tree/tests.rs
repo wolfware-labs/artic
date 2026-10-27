@@ -5,3 +5,4 @@ mod handle;
 mod inheritance;
 mod links;
 mod objects;
+mod wiring;

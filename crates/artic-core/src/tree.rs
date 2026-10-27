@@ -53,6 +53,8 @@ pub use handle::Handle;
 use hierarchy::Tree;
 use objects::Objects;
 use std::any::Any;
+#[cfg(debug_assertions)]
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt::Debug;
 
@@ -96,6 +98,9 @@ pub struct UiTree {
   visual: Tree,
   dirty_flags: DirtyFlags,
   attached_values: AttachedValues,
+  /// The nodes `get_mut` handed out since the last check of their wiring, in debug builds.
+  #[cfg(debug_assertions)]
+  touched: RefCell<Vec<NodeId>>,
 }
 
 /// A handle to a node stored in a [`UiTree`].
@@ -187,6 +192,8 @@ impl UiTree {
       visual: Tree::new(),
       dirty_flags: DirtyFlags::new(),
       attached_values: AttachedValues::new(),
+      #[cfg(debug_assertions)]
+      touched: RefCell::new(Vec::new()),
     }
   }
 
@@ -309,9 +316,18 @@ impl UiTree {
 
   /// Returns a mutable reference to the node referred to by `id`, or `None` if `id` is stale.
   ///
-  /// Use [`get_as_mut`](UiTree::get_as_mut) to get the node as its concrete type.
+  /// Use [`get_as_mut`](UiTree::get_as_mut) to get the node as its concrete type. Write a
+  /// property with `set` rather than replacing its field; in debug builds a replaced property field
+  /// panics at the next [`take_pending`](UiTree::take_pending) or [`free`](UiTree::free).
   #[must_use]
   pub fn get_mut(&mut self, id: NodeId) -> Option<&mut dyn Object> {
+    #[cfg(debug_assertions)]
+    {
+      let touched = self.touched.get_mut();
+      if touched.last() != Some(&id) {
+        touched.push(id);
+      }
+    }
     self.objects.get_mut(id)
   }
 
@@ -321,6 +337,8 @@ impl UiTree {
   ///
   /// Write a property through the property itself, with `set`, rather than replacing the field: the
   /// tree connected the property the node had when it was added, and a replacement isn't the node's.
+  /// In debug builds, a replaced property field panics at the next
+  /// [`take_pending`](UiTree::take_pending) or [`free`](UiTree::free).
   ///
   /// # Examples
   ///
@@ -597,6 +615,7 @@ impl UiTree {
   /// ```
   #[track_caller]
   pub fn free(&mut self, id: NodeId) {
+    self.check_touched();
     self.check(id);
     let mut subtree = HashSet::from([id]);
     let mut pending = vec![id];
@@ -660,6 +679,7 @@ impl UiTree {
   /// needed.
   #[must_use = "the flag is cleared, so a caller that ignores it loses the request for a frame"]
   pub fn take_pending(&self) -> bool {
+    self.check_touched();
     self.dirty_flags.take_pending()
   }
 
@@ -788,6 +808,29 @@ impl UiTree {
   fn children_changed(&mut self, tree: TreeKind, parent: NodeId) {
     if tree == TreeKind::Visual {
       self.mark_dirty(parent, Affects::LAYOUT);
+    }
+  }
+
+  /// Checks, in debug builds, that every node `get_mut` handed out still lists only properties
+  /// wired to it, then forgets them.
+  ///
+  /// # Panics
+  ///
+  /// If one of them lists a live property another node, or no node, is wired to: a property field
+  /// was replaced through `get_mut` or `get_as_mut`.
+  fn check_touched(&self) {
+    #[cfg(debug_assertions)]
+    for node in self.touched.take() {
+      if !self.objects.contains(node) {
+        continue;
+      }
+      let flags = self.dirty_flags.shared(node);
+      for_each_property(self.objects.object(node), |property| {
+        assert!(
+          !property.is_alive() || property.is_listed_by(&flags),
+          "node {node:?}: a property field was replaced through get_mut or get_as_mut; write it with set instead"
+        );
+      });
     }
   }
 

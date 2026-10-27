@@ -75,6 +75,12 @@ impl<'a> AnyProperty<'a> {
     self.0.inherits()
   }
 
+  /// Whether the property hasn't been disposed.
+  #[cfg(debug_assertions)]
+  pub(crate) fn is_alive(self) -> bool {
+    self.0.is_alive()
+  }
+
   /// Whether a node in a tree already lists the property.
   ///
   /// # Panics
@@ -130,6 +136,8 @@ pub(crate) trait Erased {
   fn key_id(&self) -> KeyId;
   fn as_any(&self) -> &dyn Any;
   fn inherits(&self) -> bool;
+  #[cfg(debug_assertions)]
+  fn is_alive(&self) -> bool;
   fn is_listed(&self) -> bool;
   fn is_listed_by(&self, dirty: &DirtyHandle) -> bool;
   fn attach(&self, dirty: DirtyHandle);
@@ -151,6 +159,11 @@ where
 
   fn inherits(&self) -> bool {
     self.key().inherits()
+  }
+
+  #[cfg(debug_assertions)]
+  fn is_alive(&self) -> bool {
+    self.0.is_alive()
   }
 
   fn is_listed(&self) -> bool {
