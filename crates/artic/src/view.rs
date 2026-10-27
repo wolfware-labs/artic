@@ -5,7 +5,7 @@ pub use artic_view_compiler::{CompileError, CratePaths, compile_dir};
 
 /// The path generated code reaches each artic crate by: the facade module it's re-exported as,
 /// such as `artic_controls` as `::artic::controls`. An app that renamed its `artic` dependency
-/// sets each path again.
+/// sets each path again and compiles its views with its language's long form.
 #[must_use]
 pub fn crate_paths() -> CratePaths {
   let mut paths = CratePaths::new();

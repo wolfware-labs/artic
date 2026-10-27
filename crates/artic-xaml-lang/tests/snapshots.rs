@@ -1,9 +1,9 @@
 // The compiler's own views over artic's real types, the parser's corpus run through the compiler,
 // and the properties every output has: the same text every run, and no registry in it.
 
+use artic::view::CratePaths;
 use artic_diagnostics::{SourceId, SourceMap};
 use artic_registry::Registry;
-use artic_view_compiler::CratePaths;
 use artic_xaml_lang::Xaml;
 use std::path::Path;
 use syn::visit::Visit;

@@ -21,6 +21,22 @@ pub use artic_xaml_lang::Xaml;
 /// artic::xaml::compile_dir("src/views", &namespaces).unwrap();
 /// ```
 ///
+/// The long form takes the paths too, for an app that renamed its `artic` dependency, and names
+/// the app's package itself:
+///
+/// ```no_run
+/// use artic::view::{compile_dir, crate_paths};
+/// use artic::xaml::{Xaml, namespaces};
+///
+/// let mut paths = crate_paths();
+/// for (krate, module) in [("artic_controls", "controls"), ("artic_core", "core"), ("artic_element", "element"),
+///   ("artic_layout", "layout"), ("artic_render", "render")] {
+///   paths.path(krate, &format!("::ui::{module}"));
+/// }
+/// let xaml = Xaml::new(namespaces()).with_app_crate(env!("CARGO_PKG_NAME"));
+/// compile_dir("src/views", &xaml, &paths).unwrap();
+/// ```
+///
 /// # Errors
 ///
 /// As [`crate::view::compile_dir`].

@@ -222,7 +222,7 @@ Values stay text. The compiler writes each one as Rust at build time, and the lo
 
 Each "isn't a Rust path" error keeps its message and its help says "check the paths set with `CratePaths::path`", since `NamespaceMap::path` goes.
 
-Each name becomes the field its `CheckedName` holds, the one `field_name` gives. A type path that isn't a Rust path is an error, so `emit` returns no code for the view and no reference to that element is ever written; the one difference from today is that the checker has already checked that element's members, so a misconfigured `CratePaths` or `using:` path can add property and content errors for it. No snapshot has such an element.
+Each name becomes the field its `CheckedName` holds, the one `field_name` gives. A type path that isn't a Rust path is an error, so emission writes no code for the view and no reference to that element is ever written; the one difference from today is that the checker has already checked that element's members, so a misconfigured `CratePaths` or `using:` path can add property and content errors for it. No snapshot has such an element.
 
 ```rust,ignore
 /// The path generated code reaches each crate by.
@@ -241,11 +241,6 @@ impl CratePaths {
   /// Where generated code reaches `module`: its crate's path, then the rest of `module`.
   pub fn module(&self, module: &str) -> String;
 }
-
-/// The module body for `view`, compiled from the file at `path`, referencing every crate of
-/// `crates` so the app links it.
-/// The code is `None` when the view has no root or emission found an error.
-pub fn emit(view: &CheckedView, path: &Path, paths: &CratePaths, crates: &[&str]) -> (Option<String>, Diagnostics);
 
 /// Compiles one file to the Rust module body for it.
 pub fn compile_str(
@@ -329,7 +324,7 @@ Beside the move, a name gives its field in snake_case, with each run of undersco
 | `artic-view` | `check` on hand-built documents: an unknown property, an event, a property set twice, a value's problem reported only once its property is found, each content rule, an element in a value collection never reached, a name invalid twice, two elements with one name, an element whose type isn't found with a checked child, a `once` problem reported once; `keywords_match_syn` |
 | `artic-view-compiler` | `hand_built_view_compiles`: a test language whose `read` returns a document built in code compiles to Rust that `syn` parses and names the types through `CratePaths`; `CratePaths`' tests, moved from `artic-xaml`; `diagnostics_are_sorted_across_stages`; the `dir.rs` tests, run with the test language |
 | `artic-xaml-lang` | every snapshot, the #28 fixture run and the fixture app, moved from the XAML compiler crate with no change below any `.snap` header other than PR 4's three lines; the headers name the moved test and fixture paths; the test helper sets paths on a `CratePaths` instead of the namespace map |
-| `artic` | the facade's map tests split: `namespaces()` holds the URI, `crate_paths()` the paths; `tests/xaml.rs`'s `defining_crates_have_facade_paths` reads `crate_paths()` under `view-compiler` |
+| `artic` | the facade's map tests split: `namespaces()` holds the URI, `crate_paths()` the paths; `defining_crates_have_facade_paths` moves to `tests/view.rs` and reads `crate_paths()` under `view-compiler` |
 
 ## Changes to other documents
 

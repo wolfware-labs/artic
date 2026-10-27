@@ -17,8 +17,7 @@ pub use paths::CratePaths;
 
 use artic_diagnostics::{Diagnostic, Diagnostics, SourceId, SourceMap};
 use artic_registry::Registry;
-use artic_view::{CheckedView, Language};
-use std::path::Path;
+use artic_view::Language;
 
 /// Compiles one document of `language` to the Rust module body for it.
 ///
@@ -42,26 +41,14 @@ pub fn compile_str(
     return Err(diagnostics);
   };
   let (view, checked) = artic_view::check(&document);
-  let (rust, emitted) = emit(&view, sources.get(file).path(), paths, &language.crates());
+  let (view, lowered) = lower::lower(&view, paths, &language.crates());
   diagnostics.extend(checked);
-  diagnostics.extend(emitted);
+  diagnostics.extend(lowered);
   let diagnostics = sorted(diagnostics);
-  match rust {
-    Some(rust) if !diagnostics.has_errors() => Ok(rust),
+  match view {
+    Some(view) if !diagnostics.has_errors() => Ok(emit::emit(&view, sources.get(file).path())),
     _ => Err(diagnostics),
   }
-}
-
-/// Writes `view`, compiled from the file at `path`, as a module body, with the problems writing it
-/// finds: a literal its type refuses, or a path that isn't a Rust path. `crates` are the
-/// language's, which the body references so the app links them, with every crate `paths` names.
-/// The body is `None` when one of those problems stops it, or the view has no root.
-pub fn emit(view: &CheckedView, path: &Path, paths: &CratePaths, crates: &[&str]) -> (Option<String>, Diagnostics) {
-  let (lowered, diagnostics) = lower::lower(view, paths, crates);
-  let rust = lowered
-    .filter(|_| !diagnostics.has_errors())
-    .map(|view| emit::emit(&view, path));
-  (rust, diagnostics)
 }
 
 /// `diagnostics` by where each starts, keeping the order they were found in for one position.
