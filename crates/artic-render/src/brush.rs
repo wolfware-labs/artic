@@ -8,8 +8,9 @@ use std::sync::Arc;
 ///
 /// Anything that converts into a brush fills where one is expected, so a [`Color`] fills solid:
 /// `builder.fill(bounds, Color::STEEL_BLUE)`. Gradient points and radii are resolved against
-/// the bounds of the shape being filled. Values out of range, such as an offset past 1 or a negative radius, are
-/// clamped when the brush is drawn, never rejected.
+/// the bounds of the shape being filled. Values out of range, such as an offset past 1 or a
+/// negative radius, are clamped when the brush is drawn, never rejected: [`drawable`](Brush::drawable)
+/// gives the [`Paint`](crate::Paint) every renderer draws.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Brush {
   /// One color.

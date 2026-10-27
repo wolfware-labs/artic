@@ -10,6 +10,7 @@ mod brush;
 mod builder;
 mod color;
 mod compose;
+mod paint;
 mod renderer;
 mod scene;
 mod shadow;
@@ -20,6 +21,7 @@ pub use brush::{Brush, GradientStop, LinearGradientBrush, RadialGradientBrush, S
 pub use builder::SceneBuilder;
 pub use color::{Color, ColorProblem, ParseColorError};
 pub use compose::{Compositor, Layers, Nodes};
+pub use paint::Paint;
 pub use renderer::{
   PhysicalSize, PixelBuffer, PixelFormat, RawHandles, RenderError, Renderer, SurfaceId, SurfaceView, Target, TargetKind,
 };
