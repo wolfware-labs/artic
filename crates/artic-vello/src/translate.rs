@@ -12,9 +12,6 @@ use vello::{FontEmbolden, Glyph};
 /// The tolerance vello flattens a shape with, so converting one to a path first changes nothing.
 const TOLERANCE: f64 = 0.1;
 
-/// How far a quarter circle's cubic control points sit from its ends toward its corner.
-const KAPPA: f64 = 0.552_284_749_830_793_6;
-
 /// How many standard deviations past its rectangle vello draws a blur, where it's close to clear.
 const BLUR_EXTENT: f64 = 2.5;
 
@@ -229,7 +226,7 @@ fn kurbo_rect(rect: Rect) -> kurbo::Rect {
 fn outline(shape: &Shape) -> BezPath {
   match shape {
     Shape::Rect(rect) => kurbo_rect(*rect).to_path(TOLERANCE),
-    Shape::RoundedRect(rounded) => rounded_outline(kurbo_rect(rounded.rect), rounded.radius),
+    Shape::RoundedRect(rounded) => rounded.path().elements().iter().map(|element| path_el(*element)).collect(),
     Shape::Path(path) => path.elements().iter().map(|element| path_el(*element)).collect(),
   }
 }
@@ -268,33 +265,6 @@ fn path_el(element: PathElement) -> PathEl {
     PathElement::QuadTo(control, end) => PathEl::QuadTo(kurbo_point(control), kurbo_point(end)),
     PathElement::CubicTo(first, second, end) => PathEl::CurveTo(kurbo_point(first), kurbo_point(second), kurbo_point(end)),
     PathElement::Close => PathEl::ClosePath,
-  }
-}
-
-fn rounded_outline(rect: kurbo::Rect, radius: CornerRadius) -> BezPath {
-  let CornerRadius {
-    top_left,
-    top_right,
-    bottom_right,
-    bottom_left,
-  } = radius;
-  let [top_left, top_right, bottom_right, bottom_left] = [top_left, top_right, bottom_right, bottom_left].map(f64::from);
-  let kurbo::Rect { x0, y0, x1, y1 } = rect;
-  let mut path = BezPath::new();
-  path.move_to((x0 + top_left, y0));
-  corner(&mut path, (x1 - top_right, y0), (x1, y0), (x1, y0 + top_right));
-  corner(&mut path, (x1, y1 - bottom_right), (x1, y1), (x1 - bottom_right, y1));
-  corner(&mut path, (x0 + bottom_left, y1), (x0, y1), (x0, y1 - bottom_left));
-  corner(&mut path, (x0, y0 + top_left), (x0, y0), (x0 + top_left, y0));
-  path.close_path();
-  path
-}
-
-fn corner(path: &mut BezPath, from: impl Into<kurbo::Point>, vertex: impl Into<kurbo::Point>, to: impl Into<kurbo::Point>) {
-  let (from, vertex, to) = (from.into(), vertex.into(), to.into());
-  path.line_to(from);
-  if from != to {
-    path.curve_to(from.lerp(vertex, KAPPA), to.lerp(vertex, KAPPA), to);
   }
 }
 
