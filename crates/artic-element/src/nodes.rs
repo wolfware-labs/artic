@@ -1,7 +1,7 @@
 use crate::{ElementTypes, RenderCx};
 use artic_core::tree::{NodeId, UiTree};
 use artic_layout::LayoutManager;
-use artic_layout::geometry::{Rect, Size, Transform};
+use artic_layout::geometry::Transform;
 use artic_render::{Layers, Nodes, SceneBuilder};
 
 /// Composition of laid-out elements: each node's element draws at the size layout arranged it at,
@@ -36,9 +36,11 @@ impl Nodes for ElementNodes<'_> {
   }
 
   fn record(&mut self, tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
-    let size = self.layout.rect(node).map_or(Size::ZERO, Rect::size);
+    let Some(rect) = self.layout.rect(node) else {
+      return;
+    };
     if let Some(element) = tree.get(node).and_then(|object| self.types.element(object)) {
-      element.render(&mut RenderCx::new(tree, node, size, self.layout.result(node)), builder);
+      element.render(&mut RenderCx::new(tree, node, rect.size(), self.layout.result(node)), builder);
     }
   }
 }
@@ -50,6 +52,7 @@ mod tests {
   use artic_core::Object;
   use artic_core::property::PropertyVisitor;
   use artic_core::tree::TreeKind;
+  use artic_layout::geometry::{Rect, Size};
   use artic_layout::{ArrangeCx, Layoutable, MeasureCx, PixelGrid};
   use pretty_assertions::assert_eq;
 
@@ -229,6 +232,22 @@ mod tests {
     .layers(&tree, spot);
 
     assert_eq!(layers.transform, Some(own));
+  }
+
+  // A node layout never arranged records nothing, even when called directly.
+  #[test]
+  fn an_unarranged_node_records_nothing() {
+    let (tree, _, unreached, layout) = laid_out((0.0, 0.0), None);
+    let types = ElementTypes::from_link_time();
+    let mut builder = SceneBuilder::default();
+
+    ElementNodes {
+      types: &types,
+      layout: &layout,
+    }
+    .record(&tree, unreached, &mut builder);
+
+    assert_eq!(format!("{builder:?}"), format!("{:?}", SceneBuilder::default()));
   }
 
   // An element draws at the size layout arranged it at.

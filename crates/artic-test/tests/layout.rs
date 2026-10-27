@@ -351,6 +351,15 @@ fn record_draws_the_node_without_its_children() {
   assert_eq!(layout.record(root).len(), 1);
 }
 
+// A node layout never reached isn't drawn, as in a window.
+#[test]
+fn record_skips_a_node_layout_never_reached() {
+  let mut layout = Headless::new();
+  let node = layout.add("swatch", Swatch);
+
+  assert!(layout.record(node).is_empty());
+}
+
 artic_test::layout_element!(Growing);
 artic_test::layout_element!(Shove);
 artic_test::layout_element!(FirstOnly);

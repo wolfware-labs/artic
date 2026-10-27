@@ -35,7 +35,7 @@ impl Headless {
   }
 
   /// Records `node`'s own drawing as the frame pipeline does: at the size layout gave it, with
-  /// the result its layout kept. Its children aren't drawn.
+  /// the result its layout kept. Its children aren't drawn, nor is a node layout never reached.
   pub fn record(&mut self, node: NodeId) -> Vec<Command> {
     let mut one = OneNode {
       elements: ElementNodes {
@@ -164,15 +164,15 @@ impl Default for Headless {
   }
 }
 
-/// Composes only `node`, as the frame pipeline would, with no layers.
+/// Composes only `node`, as the frame pipeline would.
 struct OneNode<'a> {
   elements: ElementNodes<'a>,
   node: NodeId,
 }
 
 impl Nodes for OneNode<'_> {
-  fn layers(&self, _tree: &UiTree, _node: NodeId) -> Layers {
-    Layers::default()
+  fn layers(&self, tree: &UiTree, node: NodeId) -> Layers {
+    self.elements.layers(tree, node)
   }
 
   fn record(&mut self, tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
