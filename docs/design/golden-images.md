@@ -103,14 +103,13 @@ Two environment variables, each on only when set to `1`:
 pub fn no_gpu(reason: impl Display);
 ```
 
-Each renderer's tests decide what a usable GPU is, in the helper that hands the tests their renderer: for vello, an adapter that isn't WARP, the software DX12 adapter of Windows, on which vello's compute shaders crash. The check looks for a CPU adapter on the DX12 backend, so Mesa's lavapipe, a CPU adapter on Vulkan, counts as usable on Windows too. When there's none, the helper calls `no_gpu` with the reason instead of running the test. Only those two cases skip: a renderer that finds a usable adapter and then fails, opening the device or building vello's pipelines, is a broken renderer, and the helper panics with its error:
+Each renderer's tests decide what a usable GPU is, in the helper that hands the tests their renderer. For vello, the renderer decides for them: `Renderer::new` returns `Error::Adapter` when there's no adapter, and `Error::UnsupportedAdapter` when the only one is WARP, the software DX12 adapter of Windows, on which vello's compute shaders crash. The check looks for a CPU adapter on the DX12 backend, so Mesa's lavapipe, a CPU adapter on Vulkan, counts as usable on Windows too. On either error the helper calls `no_gpu` with the reason instead of running the test. Only those two cases skip: a renderer that finds a usable adapter and then fails, opening the device or building vello's pipelines, is a broken renderer, and the helper panics with its error:
 
 ```rust,ignore
 fn with_renderer(test: impl FnOnce(&mut Renderer)) {
   match Renderer::new() {
-    Ok(renderer) if is_warp(&renderer) => golden::no_gpu("vello crashes on WARP, the only adapter here"),
     Ok(mut renderer) => test(&mut renderer),
-    Err(Error::Adapter(error)) => golden::no_gpu(error),
+    Err(error @ (Error::Adapter(_) | Error::UnsupportedAdapter(_))) => golden::no_gpu(error),
     Err(error) => panic!("the renderer failed to start: {error}"),
   }
 }
