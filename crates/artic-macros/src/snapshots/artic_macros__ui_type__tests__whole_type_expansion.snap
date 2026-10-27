@@ -254,9 +254,9 @@ const _: () = {
         pub fn set_row(
             tree: &mut __artic::UiTree,
             node: impl ::core::convert::Into<__artic::NodeId>,
-            row: usize,
+            value: usize,
         ) {
-            tree.attached_property(node.into(), Self::ROW).set(row);
+            tree.attached_property(node.into(), Self::ROW).set(value);
         }
         ///Returns `Panel.Row` of `node`, or its default when nothing set it.
         #[must_use]
@@ -272,9 +272,9 @@ const _: () = {
         pub fn set_column_span(
             tree: &mut __artic::UiTree,
             node: impl ::core::convert::Into<__artic::NodeId>,
-            column_span: usize,
+            value: usize,
         ) {
-            tree.attached_property(node.into(), Self::COLUMN_SPAN).set(column_span);
+            tree.attached_property(node.into(), Self::COLUMN_SPAN).set(value);
         }
         ///Returns `Panel.ColumnSpan` of `node`, or its default when nothing set it.
         #[must_use]

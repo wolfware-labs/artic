@@ -99,7 +99,7 @@ use syn::{DeriveInput, parse_macro_input};
 ///
 /// ```ignore
 /// pub const ROW: &'static AttachedKey<usize>;
-/// pub fn set_row(tree: &mut UiTree, node: impl Into<NodeId>, row: usize);
+/// pub fn set_row(tree: &mut UiTree, node: impl Into<NodeId>, value: usize);
 /// pub fn row(tree: &UiTree, node: impl Into<NodeId>) -> usize;
 /// ```
 ///

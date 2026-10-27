@@ -366,6 +366,24 @@ struct Common {
   enabled: Property<bool>,
 }
 
+/// An owner whose attached properties are named like the setter's other parameters.
+#[derive(Debug, UiType)]
+#[ui(attached(name = "Node", ty = usize, target = any), attached(name = "Tree", ty = usize, target = any))]
+struct Dock;
+
+// An attached property named `Node` or `Tree` gets a setter whose value parameter doesn't clash
+// with its `node` and `tree` parameters.
+#[test]
+fn attached_named_like_setter_parameters() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Dock));
+
+  Dock::set_node(&mut tree, node, 3);
+  Dock::set_tree(&mut tree, node, 4);
+
+  assert_eq!((Dock::node(&tree, node), Dock::tree(&tree, node)), (3, 4));
+}
+
 /// A property group that reaches the registry through a path of its own.
 #[derive(Debug, UiProperties)]
 #[ui(crate = "registry_alias")]

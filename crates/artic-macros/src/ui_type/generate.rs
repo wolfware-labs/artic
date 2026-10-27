@@ -311,7 +311,6 @@ fn attached_helpers(owner: &Ident, attached: &Attached) -> TokenStream {
     ..
   } = attached;
   let name = attached.name.value();
-  let value = getter;
   let property = format!("`{owner}.{name}`");
   let constant_doc = format!("The {property} attached property.");
   let setter_doc = format!("Sets {property} on `node`, at local precedence.");
@@ -321,8 +320,8 @@ fn attached_helpers(owner: &Ident, attached: &Attached) -> TokenStream {
     pub const #constant: &'static __artic::AttachedKey<#ty> = &#key;
 
     #[doc = #setter_doc]
-    pub fn #setter(tree: &mut __artic::UiTree, node: impl ::core::convert::Into<__artic::NodeId>, #value: #ty) {
-      tree.attached_property(node.into(), Self::#constant).set(#value);
+    pub fn #setter(tree: &mut __artic::UiTree, node: impl ::core::convert::Into<__artic::NodeId>, value: #ty) {
+      tree.attached_property(node.into(), Self::#constant).set(value);
     }
 
     #[doc = #getter_doc]
