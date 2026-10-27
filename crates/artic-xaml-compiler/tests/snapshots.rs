@@ -41,6 +41,7 @@ fn output_is_deterministic() {
     ("artic_layout", "::artic::layout"),
     ("artic_element", "::artic::element"),
     ("artic_controls", "::artic::controls"),
+    ("artic_core", "::artic::core"),
   ] {
     reversed.path(krate, path);
   }

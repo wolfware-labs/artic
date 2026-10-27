@@ -13,7 +13,7 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
   let root = view.root;
   let root_ty = &view.elements[root].ty;
   let root_local = local(root);
-  let prelude = &view.prelude;
+  let tree_module = &view.tree;
   let traits = view.traits.values();
   let links = &view.links;
   let fields = view.names.iter().map(|(name, index)| {
@@ -34,10 +34,10 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
     let content = content(&element.content);
     quote!(let #local = #ty::new() #(#setters)* #content .build(tree);)
   });
-  let view_doc = format!(" The nodes of `{file}`: its root and one handle per `x:Name`.");
+  let view_doc = format!(" The nodes of `{file}`: its root and one handle per named element.");
   let build_doc = format!(" Builds `{file}` in `tree` and returns its nodes.");
   let tokens = quote! {
-    use #prelude::{Handle, UiTree};
+    use #tree_module::{Handle, UiTree};
     #(use #traits as _;)*
     #(use #links as _;)*
 

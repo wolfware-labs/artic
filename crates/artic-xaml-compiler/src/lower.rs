@@ -12,8 +12,8 @@ use syn::{Expr, Ident, Path};
 
 /// A view ready to be written.
 pub(crate) struct View {
-  /// The path of the facade's prelude, from the map's path for `artic`.
-  pub prelude: Path,
+  /// The path of `artic_core`'s tree module, from the map's path for `artic_core`.
+  pub tree: Path,
   /// Every element, children before their parent, so element `i` is the local `__e{i}`.
   pub elements: Vec<Element>,
   /// The root's index.
@@ -59,8 +59,8 @@ pub(crate) fn lower(view: &CheckedView, namespaces: &NamespaceMap) -> (Option<Vi
     diagnostics: Diagnostics::new(),
   };
   let elements: Vec<Option<Element>> = view.elements.iter().map(|element| lower.element(element)).collect();
-  let prelude = format!("{}::prelude", namespaces.path_of("artic"));
-  let prelude = parse_path(&prelude, view.span, &mut lower.diagnostics);
+  let tree = format!("{}::tree", namespaces.path_of("artic_core"));
+  let tree = parse_path(&tree, view.span, &mut lower.diagnostics);
   let links: Vec<Option<Path>> = namespaces
     .crates_named()
     .map(|krate| parse_path(&namespaces.path_of(krate), view.span, &mut lower.diagnostics))
@@ -77,9 +77,9 @@ pub(crate) fn lower(view: &CheckedView, namespaces: &NamespaceMap) -> (Option<Vi
     .collect();
   let elements: Option<Vec<Element>> = elements.into_iter().collect();
   let links: Option<Vec<Path>> = links.into_iter().collect();
-  let lowered = match (view.root, prelude, elements, links) {
-    (Some(root), Some(prelude), Some(elements), Some(links)) => Some(View {
-      prelude,
+  let lowered = match (view.root, tree, elements, links) {
+    (Some(root), Some(tree), Some(elements), Some(links)) => Some(View {
+      tree,
       elements,
       root,
       names,

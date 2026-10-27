@@ -36,6 +36,7 @@ pub fn namespaces() -> NamespaceMap {
   let mut map = NamespaceMap::new();
   map.alias(ARTIC_UI, &["artic_element", "artic_controls"]);
   map.path("artic_controls", "::artic::controls");
+  map.path("artic_core", "::artic::core");
   map.path("artic_element", "::artic::element");
   map.path("artic_layout", "::artic::layout");
   map.path("artic_render", "::artic::render");
@@ -87,12 +88,13 @@ mod tests {
     let map = namespaces();
 
     assert_eq!(map.path_of("artic_controls"), "::artic::controls");
+    assert_eq!(map.path_of("artic_core"), "::artic::core");
     assert_eq!(map.path_of("artic_element"), "::artic::element");
     assert_eq!(map.path_of("artic_layout"), "::artic::layout");
     assert_eq!(map.path_of("artic_render"), "::artic::render");
     assert_eq!(
       map.crates_named().collect::<Vec<_>>(),
-      ["artic_controls", "artic_element", "artic_layout", "artic_render"]
+      ["artic_controls", "artic_core", "artic_element", "artic_layout", "artic_render"]
     );
   }
 }

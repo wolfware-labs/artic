@@ -27,13 +27,14 @@ fn bare_element_builds_its_root() {
   insta::assert_snapshot!(rust, @r"
   // Generated from view.xaml.
 
-  use ::artic::prelude::{Handle, UiTree};
+  use ::artic::core::tree::{Handle, UiTree};
   use ::artic::controls as _;
+  use ::artic::core as _;
   use ::artic::element as _;
   use ::artic::layout as _;
   use ::artic::render as _;
   use ::elements as _;
-  /// The nodes of `view.xaml`: its root and one handle per `x:Name`.
+  /// The nodes of `view.xaml`: its root and one handle per named element.
   #[derive(Clone, Copy, Debug)]
   pub struct View {
       pub root: Handle<::artic::controls::Border>,
@@ -176,12 +177,22 @@ fn absolute_path_has_one_separator() {
 
 // The prelude is reached through the map's path for `artic`, so an app that renames it can map it.
 #[test]
-fn prelude_follows_the_map() {
+fn tree_types_follow_the_paths() {
   let rust = compile_with(r#"<Border xmlns="https://artic.rs/ui"/>"#, "view.xaml", |map| {
-    map.path("artic", "::ui");
+    map.path("artic_core", "::ui::core");
   })
   .expect("a valid view");
-  assert!(rust.contains("use ::ui::prelude::{Handle, UiTree};"), "{rust}");
+  assert!(rust.contains("use ::ui::core::tree::{Handle, UiTree};"), "{rust}");
+}
+
+// The doc of the generated `View` names no syntax of the UI language.
+#[test]
+fn view_doc_names_no_language_syntax() {
+  let rust = compile(r#"<Border xmlns="https://artic.rs/ui"/>"#).expect("a valid view");
+  assert!(
+    rust.contains("/// The nodes of `view.xaml`: its root and one handle per named element."),
+    "{rust}"
+  );
 }
 
 // Every crate the map names is referenced, sorted, so its types stay in the app's link.
@@ -196,6 +207,7 @@ fn every_named_crate_is_linked() {
     links,
     [
       "use ::artic::controls as _;",
+      "use ::artic::core as _;",
       "use ::artic::element as _;",
       "use ::artic::layout as _;",
       "use ::artic::render as _;",

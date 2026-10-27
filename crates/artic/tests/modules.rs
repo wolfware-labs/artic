@@ -1,7 +1,7 @@
 // The facade's modules are its crates, so code that depends only on the facade reaches every
 // artic type at `artic::<crate>::<Name>`.
 
-use artic::prelude::{Handle, UiTree};
+use artic::core::tree::{Handle, UiTree};
 
 // A control built through the facade's paths alone, the way generated code writes it.
 #[test]

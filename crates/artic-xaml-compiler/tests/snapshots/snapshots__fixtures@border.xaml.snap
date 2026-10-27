@@ -5,13 +5,14 @@ input_file: crates/artic-xaml-compiler/tests/fixtures/border.xaml
 ---
 // Generated from border.xaml.
 
-use ::artic::prelude::{Handle, UiTree};
+use ::artic::core::tree::{Handle, UiTree};
 use ::artic::element::LayoutMethods as _;
 use ::artic::controls as _;
+use ::artic::core as _;
 use ::artic::element as _;
 use ::artic::layout as _;
 use ::artic::render as _;
-/// The nodes of `border.xaml`: its root and one handle per `x:Name`.
+/// The nodes of `border.xaml`: its root and one handle per named element.
 #[derive(Clone, Copy, Debug)]
 pub struct View {
     pub root: Handle<::artic::controls::Border>,
