@@ -27,7 +27,7 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
   let other_fields = &analysis.other_fields;
   let visits = properties.iter().map(|field| {
     let field_ident = field.ident;
-    quote!(visit(self.#field_ident.as_ref());)
+    quote!(visit(__artic::Property::as_ref(&self.#field_ident));)
   });
   let group_visits = groups.iter().map(|field| {
     let field_ident = field.ident;

@@ -66,6 +66,7 @@ impl Runtime {
     signal_id
   }
 
+  /// Creates a signal no scope owns: whoever made it disposes it with `dispose_signal`.
   pub fn create_unowned_signal<TValue>(value: TValue) -> SignalId
   where
     TValue: Any,

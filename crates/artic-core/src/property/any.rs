@@ -92,6 +92,8 @@ impl Debug for dyn Erased + '_ {
 
 /// A [`Property`] without its value type: what [`AnyProperty`] points at, and what the tree stores
 /// a node's attached values as. Each method backs the `AnyProperty` method of the same name.
+/// `Property<T>` is its only implementor and `as_any` returns the property itself, which is what
+/// [`AnyProperty::downcast`] relies on.
 pub(crate) trait Erased {
   fn key_id(&self) -> KeyId;
   fn as_any(&self) -> &dyn Any;

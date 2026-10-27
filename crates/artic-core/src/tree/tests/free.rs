@@ -99,7 +99,7 @@ impl Object for Twice {
   }
 }
 
-// A property listed twice, or shared by two nodes, is disposed once and freeing goes on.
+// A property a node lists twice is disposed once, and freeing goes on.
 #[test]
 fn free_disposes_a_property_listed_twice_once() {
   let baseline = live_counts();
@@ -113,7 +113,7 @@ fn free_disposes_a_property_listed_twice_once() {
 
 // A property whose scope was disposed first is skipped: the tree frees the node anyway.
 #[test]
-fn free_after_the_scope_was_disposed_is_fine() {
+fn free_skips_properties_their_scope_disposed() {
   let baseline = live_counts();
   let view = Scope::new_root();
   let mut tree = UiTree::new();
@@ -140,5 +140,18 @@ fn attached_values_belong_to_the_node() {
 
   assert_eq!(tree.attached(label, &ROW), 3);
   tree.free(label);
+  assert_eq!(live_counts(), baseline);
+}
+
+// Dropping a tree lets go of every node it holds, as freeing them would.
+#[test]
+fn dropping_the_tree_disposes_its_nodes_properties() {
+  let baseline = live_counts();
+  let mut tree = UiTree::new();
+  let label = tree.alloc(Box::new(Label::new()));
+  tree.attached_property(label, &ROW).set(2);
+
+  drop(tree);
+
   assert_eq!(live_counts(), baseline);
 }

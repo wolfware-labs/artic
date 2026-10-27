@@ -72,7 +72,7 @@ pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
   let checks = properties.iter().map(value_check);
   let visits = properties.iter().map(|field| {
     let field_ident = field.ident;
-    quote!(visit(self.#field_ident.as_ref());)
+    quote!(visit(__artic::Property::as_ref(&self.#field_ident));)
   });
   let count = properties.len();
   let methods = methods_trait(input, &properties, &root);

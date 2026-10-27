@@ -52,8 +52,9 @@
 //! A property has two owners: the [`Scope`](crate::reactive::Scope) that was active when it was
 //! created, and the node it ends up on. Whichever lets go first disposes it: disposing the scope,
 //! or the tree [freeing](crate::tree::UiTree::free) the node. A copy kept past that panics when
-//! read, and so does the node, so dispose a scope only once the nodes built in it have left the
-//! tree. Attached values are created by the tree and belong to their node alone.
+//! read, and so does reading it through the node, so dispose a scope only once the nodes built in
+//! it have left the tree. Attached values are created by the tree and belong to their node alone.
+//! Dropping the tree disposes what its nodes still hold.
 
 mod affects;
 mod any;

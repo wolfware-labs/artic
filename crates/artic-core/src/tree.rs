@@ -163,6 +163,17 @@ pub enum LinkError {
   },
 }
 
+/// Dropping a tree frees every node still in it, as [`free`](UiTree::free) would, so their
+/// properties and attached values don't outlive it.
+impl Drop for UiTree {
+  fn drop(&mut self) {
+    let nodes: Vec<NodeId> = self.objects.ids().collect();
+    for node in nodes {
+      self.free_node(node);
+    }
+  }
+}
+
 impl UiTree {
   /// Creates an empty tree.
   ///
@@ -538,7 +549,8 @@ impl UiTree {
   /// Each freed node's properties and attached values are disposed with it: a copy of one kept
   /// outside the tree panics when used. An effect or memo that read one stops depending on it, and
   /// panics if it runs again for another reason and reads it; give such observers a
-  /// [`Scope`](crate::reactive::Scope) disposed with the nodes they read.
+  /// [`Scope`](crate::reactive::Scope) disposed with the nodes they read. A property its scope
+  /// already disposed is skipped, so freeing a node after disposing that scope is fine.
   ///
   /// Freeing bumps each slot's generation, which invalidates the freed ids and every copy of them.
   /// The generation wraps around after `u32::MAX - 1` reuses of the same slot, so an id kept across
