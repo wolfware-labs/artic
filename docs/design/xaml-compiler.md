@@ -77,7 +77,7 @@ impl RustExpr {
 
 ## What a compiled view gives the app
 
-Each `src/views/<name>.xaml` becomes `$OUT_DIR/views/src/views/<name>.rs`, at its path in the crate, a module body with one constant, one struct and one function:
+Each `src/views/<name>.xaml` becomes `$OUT_DIR/views/<name>.rs`, at its path under the directory `compile_dir` reads (#52 moves it to its path in the crate, `$OUT_DIR/views/src/views/<name>.rs`), a module body with one constant, one struct and one function:
 
 ```rust,ignore
 // Generated from src/views/login_view.xaml.
