@@ -1,6 +1,8 @@
 use crate::property::state::PropertyState;
 use crate::property::{Property, PropertyKey};
 use crate::reactive::Change;
+#[cfg(debug_assertions)]
+use crate::reactive::SignalId;
 use crate::tree::DirtyHandle;
 use std::any::Any;
 use std::fmt::{self, Debug, Formatter};
@@ -75,10 +77,10 @@ impl<'a> AnyProperty<'a> {
     self.0.inherits()
   }
 
-  /// Whether the property hasn't been disposed.
+  /// The id of the property's signal: two handles to one property share it.
   #[cfg(debug_assertions)]
-  pub(crate) fn is_alive(self) -> bool {
-    self.0.is_alive()
+  pub(crate) fn id(self) -> SignalId {
+    self.0.id()
   }
 
   /// Whether a node in a tree already lists the property.
@@ -137,7 +139,7 @@ pub(crate) trait Erased {
   fn as_any(&self) -> &dyn Any;
   fn inherits(&self) -> bool;
   #[cfg(debug_assertions)]
-  fn is_alive(&self) -> bool;
+  fn id(&self) -> SignalId;
   fn is_listed(&self) -> bool;
   fn is_listed_by(&self, dirty: &DirtyHandle) -> bool;
   fn attach(&self, dirty: DirtyHandle);
@@ -162,8 +164,8 @@ where
   }
 
   #[cfg(debug_assertions)]
-  fn is_alive(&self) -> bool {
-    self.0.is_alive()
+  fn id(&self) -> SignalId {
+    self.0.id()
   }
 
   fn is_listed(&self) -> bool {

@@ -301,8 +301,9 @@ pub enum Change {
   Hidden,
 }
 
-#[cfg(test)]
+#[cfg(any(test, debug_assertions))]
 impl<TValue> Signal<TValue> {
+  /// The signal's id in the runtime: two handles to one signal share it.
   pub(crate) fn id(&self) -> SignalId {
     self.0
   }

@@ -6,10 +6,12 @@ use crate::tree::UiTree;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 static WIDTH: PropertyKey<i32> = PropertyKey::new("Width", Affects::LAYOUT, Inheritance::None);
+static HEIGHT: PropertyKey<i32> = PropertyKey::new("Height", Affects::LAYOUT, Inheritance::None);
 
 #[derive(Debug)]
 struct Panel {
   width: Property<i32>,
+  height: Property<i32>,
   items: Vec<i32>,
 }
 
@@ -17,6 +19,7 @@ impl Panel {
   fn new() -> Panel {
     Panel {
       width: Property::new(&WIDTH, 0),
+      height: Property::new(&HEIGHT, 0),
       items: Vec::new(),
     }
   }
@@ -25,6 +28,7 @@ impl Panel {
 impl Object for Panel {
   fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
     visitor.visit(&self.width);
+    visitor.visit(&self.height);
   }
 }
 
@@ -36,6 +40,32 @@ fn a_replaced_field_panics_at_take_pending() {
   let mut tree = UiTree::new();
   let node = tree.alloc(Box::new(Panel::new()));
   tree.get_as_mut::<Panel>(node).unwrap().width = Property::new(&WIDTH, 5);
+
+  let _ = tree.take_pending();
+}
+
+// A field overwritten with a copy of a sibling's handle still names a property of the node, but
+// the one it held is gone from the node's list and would never be disposed.
+#[test]
+#[should_panic(expected = "a property field was replaced through get_mut or get_as_mut")]
+fn a_field_copied_from_a_sibling_panics() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Panel::new()));
+  let panel = tree.get_as_mut::<Panel>(node).unwrap();
+  panel.width = panel.height;
+
+  let _ = tree.take_pending();
+}
+
+// A field overwritten with the handle of a freed node's property loses the one it held too.
+#[test]
+#[should_panic(expected = "a property field was replaced through get_mut or get_as_mut")]
+fn a_field_given_a_disposed_handle_panics() {
+  let mut tree = UiTree::new();
+  let [node, other] = [(); 2].map(|_| tree.alloc(Box::new(Panel::new())));
+  let disposed = tree.get_as::<Panel>(other).unwrap().width;
+  tree.free(other);
+  tree.get_as_mut::<Panel>(node).unwrap().width = disposed;
 
   let _ = tree.take_pending();
 }

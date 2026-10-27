@@ -144,6 +144,8 @@ pub use effect::effect;
 pub use live_counts::assert_no_reactive_leaks;
 pub use live_counts::{LiveCounts, live_counts};
 pub use memo::Memo;
+#[cfg(debug_assertions)]
+pub(crate) use runtime::SignalId;
 pub use scope::Scope;
 pub use signal::{Change, Signal};
 

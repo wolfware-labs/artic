@@ -46,6 +46,8 @@ use crate::Object;
 use crate::arena::SlotId;
 use crate::object::for_each_property;
 use crate::property::{Affects, AttachedKey, Erased, KeyId, Property};
+#[cfg(debug_assertions)]
+use crate::reactive::SignalId;
 use attached::AttachedValues;
 use dirty::DirtyFlags;
 pub(crate) use dirty::DirtyHandle;
@@ -98,9 +100,10 @@ pub struct UiTree {
   visual: Tree,
   dirty_flags: DirtyFlags,
   attached_values: AttachedValues,
-  /// The nodes `get_mut` handed out since the last check of their wiring, in debug builds.
+  /// The nodes `get_mut` handed out since the last check of their wiring, each with the ids of the
+  /// properties it listed then, in debug builds.
   #[cfg(debug_assertions)]
-  touched: RefCell<Vec<NodeId>>,
+  touched: RefCell<Vec<(NodeId, Vec<SignalId>)>>,
 }
 
 /// A handle to a node stored in a [`UiTree`].
@@ -325,8 +328,8 @@ impl UiTree {
     #[cfg(debug_assertions)]
     {
       let touched = self.touched.get_mut();
-      if touched.last() != Some(&id) {
-        touched.push(id);
+      if touched.last().is_none_or(|(node, _)| *node != id) {
+        touched.push((id, property_ids(object)));
       }
     }
     Some(object)
@@ -818,25 +821,22 @@ impl UiTree {
     }
   }
 
-  /// Checks, in debug builds, that every node `get_mut` handed out still lists only properties
-  /// wired to it, then forgets them. A node that fails stays recorded, so a caught panic is raised
-  /// again by the next check.
+  /// Checks, in debug builds, that every node `get_mut` handed out still lists the properties it
+  /// listed then, in the same order, then forgets them. A node that fails stays recorded, so a
+  /// caught panic is raised again by the next check.
   ///
   /// # Panics
   ///
-  /// If one of them lists a live property another node, or no node, is wired to: a property field
-  /// was replaced through `get_mut` or `get_as_mut`.
+  /// If one of them lists another property in place of one it listed: a property field was
+  /// replaced through `get_mut` or `get_as_mut`, and the property it held would never be disposed.
   fn check_touched(&self) {
     #[cfg(debug_assertions)]
     {
-      for &node in self.touched.borrow().iter() {
-        let flags = self.dirty_flags.shared(node);
-        for_each_property(self.objects.object(node), |property| {
-          assert!(
-            !property.is_alive() || property.is_listed_by(&flags),
-            "node {node:?}: a property field was replaced through get_mut or get_as_mut; write it with set instead"
-          );
-        });
+      for (node, listed) in self.touched.borrow().iter() {
+        assert!(
+          property_ids(self.objects.object(*node)) == *listed,
+          "node {node:?}: a property field was replaced through get_mut or get_as_mut; write it with set instead"
+        );
       }
       self.touched.borrow_mut().clear();
     }
@@ -850,6 +850,14 @@ impl UiTree {
       *property.downcast::<T>().expect("a key's property has the key's value type")
     })
   }
+}
+
+/// The ids of the properties `object` lists, in the order it lists them.
+#[cfg(debug_assertions)]
+fn property_ids(object: &dyn Object) -> Vec<SignalId> {
+  let mut ids = Vec::new();
+  for_each_property(object, |property| ids.push(property.id()));
+  ids
 }
 
 #[cfg(test)]
