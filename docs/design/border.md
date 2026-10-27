@@ -69,14 +69,13 @@ pub enum ShadowProblem {
   MissingColor,
   TooFewNumbers,
   TooManyNumbers,
-  NotANumber(String),
-  NotFinite(String),
+  Number(NumberProblem),
   NegativeBlur(String),
   Color(ParseColorError),
 }
 ```
 
-`artic-render` re-exports `ParseBoxShadowError` and `ShadowProblem` from its root, beside `BoxShadow`, as it does `ParseColorError` beside `Color`. The message quotes the text and shows the forms, in the same shape as `ParseColorError`'s: `invalid BoxShadow '4 4': it needs a color last; expected forms like '0 2 8 #40000000' or '4 4 Black'`. A last token that parses as a number is `MissingColor`; any other last token is the color, so a mistyped color such as `#4000000` reports `Color`, worded as "its color '#4000000' …" with the color error's own reason, not a number problem.
+`artic-render` re-exports `ParseBoxShadowError` and `ShadowProblem` from its root, beside `BoxShadow`, as it does `ParseColorError` beside `Color`. The message quotes the text and shows the forms, in the same shape as `ParseColorError`'s: `invalid BoxShadow '4 4': it needs a color last; expected forms like '0 2 8 #40000000' or '4 4 Black'`. A last token that parses as a number is `MissingColor`; any other last token is the color, so a mistyped color such as `#4000000` reports `Color`, worded as "its color '#4000000' …" with the color error's own reason, not a number problem. A token that isn't a finite number is `Number`, the `artic_layout::finite::NumberProblem` geometry text reports too, read by the same `finite::parse`.
 
 ## 4. `Border`
 
