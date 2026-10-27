@@ -74,6 +74,11 @@ impl<'a> AnyProperty<'a> {
     self.0.inherits()
   }
 
+  /// Whether a node in a tree already lists the property.
+  pub(crate) fn is_listed(self) -> bool {
+    self.0.is_listed()
+  }
+
   /// Connects the property to its node's dirty flags. After this, a change to the effective value
   /// adds the key's [`Affects`](super::Affects) to them and sets the tree's pending flag.
   pub(crate) fn attach(self, dirty: DirtyHandle) {
@@ -114,6 +119,7 @@ pub(crate) trait Erased {
   fn key_id(&self) -> KeyId;
   fn as_any(&self) -> &dyn Any;
   fn inherits(&self) -> bool;
+  fn is_listed(&self) -> bool;
   fn attach(&self, dirty: DirtyHandle);
   fn inherit_from(&self, source: Option<AnyProperty<'_>>);
   fn dispose(&self);
@@ -135,12 +141,11 @@ where
     self.key().inherits()
   }
 
+  fn is_listed(&self) -> bool {
+    self.0.is_alive() && self.0.with_untracked(|state| state.is_listed())
+  }
+
   fn attach(&self, dirty: DirtyHandle) {
-    let elsewhere = self.0.with_untracked(|state| state.is_listed_elsewhere(&dirty));
-    assert!(
-      !elsewhere,
-      "a property belongs to one node, and this one is already listed by another"
-    );
     self.0.update_with(|state| {
       state.attach(dirty);
       Change::Hidden

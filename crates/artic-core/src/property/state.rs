@@ -34,9 +34,9 @@ where
     self.dirty = Some(dirty);
   }
 
-  /// Whether the property is already listed by a node other than the one `dirty` belongs to.
-  pub fn is_listed_elsewhere(&self, dirty: &DirtyHandle) -> bool {
-    self.dirty.as_ref().is_some_and(|held| !held.is_same_node(dirty))
+  /// Whether a node in a tree already lists the property.
+  pub fn is_listed(&self) -> bool {
+    self.dirty.is_some()
   }
 
   pub fn mark_dirty(&self) {

@@ -167,3 +167,18 @@ fn a_property_listed_by_two_nodes_panics() {
 
   let _second = tree.alloc(Box::new(Twice(shared)));
 }
+
+// A refused node isn't added: the tree is as it was before the call.
+#[test]
+fn a_refused_node_leaves_the_tree_unchanged() {
+  let mut tree = UiTree::new();
+  let shared = Property::new(&FOREGROUND, 0);
+  let first = tree.alloc(Box::new(Twice(shared)));
+
+  let refused = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| tree.alloc(Box::new(Twice(shared)))));
+
+  assert!(refused.is_err());
+  assert_eq!(tree.len(), 1);
+  tree.free(first);
+  assert!(tree.is_empty());
+}

@@ -199,7 +199,8 @@ impl UiTree {
   ///
   /// # Panics
   ///
-  /// Panics if the tree would need more than `u32::MAX` slots.
+  /// Panics if the tree would need more than `u32::MAX` slots, or if `value` lists a property
+  /// another node in a tree already lists, leaving the tree as it was.
   ///
   /// # Examples
   ///
@@ -222,6 +223,12 @@ impl UiTree {
   /// ```
   #[must_use = "node ID needed to get or free the node from the tree"]
   pub fn alloc(&mut self, value: Box<dyn Object>) -> NodeId {
+    for_each_property(value.as_ref(), |property| {
+      assert!(
+        !property.is_listed(),
+        "a property belongs to one node, and this one is already listed by another"
+      );
+    });
     let id = self.objects.alloc(value);
     self.logical.insert(id);
     self.visual.insert(id);
