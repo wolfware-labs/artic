@@ -1,18 +1,18 @@
 //! Turning a [`CheckedView`] into Rust: each type's path, each value as an expression, and the
 //! traits the setters call through.
 
+use crate::CratePaths;
 use artic_diagnostics::{Diagnostic, Diagnostics, Span};
-use artic_registry::{PropertyInfo, PropertyRef, RustExpr, TypeInfo, crate_and_item};
+use artic_registry::{PropertyInfo, PropertyRef, RustExpr, TypeInfo};
 use artic_view::document::{Text, TypeUse};
 use artic_view::{CheckedContent, CheckedElement, CheckedView};
-use artic_xaml::namespaces::NamespaceMap;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use syn::parse::Parser;
 use syn::{Expr, Ident, Path};
 
 /// A view ready to be written.
 pub(crate) struct View {
-  /// The path of `artic_core`'s tree module, from the map's path for `artic_core`.
+  /// The path of `artic_core`'s tree module.
   pub tree: Path,
   /// Every element, children before their parent, so element `i` is the local `__e{i}`.
   pub elements: Vec<Element>,
@@ -23,7 +23,7 @@ pub(crate) struct View {
   pub names: Vec<(Ident, usize)>,
   /// The methods traits the setters call through, keyed by their text so they're written sorted.
   pub traits: BTreeMap<String, Path>,
-  /// Every crate the map names, by its path, so the app links them.
+  /// Every crate the language names or has a path, by its path, so the app links them.
   pub links: Vec<Path>,
 }
 
@@ -47,23 +47,26 @@ pub(crate) struct Setter {
 
 /// Lowers `view`, collecting every problem. The view is `None` when it has no root or a path
 /// isn't a Rust path; every value is still written, so each of its problems is reported.
-pub(crate) fn lower(view: &CheckedView, namespaces: &NamespaceMap) -> (Option<View>, Diagnostics) {
-  let mut paths = RustExpr::new();
-  for krate in namespaces.crates_named() {
-    paths.path(krate, &namespaces.path_of(krate));
+pub(crate) fn lower(view: &CheckedView, paths: &CratePaths, crates: &[&str]) -> (Option<View>, Diagnostics) {
+  let mut expr = RustExpr::new();
+  for krate in paths.crates_named() {
+    expr.path(krate, &paths.path_of(krate));
   }
   let mut lower = Lower {
-    namespaces,
     paths,
+    expr,
     traits: BTreeMap::new(),
     diagnostics: Diagnostics::new(),
   };
   let elements: Vec<Option<Element>> = view.elements.iter().map(|element| lower.element(element)).collect();
-  let tree = format!("{}::tree", namespaces.path_of("artic_core"));
-  let tree = parse_path(&tree, view.span, &mut lower.diagnostics);
-  let links: Vec<Option<Path>> = namespaces
-    .crates_named()
-    .map(|krate| parse_path(&namespaces.path_of(krate), view.span, &mut lower.diagnostics))
+  let tree = parse_path(&paths.module("artic_core::tree"), view.span, &mut lower.diagnostics);
+  let links: Vec<Option<Path>> = crates
+    .iter()
+    .copied()
+    .chain(paths.crates_named())
+    .collect::<BTreeSet<_>>()
+    .into_iter()
+    .map(|krate| parse_path(&paths.path_of(krate), view.span, &mut lower.diagnostics))
     .collect();
   let names = view
     .names
@@ -91,14 +94,14 @@ pub(crate) fn lower(view: &CheckedView, namespaces: &NamespaceMap) -> (Option<Vi
   (lowered, lower.diagnostics)
 }
 
-/// Parses `text`, built from the namespace map's paths, as the path of an item, or records that
+/// Parses `text`, built from the crates' paths, as the path of an item, or records that
 /// it isn't one. The path is read as a module path, without generic arguments, since generated
 /// code writes it before `::new()` and in `use` items.
 fn parse_path(text: &str, span: Span, diagnostics: &mut Diagnostics) -> Option<Path> {
   let parsed = Path::parse_mod_style.parse_str(text).ok();
   if parsed.is_none() {
     diagnostics.push(
-      Diagnostic::error(span, format!("`{text}` isn't a Rust path")).with_help("check the paths set with `NamespaceMap::path`"),
+      Diagnostic::error(span, format!("`{text}` isn't a Rust path")).with_help("check the paths set with `CratePaths::path`"),
     );
   }
   parsed
@@ -106,9 +109,9 @@ fn parse_path(text: &str, span: Span, diagnostics: &mut Diagnostics) -> Option<P
 
 /// The walk's state.
 struct Lower<'a> {
-  namespaces: &'a NamespaceMap,
-  /// An empty expression that knows the map's paths, cloned for each literal.
-  paths: RustExpr,
+  paths: &'a CratePaths,
+  /// An empty expression that knows the crates' paths, cloned for each literal.
+  expr: RustExpr,
   /// The methods traits recorded so far.
   traits: BTreeMap<String, Path>,
   diagnostics: Diagnostics,
@@ -131,14 +134,11 @@ impl Lower<'_> {
   }
 
   /// The path generated code names `ty` by: at its crate's root, or in the module the document
-  /// named, its crate translated through the map.
+  /// named, its crate translated through the paths.
   fn type_path(&mut self, ty: &TypeUse) -> Option<Path> {
     let text = match &ty.module {
-      None => format!("{}::{}", self.namespaces.path_of(ty.info.namespace()), ty.info.name),
-      Some(module) => match module.split_once("::") {
-        Some((krate, rest)) => format!("{}::{rest}::{}", self.namespaces.path_of(krate), ty.info.name),
-        None => format!("{}::{}", self.namespaces.path_of(module), ty.info.name),
-      },
+      None => self.paths.item(ty.info.rust_path),
+      Some(module) => format!("{}::{}", self.paths.module(module), ty.info.name),
     };
     parse_path(&text, ty.span, &mut self.diagnostics)
   }
@@ -161,8 +161,7 @@ impl Lower<'_> {
       .iter()
       .find(|group| group.field == field)
       .expect("a property's group is one of its type's");
-    let (krate, name) = crate_and_item(group.methods);
-    let text = format!("{}::{name}", self.namespaces.path_of(krate));
+    let text = self.paths.item(group.methods);
     if !self.traits.contains_key(&text)
       && let Some(path) = parse_path(&text, span, &mut self.diagnostics)
     {
@@ -179,7 +178,7 @@ impl Lower<'_> {
       );
       return None;
     };
-    let mut out = self.paths.clone();
+    let mut out = self.expr.clone();
     if let Err(message) = write(text, &mut out) {
       self
         .diagnostics

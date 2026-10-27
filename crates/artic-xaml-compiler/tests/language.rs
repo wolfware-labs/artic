@@ -37,3 +37,11 @@ fn xaml_that_does_not_parse_gives_no_document() {
   assert!(document.is_none());
   assert!(diagnostics.has_errors());
 }
+
+// XAML's crates are those its URIs stand for; the paths generated code takes are the compiler's.
+#[test]
+fn xaml_crates_are_its_uris_only() {
+  let xaml = Xaml::new(artic::xaml::namespaces());
+
+  assert_eq!(xaml.crates(), ["artic_controls", "artic_element"]);
+}

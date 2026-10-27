@@ -41,7 +41,7 @@ impl Language for Xaml {
 
 /// Reads `file` into a document, or returns the parser's errors. Every other problem is the
 /// document's, for the checker to report where it reaches it.
-pub(crate) fn read(
+fn read(
   sources: &SourceMap,
   file: SourceId,
   registry: &Registry,

@@ -1,9 +1,10 @@
 //! Compiling a directory of views for a build script.
 
+use crate::CratePaths;
 use crate::compile_str;
 use artic_diagnostics::{Diagnostics, SourceMap};
 use artic_registry::{Registry, RegistryError};
-use artic_xaml::namespaces::NamespaceMap;
+use artic_view::Language;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -44,7 +45,7 @@ impl Debug for CompileError {
   }
 }
 
-/// Compiles every `.xaml` file under `dir` into `$OUT_DIR/views/`, for a build script.
+/// Compiles every file of `language` under `dir` into `$OUT_DIR/views/`, for a build script.
 ///
 /// `dir` is read relative to the crate, where Cargo runs build scripts. Each view is written to
 /// `$OUT_DIR/views/<path under dir>.rs`, replacing what an earlier run wrote there, and Cargo is
@@ -56,19 +57,14 @@ impl Debug for CompileError {
 /// that crate is a build-dependency as well as a dependency: the generated code compiles in the
 /// app and names it too.
 ///
-/// An app usually calls it as `artic::xaml::compile_dir`, through the facade's `xaml-compiler`
-/// feature. Called from this crate directly:
-///
-/// ```no_run
-/// let namespaces = artic::xaml::namespaces();
-/// artic_xaml_compiler::compile_dir("src/views", &namespaces).unwrap();
-/// ```
+/// An app usually calls it through the facade, as `artic::view::compile_dir`, with the facade's
+/// `artic::view::crate_paths()`, or through its language's short form.
 ///
 /// # Errors
 ///
 /// Stops at the first view with errors, in sorted order, and returns its diagnostics; or returns
 /// the I/O error, the registry's duplicates, or a missing `OUT_DIR`.
-pub fn compile_dir(dir: impl AsRef<Path>, namespaces: &NamespaceMap) -> Result<(), CompileError> {
+pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), paths: &CratePaths) -> Result<(), CompileError> {
   let out = std::env::var_os("OUT_DIR").ok_or(CompileError::NoOutDir)?;
   let registry = Registry::from_link_time()?;
   let manifest = std::env::var_os("CARGO_MANIFEST_DIR").map(PathBuf::from);
@@ -78,28 +74,30 @@ pub fn compile_dir(dir: impl AsRef<Path>, namespaces: &NamespaceMap) -> Result<(
     .and_then(|manifest| dir.strip_prefix(manifest).ok())
     .unwrap_or(dir);
   println!("cargo:rerun-if-changed={}", dir.display());
-  for view in compile_into(dir, &Path::new(&out).join("views"), &registry, namespaces)? {
+  for view in compile_into(dir, &Path::new(&out).join("views"), language, &registry, paths)? {
     println!("cargo:rerun-if-changed={}", view.display());
   }
   Ok(())
 }
 
-/// Compiles every view under `dir` into `out`, mirroring the layout, and returns the views read,
-/// sorted. `out` is replaced, so a view removed since the last run leaves no output behind. Stops
-/// at the first view with errors. This is [`compile_dir`]'s work without its environment, for
-/// tests.
+/// Compiles every file of `language` under `dir` into `out`, mirroring the layout, and returns the
+/// views read, sorted. `out` is replaced, so a view removed since the last run leaves no output
+/// behind. Stops at the first view with errors.
+///
+/// This is [`compile_dir`]'s work with every input passed in, for a tool that isn't a build
+/// script: it reads no environment and prints nothing for Cargo.
 ///
 /// # Errors
 ///
 /// As [`compile_dir`], except for `OUT_DIR` and the registry, which the caller provides.
-#[doc(hidden)]
 pub fn compile_into(
   dir: &Path,
   out: &Path,
+  language: &(impl Language + ?Sized),
   registry: &Registry,
-  namespaces: &NamespaceMap,
+  paths: &CratePaths,
 ) -> Result<Vec<PathBuf>, CompileError> {
-  let views = find_views(dir)?;
+  let views = find_views(dir, language.extension())?;
   if out.exists() {
     fs::remove_dir_all(out).map_err(io_error(out))?;
   }
@@ -108,7 +106,7 @@ pub fn compile_into(
     let text = fs::read_to_string(view).map_err(io_error(view))?;
     let mut sources = SourceMap::new();
     let file = sources.add(shown(dir, relative), text);
-    let rust = match compile_str(&sources, file, registry, namespaces) {
+    let rust = match compile_str(&sources, file, language, registry, paths) {
       Ok(rust) => rust,
       Err(diagnostics) => return Err(CompileError::Diagnostics { sources, diagnostics }),
     };
@@ -121,9 +119,9 @@ pub fn compile_into(
   Ok(views)
 }
 
-/// Every `.xaml` file under `dir`, in sorted order. A symlink to a directory isn't followed, so a
-/// link back to an ancestor can't loop.
-fn find_views(dir: &Path) -> Result<Vec<PathBuf>, CompileError> {
+/// Every file under `dir` with `extension`, in sorted order. A symlink to a directory isn't
+/// followed, so a link back to an ancestor can't loop.
+fn find_views(dir: &Path, extension: &str) -> Result<Vec<PathBuf>, CompileError> {
   let mut entries = fs::read_dir(dir)
     .and_then(|entries| {
       entries
@@ -135,8 +133,8 @@ fn find_views(dir: &Path) -> Result<Vec<PathBuf>, CompileError> {
   let mut views = Vec::new();
   for (path, kind) in entries {
     if kind.is_dir() {
-      views.extend(find_views(&path)?);
-    } else if path.extension().is_some_and(|extension| extension == "xaml") {
+      views.extend(find_views(&path, extension)?);
+    } else if path.extension().is_some_and(|found| found == extension) {
       views.push(path);
     }
   }

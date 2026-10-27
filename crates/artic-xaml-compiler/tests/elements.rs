@@ -57,8 +57,12 @@ fn unknown_element_reports_error() {
 // The header and the doc comments name the file with `/` separators on every platform.
 #[test]
 fn file_path_uses_forward_slashes() {
-  let rust =
-    compile_with(r#"<Border xmlns="https://artic.rs/ui"/>"#, "views/account/login.xaml", |_| {}).expect("a valid view");
+  let rust = compile_with(
+    r#"<Border xmlns="https://artic.rs/ui"/>"#,
+    "views/account/login.xaml",
+    |_, _| {},
+  )
+  .expect("a valid view");
   assert!(rust.starts_with("// Generated from views/account/login.xaml.\n"), "{rust}");
   assert!(rust.contains("/// The nodes of `views/account/login.xaml`"), "{rust}");
 }
@@ -66,7 +70,7 @@ fn file_path_uses_forward_slashes() {
 // A name two crates of one URI define is ambiguous, and the help lists both paths.
 #[test]
 fn name_in_two_crates_is_ambiguous() {
-  let errors = compile_with(r#"<Border xmlns="https://artic.rs/ui"/>"#, "view.xaml", |map| {
+  let errors = compile_with(r#"<Border xmlns="https://artic.rs/ui"/>"#, "view.xaml", |map, _| {
     map.alias("https://artic.rs/ui", &[env!("CARGO_CRATE_NAME")]);
   })
   .expect_err("two Borders");
@@ -138,8 +142,8 @@ fn every_unknown_type_is_reported() {
 // A crate path with generic arguments is reported, not written into code that can't parse.
 #[test]
 fn generic_crate_path_reports_error() {
-  let errors = compile_with(r#"<Border xmlns="https://artic.rs/ui"/>"#, "view.xaml", |map| {
-    map.path("artic_controls", "::artic::controls<T>");
+  let errors = compile_with(r#"<Border xmlns="https://artic.rs/ui"/>"#, "view.xaml", |_, paths| {
+    paths.path("artic_controls", "::artic::controls<T>");
   })
   .expect_err("not a module path");
   assert!(
@@ -171,15 +175,15 @@ fn undeclared_namespace_is_reported_once() {
 // An absolute path gives a header without a doubled separator.
 #[test]
 fn absolute_path_has_one_separator() {
-  let rust = compile_with(r#"<Border xmlns="https://artic.rs/ui"/>"#, "/src/views/a.xaml", |_| {}).expect("a valid view");
+  let rust = compile_with(r#"<Border xmlns="https://artic.rs/ui"/>"#, "/src/views/a.xaml", |_, _| {}).expect("a valid view");
   assert!(rust.starts_with("// Generated from src/views/a.xaml.\n"), "{rust}");
 }
 
 // The prelude is reached through the map's path for `artic`, so an app that renames it can map it.
 #[test]
 fn tree_types_follow_the_paths() {
-  let rust = compile_with(r#"<Border xmlns="https://artic.rs/ui"/>"#, "view.xaml", |map| {
-    map.path("artic_core", "::ui::core");
+  let rust = compile_with(r#"<Border xmlns="https://artic.rs/ui"/>"#, "view.xaml", |_, paths| {
+    paths.path("artic_core", "::ui::core");
   })
   .expect("a valid view");
   assert!(rust.contains("use ::ui::core::tree::{Handle, UiTree};"), "{rust}");
@@ -220,8 +224,8 @@ fn every_named_crate_is_linked() {
 // checked, since the checker runs before the path is written.
 #[test]
 fn unparseable_type_path_still_checks_members() {
-  let errors = compile_with(r#"<Border xmlns="https://artic.rs/ui" Foo="1"/>"#, "view.xaml", |map| {
-    map.path("artic_controls", "not a path");
+  let errors = compile_with(r#"<Border xmlns="https://artic.rs/ui" Foo="1"/>"#, "view.xaml", |_, paths| {
+    paths.path("artic_controls", "not a path");
   })
   .expect_err("a bad path");
   assert!(errors.contains("`not a path::Border` isn't a Rust path"), "{errors}");

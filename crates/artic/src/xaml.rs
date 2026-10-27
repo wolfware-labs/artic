@@ -6,11 +6,12 @@
 
 pub use artic_xaml::namespaces::NamespaceMap;
 
-/// Why [`compile_dir`] stopped.
+/// XAML as a UI language, which [`compile_dir`] compiles with.
 #[cfg(feature = "xaml-compiler")]
-pub use artic_xaml_compiler::CompileError;
+pub use artic_xaml_compiler::Xaml;
 
-/// Compiles a directory of views from a build script.
+/// Compiles every `.xaml` file under `dir` from a build script, with artic's paths: the short
+/// form of [`crate::view::compile_dir`] for XAML.
 ///
 /// An app's `build.rs`, with `artic` as a build-dependency and its `xaml-compiler` feature on:
 ///
@@ -18,8 +19,14 @@ pub use artic_xaml_compiler::CompileError;
 /// let namespaces = artic::xaml::namespaces();
 /// artic::xaml::compile_dir("src/views", &namespaces).unwrap();
 /// ```
+///
+/// # Errors
+///
+/// As [`crate::view::compile_dir`].
 #[cfg(feature = "xaml-compiler")]
-pub use artic_xaml_compiler::compile_dir;
+pub fn compile_dir(dir: impl AsRef<std::path::Path>, namespaces: &NamespaceMap) -> Result<(), crate::view::CompileError> {
+  crate::view::compile_dir(dir, &Xaml::new(namespaces.clone()), &crate::view::crate_paths())
+}
 
 // The registry only knows linked crates, and a crate nothing refers to is left out of the link:
 // these keep the crates `ARTIC_UI` names in every app that uses this module.
@@ -29,17 +36,11 @@ use artic_element as _;
 /// The namespace URI of artic's own UI types.
 pub const ARTIC_UI: &str = "https://artic.rs/ui";
 
-/// A map holding artic's URI, standing for the artic crates that define UI types, and the facade
-/// module each artic crate is reached by.
+/// A map holding artic's URI, standing for the artic crates that define UI types.
 #[must_use]
 pub fn namespaces() -> NamespaceMap {
   let mut map = NamespaceMap::new();
   map.alias(ARTIC_UI, &["artic_element", "artic_controls"]);
-  map.path("artic_controls", "::artic::controls");
-  map.path("artic_core", "::artic::core");
-  map.path("artic_element", "::artic::element");
-  map.path("artic_layout", "::artic::layout");
-  map.path("artic_render", "::artic::render");
   map
 }
 
@@ -80,21 +81,5 @@ mod tests {
       Some(vec!["artic_element", "artic_controls"])
     );
     assert_eq!(namespaces(), map);
-  }
-
-  // Each artic crate is reached through the facade module that re-exports it.
-  #[test]
-  fn facade_maps_crates_to_its_modules() {
-    let map = namespaces();
-
-    assert_eq!(map.path_of("artic_controls"), "::artic::controls");
-    assert_eq!(map.path_of("artic_core"), "::artic::core");
-    assert_eq!(map.path_of("artic_element"), "::artic::element");
-    assert_eq!(map.path_of("artic_layout"), "::artic::layout");
-    assert_eq!(map.path_of("artic_render"), "::artic::render");
-    assert_eq!(
-      map.crates_named().collect::<Vec<_>>(),
-      ["artic_controls", "artic_core", "artic_element", "artic_layout", "artic_render"]
-    );
   }
 }
