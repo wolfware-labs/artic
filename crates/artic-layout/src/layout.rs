@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests;
 
+use crate::finite;
 use crate::geometry::{Rect, Size};
 use crate::text::TextEngine;
 use artic_core::property::Affects;
@@ -798,13 +799,10 @@ fn collapsed(nodes: &dyn LayoutNodes, tree: &UiTree, node: NodeId) -> bool {
 
 /// `desired`, checked to be finite and not negative.
 fn checked_desired(child: NodeId, desired: Size, available: Size) -> Size {
-  let valid = |axis: f32| axis.is_finite() && axis >= 0.0;
+  let valid = |axis: f32| finite::usable(axis) == axis;
   debug_assert!(
     valid(desired.width) && valid(desired.height),
     "node {child:?} returned an invalid desired size ({desired}) for available size ({available}): it must be finite and zero or more",
   );
-  Size::new(
-    if valid(desired.width) { desired.width } else { 0.0 },
-    if valid(desired.height) { desired.height } else { 0.0 },
-  )
+  Size::new(finite::usable(desired.width), finite::usable(desired.height))
 }

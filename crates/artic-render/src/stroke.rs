@@ -1,3 +1,5 @@
+use artic_layout::finite;
+
 /// How a stroke outlines a shape: its width, and the shape of its joins and ends.
 ///
 /// It's built with [`new`](Stroke::new) and the `with_*` methods, so fields added later break no
@@ -84,9 +86,7 @@ impl Stroke {
   /// infinite. A finite miter limit below `1` draws as `1`, and a NaN or infinite one as `10`.
   #[must_use]
   pub fn drawable(&self) -> Option<Stroke> {
-    if !(self.width > 0.0 && self.width.is_finite()) {
-      return None;
-    }
+    finite::positive(self.width)?;
     let miter_limit = if self.miter_limit.is_finite() {
       self.miter_limit.max(1.0)
     } else {

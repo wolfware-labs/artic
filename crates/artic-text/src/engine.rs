@@ -3,6 +3,7 @@
 use crate::candidates::Candidates;
 use crate::shaping::Shaping;
 use crate::{lines, paragraph};
+use artic_layout::finite;
 use artic_layout::text::{FamilyName, FontBytes, GenericFamily, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
 use fontique::{Blob, Collection, CollectionOptions, SourceCache};
 use parley::FontContext;
@@ -78,7 +79,7 @@ impl Engine {
 
 impl TextEngine for Engine {
   fn paragraph(&mut self, text: &str, style: &TextStyle, paragraph_style: &ParagraphStyle, limits: TextLimits) -> Paragraph {
-    if !(style.size.is_finite() && style.size > 0.0) || !self.shaping.has_fonts() {
+    if finite::positive(style.size).is_none() || !self.shaping.has_fonts() {
       return Paragraph::default();
     }
     let kept = self.shaping.lay_out(text, style, paragraph_style, limits);

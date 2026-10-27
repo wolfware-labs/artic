@@ -2,7 +2,7 @@
 //!
 //! Every value type a UI language sets from text is also at the root, where generated code names it.
 
-mod finite;
+pub mod finite;
 pub mod geometry;
 mod layout;
 mod sizing;
