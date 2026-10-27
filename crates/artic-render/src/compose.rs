@@ -16,7 +16,8 @@ pub struct Layers {
   /// Keeps the node's descendants inside this shape, in the node's coordinates, as CSS's
   /// `overflow: hidden` does; the node's own drawing isn't clipped.
   pub clip: Option<Shape>,
-  /// Blends the node and its descendants as one group, from 0 to 1.
+  /// Blends the node and its descendants as one group: 0 is clear, 1 opaque. Any value is kept,
+  /// and made [drawable](crate::drawable_opacity) when drawn. At `1` or more, or NaN, no layer is pushed.
   pub opacity: f32,
   /// Whether the node and its descendants are drawn at all.
   pub visible: bool,
@@ -326,6 +327,33 @@ mod tests {
     let scene = Compositor::default().compose(&mut tree, root, &mut nodes);
 
     assert!(scene.items().is_empty());
+  }
+
+  // A node's opacity is pushed as given when it's below 1, for the renderer to make drawable; at 1
+  // or more, or NaN, which all draw opaque, no layer is pushed.
+  #[test]
+  fn opacity_is_pushed_as_given() {
+    let pushed = |opacity: f32| {
+      let mut tree = UiTree::new();
+      let root = tree.alloc(Box::new(Node));
+      let mut nodes = Table::default();
+      nodes.layers.insert(
+        root,
+        Layers {
+          opacity,
+          ..Layers::default()
+        },
+      );
+      let scene = Compositor::default().compose(&mut tree, root, &mut nodes);
+      scene.items().iter().find_map(|item| match item {
+        SceneItem::Push(Layer::Opacity(opacity)) => Some(*opacity),
+        _ => None,
+      })
+    };
+
+    assert_eq!(pushed(-0.5), Some(-0.5));
+    assert_eq!(pushed(0.25), Some(0.25));
+    assert_eq!([2.0, 1.0, f32::NAN].map(pushed), [None, None, None]);
   }
 
   // Siblings draw by ZIndex, lowest first; equal values keep tree order.

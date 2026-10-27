@@ -1,7 +1,8 @@
 use artic_layout::geometry::{CornerRadius, FillRule, PathElement, Point, Rect, RoundedRect, Transform};
 use artic_layout::text::Paragraph;
 use artic_render::{
-  BoxShadow, Brush, Color, Command, GradientStop, Layer, LineCap, LineJoin, PhysicalSize, Scene, SceneItem, Shape, Stroke,
+  BoxShadow, Brush, Color, Command, GradientStop, Layer, LineCap, LineJoin, Paint, PhysicalSize, Scene, SceneItem, Shape,
+  Stroke, drawable_opacity,
 };
 use std::sync::Arc;
 use vello::kurbo::{self, Affine, BezPath, Cap, Diagonal2, Join, PathEl, Shape as _};
@@ -10,9 +11,6 @@ use vello::{FontEmbolden, Glyph};
 
 /// The tolerance vello flattens a shape with, so converting one to a path first changes nothing.
 const TOLERANCE: f64 = 0.1;
-
-/// How far a quarter circle's cubic control points sit from its ends toward its corner.
-const KAPPA: f64 = 0.552_284_749_830_793_6;
 
 /// How many standard deviations past its rectangle vello draws a blur, where it's close to clear.
 const BLUR_EXTENT: f64 = 2.5;
@@ -87,9 +85,13 @@ impl Translation<'_> {
         self.stack.push(Pushed::Layer);
       }
       Layer::Opacity(opacity) => {
-        self
-          .out
-          .push_layer(Fill::NonZero, BlendMode::default(), *opacity, Affine::IDENTITY, &self.surface);
+        self.out.push_layer(
+          Fill::NonZero,
+          BlendMode::default(),
+          drawable_opacity(*opacity),
+          Affine::IDENTITY,
+          &self.surface,
+        );
         self.stack.push(Pushed::Layer);
       }
     }
@@ -228,7 +230,7 @@ fn kurbo_rect(rect: Rect) -> kurbo::Rect {
 fn outline(shape: &Shape) -> BezPath {
   match shape {
     Shape::Rect(rect) => kurbo_rect(*rect).to_path(TOLERANCE),
-    Shape::RoundedRect(rounded) => rounded_outline(kurbo_rect(rounded.rect), rounded.radius),
+    Shape::RoundedRect(rounded) => rounded.path().elements().iter().map(|element| path_el(*element)).collect(),
     Shape::Path(path) => path.elements().iter().map(|element| path_el(*element)).collect(),
   }
 }
@@ -267,33 +269,6 @@ fn path_el(element: PathElement) -> PathEl {
     PathElement::QuadTo(control, end) => PathEl::QuadTo(kurbo_point(control), kurbo_point(end)),
     PathElement::CubicTo(first, second, end) => PathEl::CurveTo(kurbo_point(first), kurbo_point(second), kurbo_point(end)),
     PathElement::Close => PathEl::ClosePath,
-  }
-}
-
-fn rounded_outline(rect: kurbo::Rect, radius: CornerRadius) -> BezPath {
-  let CornerRadius {
-    top_left,
-    top_right,
-    bottom_right,
-    bottom_left,
-  } = radius;
-  let [top_left, top_right, bottom_right, bottom_left] = [top_left, top_right, bottom_right, bottom_left].map(f64::from);
-  let kurbo::Rect { x0, y0, x1, y1 } = rect;
-  let mut path = BezPath::new();
-  path.move_to((x0 + top_left, y0));
-  corner(&mut path, (x1 - top_right, y0), (x1, y0), (x1, y0 + top_right));
-  corner(&mut path, (x1, y1 - bottom_right), (x1, y1), (x1 - bottom_right, y1));
-  corner(&mut path, (x0 + bottom_left, y1), (x0, y1), (x0, y1 - bottom_left));
-  corner(&mut path, (x0, y0 + top_left), (x0, y0), (x0 + top_left, y0));
-  path.close_path();
-  path
-}
-
-fn corner(path: &mut BezPath, from: impl Into<kurbo::Point>, vertex: impl Into<kurbo::Point>, to: impl Into<kurbo::Point>) {
-  let (from, vertex, to) = (from.into(), vertex.into(), to.into());
-  path.line_to(from);
-  if from != to {
-    path.curve_to(from.lerp(vertex, KAPPA), to.lerp(vertex, KAPPA), to);
   }
 }
 
@@ -346,53 +321,47 @@ fn half_pixel_back(current: Affine) -> kurbo::Vec2 {
 }
 
 fn paint(brush: &Brush, rect: Rect) -> Option<(peniko::Brush, Option<Affine>)> {
-  let (stops, opacity, gradient) = match brush {
-    Brush::Solid(solid) => return Some((peniko::Brush::Solid(color(solid.color, solid.opacity)), None)),
-    Brush::Linear(linear) => {
-      let (start, end) = (kurbo_point(linear.start.resolve(rect)), kurbo_point(linear.end.resolve(rect)));
-      let gradient = (start.is_finite() && end.is_finite() && start != end).then(|| (Gradient::new_linear(start, end), None));
-      (&linear.stops, linear.opacity, gradient)
-    }
-    Brush::Radial(radial) => {
-      let radius_x = radius(radial.radius_x.resolve(rect.width));
-      let radius_y = radius(radial.radius_y.resolve(rect.height));
-      let center = kurbo_point(radial.center.resolve(rect));
-      let gradient = (center.is_finite() && radius_x > 0.0 && radius_y > 0.0).then(|| {
-        let ellipse = Affine::translate(center.to_vec2()) * Affine::scale_non_uniform(f64::from(radius_x), f64::from(radius_y));
-        (Gradient::new_radial((0.0, 0.0), 1.0), Some(ellipse))
-      });
-      (&radial.stops, radial.opacity, gradient)
-    }
+  brush.drawable(rect).map(peniko_brush)
+}
+
+/// The peniko brush that draws `paint`, with the brush transform a radial gradient needs: peniko
+/// draws circles, so the ellipse is the unit circle scaled by the two radii and moved to the center.
+fn peniko_brush(paint: Paint) -> (peniko::Brush, Option<Affine>) {
+  let stops = |stops: &[GradientStop], opacity: f32| -> Vec<(f32, peniko::Color)> {
+    stops.iter().map(|stop| (stop.offset, color(stop.color, opacity))).collect()
   };
-  let stops = color_stops(stops, opacity);
-  let (_, last) = *stops.last()?;
-  match gradient {
-    Some((gradient, transform)) if stops.len() > 1 => {
-      Some((peniko::Brush::Gradient(gradient.with_stops(stops.as_slice())), transform))
+  match paint {
+    Paint::Solid { color: solid, opacity } => (peniko::Brush::Solid(color(solid, opacity)), None),
+    Paint::Linear {
+      start,
+      end,
+      stops: linear,
+      opacity,
+    } => (
+      peniko::Brush::Gradient(
+        Gradient::new_linear(kurbo_point(start), kurbo_point(end)).with_stops(stops(&linear, opacity).as_slice()),
+      ),
+      None,
+    ),
+    Paint::Radial {
+      center,
+      radius_x,
+      radius_y,
+      stops: radial,
+      opacity,
+    } => {
+      let ellipse =
+        Affine::translate(kurbo_point(center).to_vec2()) * Affine::scale_non_uniform(f64::from(radius_x), f64::from(radius_y));
+      (
+        peniko::Brush::Gradient(Gradient::new_radial((0.0, 0.0), 1.0).with_stops(stops(&radial, opacity).as_slice())),
+        Some(ellipse),
+      )
     }
-    _ => Some((peniko::Brush::Solid(last), None)),
   }
 }
 
-fn color_stops(stops: &[GradientStop], opacity: f32) -> Vec<(f32, peniko::Color)> {
-  let mut stops: Vec<_> = stops
-    .iter()
-    .map(|stop| (unit(stop.offset), color(stop.color, opacity)))
-    .collect();
-  stops.sort_by(|(a, _), (b, _)| a.total_cmp(b));
-  stops
-}
-
 fn color(color: Color, opacity: f32) -> peniko::Color {
-  peniko::Color::from_rgba8(color.r, color.g, color.b, color.a).multiply_alpha(unit(opacity))
-}
-
-fn unit(value: f32) -> f32 {
-  if value > 0.0 { value.min(1.0) } else { 0.0 }
-}
-
-fn radius(value: f32) -> f32 {
-  if value > 0.0 && value.is_finite() { value } else { 0.0 }
+  peniko::Color::from_rgba8(color.r, color.g, color.b, color.a).multiply_alpha(opacity)
 }
 
 fn kurbo_point(point: Point) -> kurbo::Point {
@@ -426,7 +395,6 @@ mod tests {
   }
 
   const RED: Color = Color::rgb(255, 0, 0);
-  const GREEN: Color = Color::rgb(0, 255, 0);
   const BLUE: Color = Color::rgb(0, 0, 255);
 
   fn opaque(r: u8, g: u8, b: u8) -> peniko::Color {
@@ -485,137 +453,6 @@ mod tests {
     );
   }
 
-  // Offsets and opacity are clamped into 0..=1 and radii to 0 or more, NaN counting as 0, and
-  // stops are sorted by offset, keeping their written order among equal offsets.
-  #[test]
-  fn gradient_values_are_clamped_and_sorted() {
-    let rect = Rect::new(0.0, 0.0, 10.0, 10.0);
-    let [red, green, blue] = [opaque(255, 0, 0), opaque(0, 255, 0), opaque(0, 0, 255)];
-    let unordered = [
-      GradientStop::new(2.0, BLUE),
-      GradientStop::new(f32::NAN, RED),
-      GradientStop::new(-1.0, GREEN),
-    ];
-    let linear = |opacity| {
-      Brush::from(LinearGradientBrush {
-        opacity,
-        ..LinearGradientBrush::new(
-          RelativePoint::relative(0.0, 0.0),
-          RelativePoint::relative(1.0, 0.0),
-          unordered,
-        )
-      })
-    };
-    let expected = |alpha: f32| {
-      Some((
-        peniko::Brush::Gradient(Gradient::new_linear((0.0, 0.0), (10.0, 0.0)).with_stops([
-          (0.0, red.with_alpha(alpha)),
-          (0.0, green.with_alpha(alpha)),
-          (1.0, blue.with_alpha(alpha)),
-        ])),
-        None,
-      ))
-    };
-
-    assert_eq!(paint(&linear(2.0), rect), expected(1.0));
-    assert_eq!(paint(&linear(f32::NAN), rect), expected(0.0));
-    assert_eq!(paint(&linear(-1.0), rect), expected(0.0));
-    for radius in [-1.0, f32::NAN] {
-      let radial = RadialGradientBrush {
-        radius_y: RelativeScalar::fixed(radius),
-        stops: red_to_blue().into(),
-        ..RadialGradientBrush::default()
-      };
-      assert_eq!(
-        paint(&radial.into(), rect),
-        Some((peniko::Brush::Solid(blue), None)),
-        "radius {radius}"
-      );
-    }
-  }
-
-  // A gradient with nothing to spread over fills with its last color: a zero radius, a box with
-  // no width, or a line whose ends meet. One stop fills with its color, and no stops paint nothing.
-  #[test]
-  fn degenerate_gradients_fill_with_their_last_color() {
-    let rect = Rect::new(0.0, 0.0, 10.0, 10.0);
-    let blue = Some((peniko::Brush::Solid(opaque(0, 0, 255)), None));
-    let radial = RadialGradientBrush {
-      stops: red_to_blue().into(),
-      ..RadialGradientBrush::default()
-    };
-    let zero = RadialGradientBrush {
-      radius_x: RelativeScalar::fixed(0.0),
-      ..radial.clone()
-    };
-    let meeting = LinearGradientBrush::new(
-      RelativePoint::relative(0.5, 0.5),
-      RelativePoint::fixed(5.0, 5.0),
-      red_to_blue(),
-    );
-    let single = LinearGradientBrush::new(
-      RelativePoint::relative(0.0, 0.0),
-      RelativePoint::relative(1.0, 0.0),
-      [GradientStop::new(0.3, BLUE)],
-    );
-
-    assert_eq!(paint(&zero.into(), rect), blue);
-    assert_eq!(paint(&radial.into(), Rect::new(0.0, 0.0, 0.0, 10.0)), blue);
-    assert_eq!(paint(&meeting.into(), rect), blue);
-    assert_eq!(paint(&single.into(), rect), blue);
-    assert_eq!(paint(&LinearGradientBrush::default().into(), rect), None);
-  }
-
-  // Geometry that isn't finite, which a brush built in code can carry, fills with the last color
-  // too, instead of handing vello a NaN or infinite gradient.
-  #[test]
-  fn non_finite_gradients_fill_with_their_last_color() {
-    let rect = Rect::new(0.0, 0.0, 10.0, 10.0);
-    let blue = Some((peniko::Brush::Solid(opaque(0, 0, 255)), None));
-    let linear = |start, end| Brush::from(LinearGradientBrush::new(start, end, red_to_blue()));
-    let radial = RadialGradientBrush {
-      stops: red_to_blue().into(),
-      ..RadialGradientBrush::default()
-    };
-
-    assert_eq!(
-      paint(
-        &linear(RelativePoint::relative(f32::NAN, 0.0), RelativePoint::relative(1.0, 0.0)),
-        rect
-      ),
-      blue
-    );
-    assert_eq!(
-      paint(
-        &linear(RelativePoint::relative(0.0, 0.0), RelativePoint::fixed(f32::INFINITY, 0.0)),
-        rect
-      ),
-      blue
-    );
-    assert_eq!(
-      paint(
-        &RadialGradientBrush {
-          radius_x: RelativeScalar::fixed(f32::INFINITY),
-          ..radial.clone()
-        }
-        .into(),
-        rect
-      ),
-      blue
-    );
-    assert_eq!(
-      paint(
-        &RadialGradientBrush {
-          center: RelativePoint::relative(0.5, f32::NAN),
-          ..radial
-        }
-        .into(),
-        rect
-      ),
-      blue
-    );
-  }
-
   fn encoded(draw: impl FnOnce(&mut Translation<'_>)) -> vello::Scene {
     let mut out = vello::Scene::new();
     draw(&mut Translation {
@@ -625,6 +462,18 @@ mod tests {
       surface: kurbo::Rect::ZERO,
     });
     out
+  }
+
+  // A layer's opacity is made drawable where it's drawn, so a hand-built scene with a broken one
+  // still blends at the rule's opacity: clamped to 0..=1, NaN as 1.
+  #[test]
+  fn opacity_layers_are_made_drawable() {
+    let alpha = |opacity: f32| {
+      let out = encoded(|t| t.push(&Layer::Opacity(opacity)));
+      f32::from_bits(out.encoding().draw_data[1])
+    };
+
+    assert_eq!([-0.5, 0.25, 2.0, f32::NAN].map(alpha), [0.0, 0.25, 1.0, 1.0]);
   }
 
   // Each shape becomes a kurbo path: a rectangle as vello would make it, a rounded rectangle

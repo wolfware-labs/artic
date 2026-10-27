@@ -70,7 +70,7 @@ pub trait ElementImpl {
 | `hit_test` | `appearance.visibility` not `Visible`, or `interaction.is_hit_test_visible` false: a miss. Otherwise the trait default, `cx.bounds_test(point)` | |
 | `on_event` | `interaction.is_enabled` false (own AND ancestors'): `Handled::No`, the control isn't called | `ElementImpl::on_event` |
 | `accessibility` | builds the default node (section 7) | `ElementImpl::accessibility`, which adds to it |
-| `layers` | `appearance`: `Opacity` (clamped), `RenderTransform`, `Visibility` and `ZIndex` as a `Layers` (section 7) | `ElementImpl::clip`, for the clip layer, which wraps only the descendants |
+| `layers` | `appearance`: `Opacity` (as set), `RenderTransform`, `Visibility` and `ZIndex` as a `Layers` (section 7) | `ElementImpl::clip`, for the clip layer, which wraps only the descendants |
 
 An element doesn't always fill the slot its parent offers: a margin or an alignment makes its box smaller. `Layout::arrange` reports that box, the slot less the margin, sized and aligned, with `ArrangeCx::set_bounds`, so `LayoutManager::rect` is the element's box rather than its slot, and its children are placed relative to it. Each node keeps the offered slot separately, so being offered the same slot still skips arranging.
 
@@ -141,7 +141,7 @@ The properties every control has come in four groups, each in the field `#[eleme
 | `layout` | `Margin` | `Thickness` | zero | layout | |
 | `layout` | `HorizontalAlignment`, `VerticalAlignment` | the #41 enums | `Stretch` | layout | |
 | `appearance` | `Visibility` | `Visibility` | `Visible` | layout, render | |
-| `appearance` | `Opacity` | `f32`; the property keeps any value, and composition clamps it (section 7) | `1` | render | |
+| `appearance` | `Opacity` | `f32`; the property keeps any value, and the renderer makes it drawable (section 7) | `1` | render | |
 | `appearance` | `RenderTransform` | `Option<Transform>` | `None` | render | |
 | `appearance` | `ZIndex` | `i32`: draw and hit-test order among siblings | `0` | render | |
 | `interaction` | `IsEnabled` | `bool` | `true` | render | yes, ANDed with its ancestors' (`inherits = and`) |
@@ -223,7 +223,7 @@ The shared work, `Interaction::accessibility`, builds the default accesskit node
 
 The transform `Element::layers` returns is the element's own: `RenderTransform` pivoting on the element's centre, as CSS's `transform-origin` defaults to, in the element's coordinates. The node's place in its parent comes from layout, so the frame pipeline's render `Nodes` applies the node's layout offset after this transform ([frame design](frame.md) §5).
 
-`Opacity` is a plain `f32`, so a Rust write can set any value, while `Layers.opacity` must be from 0 to 1. The property itself keeps whatever was set, and reading it returns that value. Only the shared work's building of the node's `Layers` clamps it to 0–1, with NaN counting as 1, so composition never sees an invalid value.
+`Opacity` is a plain `f32`, so a Rust write can set any value. The property keeps whatever was set, reading it returns that value, and the node's `Layers` carry it as it is. A layer's opacity is made drawable where it's drawn, as for every scene value ([shapes design](shapes.md) §4): each renderer applies `drawable_opacity` to `Layer::Opacity`, clamping it to `0..=1` with NaN counting as 1, so a hand-built scene draws by the same rule as an element.
 
 `ZIndex` orders siblings. `Layers.z_index`, default `0`, makes the compositor draw a node's children sorted by it, stably, so equal values keep tree order. The hit-test walk (#74) uses the same order, reversed, so what is hit is what is drawn on top.
 
@@ -241,9 +241,9 @@ A disabled element is different: it gets no input, but it still blocks it. Hit t
 | B | `ElementBase` (now the property groups) with its 20 properties and `#[derive(UiProperties)]`, the enums, `FromStr` for the alignments and `Transform`, `#[ui(flatten)]` in `derive(UiType)`, `PropertyGroupInfo`, `ArrangeCx::set_bounds`, `Duplicate::Property`, the measure and arrange outline, `LayoutManager` forgetting unmeasured children | `element_base_properties_registered` (now `groups_registered`), `margin_and_alignment_layout`, `min_max_clamp_desired_size`, `collapsed_takes_no_space` (including a child made dirty after its parent collapsed), a registry test where a control property clashes with a group's |
 | B2 | the four property groups in `artic-element`, replacing `CommonProperties`; `Property::set_default` | `groups_registered`, `set_default_loses_to_every_other_level` |
 | C | `#[element]`: the four fields and their reserved names, the `UiType` output with `#[ui(override_defaults)]` calling `OverrideDefaults` from `Default`, `__private` in `artic-element` re-exporting what that output names, the outline from section 3, `#[element(state)]` and its duplicate-state error, `crate_root` taking each macro's candidate crates | the trybuild cases: a field with a reserved name, a struct that also derives `UiType`, a tuple struct, two fields of one state type, an unknown setting in a field's `#[element(...)]`; a control built by `Default` and by `TypeInfo.new` has its overridden defaults (`knob_overrides_group_defaults`); a test-only state giving a test trait through a blanket impl; a control whose `OverrideDefaults` makes it focusable, with a style setter winning over that default; a unit test that a disabled element's hook isn't called |
-| D | `Layers.visible` and `Layers.z_index`, the compositor skipping hidden subtrees and drawing siblings by `ZIndex`; `Appearance::layers` filling opacity, the centred transform, visibility and z-index; the disabled flag on the default accesskit node | `hidden_node_skips_its_subtree`, `subtree_returns_when_visible_again`, `children_draw_by_z_index`, `layers_clamp_opacity`, `transform_pivots_on_the_centre`, `layers_carry_visibility_and_z_index`, `accessibility_node_is_disabled_with_the_element` |
+| D | `Layers.visible` and `Layers.z_index`, the compositor skipping hidden subtrees and drawing siblings by `ZIndex`; `Appearance::layers` filling opacity, the centred transform, visibility and z-index; the disabled flag on the default accesskit node | `hidden_node_skips_its_subtree`, `subtree_returns_when_visible_again`, `children_draw_by_z_index`, `layers_carry_opacity_as_set`, `transform_pivots_on_the_centre`, `layers_carry_visibility_and_z_index`, `accessibility_node_is_disabled_with_the_element` |
 
-The frame pipeline doesn't exist yet, so D stops at the element and the compositor. The accesskit tree and its updates (a hidden parent's child left out and restored, bounds following a layout-only change) move to #54, the render `Nodes` adapter that adds layout offsets to #40, and the hit-test order to #74. The opacity pixel test is `artic-vello`'s existing `opacity_blends_the_layer`, with `layers_clamp_opacity` covering how the property reaches the layer.
+The frame pipeline doesn't exist yet, so D stops at the element and the compositor. The accesskit tree and its updates (a hidden parent's child left out and restored, bounds following a layout-only change) move to #54, the render `Nodes` adapter that adds layout offsets to #40, and the hit-test order to #74. The opacity pixel test is `artic-vello`'s existing `opacity_blends_the_layer`, with `layers_carry_opacity_as_set` covering how the property reaches the layer.
 
 ## 9. Spec changes
 

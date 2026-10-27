@@ -129,12 +129,12 @@ Values out of range are made drawable when drawn, never rejected, as for brushes
 | A shadow's radii | grown by the spread; a corner with radius `0` stays sharp |
 | A shape with a NaN or infinite coordinate | nothing |
 | A rectangle or rounded rectangle with a negative width or height | nothing, as `Rect`'s parser already rejects one |
-| A layer's opacity below `0`, above `1`, NaN or infinite | clamped to `0..=1`, NaN as `1`. One function in `artic-render` does this for `with_opacity` and for the element's `Opacity` when it builds `Layers` (the [element design](element.md) §7), so the two can't differ. A brush's opacity differs on purpose: NaN counts as `0` there (#35), since a broken brush should paint nothing, while a broken layer opacity shouldn't hide a whole subtree |
+| A layer's opacity below `0`, above `1`, NaN or infinite | clamped to `0..=1`, NaN as `1`, by `drawable_opacity` in `artic-render`. Scenes carry `Layer::Opacity` as it was given, by `with_opacity` or the element's `Opacity`, and every renderer applies the function when it draws the layer, so hand-built scenes draw by the same rule. A brush's opacity differs on purpose: NaN counts as `0` there (#35), since a broken brush should paint nothing, while a broken layer opacity shouldn't hide a whole subtree |
 
 `artic-vello` translates, in `translate.rs`:
 
-- A `Shape` becomes a kurbo `Rect`, `RoundedRect` (with per-corner radii) or `BezPath`.
-- `Fill` and `Stroke` use the brush conversion from #35, resolved against `shape.bounds()`. A `Stroke` becomes a kurbo `Stroke` with the same width, join and miter limit. Its cap is both kurbo's start and end cap, so every open figure gets the same cap at both ends (WPF's separate start and end caps aren't needed yet); `LineCap::Flat` is kurbo's `Cap::Butt`, `Round` is `Cap::Round` and `Square` is `Cap::Square`. Closed figures have no ends, so they take no cap.
+- A `Shape` becomes a kurbo `Rect` or `BezPath`. A `RoundedRect` becomes the `BezPath` of `RoundedRect::path`, the same curves every renderer draws; kurbo's own `RoundedRect` caps radii at half the shortest side, which would undo `fitted()`.
+- `Fill` and `Stroke` draw the brush's `Paint` (#35), resolved against `shape.bounds()`. A `Stroke` becomes a kurbo `Stroke` with the same width, join and miter limit. Its cap is both kurbo's start and end cap, so every open figure gets the same cap at both ends (WPF's separate start and end caps aren't needed yet); `LineCap::Flat` is kurbo's `Cap::Butt`, `Round` is `Cap::Round` and `Square` is `Cap::Square`. Closed figures have no ends, so they take no cap.
 - `Layer::Clip` becomes `push_clip_layer` with the shape, and a path's `FillRule` becomes vello's `Fill::EvenOdd` or `Fill::NonZero` for fills and clips.
 - A `BoxShadow` becomes `draw_blurred_rounded_rect`, with the standard deviation CSS defines, `blur / 2`. Vello's fast blur takes one radius, so a shadow with unequal radii is drawn in four quadrants, each clipped to its quarter of the shadow and blurred with its corner's radius. Near a corner, a blurred rounded rectangle depends almost only on that corner's radius, so the seams don't show. The shadow is drawn inside an even-odd clip of the surface and the caster's outline, which leaves out the caster.
 
@@ -154,7 +154,7 @@ Glyph runs (#37), images (#71), golden images (#38) and blend modes other than `
 | Crate | Tests |
 | --- | --- |
 | `artic-layout` | `path_builder_records_figures`, `path_bounds_include_curve_extrema`, `path_fill_rule_defaults_to_even_odd`, `rounded_rect_fitted_scales_overlapping_radii` (and negative and NaN radii) |
-| `artic-render` | `opacity_is_clamped`, `layers_balance_by_construction`, `opacity_layer_nests` (two nested opacity layers record in order), `fill_and_stroke_record_shapes`, `shape_bounds_cover_each_variant`, `stroke_has_the_usual_defaults` |
+| `artic-render` | `opacity_is_made_drawable_when_drawn`, `layers_balance_by_construction`, `opacity_layer_nests` (two nested opacity layers record in order), `fill_and_stroke_record_shapes`, `shape_bounds_cover_each_variant`, `stroke_has_the_usual_defaults` |
 | `artic-vello` | `shapes_convert_to_kurbo` (per-corner radii, curves), `stroke_converts_join_cap_and_miter`, `invalid_shapes_and_strokes_draw_nothing` (each row of section 4's table, infinities included), `box_shadow_values_are_made_drawable`, `box_shadow_grows_moves_and_blurs` (spread, offset, standard deviation) |
 | `artic-vello` pixels | `rounded_rect_leaves_corners_clear`, `stroke_paints_only_the_outline`, `path_clip_masks_drawing`, `fill_rule_decides_a_star_center`, `box_shadow_fades_outside_the_rect`, `unequal_radii_shadow_matches_each_corner` (each corner matches a shadow with that corner's radius everywhere), `box_shadow_stays_outside_its_caster`, `gradient_on_path_uses_its_bounds` |
 

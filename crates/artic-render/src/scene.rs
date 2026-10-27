@@ -15,15 +15,17 @@ pub enum Layer {
   /// Only draws inside the shape, in the coordinates the clip is pushed in. A shape that
   /// [draws nothing](Shape::drawable) hides everything inside.
   Clip(Shape),
-  /// Draws everything inside as one group, then blends it at this opacity, from 0 to 1.
+  /// Draws everything inside as one group, then blends it at this opacity: 0 is clear, 1 opaque.
+  /// Any value is kept, and made [drawable](drawable_opacity) when drawn.
   Opacity(f32),
 }
 
 /// A layer's opacity as it's drawn: clamped to `0..=1`, NaN counting as `1`.
 ///
 /// A broken opacity shouldn't hide a whole subtree, so NaN is opaque here, unlike a brush's
-/// opacity, where NaN paints nothing. [`SceneBuilder::with_opacity`](crate::SceneBuilder::with_opacity)
-/// and an element's [`Layers`](crate::Layers) both use it, so the two can't differ.
+/// opacity, where NaN paints nothing. Scenes carry a layer's opacity as it was given; every
+/// renderer applies this to [`Layer::Opacity`] when it draws the layer, so hand-built scenes draw
+/// by the same rule.
 #[must_use]
 pub fn drawable_opacity(opacity: f32) -> f32 {
   if opacity.is_nan() { 1.0 } else { opacity.clamp(0.0, 1.0) }

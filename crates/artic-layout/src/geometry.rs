@@ -277,7 +277,8 @@ impl RoundedRect {
 
   /// The same shape with radii that can be drawn: a negative, NaN or infinite radius is `0`, and
   /// when two radii on one side add up to more than the side, all four shrink by the same factor,
-  /// as in CSS.
+  /// as in CSS, rounded down so they never add up to more than the side. Fitting a fitted shape
+  /// changes nothing.
   #[must_use]
   pub fn fitted(self) -> RoundedRect {
     let drawable = |radius: f32| {
@@ -305,8 +306,22 @@ impl RoundedRect {
     .filter(|&(side, radii)| radii > side)
     .map(|(side, radii)| side / radii)
     .fold(1.0, f64::min);
-    let [top_left, top_right, bottom_right, bottom_left] =
-      [top_left, top_right, bottom_right, bottom_left].map(|radius| (radius * scale) as f32);
+    let down = |radius: f64| {
+      let rounded = radius as f32;
+      if f64::from(rounded) > radius {
+        rounded.next_down()
+      } else {
+        rounded
+      }
+    };
+    let mut radii = [top_left, top_right, bottom_right, bottom_left].map(|radius| down(radius * scale));
+    for (side, first, second) in [(width, 0, 1), (width, 3, 2), (height, 0, 3), (height, 1, 2)] {
+      if f64::from(radii[first]) + f64::from(radii[second]) > side {
+        radii[first] = radii[first].next_down().max(0.0);
+        radii[second] = radii[second].next_down().max(0.0);
+      }
+    }
+    let [top_left, top_right, bottom_right, bottom_left] = radii;
     RoundedRect::new(self.rect, CornerRadius::new(top_left, top_right, bottom_right, bottom_left))
   }
 }
@@ -841,6 +856,28 @@ mod tests {
 
     assert_eq!(rect.origin(), Point::new(1.0, 2.0));
     assert_eq!(rect.size(), Size::new(30.0, 40.0));
+  }
+
+  // Fitting a fitted shape changes nothing, so `path` and every renderer that fits again draw the
+  // radii the first fit gave: scaled radii never add up past their side, whatever the rounding.
+  #[test]
+  fn fitted_is_idempotent() {
+    let mut state = 0x2545_f491_4f6c_dd1d_u64;
+    let mut next = || {
+      state ^= state << 13;
+      state ^= state >> 7;
+      state ^= state << 17;
+      f32::from_bits(0x3f80_0000 | (state as u32 >> 9)) * 10f32.powi((state >> 40) as i32 % 7)
+    };
+    let mut refitted = Vec::new();
+    for _ in 0..200_000 {
+      let rect = Rect::new(0.0, 0.0, next(), next());
+      let once = RoundedRect::new(rect, CornerRadius::new(next(), next(), next(), next())).fitted();
+      if once.fitted() != once {
+        refitted.push(once);
+      }
+    }
+    assert_eq!(refitted, []);
   }
 
   // Radii that two corners of one side can't share shrink together, by the factor the tightest

@@ -1,4 +1,4 @@
-use crate::{BoxShadow, Brush, Command, Layer, Shape, Stroke, drawable_opacity};
+use crate::{BoxShadow, Brush, Command, Layer, Shape, Stroke};
 use artic_layout::geometry::{Point, RoundedRect, Transform};
 use artic_layout::text::Paragraph;
 
@@ -156,8 +156,8 @@ impl SceneBuilder {
     self.with_layer(Layer::Clip(shape.into()), draw);
   }
 
-  /// Records `draw` as one group blended at `opacity`, made [drawable](crate::drawable_opacity):
-  /// clamped to `0..=1`, NaN counting as `1`.
+  /// Records `draw` as one group blended at `opacity`. The opacity is recorded as given and made
+  /// [drawable](crate::drawable_opacity) where it's drawn: clamped to `0..=1`, NaN counting as `1`.
   ///
   /// # Examples
   ///
@@ -171,7 +171,7 @@ impl SceneBuilder {
   /// });
   /// ```
   pub fn with_opacity(&mut self, opacity: f32, draw: impl FnOnce(&mut SceneBuilder)) {
-    self.with_layer(Layer::Opacity(drawable_opacity(opacity)), draw);
+    self.with_layer(Layer::Opacity(opacity), draw);
   }
 
   /// Takes the recorded commands, leaving the builder empty.
@@ -340,18 +340,18 @@ mod tests {
     );
   }
 
-  // A layer's opacity is clamped to 0–1, and NaN counts as 1, so a broken value doesn't hide what
-  // it wraps.
+  // A layer's opacity is drawn clamped to 0..=1, NaN counting as 1, so a broken value doesn't
+  // hide what it wraps; the builder records it as given, for the renderer to make drawable.
   #[test]
-  fn opacity_is_clamped() {
+  fn opacity_is_made_drawable_when_drawn() {
     let mut builder = SceneBuilder::default();
 
-    builder.with_opacity(f32::NAN, |_| {});
+    builder.with_opacity(2.0, |_| {});
 
     assert_eq!(
       [0.25, -1.0, 2.0, f32::NAN, f32::INFINITY, f32::NEG_INFINITY].map(drawable_opacity),
       [0.25, 0.0, 1.0, 1.0, 1.0, 0.0]
     );
-    assert_eq!(builder.take()[0], Command::Push(Layer::Opacity(1.0)));
+    assert_eq!(builder.take()[0], Command::Push(Layer::Opacity(2.0)));
   }
 }

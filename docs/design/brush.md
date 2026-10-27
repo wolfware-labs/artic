@@ -91,18 +91,18 @@ pub struct RelativeScalar { pub value: f32, pub scaling: Scaling }
 
 Fill commands carry a brush instead of a color: `Command::Fill { shape, brush }`, recorded by `SceneBuilder::fill(shape, brush: impl Into<Brush>)`, which takes anything that converts, so passing a `Color` still works. Shapes come from the [shapes design](shapes.md) (#36); this design first had the same brush on a rectangle-only fill.
 
-`artic-render` stays free of any backend. `artic-vello` converts, in `translate.rs`:
+`artic-render` stays free of any backend, and decides how a brush is drawn, so every renderer draws the same pixels. `Brush::drawable(bounds)` resolves a brush to a `Paint`, or `None` for one that paints nothing, by these rules:
 
 - Relative points and radii resolve against the bounds of the shape being filled.
-- A linear gradient becomes a `peniko` linear gradient between the resolved points.
-- A radial gradient becomes a circular `peniko` gradient of radius 1 at the origin, with a brush transform that scales it by the two radii and moves it to the center, so unequal radii draw an ellipse.
-- `opacity` multiplies the alpha of the color or of each stop.
+- `opacity` multiplies the alpha of the color or of each stop; the `Paint` keeps it beside the colors.
 - Values outside their range are clamped, as WPF does:
   - offsets and opacity to `0..=1`;
   - radii to `0` or more;
   - a NaN offset, opacity or radius counts as `0`.
 - Stops are sorted by offset, keeping the written order among equal offsets, so two stops at one offset make a hard edge.
-- An empty stop list draws nothing. A single stop fills with its color.
+- An empty stop list draws nothing. A single stop fills with its color, and so does a gradient with nothing to spread over: ends that meet, a zero radius, or a coordinate that isn't finite. It takes the last color after sorting.
+
+A renderer maps the `Paint` to its own paint without checking anything. `artic-vello` does it in `translate.rs`: a linear `Paint` becomes a `peniko` linear gradient between its points, and a radial one a circular `peniko` gradient of radius 1 at the origin, with a brush transform that scales it by the two radii and moves it to the center, so unequal radii draw an ellipse.
 
 ## 5. What waits
 
@@ -114,7 +114,8 @@ Fill commands carry a brush instead of a color: `Command::Fill { shape, brush }`
 | --- | --- |
 | `artic-layout` | `relative_point_parses_percent_and_fixed`, `relative_point_rejects_mixed_units`, `relative_scalar_parses_percent_and_fixed`, `relative_scalar_rejects_invalid` (empty, two values, a bare or doubled `%`) |
 | `artic-render` | `color_parses_short_hex` (`#RGB`, `#ARGB`), `color_parses_rrggbb`, `color_parses_aarrggbb`, `color_parses_named_case_insensitive`, `color_rejects_invalid` (bad length, a non-hex digit, an unknown name, each message naming the input), `brush_from_color_string_is_solid` |
-| `artic-vello` | `brush_to_peniko_roundtrip` (color, stops, resolved points, opacity), `gradient_values_are_clamped_and_sorted` (out-of-range and NaN offsets, opacity and radii; unordered stops), `linear_gradient_fills_rect` (pixels: the left edge is the first stop, the right edge the last), `radial_gradient_fills_an_ellipse` (pixels in a wide box: the center is the first stop, and the points at the ends of both radii are the last, so unequal radii scale the circle into an ellipse) |
+| `artic-render` | `brushes_resolve_against_the_bounds`, `gradient_values_are_clamped_and_sorted` (out-of-range and NaN offsets, opacity and radii; unordered stops), `degenerate_gradients_fill_with_their_last_color`, `non_finite_gradients_fill_with_their_last_color` |
+| `artic-vello` | `brush_to_peniko_roundtrip` (color, stops, resolved points, opacity), `linear_gradient_fills_rect` (pixels: the left edge is the first stop, the right edge the last), `radial_gradient_fills_an_ellipse` (pixels in a wide box: the center is the first stop, and the points at the ends of both radii are the last, so unequal radii scale the circle into an ellipse) |
 
 ## 7. Pull requests
 
