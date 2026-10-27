@@ -2,7 +2,7 @@
 
 use crate::candidates::Candidates;
 use crate::shaping::Shaping;
-use crate::{lines, paragraph};
+use crate::paragraph;
 use artic_layout::finite;
 use artic_layout::text::{FamilyName, FontBytes, GenericFamily, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
 use fontique::{Blob, Collection, CollectionOptions, SourceCache};
@@ -85,7 +85,7 @@ impl TextEngine for Engine {
     let kept = self.shaping.lay_out(text, style, paragraph_style, limits);
     let draft = self.shaping.draft(text, kept);
     let mut candidates = Candidates::new(&mut self.shaping, style, paragraph_style.line_height, draft.right_to_left);
-    paragraph::paragraph(text, draft, paragraph_style, lines::usable_width(limits), &mut candidates)
+    paragraph::paragraph(text, draft, paragraph_style, limits.usable_width(), &mut candidates)
   }
 }
 
