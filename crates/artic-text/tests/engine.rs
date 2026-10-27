@@ -59,12 +59,12 @@ fn empty_text_has_one_line_height() {
   assert_eq!(paragraph.size().width, 0.0);
   assert_close(paragraph.size().height, LINE);
   assert_eq!(paragraph.lines().len(), 1);
-  assert!(paragraph.is_empty());
+  assert!(!paragraph.has_glyphs());
 }
 
-// A size that isn't finite or isn't above 0 gives an empty paragraph of size 0.
+// A size that isn't finite or isn't above 0 gives a paragraph with no lines, of size 0.
 #[test]
-fn bad_sizes_give_an_empty_paragraph() {
+fn bad_sizes_give_a_paragraph_with_no_lines() {
   for size in [0.0, -1.0, f32::NAN, f32::INFINITY] {
     let style = TextStyle { size, ..style() };
 
@@ -72,9 +72,9 @@ fn bad_sizes_give_an_empty_paragraph() {
   }
 }
 
-// An engine without fonts gives an empty paragraph of size 0.
+// An engine without fonts gives a paragraph with no lines, of size 0.
 #[test]
-fn no_font_gives_an_empty_paragraph() {
+fn no_font_gives_a_paragraph_with_no_lines() {
   let paragraph = shape(&mut Engine::without_fonts(), "Hello", &style());
 
   assert_eq!(paragraph, Paragraph::default());
@@ -223,7 +223,7 @@ fn trailing_newline_keeps_its_empty_line() {
 fn system_engine_resolves_system_ui() {
   let paragraph = shape(&mut Engine::system(), "Hello", &TextStyle::new(FontFamily::default(), 16.0));
 
-  if paragraph.is_empty() {
+  if !paragraph.has_glyphs() {
     eprintln!("skipped: no system fonts installed");
     return;
   }
@@ -240,7 +240,7 @@ fn system_font_keeps_its_id() {
   let mono = TextStyle::new(FontFamily::from(GenericFamily::Monospace), 16.0);
 
   let first = shape(&mut engine, "Hello", &ui);
-  if first.is_empty() {
+  if !first.has_glyphs() {
     eprintln!("skipped: no system fonts installed");
     return;
   }
@@ -1277,7 +1277,7 @@ fn trimming_empty_text_draws_nothing() {
     },
   );
 
-  assert!(paragraph.is_empty());
+  assert!(!paragraph.has_glyphs());
 }
 
 // A line cut because the lines after it were dropped keeps its whole text and gains "…", in every

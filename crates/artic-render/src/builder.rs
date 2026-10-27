@@ -111,7 +111,7 @@ impl SceneBuilder {
   /// builder.text(&paragraph, Point::new(8.0, 8.0), Color::rgb(15, 23, 42));
   /// ```
   pub fn text(&mut self, paragraph: &Paragraph, origin: Point, brush: impl Into<Brush>) {
-    if paragraph.is_empty() {
+    if !paragraph.has_glyphs() {
       return;
     }
     self.commands.push(Command::Text {

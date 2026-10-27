@@ -75,8 +75,8 @@ impl TextLimits {
 pub trait TextEngine {
   /// Shapes `text` in `style`, and lays it out as `paragraph` says within `limits`.
   ///
-  /// It never fails: text it can't shape, such as a size that isn't above 0, gives an empty
-  /// paragraph.
+  /// It never fails: text it can't shape, such as a size that isn't above 0, gives
+  /// `Paragraph::default()`, a paragraph with no lines, of size 0.
   fn paragraph(&mut self, text: &str, style: &TextStyle, paragraph: &ParagraphStyle, limits: TextLimits) -> Paragraph;
 }
 

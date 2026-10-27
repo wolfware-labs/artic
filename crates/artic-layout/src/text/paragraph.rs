@@ -79,10 +79,11 @@ impl Paragraph {
     &self.runs
   }
 
-  /// Whether it draws nothing: none of its runs has a glyph.
+  /// Whether it draws anything: one of its runs has a glyph. Shaped empty text has a line and no
+  /// glyph; the paragraph an engine gives for text it can't shape has neither.
   #[must_use]
-  pub fn is_empty(&self) -> bool {
-    self.runs.iter().all(|run| run.glyphs().is_empty())
+  pub fn has_glyphs(&self) -> bool {
+    self.runs.iter().any(|run| !run.glyphs().is_empty())
   }
 
   /// Whether the paragraph runs right to left, as its first strong character does.
@@ -392,22 +393,22 @@ mod tests {
     assert!(std::ptr::eq(original.runs(), copy.runs()));
   }
 
-  // The default paragraph is empty, of size 0, and a paragraph with a run isn't empty.
+  // The default paragraph has no lines and no glyphs, of size 0; a paragraph with a run has glyphs.
   #[test]
-  fn default_paragraph_is_empty() {
-    let empty = Paragraph::default();
+  fn default_paragraph_has_no_lines_and_no_glyphs() {
+    let none = Paragraph::default();
 
-    assert!(empty.is_empty());
-    assert_eq!(empty.size(), Size::ZERO);
-    assert!(empty.lines().is_empty());
-    assert!(!paragraph(&font()).is_empty());
+    assert!(!none.has_glyphs());
+    assert_eq!(none.size(), Size::ZERO);
+    assert!(none.lines().is_empty());
+    assert!(paragraph(&font()).has_glyphs());
   }
 
-  // A paragraph whose runs hold no glyphs draws nothing, so it's empty too.
+  // A paragraph whose runs hold no glyphs draws nothing, whatever its size.
   #[test]
-  fn paragraph_of_glyphless_runs_is_empty() {
+  fn paragraph_of_glyphless_runs_has_no_glyphs() {
     let run = GlyphRun::new(font(), 16.0, Vec::<i16>::new(), Synthesis::default(), Vec::<Glyph>::new());
 
-    assert!(Paragraph::new(Size::new(10.0, 20.0), Vec::<Line>::new(), [run]).is_empty());
+    assert!(!Paragraph::new(Size::new(10.0, 20.0), Vec::<Line>::new(), [run]).has_glyphs());
   }
 }

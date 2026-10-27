@@ -39,7 +39,7 @@ impl Engine {
   /// An engine that knows only `fonts`, with every generic family pointing at them, in order.
   ///
   /// Its default family is the first font's, so a family it doesn't know lands on that font too.
-  /// Bytes that aren't a font are skipped; with no font at all, every paragraph is empty.
+  /// Bytes that aren't a font are skipped; with no font at all, every paragraph has no lines.
   #[must_use]
   pub fn with_fonts<F>(fonts: impl IntoIterator<Item = F>) -> Engine
   where
