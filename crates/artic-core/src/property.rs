@@ -49,9 +49,10 @@
 //! is never stale, and a change on the ancestor marks the nodes that depend on it dirty. The tree
 //! sets the link when a node moves in the logical tree; the visual tree plays no part.
 //!
-//! A property belongs to the [`Scope`](crate::reactive::Scope) it was created in, and a node to its
-//! tree. Dispose a node's scope only once the node has left the tree: a descendant that still
-//! inherits from a disposed property panics when read.
+//! A property belongs to its node: when the tree [frees](crate::tree::UiTree::free) the node, it
+//! disposes the node's properties, and a copy of one kept past that panics when read. A property
+//! made outside a tree belongs to the [`Scope`](crate::reactive::Scope) it was created in;
+//! disposing that scope after the tree freed the property does nothing more.
 
 mod affects;
 mod any;
@@ -118,7 +119,8 @@ pub enum Precedence {
 ///
 /// `Property<T>` is a `Copy` handle, like [`Signal`], and is neither `Send` nor `Sync`. Two handles
 /// compare equal when they refer to the same property. It belongs to the
-/// [`Scope`](crate::reactive::Scope) that was active when it was created.
+/// [`Scope`](crate::reactive::Scope) that was active when it was created until its node joins a
+/// tree, and is disposed with that node when the tree frees it.
 ///
 /// # Examples
 ///
@@ -252,6 +254,12 @@ where
     assert_ne!(level, Precedence::Default, "the Default level can't be cleared");
     assert_ne!(level, Precedence::Inherited, "the Inherited level follows the logical tree");
     self.edit(|levels| levels.clear(level));
+  }
+
+  /// Frees the property's reactive state, as the tree does when it frees the property's node. A
+  /// handle kept past that panics when read.
+  pub(crate) fn dispose(self) {
+    self.0.dispose();
   }
 
   /// Makes the `Inherited` level follow `source`, or no property, and keeps `source`'s followers

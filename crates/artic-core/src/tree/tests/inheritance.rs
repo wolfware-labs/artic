@@ -192,14 +192,14 @@ fn freeing_a_subtree_unlinks_its_followers() {
   let mut tree = UiTree::new();
   let (window, window_font_size) = new_window(&mut tree, 20);
   let panel = tree.alloc(Box::new(StackPanel));
-  let (text, font_size, _) = new_text_block(&mut tree);
+  let (text, _, _) = new_text_block(&mut tree);
   tree.add_child(TreeKind::Logical, window, panel);
   tree.add_child(TreeKind::Logical, panel, text);
 
   tree.free(panel);
   window_font_size.set(24);
 
-  assert_eq!(font_size.effective_source(), Precedence::Default);
+  assert_eq!(window_font_size.get(), 24);
   assert!(!tree.contains(text));
 }
 

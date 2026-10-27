@@ -38,6 +38,10 @@ pub trait AnyProperty {
   /// the node moves; a property of another kind is ignored.
   fn inherit_from(&self, source: Option<&dyn AnyProperty>);
 
+  /// Frees the property's reactive state. The tree calls it when it frees the property's node, after
+  /// which the property must not be read.
+  fn dispose(&self);
+
   /// The property as `Any`, to get the typed `Property<T>` back.
   fn as_any(&self) -> &dyn Any;
 }
@@ -70,6 +74,10 @@ where
   fn inherit_from(&self, source: Option<&dyn AnyProperty>) {
     let source = source.and_then(|source| source.as_any().downcast_ref::<Property<T>>());
     self.follow(source.copied());
+  }
+
+  fn dispose(&self) {
+    Property::dispose(*self);
   }
 
   fn as_any(&self) -> &dyn Any {

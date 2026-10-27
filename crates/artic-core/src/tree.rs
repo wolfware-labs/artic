@@ -235,13 +235,16 @@ impl UiTree {
       return;
     };
     self.dirty_flags.remove(node_id);
-    object.visit_properties(&mut |property| property.inherit_from(None));
+    object.visit_properties(&mut |property| {
+      property.inherit_from(None);
+      property.dispose();
+    });
     self.logical.remove(node_id);
     self.visual.remove(node_id);
-    self
-      .attached_values
-      .of(node_id)
-      .for_each(|property| property.inherit_from(None));
+    self.attached_values.of(node_id).for_each(|property| {
+      property.inherit_from(None);
+      property.dispose();
+    });
     self.attached_values.remove(node_id);
   }
 
@@ -539,6 +542,9 @@ impl UiTree {
   /// parts that only exist in the visual tree go too. Any freed node whose parent survives is
   /// detached from that parent first, so no live node keeps the id of a freed child, and every child
   /// of a freed node is freed with it.
+  ///
+  /// Each freed node's properties and attached values are disposed with it: a copy of one kept
+  /// outside the tree panics when used.
   ///
   /// Freeing bumps each slot's generation, which invalidates the freed ids and every copy of them.
   /// The generation wraps around after `u32::MAX - 1` reuses of the same slot, so an id kept across

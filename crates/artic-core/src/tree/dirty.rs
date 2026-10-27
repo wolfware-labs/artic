@@ -53,6 +53,7 @@ impl DirtyHandle {
   ///     *self.0.borrow_mut() = Some(dirty);
   ///   }
   ///   fn inherit_from(&self, _source: Option<&dyn AnyProperty>) {}
+  ///   fn dispose(&self) {}
   ///   fn as_any(&self) -> &dyn Any {
   ///     self
   ///   }
