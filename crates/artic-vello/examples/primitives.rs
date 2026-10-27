@@ -66,11 +66,11 @@ struct Primitives {
 }
 
 impl Nodes for Primitives {
-  fn layers(&self, _arena: &UiTree, _node: NodeId) -> Layers {
+  fn layers(&self, _tree: &UiTree, _node: NodeId) -> Layers {
     Layers::default()
   }
 
-  fn record(&mut self, _arena: &UiTree, _node: NodeId, builder: &mut SceneBuilder) {
+  fn record(&mut self, _tree: &UiTree, _node: NodeId, builder: &mut SceneBuilder) {
     builder.fill(Rect::new(0.0, 0.0, self.width, self.height), BACKGROUND);
     let tiles: [fn(&mut SceneBuilder); 9] = [
       card,

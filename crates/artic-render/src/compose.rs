@@ -189,11 +189,11 @@ mod tests {
   }
 
   impl Nodes for Table {
-    fn layers(&self, _arena: &UiTree, node: NodeId) -> Layers {
+    fn layers(&self, _tree: &UiTree, node: NodeId) -> Layers {
       self.layers.get(&node).cloned().unwrap_or_default()
     }
 
-    fn record(&mut self, _arena: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
+    fn record(&mut self, _tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
       *self.recorded.entry(node).or_default() += 1;
       if let Some(property) = self.writes.get(&node) {
         property.set(property.get() + 1);

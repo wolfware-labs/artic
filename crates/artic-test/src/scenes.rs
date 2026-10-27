@@ -184,11 +184,11 @@ impl Object for Node {
 struct Drawing<F>(Option<F>);
 
 impl<F: FnOnce(&mut SceneBuilder)> Nodes for Drawing<F> {
-  fn layers(&self, _arena: &UiTree, _node: NodeId) -> Layers {
+  fn layers(&self, _tree: &UiTree, _node: NodeId) -> Layers {
     Layers::default()
   }
 
-  fn record(&mut self, _arena: &UiTree, _node: NodeId, builder: &mut SceneBuilder) {
+  fn record(&mut self, _tree: &UiTree, _node: NodeId, builder: &mut SceneBuilder) {
     if let Some(draw) = self.0.take() {
       draw(builder);
     }

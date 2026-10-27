@@ -58,16 +58,16 @@ impl Invariants {
       let (desired, again) = (layout.manager.desired(node), fresh.desired(node));
       assert!(
         same(desired, again, sizes_match),
-        "{}: desired {} from the layout, {} from a fresh one, {input}",
-        layout.name(node),
+        "{:?}: desired {} from the layout, {} from a fresh one, {input}",
+        layout.label(node),
         shown(desired),
         shown(again)
       );
       let (rect, again) = (layout.manager.rect(node), fresh.rect(node));
       assert!(
         same(rect, again, rects_match),
-        "{}: rect {} from the layout, {} from a fresh one, {input}",
-        layout.name(node),
+        "{:?}: rect {} from the layout, {} from a fresh one, {input}",
+        layout.label(node),
         shown(rect),
         shown(again)
       );
@@ -84,9 +84,9 @@ impl Invariants {
         if let Some(rect) = layout.manager.rect(child) {
           assert!(
             inside(rect, parent, slack),
-            "{}: rect {rect} lies outside its parent {} ({}), {input}",
-            layout.name(child),
-            layout.name(node),
+            "{:?}: rect {rect} lies outside its parent {:?} ({}), {input}",
+            layout.label(child),
+            layout.label(node),
             Size::new(parent.width, parent.height)
           );
         }

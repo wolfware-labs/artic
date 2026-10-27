@@ -135,12 +135,12 @@ impl<N: LayoutNodes> Headless<N> {
   #[track_caller]
   pub fn assert_desired_within(&self, node: NodeId, expected: Size, tolerance: f32) {
     let Some(actual) = self.manager.desired(node) else {
-      panic!("{}: not measured", self.name(node));
+      panic!("{:?}: not measured", self.label(node));
     };
     assert!(
       sizes_match(actual, expected, tolerance),
-      "{}: desired expected {expected}, got {actual}",
-      self.name(node)
+      "{:?}: desired expected {expected}, got {actual}",
+      self.label(node)
     );
   }
 
@@ -163,20 +163,13 @@ impl<N: LayoutNodes> Headless<N> {
   #[track_caller]
   pub fn assert_rect_within(&self, node: NodeId, expected: Rect, tolerance: f32) {
     let Some(actual) = self.manager.rect(node) else {
-      panic!("{}: not arranged", self.name(node));
+      panic!("{:?}: not arranged", self.label(node));
     };
     assert!(
       rects_match(actual, expected, tolerance),
-      "{}: rect expected {expected}, got {actual}",
-      self.name(node)
+      "{:?}: rect expected {expected}, got {actual}",
+      self.label(node)
     );
-  }
-
-  pub(super) fn name(&self, node: NodeId) -> String {
-    match self.labels.get(&node) {
-      Some(label) => format!("{label:?}"),
-      None => format!("{node:?}"),
-    }
   }
 }
 

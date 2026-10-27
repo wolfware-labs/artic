@@ -47,11 +47,11 @@ struct Drawings {
 }
 
 impl Nodes for Drawings {
-  fn layers(&self, _arena: &UiTree, node: NodeId) -> Layers {
+  fn layers(&self, _tree: &UiTree, node: NodeId) -> Layers {
     self.layers.get(&node).cloned().unwrap_or_default()
   }
 
-  fn record(&mut self, _arena: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
+  fn record(&mut self, _tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
     if let Some(draw) = self.draws.get(&node) {
       draw(builder);
     }

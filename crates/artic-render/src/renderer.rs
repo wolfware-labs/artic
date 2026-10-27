@@ -208,11 +208,11 @@ mod tests {
   struct Red;
 
   impl Nodes for Red {
-    fn layers(&self, _arena: &UiTree, _node: NodeId) -> Layers {
+    fn layers(&self, _tree: &UiTree, _node: NodeId) -> Layers {
       Layers::default()
     }
 
-    fn record(&mut self, _arena: &UiTree, _node: NodeId, builder: &mut SceneBuilder) {
+    fn record(&mut self, _tree: &UiTree, _node: NodeId, builder: &mut SceneBuilder) {
       builder.fill(Rect::new(0.0, 0.0, 2.0, 1.0), Color::rgb(255, 0, 0));
     }
   }
