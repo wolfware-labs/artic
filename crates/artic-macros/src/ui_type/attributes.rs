@@ -23,7 +23,6 @@ pub struct Attached {
   pub ty: Type,
   pub spec: PropertySpec,
   pub target: Target,
-  /// The static the key lives in, such as `__ATTACHED_COLUMN_SPAN`.
   pub key_static: Ident,
   pub constant: Ident,
   pub getter: Ident,
@@ -191,6 +190,7 @@ mod tests {
     assert!(attributes.override_defaults);
     assert_eq!(attributes.whitespace, Whitespace::Significant);
   }
+
   // `crate` names the path generated code uses to reach artic.
   #[test]
   fn crate_path_is_parsed() {

@@ -2,6 +2,7 @@ use crate::members::attributes::Inherits;
 use crate::members::{Content, Key, Members, PropertyField, generic_argument};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
+use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 use syn::{Ident, Type};
 
@@ -14,17 +15,17 @@ pub fn default_impl(ident: &Ident, members: &Members, after: Option<TokenStream>
     Some(Content::Collection { ident, .. }) => Some(*ident),
     _ => None,
   };
-  let others = members
+  let plain = members
     .events
     .iter()
     .map(|event| event.ident)
     .chain(members.groups.iter().map(|group| group.ident))
     .chain(content)
-    .chain(members.others.iter().copied());
+    .chain(members.unmarked.iter().copied());
   let value = quote! {
     Self {
       #(#properties,)*
-      #(#others: ::core::default::Default::default(),)*
+      #(#plain: ::core::default::Default::default(),)*
     }
   };
   let body = match after {
@@ -66,21 +67,21 @@ pub fn properties_static(members: &Members) -> TokenStream {
 
 /// The `__checks` function, never called, whose body fails to compile when a property's value
 /// type can't be written in a UI language or a flattened field isn't a group, followed by the
-/// derive's `others`.
-pub fn checks(members: &Members, others: impl IntoIterator<Item = TokenStream>) -> TokenStream {
+/// derive's `extra_checks`.
+pub fn checks(members: &Members, extra_checks: impl IntoIterator<Item = TokenStream>) -> TokenStream {
   let values = members.properties.iter().map(|field| value_check(field.value));
   let groups = members.groups.iter().map(|group| {
     let ty = group.ty;
     quote_spanned!(ty.span()=> __artic::assert_property_group::<#ty>();)
   });
-  let others = others.into_iter();
+  let extra_checks = extra_checks.into_iter();
   quote! {
     #[allow(dead_code, clippy::needless_borrow)]
     fn __checks() {
       use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
       #(#values)*
       #(#groups)*
-      #(#others)*
+      #(#extra_checks)*
     }
   }
 }
@@ -229,13 +230,13 @@ pub fn key_path(field: &PropertyField) -> TokenStream {
   }
 }
 
-/// The `Affects` value of the stages listed, each named at its span so artic-core reports a stage it
-/// doesn't have there.
+/// The `Affects` value of the stages listed, each named at its span so artic-core reports a
+/// stage it doesn't have there.
 pub fn affects_tokens(affects: &[Ident]) -> TokenStream {
   let stages: Vec<TokenStream> = affects
     .iter()
     .map(|stage| {
-      let constant = format_ident!("{}", stage.to_string().to_uppercase(), span = stage.span());
+      let constant = format_ident!("{}", stage.unraw().to_string().to_uppercase(), span = stage.span());
       quote_spanned!(stage.span()=> __artic::Affects::#constant)
     })
     .collect();
@@ -255,5 +256,24 @@ pub fn inheritance_tokens(inherits: Option<&Inherits>) -> TokenStream {
       Some(name) => quote_spanned!(path.span()=> __artic::Inheritance::Combine(__artic::inherit::#name)),
       None => quote_spanned!(path.span()=> __artic::Inheritance::Combine(#path)),
     },
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use pretty_assertions::assert_eq;
+  use syn::parse_quote;
+
+  // A stage written as a raw identifier names the same constant as the plain one, rather than
+  // panicking the derive with an invalid identifier.
+  #[test]
+  fn a_raw_stage_names_its_constant() {
+    let stages: Vec<Ident> = vec![parse_quote!(layout), parse_quote!(r#type)];
+
+    assert_eq!(
+      affects_tokens(&stages).to_string(),
+      "__artic :: Affects :: LAYOUT . union (__artic :: Affects :: TYPE)"
+    );
   }
 }

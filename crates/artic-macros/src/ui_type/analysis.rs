@@ -84,8 +84,6 @@ mod tests {
   use pretty_assertions::assert_eq;
   use syn::parse_quote;
 
-  // Each `#[ui]` field's role follows how its type is written, looking through `Option` for a
-
   /// The error `analyze` gives for `input`.
   fn error(input: &DeriveInput) -> String {
     analyze(input).err().expect("a name clash").to_string()
@@ -114,7 +112,6 @@ mod tests {
   }
 
   // A property named `type_info` with its own key is rejected: its key constant would hide
-
   // `UiType::TYPE_INFO`.
   #[test]
   fn type_info_is_reserved() {
@@ -189,7 +186,6 @@ mod tests {
   }
 
   // An attached property's helpers split an acronym as a word, so `URLField`'s getter is
-
   // `url_field`, and a property of that name clashes with it.
   #[test]
   fn attached_acronym_gives_one_word_helpers() {
@@ -260,8 +256,4 @@ mod tests {
       "`children` would be both the content method of `items` and the method of the property `children`; rename one"
     );
   }
-
-  // A `Child` or `Children` field without `#[ui]` is rejected too, rather than left as plain data
-
-  // A collection field that isn't the content is rejected, whatever its type: children reach a
 }

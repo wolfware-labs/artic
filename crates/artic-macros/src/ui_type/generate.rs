@@ -2,7 +2,7 @@ use crate::crate_root::{REGISTRY, crate_root};
 use crate::members::emit::{
   affects_tokens, checks, default_impl, inheritance_tokens, key_path, key_static, properties_static, value_check, visits,
 };
-use crate::members::{Content, Members, PropertyField, generic_argument};
+use crate::members::{Content, Members, PropertyField, value_type};
 use crate::ui_type::analysis::TypeAnalysis;
 use crate::ui_type::attributes::{Attached, Target, Whitespace};
 use crate::ui_type::builders::builders;
@@ -34,12 +34,7 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
   let builders = builders(analysis);
   let attached_helpers = attached.iter().map(|attached| attached_helpers(ident, attached));
   let type_info = type_info(analysis);
-  let checks = checks(
-    members,
-    attached
-      .iter()
-      .map(|attached| value_check(generic_argument(&attached.ty, "Option").unwrap_or(&attached.ty))),
-  );
+  let checks = checks(members, attached.iter().map(|attached| value_check(value_type(&attached.ty))));
   Ok(quote! {
     const _: () = {
       use #root::__private as __artic;

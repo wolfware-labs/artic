@@ -54,7 +54,7 @@ pub struct Members<'a> {
   pub events: Vec<EventField<'a>>,
   pub groups: Vec<GroupField<'a>>,
   pub content: Option<Content<'a>>,
-  pub others: Vec<&'a Ident>,
+  pub unmarked: Vec<&'a Ident>,
 }
 
 /// A `Property<T>` field marked `#[ui]`.
@@ -120,7 +120,6 @@ pub enum ContentMethod {
 }
 
 impl ContentMethod {
-  /// The method's name.
   pub fn name(self) -> &'static str {
     match self {
       ContentMethod::Child => "child",
@@ -169,7 +168,7 @@ impl<'a> Members<'a> {
       events: Vec::new(),
       groups: Vec::new(),
       content: None,
-      others: Vec::new(),
+      unmarked: Vec::new(),
     };
     let mut marked = Vec::new();
     let mut collections = Vec::new();
@@ -177,7 +176,7 @@ impl<'a> Members<'a> {
       let ident = field.ident.as_ref().expect("named fields have names");
       let Some(attributes) = parse_field_attributes(field)? else {
         reject_unmarked_member(field, kind)?;
-        members.others.push(ident);
+        members.unmarked.push(ident);
         continue;
       };
       let content = attributes.content;
@@ -220,11 +219,13 @@ impl<'a> Members<'a> {
 
 impl Members<'_> {
   /// Rejects two items of one name in the `impl`s the derive writes: the reserved names, the
-  /// content method, each property's method and key constant, then each of `others` (a type's
-  /// attached property helpers), as name, what it is and where it comes from. The error points at
-  /// the second item's source.
-  pub fn check_names(&self, others: impl IntoIterator<Item = (String, String, Span)>) -> syn::Result<()> {
+  /// content method, each property's method and key constant, then each of `extra_names` (a
+  /// type's attached property helpers), as name, what it is and where it comes from. A type writes
+  /// them all in one `impl`; a group writes its methods in its trait and its constants on itself,
+  /// so each is checked only against its own kind. The error points at the second item's source.
+  pub fn check_names(&self, extra_names: impl IntoIterator<Item = (String, String, Span)>) -> syn::Result<()> {
     let mut taken = self.kind.reserved();
+    let mut group_constants = Vec::new();
     if let Some(Content::Collection {
       ident,
       method: Some(method),
@@ -247,15 +248,19 @@ impl Members<'_> {
         ident.span(),
       )?;
       if let Key::Own { constant, .. } = &field.key {
+        let constants = match self.kind {
+          Kind::Type => &mut taken,
+          Kind::Group => &mut group_constants,
+        };
         take(
-          &mut taken,
+          constants,
           constant.to_string(),
           format!("the key constant of the property `{ident}`"),
           ident.span(),
         )?;
       }
     }
-    for (name, what, source) in others {
+    for (name, what, source) in extra_names {
       take(&mut taken, name, what, source)?;
     }
     Ok(())
@@ -309,7 +314,7 @@ fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttributes)
       ident,
       vis: &field.vis,
       inner,
-      value: generic_argument(inner, "Option").unwrap_or(inner),
+      value: value_type(inner),
       ui_name,
       default: spec.default,
       key,
@@ -413,6 +418,12 @@ fn content_method(ty: &Type) -> Option<ContentMethod> {
   }
 }
 
+/// What text or an element sets for a value of type `ty`: `X` for `Option<X>`, whose `None` is
+/// the default, else `ty`.
+pub fn value_type(ty: &Type) -> &Type {
+  generic_argument(ty, "Option").unwrap_or(ty)
+}
+
 /// If `ty` is written `Wrapper<T>`, possibly with a path in front, returns `T`.
 pub fn generic_argument<'a>(ty: &'a Type, wrapper: &str) -> Option<&'a Type> {
   let Type::Path(path) = ty else {
@@ -469,7 +480,7 @@ mod tests {
     let args: Vec<String> = members.events.iter().map(|event| text(event.args)).collect();
     assert_eq!(args, ["PointerEvent"]);
     assert!(matches!(members.content, Some(Content::Collection { ident, method: None, .. }) if ident == "items"));
-    assert_eq!(members.others, ["layout"]);
+    assert_eq!(members.unmarked, ["layout"]);
   }
 
   // `#[ui(flatten)]` makes a field a group, whatever its type looks like.

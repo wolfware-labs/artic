@@ -215,6 +215,33 @@ mod tests {
     insta::assert_snapshot!(prettyplease::unparse(&file));
   }
 
+  // A group's methods live in its trait and its key constants on the group, so a field whose
+  // method and constant share a name is fine, while two constants of one name aren't.
+  #[test]
+  fn group_methods_and_constants_are_checked_apart() {
+    let screaming: DeriveInput = parse_quote! { struct Sizing { #[ui] WIDTH: Property<f32> } };
+    let twins: DeriveInput = parse_quote! { struct Sizing { #[ui] row_span: Property<f32>, #[ui] rowSpan: Property<f32> } };
+
+    assert!(expand(&screaming).is_ok());
+    assert_eq!(
+      expand(&twins).expect_err("one constant name").to_string(),
+      "`ROW_SPAN` would be both the key constant of the property `row_span` and the key constant of the property `rowSpan`; rename one"
+    );
+  }
+
+  // The crate path a group names is the one its expansion reaches artic through.
+  #[test]
+  fn group_crate_path_is_used() {
+    let input: DeriveInput = parse_quote! { #[ui(crate = "registry_alias")] struct Sizing { #[ui] gap: Property<f32> } };
+
+    assert!(
+      expand(&input)
+        .expect("valid")
+        .to_string()
+        .contains("use registry_alias :: __private as __artic")
+    );
+  }
+
   // A group's struct takes `crate` and nothing else in `#[ui(...)]`.
   #[test]
   fn group_struct_keys_other_than_crate_are_an_error() {

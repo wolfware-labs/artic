@@ -7,6 +7,7 @@ use artic_core::tree::{Handle, NodeId, TreeKind, UiTree};
 use artic_core::{RustExpr, ToRust};
 use artic_element::{Child, Children};
 use artic_macros::{UiProperties, UiType};
+use artic_registry as registry_alias;
 use artic_registry::{
   AttachedTarget, ContentInfo, OverrideDefaults, PropertyGroup, PropertyRef, Registry, TypeInfo, UiCollection, UiType,
   ValueError, Whitespace,
@@ -364,8 +365,6 @@ struct Common {
   #[ui(default = true, inherits)]
   enabled: Property<bool>,
 }
-
-use artic_registry as registry_alias;
 
 /// A property group that reaches the registry through a path of its own.
 #[derive(Debug, UiProperties)]
