@@ -1,14 +1,16 @@
 use crate::crate_root::{REGISTRY, crate_root};
-use crate::members::attributes::Inherits;
-use crate::members::{Content, Key, PropertyField, generic_argument};
+use crate::members::emit::{
+  affects_tokens, checks, default_impl, inheritance_tokens, key_path, key_static, properties_static, value_check, visits,
+};
+use crate::members::{Content, Members, PropertyField, generic_argument};
 use crate::ui_type::analysis::TypeAnalysis;
 use crate::ui_type::attributes::{Attached, Target, Whitespace};
 use crate::ui_type::builders::builders;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, quote_spanned};
+use quote::{quote, quote_spanned};
+use syn::Ident;
 use syn::ext::IdentExt;
 use syn::spanned::Spanned;
-use syn::{Ident, Type};
 
 /// Writes the code for one derived struct: its property keys, `Default`, `Object` and `UiType`
 /// impls, its registry descriptors and entry, and the checks on its field types.
@@ -16,44 +18,71 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
   let root = crate_root(analysis.attributes.crate_path.as_ref(), analysis.ident, REGISTRY)?;
   let ident = analysis.ident;
   let members = &analysis.members;
-  let (properties, events, groups) = (&members.properties, &members.events, &members.groups);
+  let attached = &analysis.attributes.attached;
+  let keys = members.properties.iter().map(key_static);
+  let override_defaults = analysis
+    .attributes
+    .override_defaults
+    .then(|| quote!(<Self as __artic::OverrideDefaults>::override_defaults(&__artic_value);));
+  let default_impl = default_impl(ident, members, override_defaults);
+  let visits = visits(members);
+  let group_items = group_items(ident, members);
+  let descriptors = descriptors(members, attached);
+  let attached_keys = attached.iter().map(attached_key);
+  let value_provider = value_provider(analysis);
+  let content_functions = content_functions(ident, members);
+  let builders = builders(analysis);
+  let attached_helpers = attached.iter().map(|attached| attached_helpers(ident, attached));
+  let type_info = type_info(analysis);
+  let checks = checks(
+    members,
+    attached
+      .iter()
+      .map(|attached| value_check(generic_argument(&attached.ty, "Option").unwrap_or(&attached.ty))),
+  );
+  Ok(quote! {
+    const _: () = {
+      use #root::__private as __artic;
 
-  let keys = properties.iter().map(key_static);
-  let default_fields = properties.iter().map(default_field);
-  let content_field = match &members.content {
-    Some(Content::Collection { ident, .. }) => Some(*ident),
-    _ => None,
-  };
-  let other_fields: Vec<&Ident> = events
-    .iter()
-    .map(|event| event.ident)
-    .chain(groups.iter().map(|group| group.ident))
-    .chain(content_field)
-    .chain(members.others.iter().copied())
-    .collect();
-  let visits = properties.iter().map(|field| {
-    let field_ident = field.ident;
-    quote!(visitor.visit(&self.#field_ident);)
-  });
-  let group_visits = groups.iter().map(|field| {
-    let field_ident = field.ident;
-    quote!(__artic::PropertyGroup::visit_properties(&self.#field_ident, visitor);)
-  });
-  let group_infos = groups.iter().map(|field| {
-    let ty = field.ty;
-    let field_name = field.ident.to_string();
-    quote!(__artic::PropertyGroupInfo {
-      field: #field_name,
-      properties: <#ty as __artic::PropertyGroup>::PROPERTIES,
-      methods: <#ty as __artic::PropertyGroup>::METHODS,
-    })
-  });
-  let group_checks = groups.iter().map(|field| {
-    let ty = field.ty;
-    quote_spanned!(ty.span()=> __artic::assert_property_group::<#ty>();)
-  });
-  let group_impls = groups.iter().map(|field| {
-    let (ty, field_ident) = (field.ty, field.ident);
+      #(#keys)*
+
+      #default_impl
+
+      impl __artic::Object for #ident {
+        fn visit_properties(&self, visitor: &mut __artic::PropertyVisitor<'_>) {
+          #visits
+        }
+      }
+
+      #group_items
+
+      #descriptors
+
+      #(#attached_keys)*
+
+      #value_provider
+
+      #content_functions
+
+      impl #ident {
+        #builders
+
+        #(#attached_helpers)*
+      }
+
+      #type_info
+
+      #checks
+    };
+  })
+}
+
+/// For each flattened group: its `HasGroup` impl, and the const checks that no property of the
+/// type and no other group has a field of one of its names, whose methods would clash.
+fn group_items(ident: &Ident, members: &Members) -> TokenStream {
+  let groups = &members.groups;
+  let impls = groups.iter().map(|group| {
+    let (ty, field_ident) = (group.ty, group.ident);
     quote! {
       impl __artic::HasGroup<#ty> for #ident {
         fn group(&self) -> &#ty {
@@ -62,7 +91,7 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
       }
     }
   });
-  let own_field_checks = properties.iter().flat_map(|field| {
+  let own_field_checks = members.properties.iter().flat_map(|field| {
     let field_name = field.ident.to_string();
     let message = format!(
       "the property `{}` has the name of a field of a group this type flattens; its method would hide the group's",
@@ -73,7 +102,7 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
       quote!(::core::assert!(!__artic::group_has_field(<#ty as __artic::PropertyGroup>::PROPERTIES, #field_name), #message);)
     })
   });
-  let group_pair_checks = groups.iter().enumerate().flat_map(|(index, first)| {
+  let pair_checks = groups.iter().enumerate().flat_map(|(index, first)| {
     groups[index + 1..].iter().map(move |second| {
       let (a, b) = (first.ty, second.ty);
       let message = format!(
@@ -83,16 +112,74 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
       quote!(::core::assert!(!__artic::groups_share_field(<#a as __artic::PropertyGroup>::PROPERTIES, <#b as __artic::PropertyGroup>::PROPERTIES), #message);)
     })
   });
-  let group_count = groups.len();
-  let property_infos = properties.iter().map(property_info);
-  let event_infos = events.iter().map(|event| {
+  quote! {
+    #(#impls)*
+
+    const _: () = {
+      #(#own_field_checks)*
+      #(#pair_checks)*
+    };
+  }
+}
+
+/// The descriptor statics the type's `TypeInfo` points at: its properties, events, attached
+/// properties and groups.
+fn descriptors(members: &Members, attached: &[Attached]) -> TokenStream {
+  let properties = properties_static(members);
+  let events = members.events.iter().map(|event| {
     let (name, args) = (&event.ui_name, event.args);
     quote!(__artic::EventInfo { name: #name, args_type: ::core::stringify!(#args) })
   });
-  let property_count = properties.len();
-  let event_count = events.len();
-  let value_checks = properties.iter().map(|field| value_check(field.value));
-  let own_content = match &members.content {
+  let attached_infos = attached.iter().map(attached_info);
+  let groups = members.groups.iter().map(|group| {
+    let ty = group.ty;
+    let field_name = group.ident.to_string();
+    quote!(__artic::PropertyGroupInfo {
+      field: #field_name,
+      properties: <#ty as __artic::PropertyGroup>::PROPERTIES,
+      methods: <#ty as __artic::PropertyGroup>::METHODS,
+    })
+  });
+  let (event_count, attached_count, group_count) = (members.events.len(), attached.len(), members.groups.len());
+  quote! {
+    #properties
+    static __EVENTS: [__artic::EventInfo; #event_count] = [#(#events),*];
+    static __ATTACHED: [__artic::AttachedPropertyInfo; #attached_count] = [#(#attached_infos),*];
+    static __GROUPS: [__artic::PropertyGroupInfo; #group_count] = [#(#groups),*];
+  }
+}
+
+/// For a type whose content is a collection, `__content_field`, which reaches the field, and
+/// `__add_child`, which its `ContentInfo` calls to add a child to it.
+fn content_functions(ident: &Ident, members: &Members) -> Option<TokenStream> {
+  let Some(Content::Collection {
+    ident: field_ident, ty, ..
+  }) = &members.content
+  else {
+    return None;
+  };
+  Some(quote! {
+    fn __content_field<'a>(
+      tree: &'a mut __artic::UiTree,
+      owner: __artic::NodeId,
+    ) -> ::core::option::Option<&'a mut #ty> {
+      tree.get_as_mut::<#ident>(owner).map(|node| &mut node.#field_ident)
+    }
+
+    fn __add_child(
+      tree: &mut __artic::UiTree,
+      owner: __artic::NodeId,
+      child: __artic::NodeId,
+    ) -> ::core::result::Result<(), __artic::ValueError> {
+      <#ty as __artic::UiCollection>::push_child(tree, owner, child, __content_field)
+    }
+  })
+}
+
+/// The type's content as `one_content` resolves it at compile time: its own content member, if
+/// any, and each flattened group's.
+fn content_info(members: &Members) -> TokenStream {
+  let own = match &members.content {
     None => quote!(::core::option::Option::None),
     Some(Content::Property(index)) => quote!(::core::option::Option::Some(__artic::ContentInfo::Property(__artic::PropertyRef {
       group: ::core::option::Option::None,
@@ -114,137 +201,51 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
       }))
     }
   };
-  let content_functions = match &members.content {
-    Some(Content::Collection {
-      ident: field_ident, ty, ..
-    }) => Some(quote! {
-        fn __content_field<'a>(
-          tree: &'a mut __artic::UiTree,
-          owner: __artic::NodeId,
-        ) -> ::core::option::Option<&'a mut #ty> {
-          tree.get_as_mut::<#ident>(owner).map(|node| &mut node.#field_ident)
-        }
-
-        fn __add_child(
-          tree: &mut __artic::UiTree,
-          owner: __artic::NodeId,
-          child: __artic::NodeId,
-        ) -> ::core::result::Result<(), __artic::ValueError> {
-          <#ty as __artic::UiCollection>::push_child(tree, owner, child, __content_field)
-        }
-    }),
-    _ => None,
-  };
-  let group_contents = groups.iter().map(|field| {
-    let ty = field.ty;
-    let field_name = field.ident.to_string();
+  let groups = members.groups.iter().map(|group| {
+    let ty = group.ty;
+    let field_name = group.ident.to_string();
     quote!(__artic::group_content(#field_name, <#ty as __artic::PropertyGroup>::CONTENT))
   });
-  let content = quote!(__artic::one_content(&[#own_content, #(#group_contents),*]));
-  let attached = &analysis.attributes.attached;
-  let attached_keys = attached.iter().map(attached_key);
-  let builders = builders(analysis);
-  let attached_helpers = attached.iter().map(|attached| attached_helpers(ident, attached));
-  let attached_infos = attached.iter().map(attached_info);
-  let attached_count = attached.len();
-  let value_provider = value_provider(analysis);
-  let value_provider_info = if analysis.attributes.value_provider.is_some() {
+  quote!(__artic::one_content(&[#own, #(#groups),*]))
+}
+
+/// The type's `TypeInfo`, its `UiType` impl and its registry entry.
+fn type_info(analysis: &TypeAnalysis) -> TokenStream {
+  let ident = analysis.ident;
+  let content = content_info(&analysis.members);
+  let value_provider = if analysis.attributes.value_provider.is_some() {
     quote!(::core::option::Option::Some(&__VALUE_PROVIDER))
   } else {
     quote!(::core::option::Option::None)
   };
-  let attached_checks = attached
-    .iter()
-    .map(|attached| value_check(generic_argument(&attached.ty, "Option").unwrap_or(&attached.ty)));
-  let override_defaults = analysis
-    .attributes
-    .override_defaults
-    .then(|| quote!(<Self as __artic::OverrideDefaults>::override_defaults(&__artic_value);));
   let whitespace = match analysis.attributes.whitespace {
     Whitespace::Collapse => quote!(__artic::Whitespace::Collapse),
     Whitespace::Significant => quote!(__artic::Whitespace::Significant),
   };
+  quote! {
+    fn __new(tree: &mut __artic::UiTree) -> __artic::NodeId {
+      tree.alloc(::std::boxed::Box::new(<#ident as ::core::default::Default>::default()))
+    }
 
-  Ok(quote! {
-    const _: () = {
-      use #root::__private as __artic;
-
-      #(#keys)*
-
-      impl ::core::default::Default for #ident {
-        fn default() -> Self {
-          let __artic_value = Self {
-            #(#default_fields,)*
-            #(#other_fields: ::core::default::Default::default(),)*
-          };
-          #override_defaults
-          __artic_value
-        }
-      }
-
-      impl __artic::Object for #ident {
-        fn visit_properties(&self, visitor: &mut __artic::PropertyVisitor<'_>) {
-          #(#visits)*
-          #(#group_visits)*
-        }
-      }
-
-      #(#group_impls)*
-
-      const _: () = {
-        #(#own_field_checks)*
-        #(#group_pair_checks)*
-      };
-
-      static __PROPERTIES: [__artic::PropertyInfo; #property_count] = [#(#property_infos),*];
-      static __EVENTS: [__artic::EventInfo; #event_count] = [#(#event_infos),*];
-      static __ATTACHED: [__artic::AttachedPropertyInfo; #attached_count] = [#(#attached_infos),*];
-      static __GROUPS: [__artic::PropertyGroupInfo; #group_count] = [#(#group_infos),*];
-
-      #(#attached_keys)*
-
-      #value_provider
-
-      #content_functions
-
-      impl #ident {
-        #builders
-
-        #(#attached_helpers)*
-      }
-
-      fn __new(tree: &mut __artic::UiTree) -> __artic::NodeId {
-        tree.alloc(::std::boxed::Box::new(<#ident as ::core::default::Default>::default()))
-      }
-
-      static __TYPE_INFO: __artic::TypeInfo = __artic::TypeInfo {
-        name: ::core::stringify!(#ident),
-        rust_path: ::core::concat!(::core::module_path!(), "::", ::core::stringify!(#ident)),
-        new: __new,
-        content: #content,
-        properties: &__PROPERTIES,
-        groups: &__GROUPS,
-        events: &__EVENTS,
-        attached_properties: &__ATTACHED,
-        value_provider: #value_provider_info,
-        whitespace: #whitespace,
-      };
-
-      impl __artic::UiType for #ident {
-        const TYPE_INFO: &'static __artic::TypeInfo = &__TYPE_INFO;
-      }
-
-      __artic::register_type!(__TYPE_INFO);
-
-      #[allow(dead_code, clippy::needless_borrow)]
-      fn __checks() {
-        use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-        #(#value_checks)*
-        #(#group_checks)*
-        #(#attached_checks)*
-      }
+    static __TYPE_INFO: __artic::TypeInfo = __artic::TypeInfo {
+      name: ::core::stringify!(#ident),
+      rust_path: ::core::concat!(::core::module_path!(), "::", ::core::stringify!(#ident)),
+      new: __new,
+      content: #content,
+      properties: &__PROPERTIES,
+      groups: &__GROUPS,
+      events: &__EVENTS,
+      attached_properties: &__ATTACHED,
+      value_provider: #value_provider,
+      whitespace: #whitespace,
     };
-  })
+
+    impl __artic::UiType for #ident {
+      const TYPE_INFO: &'static __artic::TypeInfo = &__TYPE_INFO;
+    }
+
+    __artic::register_type!(__TYPE_INFO);
+  }
 }
 
 /// The `ValueProviderInfo` static of a value provider, or nothing for another type. Every
@@ -349,102 +350,6 @@ fn attached_info(attached: &Attached) -> TokenStream {
       name: #name,
       value_type: ::core::stringify!(#ty),
       target: #target,
-    }
-  }
-}
-
-/// The check that a value type can be written in a UI language, pointing at the type.
-pub fn value_check(value: &Type) -> TokenStream {
-  quote_spanned!(value.span()=>
-    (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
-  )
-}
-
-/// The key a property is stored under, as a `&'static PropertyKey` expression usable in const
-/// code: the derive's own static, or a shared key's `key()`, which a property key and an attached
-/// key both have.
-fn key_path(field: &PropertyField) -> TokenStream {
-  match &field.key {
-    Key::Shared(key) => quote!(#key.key()),
-    Key::Own { key_static, .. } => quote!((&#key_static)),
-  }
-}
-
-/// The `static PropertyKey` the derive writes for a property without a shared `key`.
-pub fn key_static(field: &PropertyField) -> TokenStream {
-  let Key::Own {
-    key_static: key,
-    affects,
-    inherits,
-    ..
-  } = &field.key
-  else {
-    return TokenStream::new();
-  };
-  let (inner, name) = (field.inner, &field.ui_name);
-  let affects = affects_tokens(affects);
-  let inheritance = inheritance_tokens(inherits.as_ref());
-  quote! {
-    static #key: __artic::PropertyKey<#inner> = __artic::PropertyKey::new(#name, #affects, #inheritance);
-  }
-}
-
-fn affects_tokens(affects: &[Ident]) -> TokenStream {
-  let stages: Vec<TokenStream> = affects
-    .iter()
-    .map(|stage| {
-      let constant = format_ident!("{}", stage.to_string().to_uppercase(), span = stage.span());
-      quote_spanned!(stage.span()=> __artic::Affects::#constant)
-    })
-    .collect();
-  match stages.split_first() {
-    None => quote!(__artic::Affects::NONE),
-    Some((first, rest)) => quote!(#first #(.union(#rest))*),
-  }
-}
-
-fn inheritance_tokens(inherits: Option<&Inherits>) -> TokenStream {
-  match inherits {
-    None => quote!(__artic::Inheritance::None),
-    Some(Inherits::Replace) => quote!(__artic::Inheritance::Replace),
-    Some(Inherits::Combine(path)) => match path.get_ident() {
-      Some(name) => quote_spanned!(path.span()=> __artic::Inheritance::Combine(__artic::inherit::#name)),
-      None => quote_spanned!(path.span()=> __artic::Inheritance::Combine(#path)),
-    },
-  }
-}
-
-/// How `Default` creates one property field.
-pub fn default_field(field: &PropertyField) -> TokenStream {
-  let (field_ident, inner) = (field.ident, field.inner);
-  let key = key_path(field);
-  let value = match (&field.key, &field.default) {
-    (Key::Shared(shared), Some(expression)) => {
-      quote_spanned!(expression.span()=> __artic::default_beside(&#shared, #expression))
-    }
-    (Key::Shared(shared), None) => quote!({
-      use __artic::SharedKey as _;
-      #shared.initial_value()
-    }),
-    (Key::Own { .. }, Some(expression)) => quote!(#expression),
-    (Key::Own { .. }, None) => quote_spanned!(inner.span()=> <#inner as ::core::default::Default>::default()),
-  };
-  quote!(#field_ident: __artic::Property::new(#key, #value))
-}
-
-/// The `PropertyInfo` for one property, with its metadata read from the key.
-pub fn property_info(field: &PropertyField) -> TokenStream {
-  let (inner, value) = (field.inner, field.value);
-  let key = key_path(field);
-  let field_name = field.ident.to_string();
-  quote! {
-    __artic::PropertyInfo {
-      name: #key.name(),
-      field: #field_name,
-      value_type: ::core::stringify!(#inner),
-      affects: #key.affects(),
-      inherits: #key.inherits(),
-      literal: __artic::literal!(#value),
     }
   }
 }

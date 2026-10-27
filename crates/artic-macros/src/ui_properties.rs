@@ -1,8 +1,7 @@
 use crate::crate_root::{REGISTRY, crate_root};
 use crate::members::attributes::unknown_key;
+use crate::members::emit::{Setter, checks, default_impl, key_constant, key_static, properties_static, setter, visits};
 use crate::members::{Content, Kind, Members, PropertyField};
-use crate::ui_type::builders::{Setter, key_constant, setter};
-use crate::ui_type::generate::{default_field, key_static, property_info, value_check};
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
 use syn::{DeriveInput, Ident, LitStr, Path, Visibility};
@@ -42,43 +41,31 @@ fn analyze(input: &DeriveInput) -> syn::Result<GroupAnalysis<'_>> {
 pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
   let analysis = analyze(input)?;
   let ident = analysis.ident;
-  let properties = &analysis.members.properties;
-  let others = &analysis.members.others;
-  let content = match analysis.members.content {
+  let members = &analysis.members;
+  let root = crate_root(analysis.crate_path.as_ref(), ident, REGISTRY)?;
+  let keys = members.properties.iter().map(key_static);
+  let default_impl = default_impl(ident, members, None);
+  let properties = properties_static(members);
+  let constants = members.properties.iter().filter_map(key_constant);
+  let trait_name = format_ident!("{ident}Methods").to_string();
+  let content = match members.content {
     Some(Content::Property(index)) => Some(
       quote!(const CONTENT: ::core::option::Option<&'static __artic::PropertyInfo> = ::core::option::Option::Some(&__PROPERTIES[#index]);),
     ),
     _ => None,
   };
-  let root = crate_root(analysis.crate_path.as_ref(), ident, REGISTRY)?;
-  let keys = properties.iter().map(key_static);
-  let defaults = properties.iter().map(default_field);
-  let infos = properties.iter().map(property_info);
-  let checks = properties.iter().map(|field| value_check(field.value));
-  let visits = properties.iter().map(|field| {
-    let field_ident = field.ident;
-    quote!(visitor.visit(&self.#field_ident);)
-  });
-  let count = properties.len();
-  let methods = methods_trait(input, properties, &root);
-  let trait_name = format_ident!("{ident}Methods").to_string();
-  let constants = properties.iter().filter_map(key_constant);
+  let visits = visits(members);
+  let checks = checks(members, []);
+  let methods = methods_trait(input, &members.properties, &root);
   Ok(quote! {
     const _: () = {
       use #root::__private as __artic;
 
       #(#keys)*
 
-      impl ::core::default::Default for #ident {
-        fn default() -> Self {
-          Self {
-            #(#defaults,)*
-            #(#others: ::core::default::Default::default(),)*
-          }
-        }
-      }
+      #default_impl
 
-      static __PROPERTIES: [__artic::PropertyInfo; #count] = [#(#infos),*];
+      #properties
 
       impl #ident {
         #(#constants)*
@@ -90,15 +77,11 @@ pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
         #content
 
         fn visit_properties(&self, visitor: &mut __artic::PropertyVisitor<'_>) {
-          #(#visits)*
+          #visits
         }
       }
 
-      #[allow(dead_code, clippy::needless_borrow)]
-      fn __checks() {
-        use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-        #(#checks)*
-      }
+      #checks
     };
 
     #methods

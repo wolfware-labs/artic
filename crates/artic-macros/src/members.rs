@@ -1,4 +1,5 @@
 pub(crate) mod attributes;
+pub(crate) mod emit;
 
 use crate::members::attributes::{FieldAttributes, Inherits, parse_field_attributes};
 use artic_ident::{pascal_case, screaming_snake_case};

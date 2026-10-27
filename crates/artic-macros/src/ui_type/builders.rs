@@ -1,8 +1,8 @@
-use crate::members::{Content, ContentMethod, Key, PropertyField, generic_argument};
+use crate::members::emit::{Setter, key_constant, setter};
+use crate::members::{Content, ContentMethod, PropertyField};
 use crate::ui_type::analysis::TypeAnalysis;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::Type;
 
 /// The builder items a derived type gets, written inside its inherent `impl`: `new`, `build`, one
 /// method per `Property` field, which sets the field's `Local` level, the content method for a
@@ -70,41 +70,6 @@ fn content_builder(analysis: &TypeAnalysis) -> Option<TokenStream> {
   })
 }
 
-/// How a builder method sets a `Property` field: its parameter, the value it stores and its doc.
-pub(crate) struct Setter {
-  pub parameter: TokenStream,
-  pub stored: TokenStream,
-  pub doc: String,
-}
-
-/// The `Setter` of a property field. A `Property<Option<V>>` takes a `V`: `None` is the default,
-/// so a builder only ever sets a value.
-///
-/// The method takes `impl Into<T>`, except for a number type, which it takes as is: a literal
-/// such as `8.0` is an `f64` until something fixes its type, and `impl Into<f32>` doesn't.
-pub(crate) fn setter(field: &PropertyField) -> Setter {
-  let (inner, value, name) = (field.inner, field.value, &field.ui_name);
-  let optional = generic_argument(inner, "Option").is_some();
-  let argument = if optional { value } else { inner };
-  let (parameter, converted) = if is_number(argument) {
-    (quote!(#argument), quote!(value))
-  } else {
-    (
-      quote!(impl ::core::convert::Into<#argument>),
-      quote!(::core::convert::Into::into(value)),
-    )
-  };
-  let (stored, doc) = if optional {
-    (
-      quote!(::core::option::Option::Some(#converted)),
-      format!("Sets `{name}` to `Some(value)`, the local value."),
-    )
-  } else {
-    (converted, format!("Sets `{name}`, the local value."))
-  };
-  Setter { parameter, stored, doc }
-}
-
 /// The inherent builder method of a property field.
 fn property_method(field: &PropertyField) -> TokenStream {
   let Setter { parameter, stored, doc } = setter(field);
@@ -117,44 +82,6 @@ fn property_method(field: &PropertyField) -> TokenStream {
       self
     }
   }
-}
-
-/// Whether `ty` is written as one of Rust's number types: `f32`, or a path to it through
-/// `core::primitive` or `std::primitive`. A type alias isn't seen through; a property of one takes
-/// `impl Into<T>`, so a literal passed to it needs a suffix, as in `8.0_f32`.
-fn is_number(ty: &Type) -> bool {
-  const NUMBERS: &[&str] = &[
-    "f32", "f64", "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64", "u128", "usize",
-  ];
-  let Type::Path(path) = ty else {
-    return false;
-  };
-  let segments: Vec<String> = path.path.segments.iter().map(|segment| segment.ident.to_string()).collect();
-  let name = match segments.as_slice() {
-    [name] if path.path.leading_colon.is_none() => name,
-    [krate, primitive, name] if (krate == "core" || krate == "std") && primitive == "primitive" => name,
-    _ => return false,
-  };
-  path.qself.is_none()
-    && path.path.segments.iter().all(|segment| segment.arguments.is_none())
-    && NUMBERS.contains(&name.as_str())
-}
-
-/// The public constant for a property's own key, or `None` for a field that shares a key, whose
-/// owner already names it.
-pub(crate) fn key_constant(field: &PropertyField) -> Option<TokenStream> {
-  let Key::Own {
-    key_static, constant, ..
-  } = &field.key
-  else {
-    return None;
-  };
-  let (vis, inner) = (field.vis, field.inner);
-  let doc = format!("The key of `{}`, for styles.", field.ui_name);
-  Some(quote! {
-    #[doc = #doc]
-    #vis const #constant: &'static __artic::PropertyKey<#inner> = &#key_static;
-  })
 }
 
 #[cfg(test)]
