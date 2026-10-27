@@ -19,13 +19,44 @@ impl KeyId {
 /// A [`Property`] seen without its value type, as [`Object::visit_properties`] hands it out.
 ///
 /// The tree uses it to connect a node's properties to the node and to find a property by key.
-/// Every `Property<T>` implements it.
+/// It's sealed: only `Property<T>` implements it, and the hooks the tree connects a property with
+/// are private to artic-core, so no other crate can unplug a node from its dirty flags.
+///
+/// ```compile_fail,E0599
+/// use artic_core::property::{Affects, AnyProperty, Inheritance, Property, PropertyKey};
+///
+/// static WIDTH: PropertyKey<f64> = PropertyKey::new("Width", Affects::LAYOUT, Inheritance::None);
+///
+/// let width = Property::new(&WIDTH, 0.0);
+/// (&width as &dyn AnyProperty).dispose();
+/// ```
 ///
 /// [`Object::visit_properties`]: crate::Object::visit_properties
 pub trait AnyProperty {
   /// The identity of the property's kind.
   fn key_id(&self) -> KeyId;
 
+  /// The property as `Any`, to get the typed `Property<T>` back.
+  fn as_any(&self) -> &dyn Any;
+
+  /// The tree's hooks into the property. Only artic-core can make a [`Seal`], so only it can reach
+  /// them: [`wiring`] is how it does.
+  #[doc(hidden)]
+  fn wiring(&self, seal: Seal) -> &dyn Wiring;
+}
+
+/// A token only this module can make, which gates [`AnyProperty::wiring`].
+#[derive(Debug, Clone, Copy)]
+pub struct Seal(());
+
+/// `property`'s hooks, for the tree to connect, move and free it.
+pub(crate) fn wiring(property: &dyn AnyProperty) -> &dyn Wiring {
+  property.wiring(Seal(()))
+}
+
+/// The tree's hooks into a property: connecting it to its node, following an ancestor and freeing
+/// it. Only artic-core calls them, through [`AnyProperty::wiring`].
+pub trait Wiring {
   /// Whether the property's kind inherits from logical ancestors.
   fn inherits(&self) -> bool;
 
@@ -41,9 +72,6 @@ pub trait AnyProperty {
   /// Frees the property's reactive state. The tree calls it when it frees the property's node, after
   /// which the property must not be read.
   fn dispose(&self);
-
-  /// The property as `Any`, to get the typed `Property<T>` back.
-  fn as_any(&self) -> &dyn Any;
 }
 
 impl Debug for dyn AnyProperty {
@@ -60,6 +88,19 @@ where
     KeyId::of(self.key())
   }
 
+  fn as_any(&self) -> &dyn Any {
+    self
+  }
+
+  fn wiring(&self, _seal: Seal) -> &dyn Wiring {
+    self
+  }
+}
+
+impl<T> Wiring for Property<T>
+where
+  T: PartialEq + 'static,
+{
   fn inherits(&self) -> bool {
     self.key().inherits()
   }
@@ -78,9 +119,5 @@ where
 
   fn dispose(&self) {
     Property::dispose(*self);
-  }
-
-  fn as_any(&self) -> &dyn Any {
-    self
   }
 }

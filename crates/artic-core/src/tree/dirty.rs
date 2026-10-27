@@ -16,71 +16,19 @@ use std::rc::Rc;
 /// A node's dirty flags as its properties hold them, together with its tree's pending flag.
 ///
 /// Marking the node dirty through it also sets the pending flag, so the frame pipeline learns that
-/// a frame is needed without walking the tree. Once the node is freed, marking through it does
-/// nothing.
+/// a frame is needed without walking the tree. It's private to artic-core: the tree hands one to
+/// each property when the node joins it, and disposes the properties when it frees the node.
 #[derive(Debug, Clone, Default)]
 pub struct DirtyHandle {
   stages: Rc<Cell<Affects>>,
   pending: Rc<Cell<bool>>,
-  freed: Rc<Cell<bool>>,
 }
 
 impl DirtyHandle {
   /// Adds `stages` to the node's dirty flags and sets the tree's pending flag, as a property does
-  /// when its effective value changes. Marking no stage, or marking a freed node, does nothing.
-  ///
-  /// # Examples
-  ///
-  /// ```
-  /// use artic_core::Object;
-  /// use artic_core::property::{Affects, AnyProperty, KeyId};
-  /// use artic_core::tree::{DirtyHandle, UiTree};
-  /// use std::any::Any;
-  /// use std::cell::RefCell;
-  ///
-  /// /// A property kept outside `Property`, which marks its node itself.
-  /// #[derive(Debug, Default)]
-  /// struct Custom(RefCell<Option<DirtyHandle>>);
-  ///
-  /// impl AnyProperty for Custom {
-  ///   fn key_id(&self) -> KeyId {
-  ///     unimplemented!()
-  ///   }
-  ///   fn inherits(&self) -> bool {
-  ///     false
-  ///   }
-  ///   fn attach(&self, dirty: DirtyHandle) {
-  ///     *self.0.borrow_mut() = Some(dirty);
-  ///   }
-  ///   fn inherit_from(&self, _source: Option<&dyn AnyProperty>) {}
-  ///   fn dispose(&self) {}
-  ///   fn as_any(&self) -> &dyn Any {
-  ///     self
-  ///   }
-  /// }
-  ///
-  /// #[derive(Debug, Default)]
-  /// struct Node(Custom);
-  ///
-  /// impl Object for Node {
-  ///   fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-  ///     visit(&self.0);
-  ///   }
-  /// }
-  ///
-  /// let mut tree = UiTree::new();
-  /// let id = tree.alloc(Box::new(Node::default()));
-  /// tree.clear_dirty(id, Affects::LAYOUT | Affects::RENDER);
-  /// let _ = tree.take_pending();
-  ///
-  /// let node = tree.get_as::<Node>(id).unwrap();
-  /// node.0.0.borrow().as_ref().unwrap().mark(Affects::RENDER);
-  ///
-  /// assert_eq!(tree.dirty(id), Affects::RENDER);
-  /// assert!(tree.take_pending());
-  /// ```
-  pub fn mark(&self, stages: Affects) {
-    if stages.is_empty() || self.freed.get() {
+  /// when its effective value changes. Marking no stage does nothing.
+  pub(crate) fn mark(&self, stages: Affects) {
+    if stages.is_empty() {
       return;
     }
     self.stages.set(self.stages.get() | stages);
@@ -118,19 +66,15 @@ impl DirtyFlags {
     let handle = DirtyHandle {
       stages: Rc::new(Cell::new(Affects::NONE)),
       pending: Rc::clone(pending),
-      freed: Rc::new(Cell::new(false)),
     };
     handle.mark(Affects::LAYOUT | Affects::RENDER);
     self.flags.insert(node.0, handle.clone());
     handle
   }
 
-  /// Drops `node`'s flags. Its properties keep their own handle to them, which marks nothing from
-  /// then on.
+  /// Drops `node`'s flags, once the tree has disposed the properties that shared them.
   pub(super) fn remove(&mut self, node: NodeId) {
-    if let Some(handle) = self.flags.remove(node.0) {
-      handle.freed.set(true);
-    }
+    self.flags.remove(node.0);
   }
 
   pub(super) fn get(&self, node: NodeId) -> Affects {

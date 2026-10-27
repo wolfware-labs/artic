@@ -44,10 +44,10 @@ mod objects;
 
 use crate::Object;
 use crate::arena::SlotId;
-use crate::property::{Affects, AnyProperty, AttachedKey, Inheritance, KeyId, Property};
+use crate::property::{Affects, AttachedKey, Inheritance, KeyId, Property, Wiring, wiring};
 use attached::AttachedValues;
 use dirty::DirtyFlags;
-pub use dirty::DirtyHandle;
+pub(crate) use dirty::DirtyHandle;
 pub use handle::Handle;
 use hierarchy::Tree;
 use objects::Objects;
@@ -217,7 +217,7 @@ impl UiTree {
     self
       .objects
       .object(id)
-      .visit_properties(&mut |property| property.attach(dirty.clone()));
+      .visit_properties(&mut |property| wiring(property).attach(dirty.clone()));
     id
   }
 
@@ -235,16 +235,13 @@ impl UiTree {
       return;
     };
     self.dirty_flags.remove(node_id);
-    object.visit_properties(&mut |property| {
-      property.inherit_from(None);
-      property.dispose();
-    });
+    object.visit_properties(&mut |property| wiring(property).dispose());
     self.logical.remove(node_id);
     self.visual.remove(node_id);
-    self.attached_values.of(node_id).for_each(|property| {
-      property.inherit_from(None);
-      property.dispose();
-    });
+    self
+      .attached_values
+      .of(node_id)
+      .for_each(|property| wiring(property).dispose());
     self.attached_values.remove(node_id);
   }
 

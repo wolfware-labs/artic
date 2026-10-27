@@ -67,6 +67,7 @@ mod state;
 use crate::reactive::{Change, Signal};
 pub use affects::Affects;
 pub use any::{AnyProperty, KeyId};
+pub(crate) use any::{Wiring, wiring};
 pub use attached::AttachedKey;
 pub use key::{Inheritance, PropertyKey};
 use levels::Levels;
@@ -259,6 +260,7 @@ where
   /// Frees the property's reactive state, as the tree does when it frees the property's node. A
   /// handle kept past that panics when read.
   pub(crate) fn dispose(self) {
+    self.unfollow(self.0.with_untracked(|state| state.levels.inherited()));
     self.0.dispose();
   }
 
@@ -269,12 +271,7 @@ where
     if previous == source {
       return;
     }
-    if let Some(previous) = previous.filter(|previous| previous.0.is_alive()) {
-      previous.0.update_with(|state| {
-        state.remove_follower(*self);
-        Change::Hidden
-      });
-    }
+    self.unfollow(previous);
     if let Some(source) = source {
       source.0.update_with(|state| {
         state.add_follower(*self);
@@ -282,6 +279,16 @@ where
       });
     }
     self.edit(|levels| levels.set_inherited(source));
+  }
+
+  /// Takes the property off `source`'s followers list, if `source` is still alive.
+  fn unfollow(self, source: Option<Property<T>>) {
+    if let Some(source) = source.filter(|source| source.0.is_alive()) {
+      source.0.update_with(|state| {
+        state.remove_follower(self);
+        Change::Hidden
+      });
+    }
   }
 
   /// Applies `edit` to the levels and, if readers can see it, marks the property's node dirty and

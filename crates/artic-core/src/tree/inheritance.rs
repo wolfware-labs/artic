@@ -9,7 +9,7 @@
 //! It holds no state of its own: it reads the objects, their attached values and the logical
 //! tree's links.
 
-use crate::property::AnyProperty;
+use crate::property::{AnyProperty, wiring};
 use crate::tree::NodeId;
 use crate::tree::attached::AttachedValues;
 use crate::tree::hierarchy::Tree;
@@ -21,7 +21,7 @@ use std::iter::once;
 pub(super) fn resolve(objects: &Objects, attached: &AttachedValues, logical: &Tree, root: NodeId) {
   for node in once(root).chain(logical.descendants(root)) {
     let mut follow = |property: &dyn AnyProperty| {
-      if property.inherits() {
+      if wiring(property).inherits() {
         inherit_from_nearest_ancestor(objects, attached, logical, node, property);
       }
     };
@@ -41,17 +41,17 @@ fn inherit_from_nearest_ancestor(
     let mut found = false;
     objects.object(ancestor).visit_properties(&mut |candidate| {
       if !found && candidate.key_id() == property.key_id() {
-        property.inherit_from(Some(candidate));
+        wiring(property).inherit_from(Some(candidate));
         found = true;
       }
     });
     if !found && let Some(candidate) = attached.find(ancestor, property.key_id()) {
-      property.inherit_from(Some(candidate));
+      wiring(property).inherit_from(Some(candidate));
       found = true;
     }
     if found {
       return;
     }
   }
-  property.inherit_from(None);
+  wiring(property).inherit_from(None);
 }
