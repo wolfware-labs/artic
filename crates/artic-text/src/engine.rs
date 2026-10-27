@@ -1,8 +1,8 @@
 //! [`Engine`], the [`TextEngine`] artic shapes text with.
 
 use crate::candidates::Candidates;
-use crate::shaping::Shaping;
 use crate::paragraph;
+use crate::shaping::Shaping;
 use artic_layout::finite;
 use artic_layout::text::{FamilyName, FontBytes, GenericFamily, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
 use fontique::{Blob, Collection, CollectionOptions, SourceCache};

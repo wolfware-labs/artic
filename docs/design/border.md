@@ -51,7 +51,7 @@ One even-odd fill of `ring` draws any border, whether its sides are equal or not
 
 `BoxShadow` exists in `artic-render` (#36), and vello already draws it outside its caster only, so it never shows through a semi-transparent background (#283). UI languages need it from text, so `impl FromStr for BoxShadow` goes in `shadow.rs`.
 
-The grammar is CSS's and Avalonia's: `offset-x offset-y [blur [spread]] color`, separated by whitespace. Every token but the last is a finite number, two to four of them; the last is the color, parsed by `Color::from_str`. Blur and spread default to 0. Blur can't be negative; spread can, and shrinks the shadow. `"0 2 8 #40000000"`, `"4 4 Black"` and `"0 0 12 -2 #80000000"` are valid. One value is one shadow. `inset` (#275) is refused: a token equal to `inset`, ignoring case, anywhere in the value is checked for before the numbers are read, so it reports `Inset` rather than `NotANumber`.
+The grammar is CSS's and Avalonia's: `offset-x offset-y [blur [spread]] color`, separated by whitespace. Every token but the last is a finite number, two to four of them; the last is the color, parsed by `Color::from_str`. Blur and spread default to 0. Blur can't be negative; spread can, and shrinks the shadow. `"0 2 8 #40000000"`, `"4 4 Black"` and `"0 0 12 -2 #80000000"` are valid. One value is one shadow. `inset` (#275) is refused: a token equal to `inset`, ignoring case, anywhere in the value is checked for before the numbers are read, so it reports `Inset` rather than a `Number` problem.
 
 The color is required: CSS defaults it to the text color, which artic doesn't have, and a required part can later get a default without breaking anything.
 
