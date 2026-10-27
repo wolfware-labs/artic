@@ -3,7 +3,7 @@
 // `fixtures/README.md`.
 
 use artic_diagnostics::{SourceFile, SourceId, SourceMap, Span};
-use artic_xaml::infoset::{Member, MemberKey, TypeRef, XamlDocument, XamlNamespace, XamlNode};
+use artic_xaml::infoset::{Member, MemberKey, NamespaceDecl, TypeRef, XamlDocument, XamlNamespace, XamlNode};
 use artic_xaml::parse;
 use std::fmt::Write;
 use std::path::Path;
@@ -67,10 +67,7 @@ impl Printer<'_> {
       } => {
         self.line(depth, format!("Object {} {}", type_ref(ty), self.at(ty.span)));
         for declaration in namespaces {
-          let attribute = match &declaration.prefix {
-            Some(prefix) => format!("xmlns:{prefix}"),
-            None => "xmlns".to_owned(),
-          };
+          let attribute = NamespaceDecl::attribute(declaration.prefix.as_deref());
           let at = self.at(declaration.span);
           self.line(depth + 1, format!("{attribute} {:?} {at}", declaration.uri));
         }
@@ -103,8 +100,7 @@ impl Printer<'_> {
     let key = match &member.key {
       MemberKey::Property(name) => name.clone(),
       MemberKey::Attached { owner, name } => {
-        let written = written(owner);
-        format!("attached {written}.{name} [{}]", namespace(&owner.namespace))
+        format!("attached {owner}.{name} [{}]", namespace(&owner.namespace))
       }
       MemberKey::Directive(directive) => format!("directive {directive:?}"),
       MemberKey::Content => "content".to_owned(),
@@ -128,14 +124,7 @@ impl Printer<'_> {
 
 /// A type as written, with the namespace it resolved to: `x:Static [markup]`.
 fn type_ref(ty: &TypeRef) -> String {
-  format!("{} [{}]", written(ty), namespace(&ty.namespace))
-}
-
-fn written(ty: &TypeRef) -> String {
-  match &ty.prefix {
-    Some(prefix) => format!("{prefix}:{}", ty.name),
-    None => ty.name.clone(),
-  }
+  format!("{ty} [{}]", namespace(&ty.namespace))
 }
 
 fn namespace(namespace: &XamlNamespace) -> String {

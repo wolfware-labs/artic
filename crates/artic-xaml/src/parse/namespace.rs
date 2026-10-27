@@ -2,7 +2,7 @@
 
 use super::text::Decoded;
 use super::{unresolved, unsupported};
-use crate::infoset::XamlNamespace;
+use crate::infoset::{NamespaceDecl, XamlNamespace};
 use crate::namespaces::{ARTIC_UI, MARKUP};
 use artic_diagnostics::{Diagnostic, Diagnostics, SourceId, Span};
 use artic_ident::{is_identifier, is_keyword, is_path_keyword, snake_case};
@@ -45,10 +45,7 @@ pub(super) fn classify(
   declaration: Span,
   diagnostics: &mut Diagnostics,
 ) -> XamlNamespace {
-  let attribute = match prefix {
-    Some(prefix) => format!("xmlns:{prefix}"),
-    None => "xmlns".to_owned(),
-  };
+  let attribute = NamespaceDecl::attribute(prefix);
   let text = uri.text.as_str();
   if let Some(path) = text.strip_prefix("using:") {
     let path = UsingPath {
@@ -121,14 +118,8 @@ impl UsingPath<'_> {
       if index == 0 && (segment.is_empty() || is_path_keyword(segment)) {
         return Some(Diagnostic::error(span, "a `using:` path starts with a crate name").with_help(from_crate));
       }
-      if segment.is_empty() {
-        return Some(Diagnostic::error(span, "empty segment in a `using:` path"));
-      }
-      if !is_identifier(segment) {
-        return Some(Diagnostic::error(span, format!("`{segment}` isn't a Rust identifier")));
-      }
-      if is_keyword(segment) {
-        return Some(Diagnostic::error(span, format!("`{segment}` is a Rust keyword")));
+      if let Some(problem) = segment_problem(segment) {
+        return Some(Diagnostic::error(span, problem));
       }
     }
     None
@@ -146,7 +137,7 @@ impl UsingPath<'_> {
 }
 
 /// A best-effort Rust module path for a .NET namespace: `MyApp.Views;assembly=MyApp` becomes
-/// `my_app::views`.
+/// `my_app::views`. A namespace with no segments, or one `using:` would refuse, gives that example.
 fn rust_path(clr_namespace: &str) -> String {
   let namespace = clr_namespace.split(';').next().unwrap_or_default();
   let segments: Vec<_> = namespace
@@ -154,10 +145,25 @@ fn rust_path(clr_namespace: &str) -> String {
     .filter(|segment| !segment.is_empty())
     .map(snake_case)
     .collect();
-  if segments.is_empty() {
-    "my_app::views".to_owned()
-  } else {
+  let usable = segments.first().is_some_and(|first| !is_path_keyword(first))
+    && segments.iter().all(|segment| segment_problem(segment).is_none());
+  if usable {
     segments.join("::")
+  } else {
+    "my_app::views".to_owned()
+  }
+}
+
+/// Why `segment` can't be a segment of a `using:` path after the first, if it can't.
+fn segment_problem(segment: &str) -> Option<String> {
+  if segment.is_empty() {
+    Some("empty segment in a `using:` path".to_owned())
+  } else if !is_identifier(segment) {
+    Some(format!("`{segment}` isn't a Rust identifier"))
+  } else if is_keyword(segment) {
+    Some(format!("`{segment}` is a Rust keyword"))
+  } else {
+    None
   }
 }
 
@@ -171,5 +177,13 @@ mod tests {
   fn clr_namespaces_become_module_paths() {
     assert_eq!(rust_path("MyApp.ViewModels;assembly=MyApp"), "my_app::view_models");
     assert_eq!(rust_path(";assembly=MyApp"), "my_app::views");
+  }
+
+  // A namespace whose module path `using:` would refuse, a keyword or a segment that isn't an
+  // identifier, gets the general example instead.
+  #[test]
+  fn refused_segments_fall_back() {
+    assert_eq!(rust_path("MyApp.Type"), "my_app::views");
+    assert_eq!(rust_path("My-App.Views"), "my_app::views");
   }
 }

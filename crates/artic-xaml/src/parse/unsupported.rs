@@ -1,6 +1,6 @@
 //! The MS-XAML and WPF constructs artic rejects, each with why and what to write instead.
 
-use crate::infoset::{Directive, TypeRef, XamlNamespace};
+use crate::infoset::{Directive, TypeRef, Written, XamlNamespace};
 use crate::namespaces::ARTIC_UI;
 use artic_diagnostics::{Diagnostic, Span};
 
@@ -118,10 +118,7 @@ pub(super) fn type_problem(ty: &TypeRef) -> Option<Diagnostic> {
 /// a supported directive nor a supported type.
 pub(super) fn markup_problem(prefix: Option<&str>, name: &str, span: Span) -> Diagnostic {
   rejection(&format!("x:{name}"), span).unwrap_or_else(|| {
-    let written = match prefix {
-      Some(prefix) => format!("{prefix}:{name}"),
-      None => name.to_owned(),
-    };
+    let written = Written { prefix, name };
     Diagnostic::error(span, format!("`{written}` isn't part of the XAML language namespace"))
       .with_help(format!("it has {}", markup_names()))
   })
