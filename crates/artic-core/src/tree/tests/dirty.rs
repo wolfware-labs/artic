@@ -13,9 +13,9 @@ struct Label {
 }
 
 impl Object for Label {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.font_size);
-    visit(&self.foreground);
+  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
+    visit(self.font_size.as_ref());
+    visit(self.foreground.as_ref());
   }
 }
 
@@ -123,8 +123,8 @@ struct Named {
 }
 
 impl Object for Named {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.name);
+  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
+    visit(self.name.as_ref());
   }
 }
 

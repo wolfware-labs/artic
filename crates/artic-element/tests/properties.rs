@@ -122,7 +122,7 @@ impl Boxed {
 }
 
 impl Object for Boxed {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
+  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
     self.layout.visit_properties(visit);
     self.appearance.visit_properties(visit);
   }

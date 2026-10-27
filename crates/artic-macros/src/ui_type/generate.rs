@@ -27,7 +27,7 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
   let other_fields = &analysis.other_fields;
   let visits = properties.iter().map(|field| {
     let field_ident = field.ident;
-    quote!(visit(&self.#field_ident);)
+    quote!(visit(self.#field_ident.as_ref());)
   });
   let group_visits = groups.iter().map(|field| {
     let field_ident = field.ident;
@@ -194,7 +194,7 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
       }
 
       impl __artic::Object for #ident {
-        fn visit_properties(&self, visit: &mut dyn ::core::ops::FnMut(&dyn __artic::AnyProperty)) {
+        fn visit_properties(&self, visit: &mut dyn ::core::ops::FnMut(__artic::AnyProperty<'_>)) {
           #(#visits)*
           #(#group_visits)*
         }

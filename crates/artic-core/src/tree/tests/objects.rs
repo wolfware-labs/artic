@@ -16,11 +16,11 @@ struct Control;
 struct OtherControl;
 
 impl Object for Control {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 impl Object for OtherControl {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 #[test]
@@ -42,7 +42,7 @@ fn get_as_mut_wrong_type_returns_none() {
 struct Counter(u32);
 
 impl Object for Counter {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 #[test]

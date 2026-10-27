@@ -34,7 +34,7 @@ const AWAY: f32 = 64.0;
 struct Node;
 
 impl Object for Node {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 type Draw = Box<dyn Fn(&mut SceneBuilder)>;

@@ -44,7 +44,7 @@ mod objects;
 
 use crate::Object;
 use crate::arena::SlotId;
-use crate::property::{Affects, AttachedKey, Inheritance, KeyId, Property, Wiring, wiring};
+use crate::property::{Affects, AttachedKey, Inheritance, KeyId, Property};
 use attached::AttachedValues;
 use dirty::DirtyFlags;
 pub(crate) use dirty::DirtyHandle;
@@ -77,7 +77,7 @@ const TREES: [TreeKind; 2] = [TreeKind::Logical, TreeKind::Visual];
 /// #[derive(Debug)]
 /// struct Label(&'static str);
 /// impl Object for Label {
-///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 /// }
 ///
 /// let mut tree = UiTree::new();
@@ -199,7 +199,7 @@ impl UiTree {
   /// #[derive(Debug)]
   /// struct Label;
   /// impl Object for Label {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   /// }
   ///
   /// let mut tree = UiTree::new();
@@ -217,7 +217,7 @@ impl UiTree {
     self
       .objects
       .object(id)
-      .visit_properties(&mut |property| wiring(property).attach(dirty.clone()));
+      .visit_properties(&mut |property| property.attach(dirty.clone()));
     id
   }
 
@@ -228,21 +228,16 @@ impl UiTree {
     Handle::new(self.alloc(Box::new(node)))
   }
 
-  /// Removes one node from the arena and cuts its properties loose. Its links are left to
-  /// [`free`](UiTree::free), which only calls this once no surviving node names it.
+  /// Removes one live node from the arena and disposes its properties and attached values. Its
+  /// links are left to [`free`](UiTree::free), which only calls this once no surviving node names it.
   fn free_node(&mut self, node_id: NodeId) {
-    let Some(object) = self.objects.free(node_id) else {
-      return;
-    };
+    let object = self.objects.free(node_id).expect("free passes only live nodes");
+    object.visit_properties(&mut |property| property.dispose());
+    self.attached_values.of(node_id).for_each(|property| property.dispose());
+    self.attached_values.remove(node_id);
     self.dirty_flags.remove(node_id);
-    object.visit_properties(&mut |property| wiring(property).dispose());
     self.logical.remove(node_id);
     self.visual.remove(node_id);
-    self
-      .attached_values
-      .of(node_id)
-      .for_each(|property| wiring(property).dispose());
-    self.attached_values.remove(node_id);
   }
 
   /// Returns a reference to the node referred to by `id`, or `None` if `id` is stale.
@@ -267,13 +262,13 @@ impl UiTree {
   /// #[derive(Debug)]
   /// struct Label(&'static str);
   /// impl Object for Label {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   /// }
   ///
   /// #[derive(Debug)]
   /// struct Button;
   /// impl Object for Button {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   /// }
   ///
   /// let mut tree = UiTree::new();
@@ -313,7 +308,7 @@ impl UiTree {
   /// #[derive(Debug)]
   /// struct Counter(u32);
   /// impl Object for Counter {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   /// }
   ///
   /// let mut tree = UiTree::new();
@@ -363,7 +358,7 @@ impl UiTree {
   /// #[derive(Debug)]
   /// struct Label;
   /// impl Object for Label {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   /// }
   ///
   /// let mut tree = UiTree::new();
@@ -406,7 +401,7 @@ impl UiTree {
   /// #[derive(Debug)]
   /// struct Stack;
   /// impl Object for Stack {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   /// }
   ///
   /// let mut tree = UiTree::new();
@@ -518,7 +513,7 @@ impl UiTree {
   /// #[derive(Debug)]
   /// struct Stack;
   /// impl Object for Stack {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   /// }
   ///
   /// let mut tree = UiTree::new();
@@ -541,7 +536,9 @@ impl UiTree {
   /// of a freed node is freed with it.
   ///
   /// Each freed node's properties and attached values are disposed with it: a copy of one kept
-  /// outside the tree panics when used.
+  /// outside the tree panics when used. An effect or memo that read one stops depending on it, and
+  /// panics if it runs again for another reason and reads it; give such observers a
+  /// [`Scope`](crate::reactive::Scope) disposed with the nodes they read.
   ///
   /// Freeing bumps each slot's generation, which invalidates the freed ids and every copy of them.
   /// The generation wraps around after `u32::MAX - 1` reuses of the same slot, so an id kept across
@@ -561,7 +558,7 @@ impl UiTree {
   /// #[derive(Debug)]
   /// struct Panel;
   /// impl Object for Panel {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   /// }
   ///
   /// let mut tree = UiTree::new();
@@ -694,7 +691,7 @@ impl UiTree {
   /// #[derive(Debug)]
   /// struct Button;
   /// impl Object for Button {
-  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  ///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   /// }
   ///
   /// let mut tree = UiTree::new();
@@ -714,7 +711,7 @@ impl UiTree {
       return property;
     }
     let property = Property::new_unowned(key.key(), key.default_value());
-    property.attach(self.dirty_flags.shared(node));
+    property.as_ref().attach(self.dirty_flags.shared(node));
     self.attached_values.insert(node, Box::new(property));
     if key.key().inherits() {
       inheritance::resolve(&self.objects, &self.attached_values, &self.logical, node);
@@ -779,7 +776,7 @@ impl UiTree {
     let mut field = None;
     self.objects.object(node).visit_properties(&mut |property| {
       if field.is_none() && property.key_id() == id {
-        field = property.as_any().downcast_ref::<Property<T>>().copied();
+        field = property.downcast::<T>().copied();
       }
     });
     field.or_else(|| self.stored(node, key))
@@ -793,8 +790,7 @@ impl UiTree {
   {
     self.check(node);
     let property = self.attached_values.find(node, KeyId::of(key.key()))?;
-    let property = property.as_any().downcast_ref::<Property<T>>();
-    Some(*property.expect("a key's property has the key's value type"))
+    Some(*property.downcast::<T>().expect("a key's property has the key's value type"))
   }
 }
 

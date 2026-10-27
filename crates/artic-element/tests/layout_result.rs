@@ -17,7 +17,7 @@ struct Noted {
 }
 
 impl Object for Noted {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 impl Layoutable for Noted {

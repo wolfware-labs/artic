@@ -146,7 +146,7 @@ mod tests {
   struct Node;
 
   impl Object for Node {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   }
 
   fn new_node(tree: &mut UiTree) -> NodeId {

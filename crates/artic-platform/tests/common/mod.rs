@@ -30,8 +30,8 @@ pub struct Column {
 }
 
 impl Object for Column {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.visible);
+  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
+    visit(self.visible.as_ref());
   }
 }
 
@@ -83,10 +83,10 @@ pub struct Leaf {
 }
 
 impl Object for Leaf {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.height);
-    visit(&self.color);
-    visit(&self.turn);
+  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
+    visit(self.height.as_ref());
+    visit(self.color.as_ref());
+    visit(self.turn.as_ref());
   }
 }
 
@@ -130,7 +130,7 @@ artic_element::element_type!(Leaf);
 pub struct Wrap;
 
 impl Object for Wrap {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 impl Layoutable for Wrap {
@@ -344,8 +344,8 @@ pub struct Label {
 }
 
 impl Object for Label {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.text);
+  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
+    visit(self.text.as_ref());
   }
 }
 

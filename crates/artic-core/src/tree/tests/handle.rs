@@ -8,7 +8,7 @@ use static_assertions::{assert_eq_size, assert_impl_all};
 struct Label(&'static str);
 
 impl Object for Label {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 assert_eq_size!(Handle<Label>, NodeId);

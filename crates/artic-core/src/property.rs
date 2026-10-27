@@ -67,8 +67,8 @@ mod state;
 
 use crate::reactive::{Change, Signal};
 pub use affects::Affects;
+pub(crate) use any::Erased;
 pub use any::{AnyProperty, KeyId};
-pub(crate) use any::{Wiring, wiring};
 pub use attached::AttachedKey;
 pub use key::{Inheritance, PropertyKey};
 use levels::Levels;
@@ -178,6 +178,13 @@ where
     Property(Signal::new_unowned(PropertyState::new(key, default)))
   }
 
+  /// The property without its value type, for
+  /// [`Object::visit_properties`](crate::Object::visit_properties) to hand to the tree.
+  #[must_use]
+  pub fn as_ref(&self) -> AnyProperty<'_> {
+    AnyProperty::new(self)
+  }
+
   /// Returns the key that identifies this property's kind and holds its metadata.
   ///
   /// The key never changes, so reading it doesn't subscribe the running observer.
@@ -267,7 +274,7 @@ where
   /// Frees the property's reactive state, as the tree does when it frees the property's node. A
   /// handle kept past that panics when read. A property already disposed, by its scope or an
   /// earlier call, is left as it is.
-  pub(crate) fn dispose(self) {
+  fn dispose(self) {
     if !self.0.is_alive() {
       return;
     }

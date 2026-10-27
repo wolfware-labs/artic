@@ -16,71 +16,92 @@ impl KeyId {
   }
 }
 
-/// A [`Property`] seen without its value type, as [`Object::visit_properties`] hands it out.
+/// One of a node's properties without its value type, as
+/// [`Object::visit_properties`](crate::Object::visit_properties) hands it out. Make one with
+/// [`Property::as_ref`].
 ///
-/// The tree uses it to connect a node's properties to the node and to find a property by key.
-/// It's sealed: only `Property<T>` implements it, and the hooks the tree connects a property with
-/// are private to artic-core, so no other crate can unplug a node from its dirty flags.
+/// The tree uses it to connect a node's properties to the node and to find a property by key. The
+/// hooks it does that with are private to artic-core, so no other crate can unplug a node from its
+/// dirty flags:
 ///
 /// ```compile_fail,E0599
-/// use artic_core::property::{Affects, AnyProperty, Inheritance, Property, PropertyKey};
+/// use artic_core::property::{Affects, Inheritance, Property, PropertyKey};
 ///
 /// static WIDTH: PropertyKey<f64> = PropertyKey::new("Width", Affects::LAYOUT, Inheritance::None);
 ///
 /// let width = Property::new(&WIDTH, 0.0);
-/// (&width as &dyn AnyProperty).dispose();
+/// width.as_ref().dispose();
 /// ```
-///
-/// [`Object::visit_properties`]: crate::Object::visit_properties
-pub trait AnyProperty {
+#[derive(Clone, Copy)]
+pub struct AnyProperty<'a>(&'a dyn Erased);
+
+impl<'a> AnyProperty<'a> {
+  /// Erases the value type of `property`.
+  pub(crate) fn new(property: &'a dyn Erased) -> AnyProperty<'a> {
+    AnyProperty(property)
+  }
+
   /// The identity of the property's kind.
-  fn key_id(&self) -> KeyId;
+  #[must_use]
+  pub fn key_id(self) -> KeyId {
+    self.0.key_id()
+  }
 
-  /// The property as `Any`, to get the typed `Property<T>` back.
-  fn as_any(&self) -> &dyn Any;
+  /// The property as a `Property<T>`, or `None` if its value isn't a `T`.
+  #[must_use]
+  pub fn downcast<T: 'static>(self) -> Option<&'a Property<T>> {
+    self.0.as_any().downcast_ref()
+  }
 
-  /// The tree's hooks into the property. Only artic-core can make a [`Seal`], so only it can reach
-  /// them: [`wiring`] is how it does.
-  #[doc(hidden)]
-  fn wiring(&self, seal: Seal) -> &dyn Wiring;
-}
-
-/// A token only this module can make, which gates [`AnyProperty::wiring`].
-#[derive(Debug, Clone, Copy)]
-pub struct Seal(());
-
-/// `property`'s hooks, for the tree to connect, move and free it.
-pub(crate) fn wiring(property: &dyn AnyProperty) -> &dyn Wiring {
-  property.wiring(Seal(()))
-}
-
-/// The tree's hooks into a property: connecting it to its node, following an ancestor and freeing
-/// it. Only artic-core calls them, through [`AnyProperty::wiring`].
-pub trait Wiring {
   /// Whether the property's kind inherits from logical ancestors.
-  fn inherits(&self) -> bool;
+  pub(crate) fn inherits(self) -> bool {
+    self.0.inherits()
+  }
 
   /// Connects the property to its node's dirty flags. After this, a change to the effective value
   /// adds the key's [`Affects`](super::Affects) to them and sets the tree's pending flag.
-  fn attach(&self, dirty: DirtyHandle);
+  pub(crate) fn attach(self, dirty: DirtyHandle) {
+    self.0.attach(dirty);
+  }
 
   /// Makes the property's `Inherited` level follow `source`, a property of the same kind on a
   /// logical ancestor, or stop following anything when `source` is `None`. The tree calls it when
   /// the node moves; a property of another kind is ignored.
-  fn inherit_from(&self, source: Option<&dyn AnyProperty>);
+  pub(crate) fn inherit_from(self, source: Option<AnyProperty<'_>>) {
+    self.0.inherit_from(source);
+  }
 
   /// Frees the property's reactive state. The tree calls it when it frees the property's node, after
   /// which the property must not be read.
-  fn dispose(&self);
+  pub(crate) fn dispose(self) {
+    self.0.dispose();
+  }
 }
 
-impl Debug for dyn AnyProperty {
+impl Debug for AnyProperty<'_> {
+  fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+    Debug::fmt(self.0, formatter)
+  }
+}
+
+impl Debug for dyn Erased + '_ {
   fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
     formatter.debug_tuple("AnyProperty").field(&self.key_id()).finish()
   }
 }
 
-impl<T> AnyProperty for Property<T>
+/// A [`Property`] without its value type: what [`AnyProperty`] points at, and what the tree stores
+/// a node's attached values as. Each method backs the `AnyProperty` method of the same name.
+pub(crate) trait Erased {
+  fn key_id(&self) -> KeyId;
+  fn as_any(&self) -> &dyn Any;
+  fn inherits(&self) -> bool;
+  fn attach(&self, dirty: DirtyHandle);
+  fn inherit_from(&self, source: Option<AnyProperty<'_>>);
+  fn dispose(&self);
+}
+
+impl<T> Erased for Property<T>
 where
   T: PartialEq + 'static,
 {
@@ -92,15 +113,6 @@ where
     self
   }
 
-  fn wiring(&self, _seal: Seal) -> &dyn Wiring {
-    self
-  }
-}
-
-impl<T> Wiring for Property<T>
-where
-  T: PartialEq + 'static,
-{
   fn inherits(&self) -> bool {
     self.key().inherits()
   }
@@ -112,9 +124,8 @@ where
     });
   }
 
-  fn inherit_from(&self, source: Option<&dyn AnyProperty>) {
-    let source = source.and_then(|source| source.as_any().downcast_ref::<Property<T>>());
-    self.follow(source.copied());
+  fn inherit_from(&self, source: Option<AnyProperty<'_>>) {
+    self.follow(source.and_then(AnyProperty::downcast).copied());
   }
 
   fn dispose(&self) {

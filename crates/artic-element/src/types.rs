@@ -110,7 +110,7 @@ mod tests {
   struct Dot;
 
   impl Object for Dot {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   }
 
   impl Layoutable for Dot {
@@ -137,7 +137,7 @@ mod tests {
   struct Plain;
 
   impl Object for Plain {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   }
 
   // A registered type is found, by shared and mutable reference; another type isn't.

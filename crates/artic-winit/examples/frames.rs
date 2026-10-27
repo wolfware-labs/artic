@@ -29,8 +29,8 @@ struct Swatch {
 }
 
 impl Object for Swatch {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.red);
+  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
+    visit(self.red.as_ref());
   }
 }
 

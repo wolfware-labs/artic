@@ -186,7 +186,7 @@ mod tests {
     #[derive(Debug)]
     struct Leaf;
     impl artic_core::Object for Leaf {
-      fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn artic_core::property::AnyProperty)) {}
+      fn visit_properties(&self, _visit: &mut dyn FnMut(artic_core::property::AnyProperty<'_>)) {}
     }
     let mut tree = UiTree::new();
     let node = tree.alloc(Box::new(Leaf));

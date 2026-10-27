@@ -6,13 +6,13 @@
 //! default without storing anything, and connected to the node's dirty flags like a field.
 
 use crate::arena::SlotMap;
-use crate::property::{AnyProperty, KeyId};
+use crate::property::{AnyProperty, Erased, KeyId};
 use crate::tree::NodeId;
 
 /// The attached property values of each node that has any.
 #[derive(Debug, Default)]
 pub(super) struct AttachedValues {
-  values: SlotMap<Vec<Box<dyn AnyProperty>>>,
+  values: SlotMap<Vec<Box<dyn Erased>>>,
 }
 
 impl AttachedValues {
@@ -20,16 +20,20 @@ impl AttachedValues {
     Self { values: SlotMap::new() }
   }
 
-  pub(super) fn find(&self, node: NodeId, key: KeyId) -> Option<&dyn AnyProperty> {
-    let properties = self.values.get(node.0)?;
-    properties.iter().find(|property| property.key_id() == key).map(AsRef::as_ref)
+  pub(super) fn find(&self, node: NodeId, key: KeyId) -> Option<AnyProperty<'_>> {
+    self.of(node).find(|property| property.key_id() == key)
   }
 
-  pub(super) fn of(&self, node: NodeId) -> impl Iterator<Item = &dyn AnyProperty> {
-    self.values.get(node.0).into_iter().flatten().map(AsRef::as_ref)
+  pub(super) fn of(&self, node: NodeId) -> impl Iterator<Item = AnyProperty<'_>> {
+    self
+      .values
+      .get(node.0)
+      .into_iter()
+      .flatten()
+      .map(|property| AnyProperty::new(property.as_ref()))
   }
 
-  pub(super) fn insert(&mut self, node: NodeId, property: Box<dyn AnyProperty>) {
+  pub(super) fn insert(&mut self, node: NodeId, property: Box<dyn Erased>) {
     match self.values.get_mut(node.0) {
       Some(properties) => properties.push(property),
       None => self.values.insert(node.0, vec![property]),

@@ -24,9 +24,9 @@ impl Label {
 }
 
 impl Object for Label {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.font_size);
-    visit(&self.foreground);
+  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
+    visit(self.font_size.as_ref());
+    visit(self.foreground.as_ref());
   }
 }
 
@@ -93,9 +93,9 @@ fn free_keeps_the_parent_working() {
 struct Twice(Property<i32>);
 
 impl Object for Twice {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.0);
-    visit(&self.0);
+  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
+    visit(self.0.as_ref());
+    visit(self.0.as_ref());
   }
 }
 

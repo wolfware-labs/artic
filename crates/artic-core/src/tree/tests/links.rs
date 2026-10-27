@@ -8,7 +8,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 struct Control;
 
 impl Object for Control {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 /// Clears every node's dirty flags.

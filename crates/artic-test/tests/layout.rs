@@ -239,7 +239,7 @@ struct Growing {
 }
 
 impl Object for Growing {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 impl Layoutable for Growing {
@@ -255,7 +255,7 @@ impl Layoutable for Growing {
 struct Shove;
 
 impl Object for Shove {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 impl Layoutable for Shove {
@@ -277,7 +277,7 @@ impl Layoutable for Shove {
 struct FirstOnly;
 
 impl Object for FirstOnly {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 impl Layoutable for FirstOnly {

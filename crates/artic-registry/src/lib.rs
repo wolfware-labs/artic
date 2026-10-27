@@ -44,7 +44,7 @@ use linkme::distributed_slice;
 /// #[derive(Debug)]
 /// struct Gauge;
 /// impl Object for Gauge {
-///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 /// }
 ///
 /// static GAUGE: TypeInfo = TypeInfo {
@@ -100,7 +100,7 @@ pub static UI_TYPES: [&'static TypeInfo];
 /// #[derive(Debug)]
 /// struct Dial;
 /// impl Object for Dial {
-///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 /// }
 ///
 /// static DIAL: TypeInfo = TypeInfo {

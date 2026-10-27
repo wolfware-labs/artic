@@ -15,7 +15,7 @@ struct Node {
 }
 
 impl Object for Node {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 fn node(tree: &mut UiTree) -> NodeId {

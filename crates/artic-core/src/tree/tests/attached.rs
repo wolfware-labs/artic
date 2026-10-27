@@ -10,7 +10,7 @@ static LABEL: AttachedKey<String> = AttachedKey::new("Label", Affects::RENDER, I
 struct Button;
 
 impl Object for Button {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 /// A tree with one button whose dirty flags are already cleared.
@@ -180,8 +180,8 @@ struct Themed {
 }
 
 impl Object for Themed {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.chrome);
+  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
+    visit(self.chrome.as_ref());
   }
 }
 

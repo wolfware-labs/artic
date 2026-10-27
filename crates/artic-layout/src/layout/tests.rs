@@ -15,7 +15,7 @@ struct Node {
 }
 
 impl Object for Node {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 impl Layoutable for Node {
@@ -277,7 +277,7 @@ mod bounds {
   }
 
   impl Object for Inset {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   }
 
   impl Layoutable for Inset {
@@ -363,7 +363,7 @@ mod skipped {
   }
 
   impl Object for Toggle {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   }
 
   impl Layoutable for Toggle {
@@ -542,7 +542,7 @@ mod misuse {
   struct Skipper;
 
   impl Object for Skipper {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   }
 
   impl Layoutable for Skipper {
@@ -739,7 +739,7 @@ mod overlay {
   struct Overlay;
 
   impl Object for Overlay {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   }
 
   impl Layoutable for Overlay {
@@ -817,11 +817,11 @@ mod collapsed {
   }
 
   impl Object for Item {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   }
 
   impl Object for Column {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   }
 
   impl Layoutable for Item {
@@ -1036,7 +1036,7 @@ mod collapsed {
   struct Direct;
 
   impl Object for Direct {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   }
 
   impl Layoutable for Direct {
@@ -1150,7 +1150,7 @@ struct Shaper {
 }
 
 impl Object for Shaper {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 impl Layoutable for Shaper {
@@ -1195,7 +1195,7 @@ impl Layoutable for Shaper {
 struct Holder;
 
 impl Object for Holder {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 impl Layoutable for Holder {

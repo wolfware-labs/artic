@@ -44,7 +44,7 @@ impl Fixed {
 }
 
 impl Object for Fixed {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 impl Layoutable for Fixed {
@@ -87,7 +87,7 @@ impl Stack {
 }
 
 impl Object for Stack {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 impl Layoutable for Stack {

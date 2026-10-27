@@ -7,7 +7,7 @@ fn allocate_control() {
   #[derive(Debug, PartialEq, Eq)]
   struct Control;
   impl Object for Control {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   }
 
   let mut tree = UiTree::new();

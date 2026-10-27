@@ -175,7 +175,7 @@ mod tests {
   struct Node;
 
   impl Object for Node {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   }
 
   /// Answers composition from a table, and counts how often each node is recorded.
@@ -529,8 +529,8 @@ mod tests {
   struct Painted(Property<i32>);
 
   impl Object for Painted {
-    fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-      visit(&self.0);
+    fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
+      visit(self.0.as_ref());
     }
   }
 

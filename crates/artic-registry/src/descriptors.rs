@@ -136,7 +136,7 @@ pub trait PropertyGroup {
 
   /// Lists the group's properties, as [`Object::visit_properties`](artic_core::Object::visit_properties)
   /// does for a node.
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty));
+  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>));
 }
 
 /// A node that holds the property group `G` in a `#[ui(flatten)]` field. `#[derive(UiType)]`
@@ -281,7 +281,7 @@ mod tests {
   }
 
   impl Object for Border {
-    fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+    fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
   }
 
   fn new_border(tree: &mut UiTree) -> NodeId {

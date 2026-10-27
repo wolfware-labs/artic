@@ -35,7 +35,7 @@ use std::fmt::Debug;
 /// }
 ///
 /// impl Object for Label {
-///   fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+///   fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 /// }
 ///
 /// let mut tree = UiTree::new();
@@ -59,8 +59,8 @@ use std::fmt::Debug;
 /// }
 ///
 /// impl Object for TextBlock {
-///   fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-///     visit(&self.font_size);
+///   fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
+///     visit(self.font_size.as_ref());
 ///   }
 /// }
 ///
@@ -79,5 +79,5 @@ pub trait Object: Debug + Any {
   /// changes mark the node dirty, and to find a property by its key. A node type without properties
   /// implements it with an empty body. It has no default on purpose: a type that has properties
   /// but forgot to visit them would compile and silently never update.
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty));
+  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>));
 }

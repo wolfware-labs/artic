@@ -53,7 +53,7 @@ fn main() {
 struct Node;
 
 impl Object for Node {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 /// One node that draws every tile, laid out by hand until layout (#41) exists.

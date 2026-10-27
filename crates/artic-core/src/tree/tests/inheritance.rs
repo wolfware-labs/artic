@@ -14,8 +14,8 @@ struct Window {
 }
 
 impl Object for Window {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.font_size);
+  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
+    visit(self.font_size.as_ref());
   }
 }
 
@@ -24,7 +24,7 @@ impl Object for Window {
 struct StackPanel;
 
 impl Object for StackPanel {
-  fn visit_properties(&self, _visit: &mut dyn FnMut(&dyn AnyProperty)) {}
+  fn visit_properties(&self, _visit: &mut dyn FnMut(AnyProperty<'_>)) {}
 }
 
 /// A leaf with an inheritable font size and a width that doesn't inherit.
@@ -35,9 +35,9 @@ struct TextBlock {
 }
 
 impl Object for TextBlock {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.font_size);
-    visit(&self.width);
+  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
+    visit(self.font_size.as_ref());
+    visit(self.width.as_ref());
   }
 }
 
@@ -48,8 +48,8 @@ struct Toggle {
 }
 
 impl Object for Toggle {
-  fn visit_properties(&self, visit: &mut dyn FnMut(&dyn AnyProperty)) {
-    visit(&self.enabled);
+  fn visit_properties(&self, visit: &mut dyn FnMut(AnyProperty<'_>)) {
+    visit(self.enabled.as_ref());
   }
 }
 
