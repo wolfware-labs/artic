@@ -1,5 +1,5 @@
 use crate::Error;
-use crate::backend::backends_for;
+use crate::backend::{backends_for, is_warp};
 use crate::translate::translate;
 use artic_render::{
   PhysicalSize, PixelBuffer, PixelFormat, RawHandles, RenderError, Scene, SurfaceId, SurfaceView, Target, TargetKind,
@@ -42,13 +42,17 @@ impl Renderer {
   ///
   /// # Errors
   ///
-  /// Returns a [`Error`] when no adapter supports the platform's GPU API, the device can't be
-  /// opened, or vello's pipelines can't be built.
+  /// Returns a [`Error`] when no adapter supports the platform's GPU API, the one found is WARP,
+  /// the device can't be opened, or vello's pipelines can't be built.
   pub fn new() -> Result<Renderer, Error> {
     let mut descriptor = InstanceDescriptor::new_without_display_handle();
     descriptor.backends = Backends::from_env().unwrap_or_else(|| backends_for(std::env::consts::OS));
     let instance = Instance::new(descriptor);
     let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))?;
+    let info = adapter.get_info();
+    if is_warp(info.backend, info.device_type) {
+      return Err(Error::UnsupportedAdapter(info.name));
+    }
     let (device, queue) = pollster::block_on(adapter.request_device(&DeviceDescriptor::default()))?;
     let options = RendererOptions {
       antialiasing_support: AaSupport::area_only(),
@@ -64,13 +68,6 @@ impl Renderer {
       encoded: vello::Scene::new(),
       swapchains: HashMap::new(),
     })
-  }
-
-  /// The GPU this renderer draws with: its name, driver and whether it's a real GPU or a software
-  /// adapter.
-  #[must_use]
-  pub fn adapter_info(&self) -> wgpu::AdapterInfo {
-    self.adapter.get_info()
   }
 
   /// Draws the translated scene into a fresh texture of `size`, which vello can write.

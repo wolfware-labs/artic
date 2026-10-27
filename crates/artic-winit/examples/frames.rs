@@ -2,8 +2,9 @@
 // first frame, and checks that the loop then goes idle: 1.5 s after the first frame it exits with
 // code 1 if any frame ran in the last 500 ms, and with code 0 otherwise. The check and the exit run
 // on the loop's thread, woken by a timer through the host's `Waker`. On WARP, Windows' software
-// adapter (all GitHub's Windows runners have), vello crashes, so there it draws with a renderer
-// that draws nothing: the check is about when frames run, not what they show.
+// adapter (all GitHub's Windows runners have), vello can't run and the renderer refuses to start,
+// so there it draws with a renderer that draws nothing: the check is about when frames run, not
+// what they show.
 //
 // Run with `cargo run -p artic-winit --example frames`.
 
@@ -125,12 +126,13 @@ impl Renderer for Blank {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-  let renderer = artic_vello::Renderer::new().map_err(|error| format!("no GPU renderer: {error}"))?;
-  if cfg!(windows) && renderer.adapter_info().device_type == vello::wgpu::DeviceType::Cpu {
-    println!("WARP, on which vello crashes: drawing nothing");
-    check(Blank)
-  } else {
-    check(renderer)
+  match artic_vello::Renderer::new() {
+    Ok(renderer) => check(renderer),
+    Err(error @ artic_vello::Error::UnsupportedAdapter(_)) => {
+      println!("{error}: drawing nothing");
+      check(Blank)
+    }
+    Err(error) => Err(format!("no GPU renderer: {error}").into()),
   }
 }
 

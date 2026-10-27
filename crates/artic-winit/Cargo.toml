@@ -22,7 +22,6 @@ artic-text.workspace = true
 artic-element.workspace = true
 artic-layout.workspace = true
 artic-vello.workspace = true
-vello.workspace = true
 pretty_assertions.workspace = true
 
 [lints]

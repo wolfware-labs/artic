@@ -383,7 +383,6 @@ dependencies = [
  "artic-text",
  "artic-vello",
  "pretty_assertions",
- "vello",
  "winit",
 ]
 
