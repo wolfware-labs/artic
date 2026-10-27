@@ -1,11 +1,13 @@
 //! Layout tests without a window or a GPU: build a tree in a [`Headless`], run
-//! [`LayoutManager`](artic_layout::LayoutManager), and check sizes and rectangles.
+//! [`LayoutManager`](artic_layout::LayoutManager), and check sizes and rectangles. `Headless`
+//! finds every element registered with `artic_element::element_type!`, the controls and the
+//! shared test elements [`Fixed`] and [`Stack`] alike.
 //!
 //! ```
 //! use artic_layout::geometry::{Rect, Size};
-//! use artic_test::layout::{Boxes, Fixed, Headless, Stack};
+//! use artic_test::layout::{Fixed, Headless, Stack};
 //!
-//! let mut layout = Headless::new(Boxes);
+//! let mut layout = Headless::new();
 //! let first = layout.add("first", Fixed::new(100.0, 20.0));
 //! let second = layout.add("second", Fixed::new(80.0, 30.0));
 //! let root = layout.parent("stack", Stack::new(), &[first, second]);
@@ -26,7 +28,7 @@ mod headless;
 mod invariants;
 pub mod strategy;
 
-pub use elements::{Boxes, Fixed, Stack};
+pub use elements::{Fixed, Stack};
 pub use headless::Headless;
 pub use invariants::Invariants;
 

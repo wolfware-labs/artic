@@ -7,7 +7,7 @@ A layout test builds a tree with no window and no GPU, runs `LayoutManager`, and
 ```rust,ignore
 #[test]
 fn stack_puts_children_top_to_bottom() {
-  let mut layout = Headless::new(Boxes);
+  let mut layout = Headless::new();
   let first = layout.add("first", Fixed::new(100.0, 20.0));
   let second = layout.add("second", Fixed::new(80.0, 30.0));
   let root = layout.parent("stack", Stack::new(), &[first, second]);
@@ -75,9 +75,8 @@ Most layout tests need a leaf of a known size and a parent that places its child
 | --- | --- |
 | `Fixed` | a leaf: `Fixed::new(width, height)` asks for that size whatever is available. `set_size` changes it, for tests that invalidate. `measured()` and `arranged()` count the calls |
 | `Stack` | places its children top to bottom, each as wide as the stack and as tall as it asked; asks for the widest child's width and the sum of the heights. It counts calls the same way |
-| `Boxes` | the `LayoutNodes` for both |
 
-A test with its own element writes its own `LayoutNodes` and passes it to `Headless::new`, the same way.
+Both are elements that draw nothing, registered with `artic_element::element_type!`, so `Headless::new()` lays them out through `ElementTypes` beside every control. A test with its own element registers it the same way. A test that needs a `LayoutNodes` of its own, such as one with elements that break the layout rules on purpose, passes it to `Headless::with_nodes`.
 
 ## 4. Strategies and invariants
 
@@ -118,7 +117,7 @@ proptest! {
     available in strategy::available(),
     scale in strategy::scale(),
   ) {
-    let mut layout = Headless::new(Boxes);
+    let mut layout = Headless::new();
     let children: Vec<_> = sizes
       .iter()
       .enumerate()
@@ -155,4 +154,4 @@ The tests with a broken element prove that `Invariants` can fail. Without them, 
 | PR | Contents | Done when |
 | --- | --- | --- |
 | A | this document | approved |
-| B | `artic_test::layout` with `Headless`, the assertions, `Fixed`, `Stack`, `Boxes`, `strategy` and `Invariants`, with a rustdoc example; `proptest` as a dependency of `artic-test` | the tests in section 7 pass, and a layout test needs no GPU |
+| B | `artic_test::layout` with `Headless`, the assertions, `Fixed`, `Stack`, `strategy` and `Invariants`, with a rustdoc example; `proptest` as a dependency of `artic-test` | the tests in section 7 pass, and a layout test needs no GPU |

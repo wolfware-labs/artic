@@ -275,7 +275,7 @@ Elements return their own node; the tree of nodes is built by #54's walk, which 
 | `artic-controls` | `stack_vertical_measure`, `stack_horizontal_measure`, `stack_spacing_skips_collapsed`, `stack_arrange_positions_children` (both orientations), `stack_spacing_ignores_invalid_values`, `empty_stack_is_zero`, `stack_children_are_its_content`, `stack_panel_accesskit_node` (the role; child order is checked by #54's `stack_panel_children_in_visual_order`), and the property test `stack_invariants_hold` over random children in both orientations |
 | `artic-vello` | the golden `stack_panel_background`: a panel with a background and three fixed-size children |
 
-The `artic-controls` tests use `artic_test::layout::Headless` with a `LayoutNodes` that asks `ElementTypes` first and falls back to `Boxes`, so the panel is a real element and its children are `Fixed` leaves; `artic-controls` takes `artic-test` as a dev-dependency. The golden follows #38's rule that goldens belong to each renderer: it lives in `artic-vello/tests/goldens.rs` and builds its tree there, and `artic-vello` takes `artic-controls` as a dev-dependency, which the adapter rule in `architecture.md` is updated to allow for tests (section 7).
+The `artic-controls` tests use `artic_test::layout::Headless`, which lays out every registered element, so the panel is a real element and its children are `Fixed` leaves; `artic-controls` takes `artic-test` as a dev-dependency. The golden follows #38's rule that goldens belong to each renderer: it lives in `artic-vello/tests/goldens.rs` and builds its tree there, and `artic-vello` takes `artic-controls` as a dev-dependency, which the adapter rule in `architecture.md` is updated to allow for tests (section 7).
 
 ## 10. Pull requests
 

@@ -6,16 +6,16 @@ use artic_core::Object;
 use artic_core::property::PropertyVisitor;
 use artic_core::property::{Affects, Precedence};
 use artic_core::tree::{NodeId, UiTree};
-use artic_element::{AccessCx, Children, ElementTypes};
+use artic_element::{AccessCx, Children, Element, ElementTypes, RenderCx};
 use artic_layout::geometry::{Point, Rect, Size};
 use artic_layout::text::{
   FontFamily, FontStyle, FontWeight, Paragraph, ParagraphStyle, TextAlignment, TextEngine, TextLimits, TextStyle, TextTrimming,
   TextWrapping,
 };
 use artic_layout::{ArrangeCx, MeasureCx};
-use artic_layout::{LayoutNodes, Layoutable, Orientation};
-use artic_render::{Brush, Color, Command};
-use artic_test::layout::{Boxes, Headless};
+use artic_layout::{Layoutable, Orientation};
+use artic_render::{Brush, Color, Command, SceneBuilder};
+use artic_test::layout::Headless;
 use artic_test::layout::{Invariants, strategy};
 use proptest::prelude::*;
 use std::cell::Cell;
@@ -43,28 +43,10 @@ fn text_element_defaults_and_inheritance() {
   assert_eq!(TextElement::foreground(&tree, child), Brush::from(Color::rgb(200, 0, 0)));
 }
 
-/// Real elements first, then the shared test leaves.
-struct Nodes(ElementTypes);
-
-impl LayoutNodes for Nodes {
-  fn layoutable<'a>(&self, tree: &'a UiTree, node: NodeId) -> Option<&'a dyn Layoutable> {
-    self
-      .0
-      .layoutable(tree, node)
-      .or_else(|| tree.get_as::<Frame>(node).map(|frame| frame as &dyn Layoutable))
-      .or_else(|| Boxes.layoutable(tree, node))
-  }
-}
-
 /// The window most tests lay out in.
 const WINDOW: Size = Size::new(200.0, 300.0);
 /// A sentence long enough to wrap and trim at test widths.
 const SENTENCE: &str = "The quick brown fox jumps over the lazy dog";
-
-/// A headless layout of real elements and the shared test leaves.
-fn layout() -> Headless<Nodes> {
-  Headless::new(Nodes(ElementTypes::from_link_time()))
-}
 
 /// A TextBlock showing `text`, otherwise at its defaults.
 fn text_block(text: &str) -> TextBlock {
@@ -74,13 +56,13 @@ fn text_block(text: &str) -> TextBlock {
 }
 
 /// The TextBlock at `node`.
-fn get(layout: &mut Headless<Nodes>, node: NodeId) -> &TextBlock {
+fn get(layout: &mut Headless, node: NodeId) -> &TextBlock {
   layout.tree().get_as::<TextBlock>(node).expect("a text block")
 }
 
 /// The commands the node records.
-fn drawn_commands(layout: &mut Headless<Nodes>, node: NodeId) -> Vec<Command> {
-  layout.record(node, &ElementTypes::from_link_time())
+fn drawn_commands(layout: &mut Headless, node: NodeId) -> Vec<Command> {
+  layout.record(node)
 }
 
 /// The id of the ellipsis glyph in the test font at TextBlock's default size.
@@ -103,7 +85,7 @@ fn glyph_ids(paragraph: &Paragraph) -> Vec<u32> {
 }
 
 /// The paragraph the node draws and where.
-fn drawn(layout: &mut Headless<Nodes>, node: NodeId) -> (Paragraph, Point) {
+fn drawn(layout: &mut Headless, node: NodeId) -> (Paragraph, Point) {
   drawn_commands(layout, node)
     .into_iter()
     .find_map(|command| match command {
@@ -116,7 +98,7 @@ fn drawn(layout: &mut Headless<Nodes>, node: NodeId) -> (Paragraph, Point) {
 // NoWrap keeps one line, as wide as the text, however narrow the window.
 #[test]
 fn textblock_nowrap_single_line() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let root = layout.add("text", text_block(SENTENCE));
 
   layout.run(root, Size::new(80.0, 300.0), 1.0);
@@ -129,7 +111,7 @@ fn textblock_nowrap_single_line() {
 // Wrap breaks lines to the available width.
 #[test]
 fn textblock_wraps_at_width() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let root = layout.add("text", text_block(SENTENCE));
   get(&mut layout, root).text_wrapping.set(TextWrapping::Wrap);
 
@@ -143,7 +125,7 @@ fn textblock_wraps_at_width() {
 // MaxLines keeps that many lines.
 #[test]
 fn textblock_max_lines() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let root = layout.add("text", text_block(SENTENCE));
   get(&mut layout, root).text_wrapping.set(TextWrapping::Wrap);
   get(&mut layout, root).max_lines.set(NonZeroU32::new(2));
@@ -161,7 +143,7 @@ fn textblock_trims_with_ellipsis() {
     (TextTrimming::CharacterEllipsis, false),
     (TextTrimming::LeadingCharacterEllipsis, true),
   ] {
-    let mut layout = layout();
+    let mut layout = Headless::new();
     let root = layout.add("text", text_block(SENTENCE));
     get(&mut layout, root).text_trimming.set(mode);
 
@@ -179,7 +161,7 @@ fn textblock_trims_with_ellipsis() {
 // With trimming, the available height drops the lines that don't fit.
 #[test]
 fn textblock_trims_to_the_available_height() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let root = layout.add("text", text_block(SENTENCE));
   get(&mut layout, root).text_wrapping.set(TextWrapping::Wrap);
   get(&mut layout, root).text_trimming.set(TextTrimming::CharacterEllipsis);
@@ -194,7 +176,7 @@ fn textblock_trims_to_the_available_height() {
 // Empty text has no width and the height of one line.
 #[test]
 fn empty_textblock_is_one_line_high() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let root = layout.add("text", text_block(""));
 
   layout.run(root, WINDOW, 1.0);
@@ -205,7 +187,7 @@ fn empty_textblock_is_one_line_high() {
 }
 
 /// A StackPanel holding one TextBlock of `text` in both trees: the panel and the block.
-fn in_panel(layout: &mut Headless<Nodes>, text: &str) -> (NodeId, NodeId) {
+fn in_panel(layout: &mut Headless, text: &str) -> (NodeId, NodeId) {
   let panel = layout.add("panel", StackPanel::default());
   let block = layout.add("text", text_block(text));
   Children::add(layout.tree(), panel, block);
@@ -215,7 +197,7 @@ fn in_panel(layout: &mut Headless<Nodes>, text: &str) -> (NodeId, NodeId) {
 // A panel's TextElement.FontSize reaches a TextBlock that sets none.
 #[test]
 fn font_size_inherited_from_parent() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let (panel, block) = in_panel(&mut layout, "Hi");
   TextElement::set_font_size(layout.tree(), panel, 30.0);
 
@@ -228,7 +210,7 @@ fn font_size_inherited_from_parent() {
 // A TextBlock's own FontSize wins over the panel's.
 #[test]
 fn own_font_size_wins_over_inherited() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let (panel, block) = in_panel(&mut layout, "Hi");
   TextElement::set_font_size(layout.tree(), panel, 30.0);
   get(&mut layout, block).font_size.set(10.0);
@@ -241,7 +223,7 @@ fn own_font_size_wins_over_inherited() {
 // Clearing a TextBlock's own FontSize falls back to the inherited one.
 #[test]
 fn cleared_font_size_inherits_again() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let (panel, block) = in_panel(&mut layout, "Hi");
   TextElement::set_font_size(layout.tree(), panel, 30.0);
   get(&mut layout, block).font_size.set(10.0);
@@ -257,7 +239,7 @@ fn cleared_font_size_inherits_again() {
 // TextElement.FontSize set on a TextBlock, as a UI language does, is its own FontSize.
 #[test]
 fn attached_font_size_on_a_textblock_is_its_own() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let block = layout.add("text", text_block("Hi"));
 
   TextElement::set_font_size(layout.tree(), block, 22.0);
@@ -268,7 +250,7 @@ fn attached_font_size_on_a_textblock_is_its_own() {
 // Changing the panel's font size measures the TextBlock again.
 #[test]
 fn inherited_change_remeasures() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let (panel, block) = in_panel(&mut layout, "Hi");
   layout.run(panel, WINDOW, 1.0);
   let before = layout.manager().desired(block).expect("measured");
@@ -282,7 +264,7 @@ fn inherited_change_remeasures() {
 // Changing Text measures again.
 #[test]
 fn text_change_invalidates_measure() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let root = layout.add("text", text_block("Hi"));
   layout.run(root, WINDOW, 1.0);
   let before = layout.manager().desired(root).expect("measured");
@@ -297,7 +279,7 @@ fn text_change_invalidates_measure() {
 // it again. A new node starts dirty for every stage, so the render flag is cleared first.
 #[test]
 fn foreground_change_does_not_remeasure() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let root = layout.add("text", text_block("Hi"));
   layout.run(root, WINDOW, 1.0);
   layout.tree().clear_dirty(root, Affects::RENDER);
@@ -317,7 +299,7 @@ fn foreground_change_does_not_remeasure() {
 // Center places the paragraph in the middle of a wider box.
 #[test]
 fn alignment_places_the_paragraph() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let root = layout.add("text", text_block("Hi"));
   get(&mut layout, root).text_alignment.set(TextAlignment::Center);
   get(&mut layout, root).layout.width.set(Some(100.0));
@@ -332,7 +314,7 @@ fn alignment_places_the_paragraph() {
 // Right-to-left text placed by Start sits at the right edge of a wider box.
 #[test]
 fn right_to_left_start_sits_at_the_right() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let root = layout.add("text", text_block("שלום"));
   get(&mut layout, root).layout.width.set(Some(100.0));
 
@@ -345,7 +327,7 @@ fn right_to_left_start_sits_at_the_right() {
 // In a horizontal StackPanel the width is infinite: Wrap keeps one line.
 #[test]
 fn infinite_width_keeps_one_line() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let panel = StackPanel::default();
   panel.orientation.set(Orientation::Horizontal);
   let panel = layout.add("panel", panel);
@@ -386,6 +368,16 @@ impl Object for Frame {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
+impl Element for Frame {
+  fn render(&self, _cx: &mut RenderCx<'_>, _scene: &mut SceneBuilder) {}
+
+  fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
+    accesskit::Node::new(accesskit::Role::GenericContainer)
+  }
+}
+
+artic_element::element_type!(Frame);
+
 impl Layoutable for Frame {
   fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {
     let child = cx.children().next().expect("a child");
@@ -402,7 +394,7 @@ impl Layoutable for Frame {
 /// A frame around a TextBlock of `text`, measured in `available`; the second run arranges it in
 /// `arranged` and returns whether that arrange shaped the text again.
 fn reshaped_by_second_arrange(block: TextBlock, available: Size, arranged: Size, scale: f32) -> bool {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let text = layout.add("text", block);
   let frame = layout.parent(
     "frame",
@@ -551,7 +543,7 @@ proptest! {
     available in strategy::available(),
     scale in strategy::scale(),
   ) {
-    let mut layout = layout();
+    let mut layout = Headless::new();
     let block = text_block(&text);
     block.text_wrapping.set(wrapping);
     block.text_trimming.set(trimming);

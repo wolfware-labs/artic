@@ -2,16 +2,16 @@ use super::TOLERANCE;
 use super::compare::{rects_match, sizes_match};
 use artic_core::Object;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
-use artic_element::{ElementTypes, RenderCx};
+use artic_element::{ElementNodes, ElementTypes};
 use artic_layout::geometry::{Rect, Size};
 use artic_layout::{LayoutManager, LayoutNodes, LayoutStats, PixelGrid};
 use artic_render::{Command, Compositor, Layers, Nodes, SceneBuilder, SceneItem};
 use std::collections::HashMap;
 
 /// A tree laid out with no window and no GPU. Nodes get a label when they're added, and failures
-/// name them by it.
+/// name them by it. It lays out every registered element unless a test passes its own table.
 #[derive(Debug)]
-pub struct Headless<N: LayoutNodes> {
+pub struct Headless<N: LayoutNodes = ElementTypes> {
   pub(super) tree: UiTree,
   pub(super) manager: LayoutManager,
   pub(super) nodes: N,
@@ -20,10 +20,46 @@ pub struct Headless<N: LayoutNodes> {
   labels: HashMap<NodeId, String>,
 }
 
-impl<N: LayoutNodes> Headless<N> {
-  /// An empty tree whose nodes `nodes` lays out, with snapping on.
+impl Headless {
+  /// An empty tree whose registered elements are laid out, with snapping on.
   #[must_use]
-  pub fn new(nodes: N) -> Headless<N> {
+  pub fn new() -> Headless {
+    Headless::with_nodes(ElementTypes::from_link_time())
+  }
+
+  /// Records `node`'s own drawing as the frame pipeline does: at the size layout gave it, with
+  /// the result its layout kept. Its children aren't drawn.
+  pub fn record(&mut self, node: NodeId) -> Vec<Command> {
+    let mut one = OneNode {
+      elements: ElementNodes {
+        types: &self.nodes,
+        layout: &self.manager,
+      },
+      node,
+    };
+    Compositor::default()
+      .compose(&mut self.tree, node, &mut one)
+      .items()
+      .iter()
+      .find_map(|item| match item {
+        SceneItem::Fragment(fragment) => Some(fragment.commands().to_vec()),
+        _ => None,
+      })
+      .unwrap_or_default()
+  }
+}
+
+impl Default for Headless {
+  fn default() -> Headless {
+    Headless::new()
+  }
+}
+
+impl<N: LayoutNodes> Headless<N> {
+  /// An empty tree whose nodes `nodes` lays out, with snapping on, for a test with a table of its
+  /// own.
+  #[must_use]
+  pub fn with_nodes(nodes: N) -> Headless<N> {
     Headless {
       tree: UiTree::new(),
       manager: LayoutManager::default(),
@@ -73,27 +109,6 @@ impl<N: LayoutNodes> Headless<N> {
     self
       .manager
       .run(&mut self.tree, &self.nodes, root, available, grid, &mut self.text)
-  }
-
-  /// Records `node`'s own drawing as the frame pipeline would: at the size layout gave it, with
-  /// the result its layout kept. Its children aren't drawn.
-  pub fn record(&mut self, node: NodeId, types: &ElementTypes) -> Vec<Command> {
-    let size = self.manager.rect(node).map_or(Size::ZERO, |rect| rect.size());
-    let mut one = OneNode {
-      types,
-      manager: &self.manager,
-      node,
-      size,
-    };
-    Compositor::default()
-      .compose(&mut self.tree, node, &mut one)
-      .items()
-      .iter()
-      .find_map(|item| match item {
-        SceneItem::Fragment(fragment) => Some(fragment.commands().to_vec()),
-        _ => None,
-      })
-      .unwrap_or_default()
   }
 
   /// The label `node` was added with, or its id for a node made through [`tree`](Headless::tree).
@@ -165,12 +180,10 @@ impl<N: LayoutNodes> Headless<N> {
   }
 }
 
-/// Draws one node of a laid-out tree with what its layout kept.
+/// Composes only `node`, as the frame pipeline would, with no layers.
 struct OneNode<'a> {
-  types: &'a ElementTypes,
-  manager: &'a LayoutManager,
+  elements: ElementNodes<'a>,
   node: NodeId,
-  size: Size,
 }
 
 impl Nodes for OneNode<'_> {
@@ -179,11 +192,8 @@ impl Nodes for OneNode<'_> {
   }
 
   fn record(&mut self, tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
-    if node != self.node {
-      return;
-    }
-    if let Some(element) = tree.get(node).and_then(|object| self.types.element(object)) {
-      element.render(&mut RenderCx::new(tree, node, self.size, self.manager.result(node)), builder);
+    if node == self.node {
+      self.elements.record(tree, node, builder);
     }
   }
 }

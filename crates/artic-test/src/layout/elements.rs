@@ -1,12 +1,13 @@
 use artic_core::Object;
 use artic_core::property::PropertyVisitor;
-use artic_core::tree::{NodeId, UiTree};
+use artic_element::{AccessCx, Element, RenderCx};
 use artic_layout::geometry::{Rect, Size};
-use artic_layout::{ArrangeCx, LayoutNodes, Layoutable, MeasureCx};
+use artic_layout::{ArrangeCx, Layoutable, MeasureCx};
+use artic_render::SceneBuilder;
 use std::cell::Cell;
 
-/// A leaf that asks for the same size whatever is available. It counts how often it's measured
-/// and arranged.
+/// A leaf element that asks for the same size whatever is available and draws nothing. It counts
+/// how often it's measured and arranged.
 #[derive(Debug)]
 pub struct Fixed {
   size: Cell<Size>,
@@ -46,6 +47,16 @@ impl Fixed {
 impl Object for Fixed {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
+
+impl Element for Fixed {
+  fn render(&self, _cx: &mut RenderCx<'_>, _scene: &mut SceneBuilder) {}
+
+  fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
+    accesskit::Node::new(accesskit::Role::GenericContainer)
+  }
+}
+
+artic_element::element_type!(Fixed);
 
 impl Layoutable for Fixed {
   fn measure(&self, _cx: &mut MeasureCx<'_>, _available: Size) -> Size {
@@ -90,6 +101,16 @@ impl Object for Stack {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
+impl Element for Stack {
+  fn render(&self, _cx: &mut RenderCx<'_>, _scene: &mut SceneBuilder) {}
+
+  fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
+    accesskit::Node::new(accesskit::Role::GenericContainer)
+  }
+}
+
+artic_element::element_type!(Stack);
+
 impl Layoutable for Stack {
   fn measure(&self, cx: &mut MeasureCx<'_>, available: Size) -> Size {
     self.measured.set(self.measured.get() + 1);
@@ -109,19 +130,5 @@ impl Layoutable for Stack {
       cx.arrange(child, Rect::new(0.0, top, rect.width, height));
       top += height;
     }
-  }
-}
-
-/// The [`LayoutNodes`] for [`Fixed`] and [`Stack`]. A test with elements of its own writes its own,
-/// and can fall back to this one.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Boxes;
-
-impl LayoutNodes for Boxes {
-  fn layoutable<'a>(&self, tree: &'a UiTree, node: NodeId) -> Option<&'a dyn Layoutable> {
-    tree
-      .get_as::<Fixed>(node)
-      .map(|fixed| fixed as &dyn Layoutable)
-      .or_else(|| tree.get_as::<Stack>(node).map(|stack| stack as &dyn Layoutable))
   }
 }

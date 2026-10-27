@@ -3,28 +3,13 @@
 use artic_controls::{Border, StackPanel};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{AccessCx, Child, ElementTypes, RenderCx, Visibility};
-use artic_layout::LayoutNodes;
-use artic_layout::Layoutable;
 use artic_layout::geometry::{CornerRadius, Point, Rect, RoundedRect, Size, Thickness};
 use artic_registry::{ContentInfo, ContentMethod, UiType, ValueError};
 use artic_render::{BoxShadow, Brush, Color, Command, Compositor, Layer, Layers, Nodes, SceneBuilder, SceneItem, Shape};
-use artic_test::layout::{Boxes, Fixed, Headless, Invariants, strategy};
+use artic_test::layout::{Fixed, Headless, Invariants, strategy};
 use proptest::prelude::*;
 
-/// Real elements first, then the shared test leaves.
-struct Elements(ElementTypes);
-
-impl LayoutNodes for Elements {
-  fn layoutable<'a>(&self, tree: &'a UiTree, node: NodeId) -> Option<&'a dyn Layoutable> {
-    self.0.layoutable(tree, node).or_else(|| Boxes.layoutable(tree, node))
-  }
-}
-
 const WINDOW: Size = Size::new(200.0, 300.0);
-
-fn layout() -> Headless<Elements> {
-  Headless::new(Elements(ElementTypes::from_link_time()))
-}
 
 fn border(thickness: Thickness, padding: Thickness) -> Border {
   let border = Border::default();
@@ -36,7 +21,7 @@ fn border(thickness: Thickness, padding: Thickness) -> Border {
 // Border asks for its child's size plus the thickness and padding on each side.
 #[test]
 fn border_measure_includes_padding_and_thickness() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let child = layout.add("child", Fixed::new(50.0, 20.0));
   let root = layout.parent(
     "border",
@@ -52,7 +37,7 @@ fn border_measure_includes_padding_and_thickness() {
 // The child is arranged inside the outline and the padding.
 #[test]
 fn border_arranges_child_inside_padding() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let child = layout.add("child", Fixed::new(50.0, 20.0));
   let root = layout.parent(
     "border",
@@ -68,7 +53,7 @@ fn border_arranges_child_inside_padding() {
 // Without a child, Border asks for its thickness and padding.
 #[test]
 fn border_without_a_child_is_its_chrome() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let root = layout.add("border", border(Thickness::uniform(2.0), Thickness::uniform(3.0)));
 
   layout.run(root, WINDOW, 1.0);
@@ -79,7 +64,7 @@ fn border_without_a_child_is_its_chrome() {
 // Thickness and padding larger than the box leave the child a zero size at an origin inside it.
 #[test]
 fn thick_border_and_padding_stay_non_negative() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let child = layout.add("child", Fixed::new(5.0, 5.0));
   let outer = border(Thickness::uniform(30.0), Thickness::uniform(30.0));
   outer.layout.width.set(Some(40.0));
@@ -94,7 +79,7 @@ fn thick_border_and_padding_stay_non_negative() {
 // With infinite space the child is offered infinity, and Border asks for a finite size.
 #[test]
 fn border_measure_with_infinite_space() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let child = layout.add("child", Fixed::new(50.0, 20.0));
   let root = layout.parent("border", border(Thickness::uniform(1.0), Thickness::uniform(2.0)), &[child]);
 
@@ -107,7 +92,7 @@ fn border_measure_with_infinite_space() {
 #[test]
 fn border_ignores_invalid_sides() {
   for side in [-5.0, f32::NAN, f32::INFINITY] {
-    let mut layout = layout();
+    let mut layout = Headless::new();
     let child = layout.add("child", Fixed::new(50.0, 20.0));
     let root = layout.parent("border", border(Thickness::uniform(side), Thickness::uniform(side)), &[child]);
 
@@ -121,7 +106,7 @@ fn border_ignores_invalid_sides() {
 // A collapsed child takes no part: Border asks for its chrome only.
 #[test]
 fn collapsed_child_leaves_the_chrome() {
-  let mut layout = layout();
+  let mut layout = Headless::new();
   let hidden = StackPanel::default();
   hidden.appearance.visibility.set(Visibility::Collapsed);
   let child = layout.add("child", hidden);
@@ -303,7 +288,7 @@ proptest! {
     available in strategy::available(),
     scale in strategy::scale(),
   ) {
-    let mut layout = layout();
+    let mut layout = Headless::new();
     let leaf = layout.add("child", Fixed::new(child.0, child.1));
     let [l, t, r, b, pl, pt, pr, pb] = sides;
     let root = layout.parent("border", border(Thickness::new(l, t, r, b), Thickness::new(pl, pt, pr, pb)), &[leaf]);
