@@ -79,6 +79,13 @@ impl<TValue> Signal<TValue> {
     Signal(Runtime::create_signal(initial_value), Origin::caller(), PhantomData)
   }
 
+  /// Creates a signal no scope owns, for state whose owner disposes it explicitly, as the tree does
+  /// with a node's attached values.
+  #[track_caller]
+  pub(crate) fn new_unowned(initial_value: TValue) -> Signal<TValue> {
+    Signal(Runtime::create_unowned_signal(initial_value), Origin::caller(), PhantomData)
+  }
+
   /// Calls `function` with a reference to the value and returns its result.
   ///
   /// Use this instead of [`get`](Signal::get) to read part of a value, or a value that isn't

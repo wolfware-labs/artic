@@ -713,7 +713,7 @@ impl UiTree {
     if let Some(property) = self.held(node, key) {
       return property;
     }
-    let property = Property::new(key.key(), key.default_value());
+    let property = Property::new_unowned(key.key(), key.default_value());
     property.attach(self.dirty_flags.shared(node));
     self.attached_values.insert(node, Box::new(property));
     if key.key().inherits() {

@@ -61,11 +61,16 @@ impl Runtime {
   where
     TValue: Any,
   {
-    RUNTIME.with(|runtime| {
-      let signal_id = runtime.signals.alloc_value(value);
-      runtime.scopes.add_to_active(Node::Signal(signal_id));
-      signal_id
-    })
+    let signal_id = Self::create_unowned_signal(value);
+    RUNTIME.with(|runtime| runtime.scopes.add_to_active(Node::Signal(signal_id)));
+    signal_id
+  }
+
+  pub fn create_unowned_signal<TValue>(value: TValue) -> SignalId
+  where
+    TValue: Any,
+  {
+    RUNTIME.with(|runtime| runtime.signals.alloc_value(value))
   }
 
   pub fn contains_signal(signal_id: SignalId) -> bool {

@@ -49,10 +49,11 @@
 //! is never stale, and a change on the ancestor marks the nodes that depend on it dirty. The tree
 //! sets the link when a node moves in the logical tree; the visual tree plays no part.
 //!
-//! A property belongs to its node: when the tree [frees](crate::tree::UiTree::free) the node, it
-//! disposes the node's properties, and a copy of one kept past that panics when read. A property
-//! made outside a tree belongs to the [`Scope`](crate::reactive::Scope) it was created in;
-//! disposing that scope after the tree freed the property does nothing more.
+//! A property has two owners: the [`Scope`](crate::reactive::Scope) that was active when it was
+//! created, and the node it ends up on. Whichever lets go first disposes it: disposing the scope,
+//! or the tree [freeing](crate::tree::UiTree::free) the node. A copy kept past that panics when
+//! read, and so does the node, so dispose a scope only once the nodes built in it have left the
+//! tree. Attached values are created by the tree and belong to their node alone.
 
 mod affects;
 mod any;
@@ -119,9 +120,9 @@ pub enum Precedence {
 /// value or the level it comes from. A write to a level below the winning one wakes nobody.
 ///
 /// `Property<T>` is a `Copy` handle, like [`Signal`], and is neither `Send` nor `Sync`. Two handles
-/// compare equal when they refer to the same property. It belongs to the
-/// [`Scope`](crate::reactive::Scope) that was active when it was created until its node joins a
-/// tree, and is disposed with that node when the tree frees it.
+/// compare equal when they refer to the same property. It's disposed with the
+/// [`Scope`](crate::reactive::Scope) that was active when it was created, or with its node when the
+/// tree frees it, whichever comes first.
 ///
 /// # Examples
 ///
@@ -169,6 +170,12 @@ where
   #[track_caller]
   pub fn new(key: &'static PropertyKey<T>, default: T) -> Property<T> {
     Property(Signal::new(PropertyState::new(key, default)))
+  }
+
+  /// Creates a property no scope owns, for the tree, which disposes it with its node.
+  #[track_caller]
+  pub(crate) fn new_unowned(key: &'static PropertyKey<T>, default: T) -> Property<T> {
+    Property(Signal::new_unowned(PropertyState::new(key, default)))
   }
 
   /// Returns the key that identifies this property's kind and holds its metadata.

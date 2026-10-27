@@ -126,3 +126,19 @@ fn free_after_the_scope_was_disposed_is_fine() {
   assert!(tree.is_empty());
   assert_eq!(live_counts(), baseline);
 }
+
+// An attached value belongs to its node, not to the scope that happened to be active when it was
+// first set: disposing that scope leaves it, and freeing the node frees it.
+#[test]
+fn attached_values_belong_to_the_node() {
+  let baseline = live_counts();
+  let view = Scope::new_root();
+  let mut tree = UiTree::new();
+  let label = tree.alloc(Box::new(Label::new()));
+  view.run(|| tree.attached_property(label, &ROW).set(3));
+  view.dispose();
+
+  assert_eq!(tree.attached(label, &ROW), 3);
+  tree.free(label);
+  assert_eq!(live_counts(), baseline);
+}
