@@ -9,12 +9,17 @@ use artic_xaml::namespaces::NamespaceMap;
 
 /// Finds the type `ty` names: through the crates its URI stands for, or at the module its
 /// `using:` namespace gives. Returns the problem the checker reports when there is none, or when
-/// it's a value provider, which an element can't be.
-pub(crate) fn resolve(ty: &TypeRef, registry: &Registry, namespaces: &NamespaceMap) -> Result<TypeUse, Problem> {
+/// it's a value provider, which an element can't be. A type missing from `app_crate` gets help.
+pub(crate) fn resolve(
+  ty: &TypeRef,
+  registry: &Registry,
+  namespaces: &NamespaceMap,
+  app_crate: Option<&str>,
+) -> Result<TypeUse, Problem> {
   let (info, module) = match &ty.namespace {
     XamlNamespace::Markup => return Err(unsupported::primitive(ty).into()),
-    XamlNamespace::Uri(uri) => (by_uri(ty, uri, registry, namespaces)?, None),
-    XamlNamespace::Using(module) => (by_module(ty, module, registry)?, Some(module.clone())),
+    XamlNamespace::Uri(uri) => (by_uri(ty, uri, registry, namespaces, app_crate)?, None),
+    XamlNamespace::Using(module) => (by_module(ty, module, registry, app_crate)?, Some(module.clone())),
   };
   if info.is_value_provider() {
     return Err(unsupported::provider_as_element(ty).into());
@@ -27,7 +32,13 @@ pub(crate) fn resolve(ty: &TypeRef, registry: &Registry, namespaces: &NamespaceM
 }
 
 /// The one type named `ty.name` in the crates `uri` stands for.
-fn by_uri(ty: &TypeRef, uri: &str, registry: &Registry, namespaces: &NamespaceMap) -> Result<&'static TypeInfo, Problem> {
+fn by_uri(
+  ty: &TypeRef,
+  uri: &str,
+  registry: &Registry,
+  namespaces: &NamespaceMap,
+  app_crate: Option<&str>,
+) -> Result<&'static TypeInfo, Problem> {
   let Some(crates) = namespaces.crates(uri) else {
     return Err(Problem::once(
       format!("namespace:{uri}"),
@@ -47,7 +58,7 @@ fn by_uri(ty: &TypeRef, uri: &str, registry: &Registry, namespaces: &NamespaceMa
   found.sort_by_key(|info| info.rust_path);
   match found.as_slice() {
     [info] => Ok(info),
-    [] => Err(unknown(ty, &format!("`{uri}`"), crates.iter().map(String::as_str))),
+    [] => Err(unknown(ty, &format!("`{uri}`"), crates.iter().map(String::as_str), app_crate)),
     many => {
       let paths: Vec<String> = many.iter().map(|info| format!("`{}`", info.rust_path)).collect();
       Err(
@@ -64,18 +75,17 @@ fn by_uri(ty: &TypeRef, uri: &str, registry: &Registry, namespaces: &NamespaceMa
 }
 
 /// The type at `<module>::<Name>`.
-fn by_module(ty: &TypeRef, module: &str, registry: &Registry) -> Result<&'static TypeInfo, Problem> {
-  let krate = crate_of(module);
+fn by_module(ty: &TypeRef, module: &str, registry: &Registry, app_crate: Option<&str>) -> Result<&'static TypeInfo, Problem> {
   registry
     .type_by_rust_path(&format!("{module}::{}", ty.name))
-    .ok_or_else(|| unknown(ty, &format!("`using:{module}`"), [krate]))
+    .ok_or_else(|| unknown(ty, &format!("`using:{module}`"), [crate_of(module)], app_crate))
 }
 
-/// The unknown-type error, with help when one of `crates` is the crate whose build script runs,
-/// whose types don't exist yet.
-fn unknown<'a>(ty: &TypeRef, namespace: &str, crates: impl IntoIterator<Item = &'a str>) -> Problem {
+/// The unknown-type error, with help when one of `crates` is `app_crate`, the crate whose build
+/// script runs, whose types don't exist yet.
+fn unknown<'a>(ty: &TypeRef, namespace: &str, crates: impl IntoIterator<Item = &'a str>, app_crate: Option<&str>) -> Problem {
   let diagnostic = Diagnostic::error(ty.span, format!("no type `{}` in {namespace}", ty.name)).with_label("unknown type");
-  let Ok(app) = std::env::var("CARGO_PKG_NAME").map(|name| name.replace('-', "_")) else {
+  let Some(app) = app_crate else {
     return diagnostic.into();
   };
   if crates.into_iter().any(|krate| krate == app) {

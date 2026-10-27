@@ -15,13 +15,27 @@ use artic_xaml::namespaces::NamespaceMap;
 #[derive(Debug, Clone)]
 pub struct Xaml {
   namespaces: NamespaceMap,
+  app_crate: Option<String>,
 }
 
 impl Xaml {
   /// XAML with the URIs of `namespaces`, such as `artic::xaml::namespaces()`.
   #[must_use]
   pub fn new(namespaces: NamespaceMap) -> Xaml {
-    Xaml { namespaces }
+    Xaml {
+      namespaces,
+      app_crate: None,
+    }
+  }
+
+  /// XAML read for the package whose build script runs, such as `env!("CARGO_PKG_NAME")`, a `-`
+  /// read as `_`: a type its views look up in that crate gets help saying it doesn't exist yet.
+  #[must_use]
+  pub fn with_app_crate(self, name: &str) -> Xaml {
+    Xaml {
+      app_crate: Some(name.replace('-', "_")),
+      ..self
+    }
   }
 }
 
@@ -31,7 +45,7 @@ impl Language for Xaml {
   }
 
   fn read(&self, sources: &SourceMap, file: SourceId, registry: &Registry) -> (Option<Document>, Diagnostics) {
-    read(sources, file, registry, &self.namespaces)
+    read(sources, file, registry, &self.namespaces, self.app_crate.as_deref())
   }
 
   fn crates(&self) -> Vec<&str> {
@@ -46,10 +60,15 @@ fn read(
   file: SourceId,
   registry: &Registry,
   namespaces: &NamespaceMap,
+  app_crate: Option<&str>,
 ) -> (Option<Document>, Diagnostics) {
   match artic_xaml::parse(sources, file) {
     Ok(document) => {
-      let reader = Reader { registry, namespaces };
+      let reader = Reader {
+        registry,
+        namespaces,
+        app_crate,
+      };
       let root = reader.element(&document.root);
       (Some(Document { root }), Diagnostics::new())
     }
@@ -61,6 +80,7 @@ fn read(
 struct Reader<'a> {
   registry: &'a Registry,
   namespaces: &'a NamespaceMap,
+  app_crate: Option<&'a str>,
 }
 
 impl Reader<'_> {
@@ -70,7 +90,7 @@ impl Reader<'_> {
       unreachable!("only object elements are read as elements")
     };
     Element {
-      ty: resolve(ty, self.registry, self.namespaces),
+      ty: resolve(ty, self.registry, self.namespaces, self.app_crate),
       span: *span,
       members: members.iter().filter_map(|member| self.member(member)).collect(),
     }

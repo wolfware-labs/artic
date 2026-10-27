@@ -11,7 +11,8 @@ pub use artic_xaml::namespaces::NamespaceMap;
 pub use artic_xaml_compiler::Xaml;
 
 /// Compiles every `.xaml` file under `dir` from a build script, with artic's paths: the short
-/// form of [`crate::view::compile_dir`] for XAML.
+/// form of [`crate::view::compile_dir`] for XAML. It reads `CARGO_PKG_NAME` for
+/// [`Xaml::with_app_crate`]; the long form passes `env!("CARGO_PKG_NAME")` itself.
 ///
 /// An app's `build.rs`, with `artic` as a build-dependency and its `xaml-compiler` feature on:
 ///
@@ -25,7 +26,11 @@ pub use artic_xaml_compiler::Xaml;
 /// As [`crate::view::compile_dir`].
 #[cfg(feature = "xaml-compiler")]
 pub fn compile_dir(dir: impl AsRef<std::path::Path>, namespaces: &NamespaceMap) -> Result<(), crate::view::CompileError> {
-  crate::view::compile_dir(dir, &Xaml::new(namespaces.clone()), &crate::view::crate_paths())
+  let mut xaml = Xaml::new(namespaces.clone());
+  if let Ok(app) = std::env::var("CARGO_PKG_NAME") {
+    xaml = xaml.with_app_crate(&app);
+  }
+  crate::view::compile_dir(dir, &xaml, &crate::view::crate_paths())
 }
 
 // The registry only knows linked crates, and a crate nothing refers to is left out of the link:

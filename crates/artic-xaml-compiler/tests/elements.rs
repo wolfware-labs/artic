@@ -5,7 +5,8 @@ mod common;
 
 use artic_core::property::Property;
 use artic_macros::UiType;
-use common::{TEST_UI, compile, compile_with};
+use artic_xaml_compiler::Xaml;
+use common::{TEST_UI, compile, compile_as, compile_with};
 
 /// A test type sharing `Border`'s name, so a URI standing for both crates finds two.
 #[derive(Debug, UiType)]
@@ -99,11 +100,28 @@ fn using_path_without_type_reports_error() {
   );
 }
 
-// A namespace that points at the crate whose build script runs gets the build-dependency help.
+// A namespace that points at the app crate `with_app_crate` names, `-` read as `_`, gets the
+// build-dependency help.
 #[test]
 fn app_crate_type_gets_build_dependency_help() {
-  let errors = compile(r#"<l:Gauge xmlns:l="using:artic_xaml_compiler::views"/>"#).expect_err("no Gauge");
-  assert!(errors.contains("add that crate to `[build-dependencies]`"), "{errors}");
+  let xaml = Xaml::new(artic::xaml::namespaces()).with_app_crate("acme-app");
+  let errors = compile_as(
+    &xaml,
+    r#"<l:Gauge xmlns:l="using:acme_app::views"/>"#,
+    "view.xaml",
+    &artic::view::crate_paths(),
+  )
+  .expect_err("no Gauge");
+  assert!(errors.contains("a type defined in `acme_app` doesn't exist yet"), "{errors}");
+}
+
+// Without an app crate there is no build script to advise, whatever package the process runs as.
+#[test]
+fn no_app_crate_gives_no_build_dependency_help() {
+  let package = env!("CARGO_PKG_NAME").replace('-', "_");
+  let errors = compile(&format!(r#"<l:Gauge xmlns:l="using:{package}::views"/>"#)).expect_err("no Gauge");
+  assert!(errors.contains("no type `Gauge`"), "{errors}");
+  assert!(!errors.contains("[build-dependencies]"), "{errors}");
 }
 
 // A test crate's own type resolves through its URI, at the crate's root.

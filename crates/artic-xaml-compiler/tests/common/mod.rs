@@ -22,9 +22,13 @@ pub fn compile_with(xaml: &str, path: &str, edit: impl FnOnce(&mut NamespaceMap,
   namespaces.alias(TEST_UI, &[env!("CARGO_CRATE_NAME")]);
   let mut paths = artic::view::crate_paths();
   edit(&mut namespaces, &mut paths);
+  compile_as(&Xaml::new(namespaces), xaml, path, &paths)
+}
+
+/// Compiles `xaml` as `path` with `language` and `paths`: the Rust, or the rendered diagnostics.
+pub fn compile_as(language: &Xaml, xaml: &str, path: &str, paths: &CratePaths) -> Result<String, String> {
   let mut sources = SourceMap::new();
   let file = sources.add(path, xaml);
   let registry = Registry::from_link_time().expect("no duplicate types");
-  artic_view_compiler::compile_str(&sources, file, &Xaml::new(namespaces), &registry, &paths)
-    .map_err(|errors| errors.render(&sources))
+  artic_view_compiler::compile_str(&sources, file, language, &registry, paths).map_err(|errors| errors.render(&sources))
 }
