@@ -678,6 +678,28 @@ mod tests {
     assert_eq!(seen.get(), 24);
   }
 
+  // A follower whose own value wins doesn't read its source, so its readers don't rerun when the
+  // source changes.
+  #[test]
+  fn own_value_does_not_subscribe_to_the_source() {
+    let parent = Property::new(&TEST, 20);
+    let child = Property::new(&TEST, 0);
+    child.follow(Some(parent));
+    child.set(5);
+    let runs = Rc::new(Cell::new(0));
+    let runs_in_effect = Rc::clone(&runs);
+    effect(move || {
+      runs_in_effect.set(runs_in_effect.get() + 1);
+      let _ = child.get();
+    });
+    flush_effects();
+
+    parent.set(24);
+    flush_effects();
+
+    assert_eq!((child.get(), runs.get()), (5, 1));
+  }
+
   // A visible change marks dirty the nodes of followers that inherit it, through every level of
   // followers, and stops at a follower with its own value.
   #[test]

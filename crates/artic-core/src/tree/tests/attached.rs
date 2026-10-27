@@ -2,6 +2,7 @@ use crate::Object;
 use crate::property::{Affects, AttachedKey, Inheritance, Precedence, Property, PropertyVisitor, inherit};
 use crate::tree::{NodeId, TreeKind, UiTree};
 use pretty_assertions::assert_eq;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 static ROW: AttachedKey<usize> = AttachedKey::new("Row", Affects::LAYOUT, Inheritance::None, || 0);
 static LABEL: AttachedKey<String> = AttachedKey::new("Label", Affects::RENDER, Inheritance::None, || "none".to_owned());
@@ -230,4 +231,23 @@ fn attached_property_on_a_field_owner_is_the_field() {
   assert_eq!(chrome.get(), 9);
   assert_eq!(tree.attached(node, &CHROME), 9);
   assert_eq!(tree.attached_values.count(node), 0);
+}
+
+static DEFAULTS_BUILT: AtomicUsize = AtomicUsize::new(0);
+static COLUMN: AttachedKey<usize> = AttachedKey::new("Column", Affects::LAYOUT, Inheritance::Replace, || {
+  DEFAULTS_BUILT.fetch_add(1, Ordering::Relaxed);
+  0
+});
+
+// A node that inherits a replacing key's value reads it without building the key's default.
+#[test]
+fn an_inherited_value_builds_no_default() {
+  let mut tree = UiTree::new();
+  let [parent, child] = [(); 2].map(|_| tree.alloc(Box::new(Button)));
+  tree.add_child(TreeKind::Logical, parent, child);
+  tree.attached_property(parent, &COLUMN).set(2);
+  let built = DEFAULTS_BUILT.load(Ordering::Relaxed);
+
+  assert_eq!(tree.attached(child, &COLUMN), 2);
+  assert_eq!(DEFAULTS_BUILT.load(Ordering::Relaxed), built);
 }

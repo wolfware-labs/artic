@@ -198,8 +198,10 @@ fn a_node_with_a_disposed_property_is_refused_unchanged() {
 }
 
 // A field swapped through `get_as_mut` for another node's property isn't this node's to dispose:
-// freeing the node leaves the other node's property working.
+// release builds free the node and leave the other node's property working; debug builds report
+// the swap first.
 #[test]
+#[cfg_attr(debug_assertions, should_panic(expected = "a property field was replaced"))]
 fn free_disposes_only_the_properties_the_node_lists() {
   let mut tree = UiTree::new();
   let first = tree.alloc(Box::new(Label::new()));

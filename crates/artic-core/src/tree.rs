@@ -45,7 +45,9 @@ mod objects;
 use crate::Object;
 use crate::arena::SlotId;
 use crate::object::for_each_property;
-use crate::property::{Affects, AttachedKey, Erased, Inheritance, KeyId, Property};
+use crate::property::{Affects, AttachedKey, Erased, KeyId, Property};
+#[cfg(debug_assertions)]
+use crate::reactive::SignalId;
 use attached::AttachedValues;
 use dirty::DirtyFlags;
 pub(crate) use dirty::DirtyHandle;
@@ -53,6 +55,8 @@ pub use handle::Handle;
 use hierarchy::Tree;
 use objects::Objects;
 use std::any::Any;
+#[cfg(debug_assertions)]
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt::Debug;
 
@@ -96,6 +100,8 @@ pub struct UiTree {
   visual: Tree,
   dirty_flags: DirtyFlags,
   attached_values: AttachedValues,
+  #[cfg(debug_assertions)]
+  touched: RefCell<Vec<(NodeId, Vec<SignalId>)>>,
 }
 
 /// A handle to a node stored in a [`UiTree`].
@@ -187,6 +193,8 @@ impl UiTree {
       visual: Tree::new(),
       dirty_flags: DirtyFlags::new(),
       attached_values: AttachedValues::new(),
+      #[cfg(debug_assertions)]
+      touched: RefCell::new(Vec::new()),
     }
   }
 
@@ -309,10 +317,20 @@ impl UiTree {
 
   /// Returns a mutable reference to the node referred to by `id`, or `None` if `id` is stale.
   ///
-  /// Use [`get_as_mut`](UiTree::get_as_mut) to get the node as its concrete type.
+  /// Use [`get_as_mut`](UiTree::get_as_mut) to get the node as its concrete type. Write a
+  /// property with `set` rather than replacing its field; in debug builds a replaced property field
+  /// panics at the next [`take_pending`](UiTree::take_pending) or [`free`](UiTree::free).
   #[must_use]
   pub fn get_mut(&mut self, id: NodeId) -> Option<&mut dyn Object> {
-    self.objects.get_mut(id)
+    let object = self.objects.get_mut(id)?;
+    #[cfg(debug_assertions)]
+    {
+      let touched = self.touched.get_mut();
+      if touched.last().is_none_or(|(node, _)| *node != id) {
+        touched.push((id, property_ids(object)));
+      }
+    }
+    Some(object)
   }
 
   /// Returns a mutable reference to the node referred to by `id` as a `T`.
@@ -321,6 +339,8 @@ impl UiTree {
   ///
   /// Write a property through the property itself, with `set`, rather than replacing the field: the
   /// tree connected the property the node had when it was added, and a replacement isn't the node's.
+  /// In debug builds, a replaced property field panics at the next
+  /// [`take_pending`](UiTree::take_pending) or [`free`](UiTree::free).
   ///
   /// # Examples
   ///
@@ -503,7 +523,7 @@ impl UiTree {
   pub fn detach(&mut self, tree: TreeKind, node: NodeId) -> Option<NodeId> {
     let parent = self.unlink(tree, node)?;
     if tree == TreeKind::Logical {
-      inheritance::resolve(&self.objects, &self.attached_values, &self.logical, node);
+      inheritance::relink(&self.objects, &self.attached_values, &self.logical, node);
     }
     Some(parent)
   }
@@ -571,7 +591,9 @@ impl UiTree {
   ///
   /// # Panics
   ///
-  /// Panics if `id` is stale: it was already freed, or never returned by this tree.
+  /// Panics if `id` is stale: it was already freed, or never returned by this tree. In debug
+  /// builds it also panics, before freeing anything, if a node handed out by
+  /// [`get_mut`](UiTree::get_mut) since the last check had a property field replaced.
   ///
   /// # Examples
   ///
@@ -597,6 +619,7 @@ impl UiTree {
   /// ```
   #[track_caller]
   pub fn free(&mut self, id: NodeId) {
+    self.check_touched();
     self.check(id);
     let mut subtree = HashSet::from([id]);
     let mut pending = vec![id];
@@ -658,8 +681,14 @@ impl UiTree {
   /// a new node and a change to a node's visual children. Clearing flags doesn't. The frame
   /// pipeline asks after each change it handles, so it needn't walk the tree to know a frame is
   /// needed.
+  ///
+  /// # Panics
+  ///
+  /// In debug builds, if a node handed out by [`get_mut`](UiTree::get_mut) since the last check had
+  /// a property field replaced: write a property with `set` instead.
   #[must_use = "the flag is cleared, so a caller that ignores it loses the request for a frame"]
   pub fn take_pending(&self) -> bool {
+    self.check_touched();
     self.dirty_flags.take_pending()
   }
 
@@ -679,17 +708,14 @@ impl UiTree {
     if let Some(property) = self.held(node, key) {
       return property.get();
     }
-    let inherited = match key.key().inheritance() {
-      Inheritance::None => None,
-      inheritance => self
-        .logical
-        .ancestors(node)
-        .find_map(|ancestor| self.held(ancestor, key))
-        .map(|source| (inheritance, source.get())),
-    };
-    match inherited {
-      Some((Inheritance::Combine(combine), value)) => combine(&key.default_value(), &value),
-      Some((_, value)) => value,
+    let inheritance = key.key().inheritance();
+    let source = key
+      .key()
+      .inherits()
+      .then(|| self.logical.ancestors(node).find_map(|ancestor| self.held(ancestor, key)))
+      .flatten();
+    match source {
+      Some(source) => source.with(|inherited| inheritance.resolve(None, || key.default_value(), Some(inherited), T::clone)),
       None => key.default_value(),
     }
   }
@@ -739,7 +765,7 @@ impl UiTree {
     Erased::attach(&property, self.dirty_flags.shared(node));
     self.attached_values.insert(node, Box::new(property));
     if key.key().inherits() {
-      inheritance::resolve(&self.objects, &self.attached_values, &self.logical, node);
+      inheritance::relink(&self.objects, &self.attached_values, &self.logical, node);
     }
     property
   }
@@ -775,7 +801,7 @@ impl UiTree {
     self.tree_mut(tree).link(parent, index, child);
     self.children_changed(tree, parent);
     if tree == TreeKind::Logical {
-      inheritance::resolve(&self.objects, &self.attached_values, &self.logical, child);
+      inheritance::relink(&self.objects, &self.attached_values, &self.logical, child);
     }
   }
 
@@ -793,30 +819,36 @@ impl UiTree {
     }
   }
 
+  /// Panics, in debug builds, if a node `get_mut` handed out lists other properties than it did then.
+  fn check_touched(&self) {
+    #[cfg(debug_assertions)]
+    {
+      for (node, listed) in self.touched.borrow().iter() {
+        assert!(
+          property_ids(self.objects.object(*node)) == *listed,
+          "node {node:?}: a property field was replaced through get_mut or get_as_mut; write it with set instead"
+        );
+      }
+      self.touched.borrow_mut().clear();
+    }
+  }
+
+  #[track_caller]
   fn held<T>(&self, node: NodeId, key: &'static AttachedKey<T>) -> Option<Property<T>>
   where
     T: PartialEq + 'static,
   {
-    let id = KeyId::of(key.key());
-    let mut field = None;
-    for_each_property(self.objects.object(node), |property| {
-      if field.is_none() && property.key_id() == id {
-        field = property.downcast::<T>().copied();
-      }
-    });
-    field.or_else(|| self.stored(node, key))
+    inheritance::with_property(&self.objects, &self.attached_values, node, KeyId::of(key.key()), |property| {
+      *property.downcast::<T>().expect("a key's property has the key's value type")
+    })
   }
+}
 
-  /// The property `node` stores for `key`, if one was created.
-  #[track_caller]
-  fn stored<T>(&self, node: NodeId, key: &'static AttachedKey<T>) -> Option<Property<T>>
-  where
-    T: PartialEq + 'static,
-  {
-    self.check(node);
-    let property = self.attached_values.find(node, KeyId::of(key.key()))?;
-    Some(*property.downcast::<T>().expect("a key's property has the key's value type"))
-  }
+#[cfg(debug_assertions)]
+fn property_ids(object: &dyn Object) -> Vec<SignalId> {
+  let mut ids = Vec::new();
+  for_each_property(object, |property| ids.push(property.id()));
+  ids
 }
 
 #[cfg(test)]

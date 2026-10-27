@@ -1,4 +1,5 @@
 use crate::property::Affects;
+use std::borrow::Borrow;
 use std::fmt::{Debug, Formatter, Result};
 use std::marker::PhantomData;
 use std::sync::atomic::AtomicBool;
@@ -57,6 +58,33 @@ pub enum Inheritance<T> {
   /// the nearest ancestor's effective value, such as [`inherit::and`](super::inherit::and) for a
   /// flag every ancestor must allow.
   Combine(fn(&T, &T) -> T),
+}
+
+impl<T> Inheritance<T> {
+  /// Calls `function` with the effective value of a property of this kind, from its own value
+  /// (its highest set level, if any), its default and what it inherits from its nearest logical
+  /// ancestor, if any. `default` is called only when the default is part of the result. `None`
+  /// folds as `Replace` does: what keeps a property of a kind that doesn't inherit from following
+  /// an ancestor is that the tree never links one.
+  pub(crate) fn resolve<D, R>(
+    self,
+    own: Option<&T>,
+    default: impl FnOnce() -> D,
+    inherited: Option<&T>,
+    function: impl FnOnce(&T) -> R,
+  ) -> R
+  where
+    D: Borrow<T>,
+  {
+    match (self, own, inherited) {
+      (Inheritance::Combine(combine), own, Some(inherited)) => function(&match own {
+        Some(own) => combine(own, inherited),
+        None => combine(default().borrow(), inherited),
+      }),
+      (_, Some(value), _) | (_, None, Some(value)) => function(value),
+      (_, None, None) => function(default().borrow()),
+    }
+  }
 }
 
 impl<T> Clone for Inheritance<T> {
@@ -135,5 +163,37 @@ impl<T> Debug for PropertyKey<T> {
       .field("affects", &self.affects)
       .field("inheritance", &self.inheritance)
       .finish()
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::property::inherit;
+  use pretty_assertions::assert_eq;
+
+  // Own value, default and inherited value fold one way for every reader: `Replace` takes the own
+  // value, else the inherited one, else the default; `Combine` applies its function to the own
+  // value or default and the inherited one. `None` folds as `Replace`; the tree never links one.
+  #[test]
+  fn resolve_folds_own_default_and_inherited() {
+    let replace = |own, inherited| Inheritance::<i32>::Replace.resolve(own, || 0, inherited, |value| *value);
+    let none = |own, inherited| Inheritance::<i32>::None.resolve(own, || 0, inherited, |value| *value);
+    let and = |own, inherited| Inheritance::Combine(inherit::and).resolve(own, || true, inherited, |value| *value);
+
+    assert_eq!(
+      [replace(Some(&3), Some(&7)), replace(None, Some(&7)), replace(None, None)],
+      [3, 7, 0]
+    );
+    assert_eq!([none(Some(&3), Some(&7)), none(None, Some(&7)), none(None, None)], [3, 7, 0]);
+    assert_eq!(
+      [
+        and(Some(&true), Some(&false)),
+        and(None, Some(&true)),
+        and(Some(&false), None),
+        and(None, None)
+      ],
+      [false, true, false, true]
+    );
   }
 }
