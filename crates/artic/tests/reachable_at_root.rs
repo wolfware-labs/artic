@@ -4,7 +4,7 @@
 // a new type that isn't re-exported or listed fails here by name. A value type is matched by name
 // alone, since a property's `value_type` has no crate.
 
-use artic_registry::{PropertyInfo, UI_TYPES};
+use artic_registry::{PropertyInfo, UI_TYPES, crate_and_item};
 use std::collections::BTreeSet;
 
 /// Imports each `crate::{names}` in a module named after the crate, and lists the paths.
@@ -58,20 +58,13 @@ const STANDARD: &[&str] = &[
   "NonZeroUsize",
 ];
 
-/// The crate (first segment) and name (last segment) of a Rust path.
-fn crate_and_name(path: &str) -> (&str, &str) {
-  let krate = path.split("::").next().unwrap_or(path);
-  let name = path.rsplit("::").next().unwrap_or(path);
-  (krate, name)
-}
-
 /// The type a property's `value_type` names, without `Option` or a path: `Option < Brush >` gives
 /// `Brush`.
 fn value_name(value_type: &str) -> &str {
   let inner = value_type
     .strip_prefix("Option")
     .map_or(value_type, |rest| rest.trim().trim_start_matches('<').trim_end_matches('>'));
-  crate_and_name(inner.trim()).1
+  crate_and_item(inner.trim()).1
 }
 
 /// Every property of every registered type, groups included.
@@ -89,7 +82,7 @@ fn all_properties() -> impl Iterator<Item = &'static PropertyInfo> {
 fn ui_types_are_at_their_crate_root() {
   let missing: Vec<_> = UI_TYPES
     .iter()
-    .map(|info| (crate_and_name(info.rust_path).0, info.name))
+    .map(|info| (crate_and_item(info.rust_path).0, info.name))
     .filter(|path| !REACHABLE.contains(path))
     .collect();
   assert!(missing.is_empty(), "not listed or not at the root: {missing:?}");
@@ -101,7 +94,7 @@ fn methods_traits_are_at_their_crate_root() {
   let missing: BTreeSet<_> = UI_TYPES
     .iter()
     .flat_map(|info| info.groups)
-    .map(|group| crate_and_name(group.methods))
+    .map(|group| crate_and_item(group.methods))
     .filter(|path| !REACHABLE.contains(path))
     .collect();
   assert!(missing.is_empty(), "not listed or not at the root: {missing:?}");

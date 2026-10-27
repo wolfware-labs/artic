@@ -2,7 +2,7 @@
 
 use crate::unsupported;
 use artic_diagnostics::Diagnostic;
-use artic_registry::{Lookup, Registry, TypeInfo};
+use artic_registry::{Lookup, Registry, TypeInfo, crate_of};
 use artic_view::document::{Problem, TypeUse};
 use artic_xaml::infoset::{TypeRef, XamlNamespace};
 use artic_xaml::namespaces::NamespaceMap;
@@ -65,7 +65,7 @@ fn by_uri(ty: &TypeRef, uri: &str, registry: &Registry, namespaces: &NamespaceMa
 
 /// The type at `<module>::<Name>`.
 fn by_module(ty: &TypeRef, module: &str, registry: &Registry) -> Result<&'static TypeInfo, Problem> {
-  let krate = module.split_once("::").map_or(module, |(krate, _)| krate);
+  let krate = crate_of(module);
   registry
     .type_by_rust_path(&format!("{module}::{}", ty.name))
     .ok_or_else(|| unknown(ty, &format!("`using:{module}`"), [krate]))

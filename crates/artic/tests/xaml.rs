@@ -4,7 +4,7 @@
 #![cfg(feature = "xaml")]
 
 use artic::xaml::{ARTIC_UI, namespaces};
-use artic_registry::{Registry, UI_TYPES};
+use artic_registry::{Registry, UI_TYPES, crate_of};
 use std::collections::BTreeSet;
 
 // Each crate artic's URI stands for registers at least one type in an app that links only the
@@ -35,7 +35,7 @@ fn defining_crates_have_facade_paths() {
   let unmapped: BTreeSet<_> = UI_TYPES
     .iter()
     .flat_map(|info| std::iter::once(info.rust_path).chain(info.groups.iter().map(|group| group.methods)))
-    .map(|path| path.split("::").next().unwrap_or(path))
+    .map(crate_of)
     .filter(|krate| !map.path_of(krate).starts_with("::artic::"))
     .collect();
   assert!(unmapped.is_empty(), "no facade path: {unmapped:?}");

@@ -2,7 +2,7 @@
 //! traits the setters call through.
 
 use artic_diagnostics::{Diagnostic, Diagnostics, Span};
-use artic_registry::{PropertyInfo, PropertyRef, RustExpr, TypeInfo};
+use artic_registry::{PropertyInfo, PropertyRef, RustExpr, TypeInfo, crate_and_item};
 use artic_view::document::{Text, TypeUse};
 use artic_view::{CheckedContent, CheckedElement, CheckedView};
 use artic_xaml::namespaces::NamespaceMap;
@@ -161,8 +161,7 @@ impl Lower<'_> {
       .iter()
       .find(|group| group.field == field)
       .expect("a property's group is one of its type's");
-    let krate = group.methods.split("::").next().unwrap_or(group.methods);
-    let name = group.methods.rsplit("::").next().unwrap_or(group.methods);
+    let (krate, name) = crate_and_item(group.methods);
     let text = format!("{}::{name}", self.namespaces.path_of(krate));
     if !self.traits.contains_key(&text)
       && let Some(path) = parse_path(&text, span, &mut self.diagnostics)
