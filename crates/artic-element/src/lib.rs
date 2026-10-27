@@ -22,6 +22,7 @@ mod children;
 mod classes;
 mod context;
 mod element;
+mod nodes;
 mod properties;
 mod surface;
 mod types;
@@ -32,6 +33,7 @@ pub use children::{Child, Children};
 pub use classes::Classes;
 pub use context::{AccessCx, EventCx, Handled, HitTestCx, HitTestResult, RenderCx};
 pub use element::{Element, ElementImpl, HasState};
+pub use nodes::ElementNodes;
 pub use properties::{
   Appearance, AppearanceMethods, Identity, IdentityMethods, Interaction, InteractionMethods, Layout, LayoutMethods,
 };

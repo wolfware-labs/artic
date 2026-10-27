@@ -11,7 +11,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Layers {
   /// Maps the node's coordinates to its parent's, if they differ. An element's own layers hold
-  /// only its render transform; the frame pipeline adds its layout offset.
+  /// only its render transform; what composes laid-out nodes adds their layout offset.
   pub transform: Option<Transform>,
   /// Keeps the node's descendants inside this shape, in the node's coordinates, as CSS's
   /// `overflow: hidden` does; the node's own drawing isn't clipped.
