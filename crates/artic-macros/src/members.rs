@@ -222,11 +222,11 @@ impl Members<'_> {
   /// content method, each property's method and key constant, then each of `extra_names` (a
   /// type's attached property helpers), as name, what it is and where it comes from. A type writes
   /// them all in one `impl`; a group writes its methods in its trait and its constants on itself,
-  /// where `PropertyGroup`'s items are taken, so each is checked only against its own kind. The
-  /// error points at the second item's source.
+  /// where `PropertyGroup`'s descriptors are taken, so each is checked only against its own kind.
+  /// The error points at the second item's source.
   pub fn check_names(&self, extra_names: impl IntoIterator<Item = (String, String, Span)>) -> syn::Result<()> {
     let mut taken = self.kind.reserved();
-    let mut group_constants: Vec<(String, String)> = ["PROPERTIES", "METHODS", "CONTENT"]
+    let mut group_constants: Vec<(String, String)> = ["PROPERTIES", "METHODS"]
       .into_iter()
       .map(|item| (item.to_owned(), format!("`PropertyGroup::{item}`")))
       .collect();

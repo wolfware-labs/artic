@@ -229,10 +229,15 @@ mod tests {
     );
   }
 
-  // A group's key constant named like a `PropertyGroup` item would hide it, so it's rejected.
+  // A group's key constant named like `PropertyGroup`'s descriptors would hide them, so it's
+  // rejected. `CONTENT` stays free: a `content` property's key is `CONTENT`, like any other key
+  // constant, and the group's content is reached through the trait.
   #[test]
   fn group_constants_named_like_property_group_items_are_an_error() {
-    for (field, item) in [("properties", "PROPERTIES"), ("methods", "METHODS"), ("content", "CONTENT")] {
+    let content: DeriveInput = parse_quote! { struct ContentState { #[ui(content)] content: Property<f32> } };
+
+    assert!(expand(&content).is_ok());
+    for (field, item) in [("properties", "PROPERTIES"), ("methods", "METHODS")] {
       let field = Ident::new(field, proc_macro2::Span::call_site());
       let input: DeriveInput = parse_quote! { struct Sizing { #[ui] #field: Property<f32> } };
 
