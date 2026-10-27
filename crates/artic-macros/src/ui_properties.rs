@@ -229,6 +229,20 @@ mod tests {
     );
   }
 
+  // A group's key constant named like a `PropertyGroup` item would hide it, so it's rejected.
+  #[test]
+  fn group_constants_named_like_property_group_items_are_an_error() {
+    for (field, item) in [("properties", "PROPERTIES"), ("methods", "METHODS"), ("content", "CONTENT")] {
+      let field = Ident::new(field, proc_macro2::Span::call_site());
+      let input: DeriveInput = parse_quote! { struct Sizing { #[ui] #field: Property<f32> } };
+
+      assert_eq!(
+        expand(&input).expect_err("a hidden item").to_string(),
+        format!("`{item}` would be both `PropertyGroup::{item}` and the key constant of the property `{field}`; rename one")
+      );
+    }
+  }
+
   // The crate path a group names is the one its expansion reaches artic through.
   #[test]
   fn group_crate_path_is_used() {

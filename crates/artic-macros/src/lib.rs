@@ -122,9 +122,10 @@ pub fn derive_ui_type(input: TokenStream) -> TokenStream {
 /// constant such as `Layout::MARGIN`, and writes beside the group a `{Group}Methods` trait
 /// (`LayoutMethods`) with a builder method per field at least as visible as the group,
 /// implemented for every type that flattens it. A group field named `new`, `build`, `child` or
-/// `children` is an error, as are two fields with one key constant. A group's keys are its own,
-/// so every type that flattens it shares them, and an inheriting property inherits across those
-/// types.
+/// `children` is an error, as are two fields with one key constant and a key constant named
+/// `PROPERTIES`, `METHODS` or `CONTENT`, which would hide the `PropertyGroup` item. A group's
+/// keys are its own, so every type that flattens it shares them, and an inheriting property
+/// inherits across those types.
 #[proc_macro_derive(UiProperties, attributes(ui))]
 pub fn derive_ui_properties(input: TokenStream) -> TokenStream {
   let input = parse_macro_input!(input as DeriveInput);
