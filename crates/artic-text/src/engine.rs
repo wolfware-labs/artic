@@ -33,7 +33,7 @@ impl Engine {
   /// An engine that knows no font, so every paragraph has no lines: for layout with no text in it.
   #[must_use]
   pub fn without_fonts() -> Engine {
-    Engine::with_fonts::<&[u8]>([])
+    Engine::with_fonts(Vec::<FontBytes>::new())
   }
 
   /// An engine that knows only `fonts`, with every generic family pointing at them, in order.
@@ -41,18 +41,15 @@ impl Engine {
   /// Its default family is the first font's, so a family it doesn't know lands on that font too.
   /// Bytes that aren't a font are skipped; with no font at all, every paragraph has no lines.
   #[must_use]
-  pub fn with_fonts<F>(fonts: impl IntoIterator<Item = F>) -> Engine
-  where
-    F: AsRef<[u8]> + Send + Sync + 'static,
-  {
+  pub fn with_fonts(fonts: impl IntoIterator<Item = impl Into<FontBytes>>) -> Engine {
     let mut collection = Collection::new(CollectionOptions {
       shared: false,
       system_fonts: false,
     });
     let mut families = Vec::new();
     for bytes in fonts {
-      let bytes: FontBytes = Arc::new(bytes);
-      for (family, _) in collection.register_fonts(Blob::new(bytes), None) {
+      let bytes: FontBytes = bytes.into();
+      for (family, _) in collection.register_fonts(Blob::new(Arc::clone(bytes.shared())), None) {
         if !families.contains(&family) {
           families.push(family);
         }

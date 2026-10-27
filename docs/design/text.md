@@ -68,11 +68,11 @@ pub struct Line { pub top: f32, pub height: f32, pub baseline: f32, pub width: f
 pub struct GlyphRun { font: FontData, size: f32, coords: Arc<[i16]>, synthesis: Synthesis, glyphs: Arc<[Glyph]> }
 pub struct Synthesis { pub embolden: bool, pub skew: f32 }
 pub struct Glyph { pub id: u32, pub x: f32, pub y: f32 }
-pub type FontBytes = Arc<dyn AsRef<[u8]> + Send + Sync>;
+pub struct FontBytes(Arc<dyn AsRef<[u8]> + Send + Sync>);
 pub struct FontData { bytes: FontBytes, index: u32, id: u64 }
 ```
 
-`FontBytes` is shared, not copied: parley's `Blob` wraps the same `Arc`, so the shaper and a renderer that draws the run read one copy of the file, and `with_fonts` makes the `Arc` so a caller passes bytes as it holds them.
+`FontBytes` is a font file's bytes, shared rather than copied: parley's `Blob` wraps the same allocation, so the shaper and a renderer that draws the run read one copy, and `shared()` hands that allocation to a renderer's own font type. It converts from a `&'static [u8]`, a `Vec<u8>`, a `Box<[u8]>`, an `Arc<[u8]>` or another `FontBytes`, so `with_fonts` and `FontData::new` take bytes as the caller holds them; `FontBytes::new` takes any other type that reads as bytes.
 
 - `FontFamily: FromStr` reads a CSS family list: names separated by commas, each quoted with `'` or `"` or not. An unquoted name equal to a generic keyword (`serif`, `sans-serif`, `monospace`, `cursive`, `fantasy`, `system-ui`, `emoji`, `math`), ignoring case, is that generic family; a quoted one is a font named so. The default, which `TextBlock` (#46) inherits, is `system-ui`.
 - `FontWeight` is 1 to 1000, as in CSS. `FromStr` takes a number or one of WPF's `FontWeights` names, ignoring case: `Thin` 100, `ExtraLight` and `UltraLight` 200, `Light` 300, `Normal` and `Regular` 400, `Medium` 500, `SemiBold` and `DemiBold` 600, `Bold` 700, `ExtraBold` and `UltraBold` 800, `Black` and `Heavy` 900, `ExtraBlack` and `UltraBlack` 950. `FontStyle` is a `UiEnum`, as `Orientation` is.
@@ -167,9 +167,8 @@ impl Engine {
   /// An engine that finds the system's fonts. Its default family is `system-ui`.
   pub fn system() -> Engine;
   /// An engine that knows only `fonts`, with every generic family pointing at them, in order.
-  /// Its default family is the first font's. Each font is any bytes: `&'static [u8]`, a `Vec<u8>`,
-  /// an `Arc<[u8]>`.
-  pub fn with_fonts<F: AsRef<[u8]> + Send + Sync + 'static>(fonts: impl IntoIterator<Item = F>) -> Engine;
+  /// Its default family is the first font's.
+  pub fn with_fonts(fonts: impl IntoIterator<Item = impl Into<FontBytes>>) -> Engine;
   /// An engine that knows no font, so every paragraph has no lines: for layout with no text in it.
   pub fn without_fonts() -> Engine;
 }

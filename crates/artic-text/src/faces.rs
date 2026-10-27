@@ -53,6 +53,6 @@ mod tests {
     let blob = Blob::new(Arc::new(vec![1_u8, 2, 3]));
     let font = Faces::default().font(&parley::FontData::new(blob.clone(), 0));
 
-    assert!(std::ptr::eq((**font.bytes()).as_ref(), blob.data()));
+    assert!(std::ptr::eq(font.bytes().as_ref(), blob.data()));
   }
 }

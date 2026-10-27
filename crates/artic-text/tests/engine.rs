@@ -38,7 +38,7 @@ fn assert_close(actual: f32, expected: f32) {
 }
 
 fn face(paragraph: &Paragraph) -> &[u8] {
-  (**paragraph.runs()[0].font().bytes()).as_ref()
+  paragraph.runs()[0].font().bytes().as_ref()
 }
 
 // The test font sets "Hello, world" at 16 px in one line of its own size.
@@ -98,13 +98,15 @@ fn missing_family_falls_back() {
   assert_eq!(shape(&mut engine, "Hello", &listed), shape(&mut engine, "Hello", &style()));
 }
 
-// Font bytes come as the caller holds them: borrowed, owned or already shared.
+// Font bytes come as the caller holds them: borrowed, owned, shared, or taken from a shaped run.
 #[test]
 fn with_fonts_takes_any_bytes() {
   let owned = Engine::with_fonts([REGULAR.to_vec()]);
   let shared = Engine::with_fonts([Arc::<[u8]>::from(REGULAR)]);
+  let first = shape(&mut engine(), "a", &style());
+  let again = Engine::with_fonts([first.runs()[0].font().bytes().clone()]);
 
-  for mut engine in [owned, shared] {
+  for mut engine in [owned, shared, again] {
     assert_eq!(shape(&mut engine, "a", &style()).runs()[0].glyphs().len(), 1);
   }
 }

@@ -205,8 +205,68 @@ pub struct Glyph {
 /// The next id [`FontData::new`] hands out.
 static NEXT_FONT_ID: AtomicU64 = AtomicU64::new(1);
 
-/// A font file's bytes, shared: the shaper and every renderer read the same copy.
-pub type FontBytes = Arc<dyn AsRef<[u8]> + Send + Sync>;
+/// A font file's bytes, shared: the shaper and every renderer read the same copy, and a clone
+/// shares them too. It converts from a `&'static [u8]`, a `Vec<u8>`, a `Box<[u8]>` or an
+/// `Arc<[u8]>`; [`new`](FontBytes::new) takes any other type that reads as bytes, such as a
+/// memory map.
+#[derive(Clone)]
+pub struct FontBytes(Arc<dyn AsRef<[u8]> + Send + Sync>);
+
+impl FontBytes {
+  /// Shares `bytes`.
+  #[must_use]
+  pub fn new(bytes: impl AsRef<[u8]> + Send + Sync + 'static) -> FontBytes {
+    FontBytes(Arc::new(bytes))
+  }
+
+  /// The shared allocation, for a font type that keeps its own handle to it, such as a renderer's.
+  #[must_use]
+  pub fn shared(&self) -> &Arc<dyn AsRef<[u8]> + Send + Sync> {
+    &self.0
+  }
+}
+
+impl AsRef<[u8]> for FontBytes {
+  fn as_ref(&self) -> &[u8] {
+    (*self.0).as_ref()
+  }
+}
+
+impl Debug for FontBytes {
+  fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+    write!(formatter, "FontBytes({} bytes)", self.as_ref().len())
+  }
+}
+
+impl From<Arc<dyn AsRef<[u8]> + Send + Sync>> for FontBytes {
+  fn from(shared: Arc<dyn AsRef<[u8]> + Send + Sync>) -> FontBytes {
+    FontBytes(shared)
+  }
+}
+
+impl From<&'static [u8]> for FontBytes {
+  fn from(bytes: &'static [u8]) -> FontBytes {
+    FontBytes::new(bytes)
+  }
+}
+
+impl From<Vec<u8>> for FontBytes {
+  fn from(bytes: Vec<u8>) -> FontBytes {
+    FontBytes::new(bytes)
+  }
+}
+
+impl From<Box<[u8]>> for FontBytes {
+  fn from(bytes: Box<[u8]>) -> FontBytes {
+    FontBytes::new(bytes)
+  }
+}
+
+impl From<Arc<[u8]>> for FontBytes {
+  fn from(bytes: Arc<[u8]>) -> FontBytes {
+    FontBytes::new(bytes)
+  }
+}
 
 /// A font file's bytes and the face in it that a glyph run draws from.
 ///
@@ -224,9 +284,9 @@ impl FontData {
   /// The face at `index` in the font file `bytes`, with a new id. A file with one face has only
   /// index 0; a collection (`.ttc`) has one index per face.
   #[must_use]
-  pub fn new(bytes: FontBytes, index: u32) -> FontData {
+  pub fn new(bytes: impl Into<FontBytes>, index: u32) -> FontData {
     FontData {
-      bytes,
+      bytes: bytes.into(),
       index,
       id: NEXT_FONT_ID.fetch_add(1, Ordering::Relaxed),
     }
@@ -272,7 +332,7 @@ impl Debug for FontData {
       .debug_struct("FontData")
       .field("id", &self.id)
       .field("index", &self.index)
-      .field("len", &(*self.bytes).as_ref().len())
+      .field("len", &self.bytes.as_ref().len())
       .finish()
   }
 }
@@ -285,7 +345,7 @@ mod tests {
   use std::thread;
 
   fn font() -> FontData {
-    FontData::new(Arc::new(vec![0_u8; 16]), 2)
+    FontData::new(vec![0_u8; 16], 2)
   }
 
   fn run(font: &FontData) -> GlyphRun {
@@ -328,8 +388,8 @@ mod tests {
   // Each new font data gets its own id, even from the same bytes, and a clone keeps it.
   #[test]
   fn font_data_compares_by_id() {
-    let bytes: FontBytes = Arc::new(vec![1_u8, 2, 3]);
-    let first = FontData::new(Arc::clone(&bytes), 0);
+    let bytes = FontBytes::from(vec![1_u8, 2, 3]);
+    let first = FontData::new(bytes.clone(), 0);
     let second = FontData::new(bytes, 0);
 
     assert_ne!(first.id(), second.id());
@@ -380,7 +440,7 @@ mod tests {
     let font = font();
 
     assert_eq!(paragraph(&font), paragraph(&font));
-    assert_ne!(paragraph(&font), paragraph(&FontData::new(Arc::clone(font.bytes()), 2)));
+    assert_ne!(paragraph(&font), paragraph(&FontData::new(font.bytes().clone(), 2)));
   }
 
   // A clone shares its lines and runs instead of copying them.
@@ -396,11 +456,11 @@ mod tests {
   // The default paragraph has no lines and no glyphs, of size 0; a paragraph with a run has glyphs.
   #[test]
   fn default_paragraph_has_no_lines_and_no_glyphs() {
-    let none = Paragraph::default();
+    let unshaped = Paragraph::default();
 
-    assert!(!none.has_glyphs());
-    assert_eq!(none.size(), Size::ZERO);
-    assert!(none.lines().is_empty());
+    assert!(!unshaped.has_glyphs());
+    assert_eq!(unshaped.size(), Size::ZERO);
+    assert!(unshaped.lines().is_empty());
     assert!(paragraph(&font()).has_glyphs());
   }
 

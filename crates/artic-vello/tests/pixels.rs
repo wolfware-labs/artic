@@ -548,13 +548,17 @@ fn accepts_handles_and_pixels() {
 
 /// `text` shaped at 32 px with only the test font's regular face, in `weight` and `style`.
 fn shaped(text: &str, weight: FontWeight, style: FontStyle) -> Paragraph {
-  let fonts = [artic_test_fonts::REGULAR];
   let style = TextStyle {
     weight,
     style,
     ..TextStyle::new(FontFamily::default(), 32.0)
   };
-  artic_text::Engine::with_fonts(fonts).paragraph(text, &style, &ParagraphStyle::default(), TextLimits::NONE)
+  artic_text::Engine::with_fonts([artic_test_fonts::REGULAR]).paragraph(
+    text,
+    &style,
+    &ParagraphStyle::default(),
+    TextLimits::NONE,
+  )
 }
 
 /// The alpha of each pixel of `paragraph` drawn in black at (8, 8) on 64 by 64, row by row.
