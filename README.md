@@ -11,7 +11,7 @@ A cross-platform UI framework for Rust. Views are written in XAML, all logic is 
 - Views use XAML syntax (a defined subset of MS-XAML 2012) with CSS-like style selectors.
 - The design follows Rust, not a class hierarchy: controls are structs composed from shared state, nodes live in a tree and are referenced by id, and values convert through `FromStr` and `TryFrom`.
 - Bindings are typed and checked at compile time. There is no runtime reflection.
-- Release builds compile XAML to plain Rust in `build.rs`, so there is no parsing at startup. With `--features hot-reload`, views reload from disk while the app runs.
+- Release builds compile XAML to plain Rust in `build.rs`, so there is no parsing at startup. With `--features xaml-hot-reload`, views reload from disk while the app runs.
 - Signals propagate every change. View-models and `{Binding}` are built on them.
 - `vello` on `wgpu` draws every platform. Layouts adapt to screen size and input mode, not to the OS.
 - Every control exposes an `accesskit` node.
@@ -76,7 +76,7 @@ The workspace is layered. A crate depends only on crates in lower layers, so the
 | 2 | `artic-layout` | Measure and arrange protocol, geometry and text types, panels |
 | 2 | `artic-style` | Selectors, styles, setters, resource dictionaries |
 | 2 | `artic-view` | The view every UI language reads its files into, and its checks |
-| 2 | `artic-xaml-runtime` | Runtime loader for hot reload and `runtime-xaml` |
+| 2 | `artic-xaml-runtime` | Runtime loader for the facade's `xaml-runtime` and `xaml-hot-reload` features |
 | 3 | `artic-render` | `Renderer` trait and retained scene (backends are adapter crates) |
 | 3 | `artic-text` | Text shaping and line breaking with `parley`, fonts with `fontique` |
 | 3 | `artic-view-compiler` | Build-time compiler from any UI language to Rust |

@@ -2,7 +2,7 @@
 
 Issue: #20. Implemented by: #57. Related designs: #32 (value objects), #31 (attached properties and value providers), #21 (builder API).
 
-The runtime loader (spec §5, hot reload and `runtime-xaml`) reads XAML text and builds the same tree the compiled path builds. The compiled path knows every type while it generates code. The loader knows only strings and registry entries, yet it must end up calling a typed `Property<T>::set_at`. This document decides where the type `T` is known, without `Box<dyn Any>` and without `TypeId`-keyed downcasts in any public API (D9).
+The runtime loader (spec §5, hot reload and `xaml-runtime`) reads XAML text and builds the same tree the compiled path builds. The compiled path knows every type while it generates code. The loader knows only strings and registry entries, yet it must end up calling a typed `Property<T>::set_at`. This document decides where the type `T` is known, without `Box<dyn Any>` and without `TypeId`-keyed downcasts in any public API (D9).
 
 ## Constraints
 

@@ -35,11 +35,11 @@ Arrows point from a crate to its dependency. A dotted arrow is optional (named b
 
 ```mermaid
 flowchart TD
-  artic --> theme[artic-theme]
+  artic -. planned .-> theme[artic-theme]
   artic --> controls[artic-controls]
-  artic --> platform[artic-platform]
+  artic -. planned .-> platform[artic-platform]
   artic -. planned .-> text[artic-text]
-  artic -. hot-reload / runtime-xaml .-> runtime[artic-xaml-runtime]
+  artic -. xaml-runtime / xaml-hot-reload .-> runtime[artic-xaml-runtime]
   artic -. xaml .-> xaml
   artic -. view-compiler .-> viewc[artic-view-compiler]
   artic -. xaml-compiler .-> lang
@@ -117,7 +117,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-test` | `artic-core`, `artic-layout`, `artic-render`, `artic-text`, `artic-test-fonts`, `artic-element`, `artic-platform`; planned: `artic-registry`, `artic-style` |
 | `artic-winit` | `artic-core`, `artic-render`, `artic-platform` |
 | `artic-vello` | `artic-layout`, `artic-render` |
-| `artic` | every app-facing crate; `artic-xaml` with the `xaml` feature, which `hot-reload`, `runtime-xaml` and `xaml-compiler` turn on; `artic-xaml-runtime` only with `hot-reload` or `runtime-xaml`; `artic-view-compiler` with `view-compiler`, which `xaml-compiler` turns on; `artic-xaml-lang` only with `xaml-compiler`, which an app enables on its build-dependency on the facade |
+| `artic` | `artic-core`, `artic-element`, `artic-layout`, `artic-render`, `artic-controls`; planned: `artic-platform` (#55), `artic-style`, `artic-theme` (#106); `artic-xaml` with the `xaml` feature, which `xaml-runtime`, `xaml-hot-reload` and `xaml-compiler` turn on; `artic-xaml-runtime` only with `xaml-runtime` or `xaml-hot-reload`; `artic-view-compiler` with `view-compiler`, which `xaml-compiler` turns on; `artic-xaml-lang` only with `xaml-compiler`, which an app enables on its build-dependency on the facade |
 
 ## Rules
 
@@ -138,7 +138,8 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 - Spans and diagnostics live in `artic-diagnostics`, below every UI language, so `artic-style` can report selector errors with spans without naming one.
 - `crates/docs-check` is test-only (`publish = false`) and sits outside the layers, like the registry fixtures. It compiles the Rust code in the documents.
 - `artic-xaml` does not depend on the registry. Type references stay unresolved in the infoset, so parser tests need no registry.
-- Release builds link `artic-xaml-runtime` only when the app enables `runtime-xaml`. Compiled views never touch the loader.
+- Release builds link `artic-xaml-runtime` only when the app enables `xaml-runtime`. Compiled views never touch the loader.
+- The facade's default features add no UI language, host or renderer. Each one comes with an opt-in feature named after it, such as `xaml`, so adding a language or a renderer never costs an app that doesn't use it. The facade depends on a crate only to re-export it.
 - App-facing crates stay free of native-only dependencies, so a web target can be added later without app changes (D24 in the spec).
 - Backend adapters (`artic-winit`, `artic-vello`, and any third-party adapter) depend only on the public API of `artic-render` and `artic-platform`. Nothing in artic depends on an adapter: each target's launcher names its host and renderer ([backend design](design/backends.md)). `artic-render` and `artic-platform` have no backend dependencies (`wgpu`, `vello`, `winit` and the OS crates live in adapters). An adapter's tests may dev-depend on `artic-controls` for control goldens, since goldens belong to each renderer ([golden images](design/golden-images.md)); its library still depends only on `artic-render` and `artic-platform`.
 
