@@ -17,6 +17,13 @@ pub fn usable(value: f32) -> f32 {
   positive(value).unwrap_or(0.0)
 }
 
+/// `value` if it's finite, else 0: an offset or position, which may be negative, that NaN or an
+/// infinity turns off.
+#[must_use]
+pub fn or_zero(value: f32) -> f32 {
+  if value.is_finite() { value } else { 0.0 }
+}
+
 /// `value` if it's finite and above 0, else `None`: a length that only draws or shapes when it's
 /// there, such as a stroke's width or a font size.
 #[must_use]
@@ -88,6 +95,16 @@ mod tests {
       (f32::NEG_INFINITY, 0.0),
     ] {
       assert_eq!(usable(value).to_bits(), expected.to_bits(), "usable({value})");
+    }
+  }
+
+  // `or_zero` keeps any finite value, negatives included, and makes NaN and infinities 0.
+  #[test]
+  fn or_zero_keeps_finite_values() {
+    assert_eq!(or_zero(-2.5), -2.5);
+    assert_eq!(or_zero(3.0), 3.0);
+    for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+      assert_eq!(or_zero(value), 0.0, "or_zero({value})");
     }
   }
 

@@ -83,7 +83,7 @@ impl TextLimits {
 }
 
 fn usable(limit: Option<f32>) -> Option<f32> {
-  limit.filter(|limit| limit.is_finite()).map(|limit| limit.max(0.0))
+  limit.filter(|limit| limit.is_finite()).map(crate::finite::usable)
 }
 
 /// Shapes text into paragraphs: finds fonts, places glyphs and breaks lines.

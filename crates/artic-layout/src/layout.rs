@@ -777,8 +777,12 @@ impl<'a> ArrangeCx<'a> {
       "{} arranged node {child:?} in a rectangle that isn't finite ({rect})",
       self.pass.describe_parent(),
     );
-    let finite = |field: f32| if field.is_finite() { field } else { 0.0 };
-    Rect::new(finite(rect.x), finite(rect.y), finite(rect.width), finite(rect.height))
+    Rect::new(
+      finite::or_zero(rect.x),
+      finite::or_zero(rect.y),
+      finite::or_zero(rect.width),
+      finite::or_zero(rect.height),
+    )
   }
 }
 

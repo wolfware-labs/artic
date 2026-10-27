@@ -59,10 +59,9 @@ impl BoxShadow {
   /// infinite spread as `0`.
   #[must_use]
   pub fn drawable(&self) -> Option<BoxShadow> {
-    let finite = |value: f32| if value.is_finite() { value } else { 0.0 };
     (self.offset.x.is_finite() && self.offset.y.is_finite()).then(|| BoxShadow {
-      blur: finite(self.blur).max(0.0),
-      spread: finite(self.spread),
+      blur: finite::usable(self.blur),
+      spread: finite::or_zero(self.spread),
       ..self.clone()
     })
   }
@@ -271,13 +270,9 @@ mod tests {
       parse("4 NaN Black"),
       Err(ShadowProblem::Number(NumberProblem::NotFinite("NaN".to_owned())))
     );
-    assert!(
-      "4 NaN Black"
-        .parse::<BoxShadow>()
-        .unwrap_err()
-        .to_string()
-        .contains(": 'NaN' is not a finite number;"),
-      "the number's problem reads as before"
+    assert_eq!(
+      "4 NaN Black".parse::<BoxShadow>().unwrap_err().to_string(),
+      "invalid BoxShadow '4 NaN Black': 'NaN' is not a finite number; expected forms like '0 2 8 #40000000' or '4 4 Black'"
     );
     assert_eq!(parse("4 4 -8 Black"), Err(ShadowProblem::NegativeBlur("-8".to_owned())));
     assert!(matches!(parse("4 4 #4000000"), Err(ShadowProblem::Color(_))));
