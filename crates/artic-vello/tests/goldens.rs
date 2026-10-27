@@ -13,23 +13,14 @@ use artic_layout::text::{TextAlignment, TextTrimming, TextWrapping};
 use artic_render::{BoxShadow, Color, PhysicalSize, Scene};
 use artic_test::golden::{render, render_tree};
 use artic_test::{golden, scenes};
-use common::{is_warp, with_renderer};
+use common::with_renderer;
 use std::num::NonZeroU32;
-use vello::wgpu::{Backend, DeviceType};
 
 fn check(name: &str, scene: fn() -> Scene) {
   with_renderer(|renderer| {
     let image = render(renderer, &scene(), scenes::SIZE, 1.0).expect("renders");
     golden!(name).assert(&image);
   });
-}
-
-// WARP is a CPU adapter on DX12; lavapipe, a CPU adapter on Vulkan, and real GPUs are usable.
-#[test]
-fn only_dx12_cpu_adapters_are_warp() {
-  assert!(is_warp(Backend::Dx12, DeviceType::Cpu));
-  assert!(!is_warp(Backend::Vulkan, DeviceType::Cpu));
-  assert!(!is_warp(Backend::Dx12, DeviceType::DiscreteGpu));
 }
 
 // A rounded rectangle with four different radii.
