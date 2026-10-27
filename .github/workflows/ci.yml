@@ -87,12 +87,15 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    # Every action this job runs is pinned by commit, since the job can mint an OIDC token: so it
+    # sets Rust up itself rather than through `setup-rust`, whose cache action is a tag.
     steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-rust
-      - name: Install llvm-tools
-        run: rustup component add llvm-tools
-      # The third-party actions in this job are pinned by commit, since the job can mint an OIDC token.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install toolchain from rust-toolchain.toml, with llvm-tools
+        run: rustup toolchain install && rustup component add llvm-tools && rustc --version
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-llvm-cov
