@@ -795,25 +795,9 @@ impl UiTree {
   where
     T: PartialEq + 'static,
   {
-    let id = KeyId::of(key.key());
-    let mut field = None;
-    for_each_property(self.objects.object(node), |property| {
-      if field.is_none() && property.key_id() == id {
-        field = property.downcast::<T>().copied();
-      }
-    });
-    field.or_else(|| self.stored(node, key))
-  }
-
-  /// The property `node` stores for `key`, if one was created.
-  #[track_caller]
-  fn stored<T>(&self, node: NodeId, key: &'static AttachedKey<T>) -> Option<Property<T>>
-  where
-    T: PartialEq + 'static,
-  {
-    self.check(node);
-    let property = self.attached_values.find(node, KeyId::of(key.key()))?;
-    Some(*property.downcast::<T>().expect("a key's property has the key's value type"))
+    inheritance::with_property(&self.objects, &self.attached_values, node, KeyId::of(key.key()), |property| {
+      *property.downcast::<T>().expect("a key's property has the key's value type")
+    })
   }
 }
 
