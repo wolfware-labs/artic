@@ -1,9 +1,9 @@
+pub(crate) mod analysis;
 pub(crate) mod attributes;
 pub(crate) mod builders;
-pub(crate) mod fields;
 pub(crate) mod generate;
 
-use fields::analyze;
+use analysis::analyze;
 use generate::generate;
 use proc_macro2::TokenStream;
 use syn::DeriveInput;

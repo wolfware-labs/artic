@@ -365,6 +365,22 @@ struct Common {
   enabled: Property<bool>,
 }
 
+use artic_registry as registry_alias;
+
+/// A property group that reaches the registry through a path of its own.
+#[derive(Debug, UiProperties)]
+#[ui(crate = "registry_alias")]
+struct Spacing {
+  #[ui]
+  gap: Property<i32>,
+}
+
+// A group takes `#[ui(crate = "...")]` like a type, for crates that reach artic through a re-export.
+#[test]
+fn group_takes_a_crate_path() {
+  assert_eq!(<Spacing as PropertyGroup>::PROPERTIES.len(), 1);
+}
+
 /// A widget that flattens `Common` and adds a property of its own.
 #[derive(Debug, UiType)]
 struct Widget {

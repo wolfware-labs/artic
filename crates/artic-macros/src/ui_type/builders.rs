@@ -1,21 +1,20 @@
-use crate::ui_type::fields::{Analysis, Role, UiField, generic_argument, ui_name};
-use crate::ui_type::generate::generated_key;
-use artic_ident::screaming_snake_case;
+use crate::members::{Content, ContentMethod, Key, PropertyField, generic_argument};
+use crate::ui_type::analysis::TypeAnalysis;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::ext::IdentExt;
-use syn::{Ident, Type};
+use syn::Type;
 
 /// The builder items a derived type gets, written inside its inherent `impl`: `new`, `build`, one
 /// method per `Property` field, which sets the field's `Local` level, the content method for a
 /// type whose content is a collection, and a constant per property key the type owns.
-pub fn builders(analysis: &Analysis) -> TokenStream {
+pub fn builders(analysis: &TypeAnalysis) -> TokenStream {
   let ident = analysis.ident;
+  let properties = &analysis.members.properties;
   let new_doc = format!("Creates a `{ident}` with each property at its default.");
   let build_doc = format!("Adds this `{ident}` to `tree` and returns its handle.");
-  let constants = analysis.ui_fields.iter().filter_map(key_constant);
+  let constants = properties.iter().filter_map(key_constant);
   let content = content_builder(analysis);
-  let methods = analysis.ui_fields.iter().filter_map(property_method);
+  let methods = properties.iter().map(property_method);
   quote! {
     #(#constants)*
 
@@ -37,56 +36,17 @@ pub fn builders(analysis: &Analysis) -> TokenStream {
   }
 }
 
-/// The method that takes a type's child elements, as the registry's `ContentMethod` names it.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum ContentMethod {
-  /// `child`, for a field written `Child`.
-  Child,
-  /// `children`, for a field written `Children`.
-  Children,
-}
-
-impl ContentMethod {
-  /// The method's name.
-  pub fn name(self) -> &'static str {
-    match self {
-      ContentMethod::Child => "child",
-      ContentMethod::Children => "children",
-    }
-  }
-
-  /// The registry's variant, for the type's descriptor.
-  pub fn variant(self) -> Ident {
-    match self {
-      ContentMethod::Child => format_ident!("Child"),
-      ContentMethod::Children => format_ident!("Children"),
-    }
-  }
-}
-
-/// The method that takes a collection field's children: `Child` for a field written `Child`,
-/// `Children` for one written `Children`, and `None` for any other collection, whose values
-/// aren't child elements.
-pub fn content_method(ty: &Type) -> Option<ContentMethod> {
-  let Type::Path(path) = ty else {
-    return None;
-  };
-  match path.path.segments.last()?.ident.to_string().as_str() {
-    "Child" => Some(ContentMethod::Child),
-    "Children" => Some(ContentMethod::Children),
-    _ => None,
-  }
-}
-
 /// The method that takes the children of a type whose content is a collection, or `None`. It
 /// returns a `WithChildren`, whose `build` links them once the node exists.
-fn content_builder(analysis: &Analysis) -> Option<TokenStream> {
-  let field = analysis
-    .ui_fields
-    .iter()
-    .find(|field| field.attributes.content.is_some() && matches!(field.role, Role::Collection))?;
-  let method = content_method(field.ty)?;
-  let vis = field.vis;
+fn content_builder(analysis: &TypeAnalysis) -> Option<TokenStream> {
+  let Some(Content::Collection {
+    vis,
+    method: Some(method),
+    ..
+  }) = analysis.members.content
+  else {
+    return None;
+  };
   let ident = format_ident!("{}", method.name());
   Some(match method {
     ContentMethod::Child => quote! {
@@ -117,16 +77,13 @@ pub(crate) struct Setter {
   pub doc: String,
 }
 
-/// The `Setter` of a `Property` field, or `None` for another field. A `Property<Option<V>>`
-/// takes a `V`: `None` is the default, so a builder only ever sets a value.
+/// The `Setter` of a property field. A `Property<Option<V>>` takes a `V`: `None` is the default,
+/// so a builder only ever sets a value.
 ///
 /// The method takes `impl Into<T>`, except for a number type, which it takes as is: a literal
 /// such as `8.0` is an `f64` until something fixes its type, and `impl Into<f32>` doesn't.
-pub(crate) fn setter(field: &UiField) -> Option<Setter> {
-  let Role::Property { inner, value } = field.role else {
-    return None;
-  };
-  let name = ui_name(field);
+pub(crate) fn setter(field: &PropertyField) -> Setter {
+  let (inner, value, name) = (field.inner, field.value, &field.ui_name);
   let optional = generic_argument(inner, "Option").is_some();
   let argument = if optional { value } else { inner };
   let (parameter, converted) = if is_number(argument) {
@@ -145,21 +102,21 @@ pub(crate) fn setter(field: &UiField) -> Option<Setter> {
   } else {
     (converted, format!("Sets `{name}`, the local value."))
   };
-  Some(Setter { parameter, stored, doc })
+  Setter { parameter, stored, doc }
 }
 
-/// The inherent builder method of a `Property` field, or `None` for another field.
-fn property_method(field: &UiField) -> Option<TokenStream> {
-  let Setter { parameter, stored, doc } = setter(field)?;
+/// The inherent builder method of a property field.
+fn property_method(field: &PropertyField) -> TokenStream {
+  let Setter { parameter, stored, doc } = setter(field);
   let (field_ident, vis) = (field.ident, field.vis);
-  Some(quote! {
+  quote! {
     #[doc = #doc]
     #[must_use]
     #vis fn #field_ident(self, value: #parameter) -> Self {
       self.#field_ident.set(#stored);
       self
     }
-  })
+  }
 }
 
 /// Whether `ty` is written as one of Rust's number types: `f32`, or a path to it through
@@ -183,34 +140,27 @@ fn is_number(ty: &Type) -> bool {
     && NUMBERS.contains(&name.as_str())
 }
 
-/// The public name of a property's key: the field name without `r#`, in SCREAMING_SNAKE_CASE.
-pub fn key_constant_name(field: &Ident) -> Ident {
-  format_ident!("{}", screaming_snake_case(&field.unraw().to_string()))
-}
-
 /// The public constant for a property's own key, or `None` for a field that shares a key, whose
 /// owner already names it.
-pub(crate) fn key_constant(field: &UiField) -> Option<TokenStream> {
-  let Role::Property { inner, .. } = field.role else {
+pub(crate) fn key_constant(field: &PropertyField) -> Option<TokenStream> {
+  let Key::Own {
+    key_static, constant, ..
+  } = &field.key
+  else {
     return None;
   };
-  if field.attributes.key.is_some() {
-    return None;
-  }
-  let vis = field.vis;
-  let constant = key_constant_name(field.ident);
-  let key = generated_key(field.ident);
-  let doc = format!("The key of `{}`, for styles.", ui_name(field));
+  let (vis, inner) = (field.vis, field.inner);
+  let doc = format!("The key of `{}`, for styles.", field.ui_name);
   Some(quote! {
     #[doc = #doc]
-    #vis const #constant: &'static __artic::PropertyKey<#inner> = &#key;
+    #vis const #constant: &'static __artic::PropertyKey<#inner> = &#key_static;
   })
 }
 
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::ui_type::fields::analyze;
+  use crate::ui_type::analysis::analyze;
   use syn::{DeriveInput, parse_quote};
 
   /// The builder items for `input`, inside `impl Name { … }` and pretty-printed.

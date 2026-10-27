@@ -1,31 +1,37 @@
 use crate::crate_root::{REGISTRY, crate_root};
 use crate::members::attributes::Inherits;
+use crate::members::{Content, Key, PropertyField, generic_argument};
+use crate::ui_type::analysis::TypeAnalysis;
 use crate::ui_type::attributes::{Attached, Target, Whitespace};
-use crate::ui_type::builders::{builders, content_method};
-use crate::ui_type::fields::{Analysis, Role, UiField, generic_argument, ui_name};
+use crate::ui_type::builders::builders;
 use artic_ident::{rust_identifier, screaming_snake_case, snake_case};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
-use syn::Ident;
 use syn::ext::IdentExt;
 use syn::spanned::Spanned;
+use syn::{Ident, Type};
 
 /// Writes the code for one derived struct: its property keys, `Default`, `Object` and `UiType`
 /// impls, its registry descriptors and entry, and the checks on its field types.
-pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
+pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
   let root = crate_root(analysis.attributes.crate_path.as_ref(), analysis.ident, REGISTRY)?;
   let ident = analysis.ident;
-  let properties: Vec<&UiField> = analysis.ui_fields.iter().filter(|f| is_property(f)).collect();
-  let events: Vec<&UiField> = analysis
-    .ui_fields
-    .iter()
-    .filter(|f| matches!(f.role, Role::Event { .. }))
-    .collect();
-  let groups: Vec<&UiField> = analysis.ui_fields.iter().filter(|f| matches!(f.role, Role::Group)).collect();
+  let members = &analysis.members;
+  let (properties, events, groups) = (&members.properties, &members.events, &members.groups);
 
-  let keys = properties.iter().map(|field| key_static(field));
-  let default_fields = analysis.ui_fields.iter().map(|field| default_field(field));
-  let other_fields = &analysis.other_fields;
+  let keys = properties.iter().map(key_static);
+  let default_fields = properties.iter().map(default_field);
+  let content_field = match &members.content {
+    Some(Content::Collection { ident, .. }) => Some(*ident),
+    _ => None,
+  };
+  let other_fields: Vec<&Ident> = events
+    .iter()
+    .map(|event| event.ident)
+    .chain(groups.iter().map(|group| group.ident))
+    .chain(content_field)
+    .chain(members.others.iter().copied())
+    .collect();
   let visits = properties.iter().map(|field| {
     let field_ident = field.ident;
     quote!(visitor.visit(&self.#field_ident);)
@@ -79,54 +85,40 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
     })
   });
   let group_count = groups.len();
-  let property_infos = properties.iter().map(|field| property_info(field));
-  let event_infos = events.iter().map(|field| {
-    let name = ui_name(field);
-    let Role::Event { args } = field.role else {
-      unreachable!("filtered to events")
-    };
+  let property_infos = properties.iter().map(property_info);
+  let event_infos = events.iter().map(|event| {
+    let (name, args) = (&event.ui_name, event.args);
     quote!(__artic::EventInfo { name: #name, args_type: ::core::stringify!(#args) })
   });
   let property_count = properties.len();
   let event_count = events.len();
-  let value_checks = properties.iter().map(|field| value_check(field));
-  let own_content = analysis
-    .ui_fields
-    .iter()
-    .find(|field| field.attributes.content.is_some())
-    .map_or_else(
-      || quote!(::core::option::Option::None),
-      |field| {
-        let name = field.ident.to_string();
-        match properties.iter().position(|property| property.ident == field.ident) {
-          Some(index) => quote!(::core::option::Option::Some(__artic::ContentInfo::Property(__artic::PropertyRef {
-            group: ::core::option::Option::None,
-            info: &__PROPERTIES[#index],
-          }))),
-          None => {
-            let method = match content_method(field.ty) {
-              Some(method) => {
-                let variant = method.variant();
-                quote!(::core::option::Option::Some(__artic::ContentMethod::#variant))
-              }
-              None => quote!(::core::option::Option::None),
-            };
-            quote!(::core::option::Option::Some(__artic::ContentInfo::Collection {
-              field: #name,
-              method: #method,
-              add_child: __add_child,
-            }))
-          }
+  let value_checks = properties.iter().map(|field| value_check(field.value));
+  let own_content = match &members.content {
+    None => quote!(::core::option::Option::None),
+    Some(Content::Property(index)) => quote!(::core::option::Option::Some(__artic::ContentInfo::Property(__artic::PropertyRef {
+      group: ::core::option::Option::None,
+      info: &__PROPERTIES[#index],
+    }))),
+    Some(Content::Collection { ident, method, .. }) => {
+      let name = ident.to_string();
+      let method = match method {
+        Some(method) => {
+          let variant = method.variant();
+          quote!(::core::option::Option::Some(__artic::ContentMethod::#variant))
         }
-      },
-    );
-  let content_functions = analysis
-    .ui_fields
-    .iter()
-    .find(|field| field.attributes.content.is_some() && matches!(field.role, Role::Collection))
-    .map(|field| {
-      let (field_ident, ty) = (field.ident, field.ty);
-      quote! {
+        None => quote!(::core::option::Option::None),
+      };
+      quote!(::core::option::Option::Some(__artic::ContentInfo::Collection {
+        field: #name,
+        method: #method,
+        add_child: __add_child,
+      }))
+    }
+  };
+  let content_functions = match &members.content {
+    Some(Content::Collection {
+      ident: field_ident, ty, ..
+    }) => Some(quote! {
         fn __content_field<'a>(
           tree: &'a mut __artic::UiTree,
           owner: __artic::NodeId,
@@ -141,8 +133,9 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
         ) -> ::core::result::Result<(), __artic::ValueError> {
           <#ty as __artic::UiCollection>::push_child(tree, owner, child, __content_field)
         }
-      }
-    });
+    }),
+    _ => None,
+  };
   let group_contents = groups.iter().map(|field| {
     let ty = field.ty;
     let field_name = field.ident.to_string();
@@ -155,19 +148,15 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
   let attached_helpers = attached.iter().map(|attached| attached_helpers(ident, attached));
   let attached_infos = attached.iter().map(attached_info);
   let attached_count = attached.len();
-  let value_provider = value_provider(analysis, &properties);
+  let value_provider = value_provider(analysis);
   let value_provider_info = if analysis.attributes.value_provider.is_some() {
     quote!(::core::option::Option::Some(&__VALUE_PROVIDER))
   } else {
     quote!(::core::option::Option::None)
   };
-  let attached_checks = attached.iter().map(|attached| {
-    let ty = &attached.ty;
-    let value = generic_argument(ty, "Option").unwrap_or(ty);
-    quote_spanned!(ty.span()=>
-      (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
-    )
-  });
+  let attached_checks = attached
+    .iter()
+    .map(|attached| value_check(generic_argument(&attached.ty, "Option").unwrap_or(&attached.ty)));
   let override_defaults = analysis
     .attributes
     .override_defaults
@@ -261,14 +250,15 @@ pub fn generate(analysis: &Analysis) -> syn::Result<TokenStream> {
 
 /// The `ValueProviderInfo` static of a value provider, or nothing for another type. Every
 /// property is a named argument, and `positional(...)` lists those also set by position.
-fn value_provider(analysis: &Analysis, properties: &[&UiField]) -> TokenStream {
+fn value_provider(analysis: &TypeAnalysis) -> TokenStream {
   let Some(positional) = &analysis.attributes.value_provider else {
     return TokenStream::new();
   };
-  let by_position: Vec<&UiField> = positional
+  let properties = &analysis.members.properties;
+  let by_position: Vec<&PropertyField> = positional
     .iter()
     .map(|argument| {
-      *properties
+      properties
         .iter()
         .find(|field| field.ident == argument)
         .expect("checked to name a property")
@@ -289,10 +279,8 @@ fn value_provider(analysis: &Analysis, properties: &[&UiField]) -> TokenStream {
 
 /// The `ArgInfo` of a property used as a value provider argument: its name and value type, as in
 /// its `PropertyInfo`.
-fn arg_info(field: &UiField) -> TokenStream {
-  let Role::Property { inner, .. } = field.role else {
-    unreachable!("properties only")
-  };
+fn arg_info(field: &PropertyField) -> TokenStream {
+  let inner = field.inner;
   let key = key_path(field);
   quote!(__artic::ArgInfo { name: #key.name(), value_type: ::core::stringify!(#inner) })
 }
@@ -365,49 +353,37 @@ fn attached_info(attached: &Attached) -> TokenStream {
   }
 }
 
-/// The check that a property's value type can be written in a UI language, pointing at the type.
-pub fn value_check(field: &UiField) -> TokenStream {
-  let Role::Property { value, .. } = field.role else {
-    unreachable!("properties only")
-  };
+/// The check that a value type can be written in a UI language, pointing at the type.
+pub fn value_check(value: &Type) -> TokenStream {
   quote_spanned!(value.span()=>
     (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
   )
 }
 
-fn is_property(field: &UiField) -> bool {
-  matches!(field.role, Role::Property { .. })
-}
-
 /// The key a property is stored under, as a `&'static PropertyKey` expression usable in const
 /// code: the derive's own static, or a shared key's `key()`, which a property key and an attached
 /// key both have.
-fn key_path(field: &UiField) -> TokenStream {
-  match &field.attributes.key {
-    Some(key) => quote!(#key.key()),
-    None => {
-      let key = generated_key(field.ident);
-      quote!((&#key))
-    }
+fn key_path(field: &PropertyField) -> TokenStream {
+  match &field.key {
+    Key::Shared(key) => quote!(#key.key()),
+    Key::Own { key_static, .. } => quote!((&#key_static)),
   }
-}
-
-pub(crate) fn generated_key(field: &Ident) -> Ident {
-  format_ident!("__KEY_{}", screaming_snake_case(&field.unraw().to_string()))
 }
 
 /// The `static PropertyKey` the derive writes for a property without a shared `key`.
-pub fn key_static(field: &UiField) -> TokenStream {
-  if field.attributes.key.is_some() {
+pub fn key_static(field: &PropertyField) -> TokenStream {
+  let Key::Own {
+    key_static: key,
+    affects,
+    inherits,
+    ..
+  } = &field.key
+  else {
     return TokenStream::new();
-  }
-  let Role::Property { inner, .. } = field.role else {
-    unreachable!("properties only")
   };
-  let key = generated_key(field.ident);
-  let name = ui_name(field);
-  let affects = affects_tokens(&field.attributes.spec.affects);
-  let inheritance = inheritance_tokens(field.attributes.spec.inherits.as_ref());
+  let (inner, name) = (field.inner, &field.ui_name);
+  let affects = affects_tokens(affects);
+  let inheritance = inheritance_tokens(inherits.as_ref());
   quote! {
     static #key: __artic::PropertyKey<#inner> = __artic::PropertyKey::new(#name, #affects, #inheritance);
   }
@@ -438,34 +414,27 @@ fn inheritance_tokens(inherits: Option<&Inherits>) -> TokenStream {
   }
 }
 
-/// How `Default` creates one `#[ui]` field.
-pub fn default_field(field: &UiField) -> TokenStream {
-  let field_ident = field.ident;
-  match field.role {
-    Role::Property { inner, .. } => {
-      let key = key_path(field);
-      let value = match (&field.attributes.key, &field.attributes.spec.default) {
-        (Some(shared), Some(expression)) => {
-          quote_spanned!(expression.span()=> __artic::default_beside(&#shared, #expression))
-        }
-        (Some(shared), None) => quote!({
-          use __artic::SharedKey as _;
-          #shared.initial_value()
-        }),
-        (None, Some(expression)) => quote!(#expression),
-        (None, None) => quote_spanned!(inner.span()=> <#inner as ::core::default::Default>::default()),
-      };
-      quote!(#field_ident: __artic::Property::new(#key, #value))
+/// How `Default` creates one property field.
+pub fn default_field(field: &PropertyField) -> TokenStream {
+  let (field_ident, inner) = (field.ident, field.inner);
+  let key = key_path(field);
+  let value = match (&field.key, &field.default) {
+    (Key::Shared(shared), Some(expression)) => {
+      quote_spanned!(expression.span()=> __artic::default_beside(&#shared, #expression))
     }
-    Role::Event { .. } | Role::Collection | Role::Group => quote!(#field_ident: ::core::default::Default::default()),
-  }
+    (Key::Shared(shared), None) => quote!({
+      use __artic::SharedKey as _;
+      #shared.initial_value()
+    }),
+    (Key::Own { .. }, Some(expression)) => quote!(#expression),
+    (Key::Own { .. }, None) => quote_spanned!(inner.span()=> <#inner as ::core::default::Default>::default()),
+  };
+  quote!(#field_ident: __artic::Property::new(#key, #value))
 }
 
 /// The `PropertyInfo` for one property, with its metadata read from the key.
-pub fn property_info(field: &UiField) -> TokenStream {
-  let Role::Property { inner, value } = field.role else {
-    unreachable!("properties only")
-  };
+pub fn property_info(field: &PropertyField) -> TokenStream {
+  let (inner, value) = (field.inner, field.value);
   let key = key_path(field);
   let field_name = field.ident.to_string();
   quote! {

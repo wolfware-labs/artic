@@ -22,7 +22,6 @@ const _: () = {
     impl ::core::default::Default for Panel {
         fn default() -> Self {
             let __artic_value = Self {
-                children: ::core::default::Default::default(),
                 width: __artic::Property::new((&__KEY_WIDTH), 1.0),
                 enabled: __artic::Property::new(
                     (&__KEY_ENABLED),
@@ -38,6 +37,7 @@ const _: () = {
                 ),
                 clicked: ::core::default::Default::default(),
                 layout: ::core::default::Default::default(),
+                children: ::core::default::Default::default(),
                 cache: ::core::default::Default::default(),
             };
             <Self as __artic::OverrideDefaults>::override_defaults(&__artic_value);

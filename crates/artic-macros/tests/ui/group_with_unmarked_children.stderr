@@ -1,0 +1,5 @@
+error: a property group holds only `Property` fields
+ --> tests/ui/group_with_unmarked_children.rs:9:10
+  |
+9 |   items: Children,
+  |          ^^^^^^^^
