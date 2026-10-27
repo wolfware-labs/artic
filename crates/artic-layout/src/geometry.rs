@@ -277,7 +277,8 @@ impl RoundedRect {
 
   /// The same shape with radii that can be drawn: a negative, NaN or infinite radius is `0`, and
   /// when two radii on one side add up to more than the side, all four shrink by the same factor,
-  /// as in CSS.
+  /// as in CSS, rounded down so they never add up to more than the side. Fitting a fitted shape
+  /// changes nothing.
   #[must_use]
   pub fn fitted(self) -> RoundedRect {
     let drawable = |radius: f32| {
@@ -305,8 +306,16 @@ impl RoundedRect {
     .filter(|&(side, radii)| radii > side)
     .map(|(side, radii)| side / radii)
     .fold(1.0, f64::min);
+    let down = |radius: f64| {
+      let rounded = radius as f32;
+      if f64::from(rounded) > radius {
+        rounded.next_down()
+      } else {
+        rounded
+      }
+    };
     let [top_left, top_right, bottom_right, bottom_left] =
-      [top_left, top_right, bottom_right, bottom_left].map(|radius| (radius * scale) as f32);
+      [top_left, top_right, bottom_right, bottom_left].map(|radius| down(radius * scale));
     RoundedRect::new(self.rect, CornerRadius::new(top_left, top_right, bottom_right, bottom_left))
   }
 }
@@ -841,6 +850,27 @@ mod tests {
 
     assert_eq!(rect.origin(), Point::new(1.0, 2.0));
     assert_eq!(rect.size(), Size::new(30.0, 40.0));
+  }
+
+  // Fitting a fitted shape changes nothing, so `path` and every renderer that fits again draw the
+  // radii the first fit gave: scaled radii are rounded down, never past their side.
+  #[test]
+  fn fitted_is_idempotent() {
+    let mut refitted = Vec::new();
+    for width in [1.0, 3.0, 7.3, 10.0, 33.3, 99.9, 0.1, 1e6] {
+      for height in [1.0, 2.2, 9.7, 50.0, 0.3, 1e5] {
+        for a in [0.1, 1.0, 3.3, 7.7, 25.0, 100.0, 1e6] {
+          for b in [0.0, 0.7, 5.1, 33.0, 1e3] {
+            let radius = CornerRadius::new(a, b, a * 0.37, b + 1.3);
+            let once = RoundedRect::new(Rect::new(0.0, 0.0, width, height), radius).fitted();
+            if once.fitted() != once {
+              refitted.push(once);
+            }
+          }
+        }
+      }
+    }
+    assert_eq!(refitted, []);
   }
 
   // Radii that two corners of one side can't share shrink together, by the factor the tightest
