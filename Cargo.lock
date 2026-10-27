@@ -371,6 +371,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "artic-view-compiler"
+version = "0.1.0"
+dependencies = [
+ "artic-registry",
+ "pretty_assertions",
+]
+
+[[package]]
 name = "artic-winit"
 version = "0.1.0"
 dependencies = [

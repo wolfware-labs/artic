@@ -1,0 +1,18 @@
+[package]
+name = "artic-view-compiler"
+description = "Compiles the views of any UI language to Rust."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+artic-registry.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+
+[lints]
+workspace = true
