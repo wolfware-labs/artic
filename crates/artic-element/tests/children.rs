@@ -119,6 +119,18 @@ fn child_set_replaces_in_both_trees() {
   assert_eq!(tree.parent(TreeKind::Logical, first), None);
 }
 
+// Setting the current child again keeps it.
+#[test]
+fn child_set_to_the_current_child_keeps_it() {
+  let mut tree = UiTree::new();
+  let (border, child) = (node(&mut tree), node(&mut tree));
+  Child::set(&mut tree, border, Some(child));
+
+  Child::set(&mut tree, border, Some(child));
+
+  assert_eq!(both(&tree, border), (vec![child], vec![child]));
+}
+
 // A current child linked elsewhere in one tree is a bug: nothing changes.
 #[test]
 #[should_panic(expected = "children of")]

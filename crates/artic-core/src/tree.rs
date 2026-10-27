@@ -465,9 +465,7 @@ impl UiTree {
   #[track_caller]
   pub fn add_child(&mut self, tree: TreeKind, parent: NodeId, child: NodeId) {
     self.check_attach(tree, parent, None, child);
-    self.unlink(tree, child);
-    let index = self.tree(tree).children(parent).len();
-    self.attach(tree, parent, index, child);
+    self.place(tree, parent, None, child);
   }
 
   /// Makes `child` the child of `parent` at `index` in `tree`, shifting later children right.
@@ -483,32 +481,63 @@ impl UiTree {
   #[track_caller]
   pub fn insert_child(&mut self, tree: TreeKind, parent: NodeId, index: usize, child: NodeId) {
     self.check_attach(tree, parent, Some(index), child);
-    self.unlink(tree, child);
-    self.attach(tree, parent, index, child);
+    self.place(tree, parent, Some(index), child);
   }
 
-  /// Whether linking `child` under `parent` in `tree` would succeed, at `index` or at the end: both
-  /// nodes in the tree, `index` in range once `child` has left its current parent, and no cycle.
-  /// Changes nothing.
-  pub fn check_link(&self, tree: TreeKind, parent: NodeId, index: Option<usize>, child: NodeId) -> Result<(), LinkError> {
-    for node in [parent, child] {
-      if !self.contains(node) {
-        return Err(LinkError::NotInTree(node));
-      }
+  /// Makes `child` the child of `parent` in both trees, at `index` or at the end, moving it from
+  /// any parent it had.
+  ///
+  /// Both trees are checked before either changes, so a link one of them refuses leaves both as
+  /// they were.
+  ///
+  /// # Errors
+  ///
+  /// [`LinkError::ChildrenDiffer`] when `parent`'s logical and visual children differ, and every
+  /// case [`insert_child`](UiTree::insert_child) panics on, in either tree.
+  pub fn link_both(&mut self, parent: NodeId, index: Option<usize>, child: NodeId) -> Result<(), LinkError> {
+    self.shared_children(parent)?;
+    for tree in TreeKind::ALL {
+      self.check_link(tree, parent, index, child)?;
     }
-    if self.tree(tree).would_cycle(parent, child) {
-      return Err(LinkError::Cycle { tree, parent, child });
-    }
-    if let Some(index) = index {
-      let mut len = self.tree(tree).children(parent).len();
-      if self.tree(tree).parent(child) == Some(parent) {
-        len -= 1;
-      }
-      if index > len {
-        return Err(LinkError::IndexOutOfRange { index, len });
-      }
+    for tree in TreeKind::ALL {
+      self.place(tree, parent, index, child);
     }
     Ok(())
+  }
+
+  /// Detaches `child` from `parent` in both trees; the node stays in the tree.
+  ///
+  /// # Errors
+  ///
+  /// [`LinkError::ChildrenDiffer`] when `parent`'s logical and visual children differ, and
+  /// [`LinkError::NotAChild`] when `child` isn't `parent`'s child. Nothing changes then.
+  pub fn unlink_both(&mut self, parent: NodeId, child: NodeId) -> Result<(), LinkError> {
+    self.shared_children(parent)?;
+    if let Some(tree) = TreeKind::ALL
+      .into_iter()
+      .find(|tree| self.parent(*tree, child) != Some(parent))
+    {
+      return Err(LinkError::NotAChild { tree, parent, child });
+    }
+    for tree in TreeKind::ALL {
+      self.detach(tree, child);
+    }
+    Ok(())
+  }
+
+  /// Returns the children of `parent`, which its logical and visual trees hold alike.
+  ///
+  /// # Errors
+  ///
+  /// [`LinkError::ChildrenDiffer`] when the two trees hold different children, or the same in a
+  /// different order.
+  pub fn shared_children(&self, parent: NodeId) -> Result<Vec<NodeId>, LinkError> {
+    let [logical, visual] = TreeKind::ALL.map(|tree| self.tree(tree).children(parent));
+    if logical == visual {
+      Ok(logical.to_vec())
+    } else {
+      Err(LinkError::ChildrenDiffer { parent })
+    }
   }
 
   /// Removes `node` from its parent's children in `tree` and returns that parent.
@@ -796,6 +825,36 @@ impl UiTree {
     if let Err(error) = self.check_link(tree, parent, index, child) {
       panic!("{error}");
     }
+  }
+
+  /// Whether linking `child` under `parent` in `tree` would succeed, at `index` or at the end: both
+  /// nodes in the tree, `index` in range once `child` has left its current parent, and no cycle.
+  /// Changes nothing.
+  fn check_link(&self, tree: TreeKind, parent: NodeId, index: Option<usize>, child: NodeId) -> Result<(), LinkError> {
+    for node in [parent, child] {
+      if !self.contains(node) {
+        return Err(LinkError::NotInTree(node));
+      }
+    }
+    if self.tree(tree).would_cycle(parent, child) {
+      return Err(LinkError::Cycle { tree, parent, child });
+    }
+    if let Some(index) = index {
+      let mut len = self.tree(tree).children(parent).len();
+      if self.tree(tree).parent(child) == Some(parent) {
+        len -= 1;
+      }
+      if index > len {
+        return Err(LinkError::IndexOutOfRange { index, len });
+      }
+    }
+    Ok(())
+  }
+
+  fn place(&mut self, tree: TreeKind, parent: NodeId, index: Option<usize>, child: NodeId) {
+    self.unlink(tree, child);
+    let index = index.unwrap_or_else(|| self.tree(tree).children(parent).len());
+    self.attach(tree, parent, index, child);
   }
 
   fn attach(&mut self, tree: TreeKind, parent: NodeId, index: usize, child: NodeId) {
