@@ -56,7 +56,7 @@ fn user_control_builder_takes_one_child() {
 
   let view = UserControl::new().child(content).build(&mut tree);
 
-  for kind in [TreeKind::Logical, TreeKind::Visual] {
+  for kind in TreeKind::ALL {
     assert_eq!(tree.children(kind, view.id()).collect::<Vec<_>>(), [content.id()]);
   }
 }

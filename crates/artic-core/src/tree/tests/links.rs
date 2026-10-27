@@ -395,3 +395,9 @@ fn free_of_a_stale_id_panics() {
 
   tree.free(node);
 }
+
+// `TreeKind::ALL` names both trees, logical first.
+#[test]
+fn tree_kind_all_lists_logical_then_visual() {
+  assert_eq!(TreeKind::ALL, [TreeKind::Logical, TreeKind::Visual]);
+}

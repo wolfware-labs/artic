@@ -145,7 +145,7 @@ fn check(renderer: impl Renderer + 'static) -> Result<(), Box<dyn std::error::Er
   let surface = Surface::default();
   surface.title.set("artic frames".to_owned());
   let surface = tree.alloc(Box::new(surface));
-  for kind in [TreeKind::Logical, TreeKind::Visual] {
+  for kind in TreeKind::ALL {
     tree.add_child(kind, application, surface);
     tree.add_child(kind, surface, swatch);
   }

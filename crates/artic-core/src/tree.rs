@@ -60,8 +60,6 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt::Debug;
 
-const TREES: [TreeKind; 2] = [TreeKind::Logical, TreeKind::Visual];
-
 /// The UI tree: owns every node, links them into the logical and visual trees, and tracks what each
 /// node needs redone.
 ///
@@ -126,6 +124,11 @@ pub enum TreeKind {
   Logical,
   /// The tree that is laid out and drawn.
   Visual,
+}
+
+impl TreeKind {
+  /// Both trees, logical first.
+  pub const ALL: [TreeKind; 2] = [TreeKind::Logical, TreeKind::Visual];
 }
 
 /// Why a link between two nodes can't be made, or a node isn't where it was expected.
@@ -461,7 +464,7 @@ impl UiTree {
   /// ```
   #[track_caller]
   pub fn add_child(&mut self, tree: TreeKind, parent: NodeId, child: NodeId) {
-    self.check_attach(tree, parent, child);
+    self.check_attach(tree, parent, None, child);
     self.unlink(tree, child);
     let index = self.tree(tree).children(parent).len();
     self.attach(tree, parent, index, child);
@@ -479,9 +482,7 @@ impl UiTree {
   /// the number of children.
   #[track_caller]
   pub fn insert_child(&mut self, tree: TreeKind, parent: NodeId, index: usize, child: NodeId) {
-    if let Err(error) = self.check_link(tree, parent, Some(index), child) {
-      panic!("{error}");
-    }
+    self.check_attach(tree, parent, Some(index), child);
     self.unlink(tree, child);
     self.attach(tree, parent, index, child);
   }
@@ -624,7 +625,7 @@ impl UiTree {
     let mut subtree = HashSet::from([id]);
     let mut pending = vec![id];
     while let Some(node) = pending.pop() {
-      for tree in TREES {
+      for tree in TreeKind::ALL {
         for child in self.tree(tree).children(node) {
           if subtree.insert(*child) {
             pending.push(*child);
@@ -633,7 +634,7 @@ impl UiTree {
       }
     }
     for node in &subtree {
-      for tree in TREES {
+      for tree in TreeKind::ALL {
         if self.parent(tree, *node).is_some_and(|parent| !subtree.contains(&parent)) {
           self.unlink(tree, *node);
         }
@@ -791,8 +792,8 @@ impl UiTree {
   }
 
   #[track_caller]
-  fn check_attach(&self, tree: TreeKind, parent: NodeId, child: NodeId) {
-    if let Err(error) = self.check_link(tree, parent, None, child) {
+  fn check_attach(&self, tree: TreeKind, parent: NodeId, index: Option<usize>, child: NodeId) {
+    if let Err(error) = self.check_link(tree, parent, index, child) {
       panic!("{error}");
     }
   }

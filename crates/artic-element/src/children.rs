@@ -13,10 +13,8 @@ pub struct Children;
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Child;
 
-const TREES: [TreeKind; 2] = [TreeKind::Logical, TreeKind::Visual];
-
 fn agreed(tree: &UiTree, parent: NodeId) -> Result<Vec<NodeId>, LinkError> {
-  let [logical, visual] = TREES.map(|kind| tree.children(kind, parent).collect::<Vec<NodeId>>());
+  let [logical, visual] = TreeKind::ALL.map(|kind| tree.children(kind, parent).collect::<Vec<NodeId>>());
   if logical == visual {
     Ok(logical)
   } else {
@@ -26,7 +24,9 @@ fn agreed(tree: &UiTree, parent: NodeId) -> Result<Vec<NodeId>, LinkError> {
 
 fn check_both(tree: &UiTree, parent: NodeId, index: Option<usize>, child: NodeId) -> Result<(), LinkError> {
   agreed(tree, parent)?;
-  TREES.iter().try_for_each(|kind| tree.check_link(*kind, parent, index, child))
+  TreeKind::ALL
+    .iter()
+    .try_for_each(|kind| tree.check_link(*kind, parent, index, child))
 }
 
 fn current(tree: &UiTree, parent: NodeId) -> Result<Option<NodeId>, ValueError> {
@@ -38,7 +38,7 @@ fn current(tree: &UiTree, parent: NodeId) -> Result<Option<NodeId>, ValueError> 
 }
 
 fn check_is_child(tree: &UiTree, parent: NodeId, child: NodeId) -> Result<(), LinkError> {
-  TREES
+  TreeKind::ALL
     .iter()
     .try_for_each(|kind| match tree.parent(*kind, child) == Some(parent) {
       true => Ok(()),
@@ -60,7 +60,7 @@ impl Children {
     if let Err(error) = check_both(tree, parent, None, child) {
       panic!("{error}");
     }
-    for kind in TREES {
+    for kind in TreeKind::ALL {
       tree.add_child(kind, parent, child);
     }
   }
@@ -74,7 +74,7 @@ impl Children {
     if let Err(error) = check_both(tree, parent, Some(index), child) {
       panic!("{error}");
     }
-    for kind in TREES {
+    for kind in TreeKind::ALL {
       tree.insert_child(kind, parent, index, child);
     }
   }
@@ -88,7 +88,7 @@ impl Children {
     if let Err(error) = agreed(tree, parent).and_then(|_| check_is_child(tree, parent, child)) {
       panic!("{error}");
     }
-    for kind in TREES {
+    for kind in TreeKind::ALL {
       tree.detach(kind, child);
     }
   }
@@ -130,12 +130,12 @@ impl Child {
       panic!("{error}");
     }
     if let Some(old) = old {
-      for kind in TREES {
+      for kind in TreeKind::ALL {
         tree.detach(kind, old);
       }
     }
     if let Some(child) = child {
-      for kind in TREES {
+      for kind in TreeKind::ALL {
         tree.add_child(kind, parent, child);
       }
     }

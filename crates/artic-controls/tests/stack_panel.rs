@@ -218,7 +218,7 @@ fn children_builder_links_in_order_in_both_trees() {
 
   let panel = StackPanel::new().spacing(4.0).children([first, second]).build(&mut tree);
 
-  for kind in [TreeKind::Logical, TreeKind::Visual] {
+  for kind in TreeKind::ALL {
     assert_eq!(tree.children(kind, panel.id()).collect::<Vec<_>>(), [first.id(), second.id()]);
   }
   assert_eq!(panel.get(&tree).spacing.get(), 4.0);

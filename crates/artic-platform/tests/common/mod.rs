@@ -270,7 +270,7 @@ pub fn application(tree: &mut UiTree, surfaces: &[(&str, NodeId)]) -> (NodeId, V
       let surface = Surface::default();
       surface.title.set((*title).to_owned());
       let node = tree.alloc(Box::new(surface));
-      for kind in [TreeKind::Logical, TreeKind::Visual] {
+      for kind in TreeKind::ALL {
         tree.add_child(kind, application, node);
         tree.add_child(kind, node, *content);
       }
