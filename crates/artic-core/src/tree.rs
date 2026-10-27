@@ -45,7 +45,7 @@ mod objects;
 use crate::Object;
 use crate::arena::SlotId;
 use crate::object::for_each_property;
-use crate::property::{Affects, AttachedKey, Erased, Inheritance, KeyId, Property};
+use crate::property::{Affects, AttachedKey, Erased, KeyId, Property};
 use attached::AttachedValues;
 use dirty::DirtyFlags;
 pub(crate) use dirty::DirtyHandle;
@@ -679,18 +679,16 @@ impl UiTree {
     if let Some(property) = self.held(node, key) {
       return property.get();
     }
-    let inherited = match key.key().inheritance() {
-      Inheritance::None => None,
-      inheritance => self
-        .logical
-        .ancestors(node)
-        .find_map(|ancestor| self.held(ancestor, key))
-        .map(|source| (inheritance, source.get())),
-    };
-    match inherited {
-      Some((Inheritance::Combine(combine), value)) => combine(&key.default_value(), &value),
-      Some((_, value)) => value,
-      None => key.default_value(),
+    let inheritance = key.key().inheritance();
+    let default = key.default_value();
+    let source = key
+      .key()
+      .inherits()
+      .then(|| self.logical.ancestors(node).find_map(|ancestor| self.held(ancestor, key)))
+      .flatten();
+    match source {
+      Some(source) => source.with(|inherited| inheritance.resolve(None, &default, Some(inherited), T::clone)),
+      None => default,
     }
   }
 

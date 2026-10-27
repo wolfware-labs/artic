@@ -28,20 +28,17 @@ where
   }
 
   pub fn with_effective<TResult>(&self, function: impl FnOnce(&T) -> TResult) -> TResult {
-    if let (Inheritance::Combine(combine), Some(source)) = (self.inheritance, self.inherited) {
-      return function(&self.combined(combine, source));
-    }
-    if let Some(value) = self.values.iter().rev().find_map(Option::as_ref) {
-      return function(value);
-    }
-    match self.inherited {
-      Some(source) => source.with(function),
-      None => function(&self.default),
-    }
-  }
-
-  fn combined(&self, combine: fn(&T, &T) -> T, source: Property<T>) -> T {
-    self.with_own(|own| source.with(|inherited| combine(own, inherited)))
+    let own = self.values.iter().rev().find_map(Option::as_ref);
+    let Some(source) = self.inherited.filter(|_| own.is_none() || self.combines()) else {
+      return self.inheritance.resolve(own, &self.default, None, function);
+    };
+    let (mut function, mut result) = (Some(function), None);
+    let read: &mut dyn FnMut(&T) = &mut |inherited| {
+      let function = function.take().expect("a property reads its source once");
+      result = Some(self.inheritance.resolve(own, &self.default, Some(inherited), function));
+    };
+    source.with(read);
+    result.expect("a property reads its source once")
   }
 
   pub fn with_own<TResult>(&self, function: impl FnOnce(&T) -> TResult) -> TResult {
