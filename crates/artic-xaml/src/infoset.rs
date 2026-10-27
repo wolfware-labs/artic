@@ -7,6 +7,7 @@
 //! types needs the registry, which this crate doesn't depend on.
 
 use artic_diagnostics::{SourceId, Span};
+use std::fmt;
 
 /// A parsed XAML file.
 #[derive(Debug, Clone, PartialEq)]
@@ -117,7 +118,7 @@ pub enum MemberKey {
 ///
 /// An attribute is a directive when its prefix stands for [`XamlNamespace::Markup`], whatever the
 /// prefix is.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Directive {
   /// `x:Name`
   Name,
@@ -133,6 +134,37 @@ pub enum Directive {
   FieldModifier,
 }
 
+impl Directive {
+  /// Every directive, in the order the spec lists them.
+  pub const ALL: [Directive; 6] = [
+    Directive::Name,
+    Directive::Key,
+    Directive::Class,
+    Directive::DataType,
+    Directive::Uid,
+    Directive::FieldModifier,
+  ];
+
+  /// The name it's written with after the markup prefix, such as `Name` for `x:Name`.
+  #[must_use]
+  pub fn name(self) -> &'static str {
+    match self {
+      Directive::Name => "Name",
+      Directive::Key => "Key",
+      Directive::Class => "Class",
+      Directive::DataType => "DataType",
+      Directive::Uid => "Uid",
+      Directive::FieldModifier => "FieldModifier",
+    }
+  }
+
+  /// The directive written as `name` after the markup prefix, if `name` is one.
+  #[must_use]
+  pub fn from_name(name: &str) -> Option<Directive> {
+    Directive::ALL.into_iter().find(|directive| directive.name() == name)
+  }
+}
+
 /// A type named in markup, with its namespace resolved but not yet resolved to a Rust type.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeRef {
@@ -145,6 +177,31 @@ pub struct TypeRef {
   pub namespace: XamlNamespace,
   /// Where the name was written.
   pub span: Span,
+}
+
+impl fmt::Display for TypeRef {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    Written {
+      prefix: self.prefix.as_deref(),
+      name: &self.name,
+    }
+    .fmt(f)
+  }
+}
+
+/// A name as written with its prefix: `prefix:name`, or `name` without one.
+pub(crate) struct Written<'a> {
+  pub(crate) prefix: Option<&'a str>,
+  pub(crate) name: &'a str,
+}
+
+impl fmt::Display for Written<'_> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self.prefix {
+      Some(prefix) => write!(f, "{prefix}:{}", self.name),
+      None => f.write_str(self.name),
+    }
+  }
 }
 
 /// What a namespace prefix stands for: the vocabulary a type name comes from.
@@ -167,4 +224,53 @@ pub struct NamespaceDecl {
   pub uri: String,
   /// The whole `xmlns…="…"` attribute.
   pub span: Span,
+}
+
+impl NamespaceDecl {
+  /// The attribute that declares `prefix`: `xmlns:prefix`, or `xmlns` for the default namespace.
+  #[must_use]
+  pub fn attribute(prefix: Option<&str>) -> String {
+    match prefix {
+      Some(prefix) => format!("xmlns:{prefix}"),
+      None => "xmlns".to_owned(),
+    }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use pretty_assertions::assert_eq;
+
+  // Each directive is found by the name it's written with after `x:`, and every one is listed.
+  #[test]
+  fn directive_names_round_trip() {
+    assert_eq!(Directive::ALL.len(), 6);
+    for directive in Directive::ALL {
+      assert_eq!(Directive::from_name(directive.name()), Some(directive));
+    }
+    assert_eq!(Directive::from_name("Shared"), None);
+  }
+
+  // A type is shown as written, with its prefix when it has one.
+  #[test]
+  fn type_ref_displays_as_written() {
+    let span = artic_diagnostics::SourceMap::new().add("view.xaml", "");
+    let ty = |prefix: Option<&str>| TypeRef {
+      prefix: prefix.map(str::to_owned),
+      name: "Gauge".to_owned(),
+      namespace: XamlNamespace::Markup,
+      span: Span::new(span, 0, 0),
+    };
+
+    assert_eq!(ty(Some("local")).to_string(), "local:Gauge");
+    assert_eq!(ty(None).to_string(), "Gauge");
+  }
+
+  // A declaration's attribute names its prefix, or is `xmlns` for the default namespace.
+  #[test]
+  fn namespace_attribute_names_the_prefix() {
+    assert_eq!(NamespaceDecl::attribute(Some("x")), "xmlns:x");
+    assert_eq!(NamespaceDecl::attribute(None), "xmlns");
+  }
 }

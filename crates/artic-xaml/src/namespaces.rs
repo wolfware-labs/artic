@@ -1,4 +1,4 @@
-//! Which crates a namespace URI stands for.
+//! artic's namespace URIs, and which crates a namespace URI stands for.
 //!
 //! A type's namespace is the crate it's defined in. XAML names namespaces with URIs instead, such
 //! as `https://artic.rs/ui`, so the back ends that look types up start from a map of each URI to
@@ -7,6 +7,12 @@
 //! prefix needs no entry: it's already a Rust path.
 
 use std::collections::{BTreeSet, HashMap};
+
+/// The namespace URI of artic's own UI types, such as `Button` and `Border`.
+pub const ARTIC_UI: &str = "https://artic.rs/ui";
+
+/// The namespace URI of the XAML language itself: `x:Name`, `{x:Null}`, `<x:String>`.
+pub const MARKUP: &str = "https://artic.rs/markup";
 
 /// Which crates each namespace URI stands for.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

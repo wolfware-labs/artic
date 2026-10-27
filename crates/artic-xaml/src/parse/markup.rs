@@ -328,10 +328,7 @@ mod tests {
       XamlNode::MarkupExtension {
         ty, positional, named, ..
       } => {
-        let name = match &ty.prefix {
-          Some(prefix) => format!("{prefix}:{}", ty.name),
-          None => ty.name.clone(),
-        };
+        let name = ty.to_string();
         let named = named.iter().map(|member| {
           let MemberKey::Property(key) = &member.key else {
             panic!("named arguments are properties");

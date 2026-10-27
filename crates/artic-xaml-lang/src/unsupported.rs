@@ -26,10 +26,6 @@ pub(crate) fn resource_key(span: Span) -> Diagnostic {
 
 /// A markup extension as a value: the issue that adds it, or an unknown value provider.
 pub(crate) fn markup_extension(ty: &TypeRef, span: Span) -> Diagnostic {
-  let written = match &ty.prefix {
-    Some(prefix) => format!("{prefix}:{}", ty.name),
-    None => ty.name.clone(),
-  };
   let issue = match (&ty.namespace, ty.name.as_str()) {
     (XamlNamespace::Markup, "Static" | "Null" | "Type") => Some("#62"),
     (XamlNamespace::Markup, _) => None,
@@ -40,7 +36,7 @@ pub(crate) fn markup_extension(ty: &TypeRef, span: Span) -> Diagnostic {
     _ => None,
   };
   match issue {
-    Some(issue) => Diagnostic::error(span, format!("`{{{written}}}` comes with {issue}")),
-    None => Diagnostic::error(span, format!("unknown value provider `{written}`")),
+    Some(issue) => Diagnostic::error(span, format!("`{{{ty}}}` comes with {issue}")),
+    None => Diagnostic::error(span, format!("unknown value provider `{ty}`")),
   }
 }
