@@ -206,8 +206,8 @@ pub struct Glyph {
 static NEXT_FONT_ID: AtomicU64 = AtomicU64::new(1);
 
 /// A font file's bytes, shared: the shaper and every renderer read the same copy, and a clone
-/// shares them too. It converts from a `&'static [u8]`, a `Vec<u8>`, a `Box<[u8]>` or an
-/// `Arc<[u8]>`; [`new`](FontBytes::new) takes any other type that reads as bytes, such as a
+/// shares them too. It converts from a `&'static [u8]` or the array `include_bytes!` gives, a
+/// `Vec<u8>`, a `Box<[u8]>` or an `Arc<[u8]>`; [`new`](FontBytes::new) takes any other type that reads as bytes, such as a
 /// memory map.
 #[derive(Clone)]
 pub struct FontBytes(Arc<dyn AsRef<[u8]> + Send + Sync>);
@@ -246,6 +246,12 @@ impl From<Arc<dyn AsRef<[u8]> + Send + Sync>> for FontBytes {
 
 impl From<&'static [u8]> for FontBytes {
   fn from(bytes: &'static [u8]) -> FontBytes {
+    FontBytes::new(bytes)
+  }
+}
+
+impl<const N: usize> From<&'static [u8; N]> for FontBytes {
+  fn from(bytes: &'static [u8; N]) -> FontBytes {
     FontBytes::new(bytes)
   }
 }
@@ -383,6 +389,14 @@ mod tests {
     assert!(width_only.limited_width() && !width_only.limited_height());
     let height_only = paragraph(&font).with_limited_height(true);
     assert!(!height_only.limited_width() && height_only.limited_height());
+  }
+
+  // Bytes embedded with `include_bytes!`, a fixed-size array, convert like a slice.
+  #[test]
+  fn font_bytes_take_an_embedded_array() {
+    static EMBEDDED: [u8; 3] = [1, 2, 3];
+
+    assert_eq!(FontBytes::from(&EMBEDDED).as_ref(), &[1, 2, 3]);
   }
 
   // Each new font data gets its own id, even from the same bytes, and a clone keeps it.
