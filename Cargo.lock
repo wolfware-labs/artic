@@ -400,6 +400,7 @@ dependencies = [
  "artic-platform",
  "artic-render",
  "pretty_assertions",
+ "thiserror 2.0.21",
  "winit",
 ]
 

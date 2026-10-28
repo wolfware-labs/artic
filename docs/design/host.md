@@ -83,7 +83,7 @@ pub trait Windows {
 
 ## 5. `artic-winit`
 
-The desktop adapter, at layer 6, depending on `artic-platform`, `artic-render` and `winit`. It exports `Host` and `Error`: `Host::new() -> Result<Host, Error>` fails if the event loop can't be created, such as with no display, and `Error` carries only a message, so no `winit` type appears in a public item. Inside, `Host` implements winit's `ApplicationHandler` and keeps a map from winit's `WindowId` to artic's `SurfaceId`.
+The desktop adapter, at layer 6, depending on `artic-platform`, `artic-render` and `winit`. It exports `Host` and `Error`: `Host::new() -> Result<Host, Error>` fails if the event loop can't be created, such as with no display, and `Error` boxes winit's error as its `source()`, so no `winit` type appears in a public item. Inside, `Host` implements winit's `ApplicationHandler` and keeps a map from winit's `WindowId` to artic's `SurfaceId`.
 
 | winit | `artic-winit` | `AppHandler` |
 | --- | --- | --- |

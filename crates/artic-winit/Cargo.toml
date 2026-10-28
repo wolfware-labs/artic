@@ -11,6 +11,7 @@ repository.workspace = true
 [dependencies]
 artic-platform.workspace = true
 artic-render.workspace = true
+thiserror.workspace = true
 # winit's defaults, except Wayland decorations without title text: drawing it needs ttf-parser,
 # which is unmaintained (RUSTSEC-2026-0192).
 winit = { workspace = true, features = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita-notitle"] }

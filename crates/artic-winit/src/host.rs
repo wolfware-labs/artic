@@ -32,7 +32,7 @@ impl Host {
   ///
   /// Fails if the event loop can't be created, such as when no display is available.
   pub fn new() -> Result<Host, Error> {
-    let event_loop = EventLoop::new().map_err(Error::new)?;
+    let event_loop = EventLoop::new().map_err(|error| Error::Start(Box::new(error)))?;
     Ok(Host { event_loop })
   }
 }
