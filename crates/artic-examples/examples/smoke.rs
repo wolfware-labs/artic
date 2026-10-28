@@ -12,7 +12,7 @@ use artic_render::{SurfaceId, Target};
 use std::time::Duration;
 
 fn main() -> Result<(), artic_winit::Error> {
-  artic_winit::Host::new()?.run(Smoke::from_env());
+  artic_winit::Host::new()?.run(Smoke::from_env())?;
   Ok(())
 }
 

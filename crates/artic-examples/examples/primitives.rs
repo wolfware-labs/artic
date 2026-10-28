@@ -42,7 +42,7 @@ fn main() -> Result<(), artic_winit::Error> {
       std::process::exit(1);
     }
   };
-  artic_winit::Host::new()?.run(Demo::new(renderer));
+  artic_winit::Host::new()?.run(Demo::new(renderer))?;
   Ok(())
 }
 

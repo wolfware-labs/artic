@@ -44,17 +44,19 @@ impl Debug for Host {
 }
 
 impl artic_platform::Host for Host {
+  type Error = Error;
+
   fn targets(&self) -> TargetKind {
     TargetKind::Handles
   }
 
   /// Runs winit's loop until the handler exits; it blocks on every desktop platform.
   ///
-  /// # Panics
+  /// # Errors
   ///
-  /// Panics if winit's loop ends with an error, such as a lost connection to the display server.
-  /// The surfaces have been reported lost by then.
-  fn run(self, app: impl AppHandler + 'static) {
+  /// [`Error::Loop`] if winit's loop ends with an error, such as a lost connection to the display
+  /// server. The surfaces have been reported lost by then.
+  fn run(self, app: impl AppHandler + 'static) -> Result<(), Error> {
     let mut driver = Driver {
       app,
       surfaces: Surfaces::default(),
@@ -70,7 +72,7 @@ impl artic_platform::Host for Host {
     self
       .event_loop
       .run_app(&mut driver)
-      .expect("winit's event loop ended with an error");
+      .map_err(|error| Error::Loop(Box::new(error)))
   }
 }
 

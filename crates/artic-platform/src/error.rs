@@ -11,4 +11,7 @@ pub enum Error {
   /// A frame failed to render.
   #[error("a frame failed to render")]
   Render(#[source] RenderError),
+  /// The host's loop failed.
+  #[error("the host failed")]
+  Host(#[source] Box<dyn std::error::Error + Send + Sync>),
 }

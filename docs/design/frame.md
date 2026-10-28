@@ -24,8 +24,8 @@ All in `artic-platform`, which depends on `artic-element` to drive the tree as `
 | `FrameStats` | `{ measured: u32, arranged: u32, recorded: u32, rendered: bool }`, `Copy + Eq + Default` |
 | `Hooks` | Per-stage lists of boxed closures: `before_layout`, `after_present`, `wants_frame`, and `on_error` for a frame that failed |
 | `Runner<R: Renderer>` | `impl AppHandler`. Owns the `UiTree`, the renderer, the text engine, the `Hooks` and the `ElementTypes` cast table, built once and lent with the engine to every pipeline as `FrameServices`, and per surface its root, latest `SurfaceInfo`, a `needs_frame` mark, and its `Pipeline` |
-| `run(host, runner) -> Result<(), Error>` | Checks `renderer.accepts(host.targets())`, then `host.run(runner)`; returns the error a frame failed with, if any, when the host's `run` returns after the loop ends |
-| `Error` | `Unsupported(TargetKind)`: the renderer can't draw on what the host offers; `Render(RenderError)`: a frame failed |
+| `run(host, runner) -> Result<(), Error>` | Checks `renderer.accepts(host.targets())`, then `host.run(runner)`; returns the error a frame failed with, if any, or else the host's own error, when the host's `run` returns |
+| `Error` | `Unsupported(TargetKind)`: the renderer can't draw on what the host offers; `Render(RenderError)`: a frame failed; `Host(Box<dyn Error + Send + Sync>)`: the host's loop failed |
 
 ```rust,ignore
 impl<R: Renderer> Runner<R> {

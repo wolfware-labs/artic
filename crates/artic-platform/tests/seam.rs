@@ -55,11 +55,13 @@ struct FakeHost {
 }
 
 impl Host for FakeHost {
+  type Error = std::convert::Infallible;
+
   fn targets(&self) -> TargetKind {
     TargetKind::Pixels
   }
 
-  fn run(self, mut app: impl AppHandler + 'static) {
+  fn run(self, mut app: impl AppHandler + 'static) -> Result<(), std::convert::Infallible> {
     let mut requests = self.requests.borrow_mut();
     let mut cx = FakeContext { requests: &mut requests };
     let surface = SurfaceId::new(7);
@@ -81,6 +83,7 @@ impl Host for FakeHost {
     app.frame(&mut cx, surface, target, Duration::from_millis(16));
     app.event(&mut cx, HostEvent::CloseRequested { surface });
     app.surface_lost(&mut cx, surface, SurfaceLoss::Gone);
+    Ok(())
   }
 }
 
@@ -151,7 +154,7 @@ fn fake_host_drives_a_handler() {
   };
   assert_eq!(host.targets(), TargetKind::Pixels);
 
-  host.run(Recorder {
+  let Ok(()) = host.run(Recorder {
     calls: Rc::clone(&calls),
   });
 

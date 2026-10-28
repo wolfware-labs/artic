@@ -6,6 +6,9 @@ pub enum Error {
   /// The event loop couldn't be created, such as when no display is available.
   #[error("can't start the event loop")]
   Start(#[source] Box<dyn std::error::Error + Send + Sync>),
+  /// winit's event loop ended with an error, such as a lost connection to the display server.
+  #[error("the event loop failed")]
+  Loop(#[source] Box<dyn std::error::Error + Send + Sync>),
 }
 
 #[cfg(test)]

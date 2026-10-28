@@ -521,14 +521,18 @@ impl<R> Debug for Runner<R> {
 /// # Errors
 ///
 /// Returns [`Error::Unsupported`] before starting if the renderer can't draw on the host's
-/// targets, and [`Error::Render`] if a frame failed, once a host whose `run` blocks until the loop
-/// ends returns.
+/// targets. Once a host whose `run` blocks until the loop ends returns, [`Error::Render`] if a
+/// frame failed, or else [`Error::Host`] with the host's own error; a frame's error comes first
+/// when both happen, since it ended the loop.
 pub fn run<H: Host, R: Renderer + 'static>(host: H, runner: Runner<R>) -> Result<(), Error> {
   let kind = host.targets();
   if !runner.renderer.accepts(kind) {
     return Err(Error::Unsupported(kind));
   }
   let error = Rc::clone(&runner.error);
-  host.run(runner);
-  error.borrow_mut().take().map_or(Ok(()), Err)
+  let ended = host.run(runner);
+  if let Some(error) = error.borrow_mut().take() {
+    return Err(error);
+  }
+  ended.map_err(|error| Error::Host(Box::new(error)))
 }

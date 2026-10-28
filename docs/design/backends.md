@@ -39,12 +39,16 @@ Every target provides four things:
 
 ```rust,ignore
 pub trait Host {
+  /// Why the host's loop can fail.
+  type Error: std::error::Error + Send + Sync + 'static;
+
   /// What kind of target the host offers, checked against the renderer before the loop starts.
   fn targets(&self) -> TargetKind;
 
-  /// Runs the loop, reporting surfaces, events and frame times to `app` until it quits. A host
-  /// whose loop can't block (a browser) installs its callbacks and returns at once.
-  fn run(self, app: impl AppHandler + 'static);
+  /// Runs the loop, reporting surfaces, events and frame times to `app` until it quits, and returns
+  /// the host's own failure. A host whose loop can't block (a browser) installs its callbacks and
+  /// returns `Ok(())` at once.
+  fn run(self, app: impl AppHandler + 'static) -> Result<(), Self::Error>;
 }
 ```
 
@@ -172,13 +176,13 @@ pub fn app() -> artic::App { … }
 
 // launchers/desktop/src/main.rs
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-  artic::run(artic_winit::Host::new()?, artic_vello::Renderer::new()?, my_app::app());
+  artic::run(artic_winit::Host::new()?, artic_vello::Renderer::new()?, my_app::app())?;
   Ok(())
 }
 
 // launchers/pi/src/main.rs
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-  artic::run(artic_fbdev::Host::new()?, artic_tiny_skia::Renderer::new()?, my_app::app());
+  artic::run(artic_fbdev::Host::new()?, artic_tiny_skia::Renderer::new()?, my_app::app())?;
   Ok(())
 }
 ```

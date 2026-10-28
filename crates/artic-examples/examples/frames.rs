@@ -170,7 +170,7 @@ fn check(renderer: impl Renderer + 'static) -> Result<(), Box<dyn std::error::Er
     frames: Vec::new(),
     quiet: Rc::clone(&quiet),
   };
-  artic_winit::Host::new()?.run(idle);
+  artic_winit::Host::new()?.run(idle)?;
   match quiet.get() {
     Some(true) => Ok(()),
     Some(false) => Err("frames ran after the app should have gone idle".into()),

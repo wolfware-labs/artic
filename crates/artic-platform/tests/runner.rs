@@ -438,16 +438,19 @@ fn surface_lost_render_error_resets_the_renderer() {
 struct OneFrame;
 
 impl Host for OneFrame {
+  type Error = std::convert::Infallible;
+
   fn targets(&self) -> TargetKind {
     TargetKind::Pixels
   }
 
-  fn run(self, mut app: impl AppHandler + 'static) {
+  fn run(self, mut app: impl AppHandler + 'static) -> Result<(), std::convert::Infallible> {
     let mut cx = Context::default();
     let mut buffer = pixels();
     app.started(&mut cx, Waker::new(|| {}));
     app.surface_changed(&mut cx, FIRST, info(64, 64, 1.0));
     app.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+    Ok(())
   }
 }
 
@@ -455,11 +458,13 @@ impl Host for OneFrame {
 struct HandlesOnly;
 
 impl Host for HandlesOnly {
+  type Error = std::convert::Infallible;
+
   fn targets(&self) -> TargetKind {
     TargetKind::Handles
   }
 
-  fn run(self, _app: impl AppHandler + 'static) {
+  fn run(self, _app: impl AppHandler + 'static) -> Result<(), std::convert::Infallible> {
     panic!("a host with a mismatched renderer must not start");
   }
 }
@@ -505,6 +510,71 @@ fn mismatched_renderer_is_rejected() {
   let result = run(HandlesOnly, one_window(Counter::default()));
 
   assert!(matches!(result, Err(Error::Unsupported(TargetKind::Handles))));
+}
+
+/// A host whose loop fails before calling the app.
+struct LoopFails;
+
+impl Host for LoopFails {
+  type Error = std::io::Error;
+
+  fn targets(&self) -> TargetKind {
+    TargetKind::Pixels
+  }
+
+  fn run(self, _app: impl AppHandler + 'static) -> Result<(), std::io::Error> {
+    Err(std::io::Error::other("display lost"))
+  }
+}
+
+/// A host that runs one frame, then fails.
+struct FailsAfterAFrame;
+
+impl Host for FailsAfterAFrame {
+  type Error = std::io::Error;
+
+  fn targets(&self) -> TargetKind {
+    TargetKind::Pixels
+  }
+
+  fn run(self, app: impl AppHandler + 'static) -> Result<(), std::io::Error> {
+    let Ok(()) = OneFrame.run(app);
+    Err(std::io::Error::other("display lost"))
+  }
+}
+
+// A host whose loop fails returns its error from `run`, as the source of `Error::Host`.
+#[test]
+fn host_error_is_returned_from_run() {
+  let result = run(LoopFails, one_window(Counter::default()));
+
+  let Err(Error::Host(source)) = result else {
+    panic!("{result:?}")
+  };
+  let cause = source.downcast_ref::<std::io::Error>().expect("the host's error");
+  assert_eq!(
+    (cause.kind(), cause.to_string()),
+    (std::io::ErrorKind::Other, "display lost".to_owned())
+  );
+  assert_eq!(Error::Host(source).to_string(), "the host failed");
+}
+
+// When a frame failed and then the host did, `run` returns the frame's error, which is why the loop
+// ended.
+#[test]
+fn render_error_comes_before_the_host_error() {
+  let renderer = Counter::default();
+  *renderer.fail.borrow_mut() = Some(RenderError::Backend("no device".into()));
+
+  let result = run(FailsAfterAFrame, one_window(renderer));
+
+  assert!(matches!(result, Err(Error::Render(RenderError::Backend(_)))), "{result:?}");
+}
+
+// A loop that ends with neither the host nor a frame failing returns `Ok`.
+#[test]
+fn run_that_draws_returns_ok() {
+  assert!(run(OneFrame, one_window(Counter::default())).is_ok());
 }
 
 // A window the host lost before ever reporting it, such as one that failed to open, is forgotten,
