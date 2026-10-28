@@ -15,12 +15,8 @@ Commands:
 No commands are implemented yet.
 ";
 
+// Cargo runs a subcommand as `cargo-artic artic <args>`, so the first command to read its arguments
+// skips `artic`.
 fn main() {
-  // Cargo runs subcommands as `cargo-artic artic <args>`, so skip the
-  // subcommand name when it is present.
-  let mut args = std::env::args().skip(1).peekable();
-  if args.peek().map(String::as_str) == Some("artic") {
-    args.next();
-  }
   print!("{USAGE}");
 }

@@ -110,10 +110,6 @@ dependencies = [
 [[package]]
 name = "artic-cli"
 version = "0.1.0"
-dependencies = [
- "artic-xaml",
- "artic-xaml-lang",
-]
 
 [[package]]
 name = "artic-controls"

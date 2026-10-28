@@ -112,7 +112,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-element` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-macros` | `artic-text` |
 | `artic-controls` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-element`, `artic-style`, `artic-macros` | `artic-test` |
 | `artic-platform` | `artic-core`, `artic-layout`, `artic-render`, `artic-element` | `artic-test-fonts`, `artic-text` |
-| `artic-cli` | `artic-xaml`, `artic-xaml-lang`, `artic-lsp` (planned #197) | none |
+| `artic-cli` | `artic-xaml` (planned #197), `artic-xaml-lang` (planned #197), `artic-lsp` (planned #197) | none |
 | `artic-lsp` | `artic-xaml`, `artic-xaml-lang` | none |
 | `artic-theme` | `artic-controls`, `artic-style` | none |
 | `artic-test` | `artic-core`, `artic-layout`, `artic-render`, `artic-text`, `artic-test-fonts`, `artic-element`, `artic-platform`, `artic-registry` (planned), `artic-style` (planned) | none |
