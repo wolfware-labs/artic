@@ -98,6 +98,7 @@ pub struct UiTree {
   visual: Tree,
   dirty_flags: DirtyFlags,
   attached_values: AttachedValues,
+  structure_generation: u64,
   #[cfg(debug_assertions)]
   touched: RefCell<Vec<(NodeId, Vec<SignalId>)>>,
 }
@@ -194,6 +195,7 @@ impl UiTree {
       visual: Tree::new(),
       dirty_flags: DirtyFlags::new(),
       attached_values: AttachedValues::new(),
+      structure_generation: 0,
       #[cfg(debug_assertions)]
       touched: RefCell::new(Vec::new()),
     }
@@ -239,6 +241,7 @@ impl UiTree {
       );
     });
     let id = self.objects.alloc(value);
+    self.structure_generation += 1;
     self.logical.insert(id);
     self.visual.insert(id);
     let dirty = self.dirty_flags.insert(id);
@@ -268,6 +271,7 @@ impl UiTree {
     self.dirty_flags.remove(node_id);
     self.logical.remove(node_id);
     self.visual.remove(node_id);
+    self.structure_generation += 1;
   }
 
   /// Returns a reference to the node referred to by `id`, or `None` if `id` is stale.
@@ -385,6 +389,15 @@ impl UiTree {
   #[must_use]
   pub fn is_empty(&self) -> bool {
     self.objects.is_empty()
+  }
+
+  /// A number that changes whenever a node is allocated or freed or a link is made or cut in
+  /// either tree, and at no other time, so comparing it with an earlier read tells whether the
+  /// structure may have changed without walking the tree. Linking a child where it already is
+  /// counts, since the link is cut and made again.
+  #[must_use]
+  pub fn structure_generation(&self) -> u64 {
+    self.structure_generation
   }
 
   /// Returns `true` if `id` refers to a live node.
@@ -857,6 +870,7 @@ impl UiTree {
 
   fn attach(&mut self, tree: TreeKind, parent: NodeId, index: usize, child: NodeId) {
     self.tree_mut(tree).link(parent, index, child);
+    self.structure_generation += 1;
     self.children_changed(tree, parent);
     if tree == TreeKind::Logical {
       inheritance::relink(&self.objects, &self.attached_values, &self.logical, child);
@@ -866,6 +880,7 @@ impl UiTree {
   #[track_caller]
   fn unlink(&mut self, tree: TreeKind, node: NodeId) -> Option<NodeId> {
     let parent = self.tree_mut(tree).unlink(node)?;
+    self.structure_generation += 1;
     self.children_changed(tree, parent);
     Some(parent)
   }

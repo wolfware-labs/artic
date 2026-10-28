@@ -13,7 +13,8 @@ use common::{
   Context, Counter, Leaf, LeafHandles, Recorder, Wrap, application, column, engine, info, label, leaf, pixels, surface, target,
 };
 use pretty_assertions::assert_eq;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -21,9 +22,30 @@ use artic_platform::{Error, Host, HostEvent, SurfaceLoss, run};
 use artic_render::{RenderError, TargetKind};
 const FIRST: SurfaceId = SurfaceId::new(1);
 
+/// Each surface's last frame stats, recorded through the `after_present` hook.
+#[derive(Clone, Default)]
+struct StatsLog(Rc<RefCell<HashMap<NodeId, FrameStats>>>);
+
+impl StatsLog {
+  fn attach(runner: &mut Runner<Counter>) -> StatsLog {
+    let log = StatsLog::default();
+    let stats = log.0.clone();
+    runner.hooks().after_present(move |_, root, frame| {
+      stats.borrow_mut().insert(root, *frame);
+    });
+    log
+  }
+
+  fn last(&self, root: NodeId) -> Option<FrameStats> {
+    self.0.borrow().get(&root).copied()
+  }
+}
+
 /// A runner with one window holding two leaves, started, sized and drawn once.
 struct Fixture {
   runner: Runner<Counter>,
+  stats: StatsLog,
+  surface: NodeId,
   cx: Context,
   renderer: Counter,
   top: LeafHandles,
@@ -41,12 +63,15 @@ impl Fixture {
     let (title, is_open) = (surface(&tree, surfaces[0]).title, surface(&tree, surfaces[0]).is_open);
     let renderer = Counter::default();
     let mut runner = Runner::new(tree, renderer.clone(), Box::new(engine()), application);
+    let stats = StatsLog::attach(&mut runner);
     configure(&mut runner);
     let mut cx = Context::default();
     runner.started(&mut cx, Waker::new(|| {}));
     runner.surface_changed(&mut cx, FIRST, info(64, 64, 1.0));
     let mut fixture = Fixture {
       runner,
+      stats,
+      surface: surfaces[0],
       cx,
       renderer,
       top,
@@ -62,7 +87,7 @@ impl Fixture {
   fn frame(&mut self) -> FrameStats {
     let mut buffer = pixels();
     self.runner.frame(&mut self.cx, FIRST, target(&mut buffer), Duration::ZERO);
-    self.runner.stats(FIRST).expect("the window drew")
+    self.stats.last(self.surface).expect("the window drew")
   }
 
   /// Settles a change made outside any call, as a host event would.
@@ -271,8 +296,9 @@ fn windows_keep_their_own_caches() {
   let right = leaf(&mut tree, 20.0);
   let (first_root, _) = column(&mut tree, &[left.id]);
   let (second_root, _) = column(&mut tree, &[right.id]);
-  let (application, _) = application(&mut tree, &[("first", first_root), ("second", second_root)]);
+  let (application, surfaces) = application(&mut tree, &[("first", first_root), ("second", second_root)]);
   let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let log = StatsLog::attach(&mut runner);
   let mut cx = Context::default();
   let second = SurfaceId::new(2);
   runner.started(&mut cx, Waker::new(|| {}));
@@ -290,8 +316,8 @@ fn windows_keep_their_own_caches() {
     runner.frame(&mut cx, surface, target(&mut buffer), Duration::ZERO);
   }
 
-  assert_eq!(runner.stats(FIRST).unwrap().recorded, 1);
-  assert_eq!(runner.stats(second).unwrap().recorded, 0);
+  assert_eq!(log.last(surfaces[0]).unwrap().recorded, 1);
+  assert_eq!(log.last(surfaces[1]).unwrap().recorded, 0);
 }
 
 // A child of a hidden panel resized while hidden is recorded again once the panel shows, though
@@ -302,8 +328,9 @@ fn node_resized_while_hidden_is_recorded_when_shown() {
   let child = leaf(&mut tree, 20.0);
   let (inner, inner_visible) = column(&mut tree, &[child.id]);
   let (root, _) = column(&mut tree, &[inner]);
-  let (application, _) = application(&mut tree, &[("main", root)]);
+  let (application, surfaces) = application(&mut tree, &[("main", root)]);
   let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let log = StatsLog::attach(&mut runner);
   let mut cx = Context::default();
   let mut buffer = pixels();
   runner.started(&mut cx, Waker::new(|| {}));
@@ -319,7 +346,7 @@ fn node_resized_while_hidden_is_recorded_when_shown() {
   runner.woken(&mut cx);
   runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
 
-  assert_eq!(runner.stats(FIRST).unwrap().recorded, 2);
+  assert_eq!(log.last(surfaces[0]).unwrap().recorded, 2);
 }
 
 // A frame before the surface's first `surface_changed` has no size to lay out in, so it draws
@@ -328,15 +355,18 @@ fn node_resized_while_hidden_is_recorded_when_shown() {
 fn frame_before_surface_info_is_ignored() {
   let mut tree = UiTree::new();
   let (root, _) = column(&mut tree, &[]);
-  let (application, _) = application(&mut tree, &[("main", root)]);
-  let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let (application, surfaces) = application(&mut tree, &[("main", root)]);
+  let renderer = Counter::default();
+  let mut runner = Runner::new(tree, renderer.clone(), Box::new(engine()), application);
+  let log = StatsLog::attach(&mut runner);
   let mut cx = Context::default();
   let mut buffer = pixels();
   runner.started(&mut cx, Waker::new(|| {}));
 
   runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
 
-  assert_eq!(runner.stats(FIRST), None);
+  assert_eq!(log.last(surfaces[0]), None);
+  assert_eq!(renderer.rendered.get(), 0);
 }
 
 // The first frame for a surface draws in full even when the host sends it unasked.
@@ -345,8 +375,9 @@ fn first_frame_without_a_request_draws() {
   let mut tree = UiTree::new();
   let child = leaf(&mut tree, 20.0);
   let (root, _) = column(&mut tree, &[child.id]);
-  let (application, _) = application(&mut tree, &[("main", root)]);
+  let (application, surfaces) = application(&mut tree, &[("main", root)]);
   let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let log = StatsLog::attach(&mut runner);
   let mut cx = Context::default();
   let mut buffer = pixels();
   runner.started(&mut cx, Waker::new(|| {}));
@@ -354,7 +385,7 @@ fn first_frame_without_a_request_draws() {
 
   runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
 
-  assert_eq!(runner.stats(FIRST).unwrap().recorded, 3);
+  assert_eq!(log.last(surfaces[0]).unwrap().recorded, 3);
 }
 
 // Closing the last surface's window writes IsOpen = false, closes it through the host and exits.
@@ -383,7 +414,12 @@ fn closed_window_is_released_from_the_renderer() {
   fixture.runner.surface_lost(&mut fixture.cx, FIRST, SurfaceLoss::Gone);
 
   assert_eq!(*fixture.renderer.lost.borrow(), [FIRST]);
-  assert_eq!(fixture.runner.stats(FIRST), None);
+  let rendered = fixture.renderer.rendered.get();
+  let mut buffer = pixels();
+  fixture
+    .runner
+    .frame(&mut fixture.cx, FIRST, target(&mut buffer), Duration::ZERO);
+  assert_eq!(fixture.renderer.rendered.get(), rendered);
 }
 
 // A lost surface makes the renderer drop what it kept and asks for a frame that rebuilds it.
@@ -528,7 +564,12 @@ fn destroyed_window_exits() {
   fixture.runner.surface_lost(&mut fixture.cx, FIRST, SurfaceLoss::Gone);
 
   assert!(fixture.cx.exited);
-  assert_eq!(fixture.runner.stats(FIRST), None);
+  let rendered = fixture.renderer.rendered.get();
+  let mut buffer = pixels();
+  fixture
+    .runner
+    .frame(&mut fixture.cx, FIRST, target(&mut buffer), Duration::ZERO);
+  assert_eq!(fixture.renderer.rendered.get(), rendered);
 }
 
 // A failed frame's error says what the renderer reported.
@@ -731,6 +772,22 @@ fn windowless_host_binds_in_tree_order() {
   assert_eq!(drawn.get(), Some(surfaces[0]));
 }
 
+// A host surface reported before any Surface takes it asks for a frame as soon as one does.
+#[test]
+fn lent_surface_reported_first_is_drawn_once_bound() {
+  let (tree, application, _) = titled(&["first"]);
+  let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let mut cx = Context {
+    windowless: true,
+    ..Context::default()
+  };
+
+  runner.surface_changed(&mut cx, SurfaceId::new(9), info(64, 64, 1.0));
+  runner.started(&mut cx, Waker::new(|| {}));
+
+  assert_eq!(cx.frames, [SurfaceId::new(9)]);
+}
+
 // On a host without windows, a closed surface gives its host surface to the next open one.
 #[test]
 fn closed_surface_frees_its_host_surface() {
@@ -825,6 +882,33 @@ fn content_growth_resizes_window() {
     [LogicalSize {
       width: None,
       height: Some(40.0)
+    }]
+  );
+}
+
+// Content that shrinks resizes a window sized to it too, once.
+#[test]
+fn shrinking_content_resizes_window() {
+  let mut tree = UiTree::new();
+  let content = leaf(&mut tree, 20.0);
+  let (application, surfaces) = application(&mut tree, &[("main", content.id)]);
+  Desktop::set_size_to_content(&mut tree, surfaces[0], SizeToContent::Height);
+  let (mut runner, mut cx) = started(tree, application);
+  let mut buffer = pixels();
+  runner.surface_changed(&mut cx, FIRST, info(64, 20, 1.0));
+  runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+
+  content.height.set(10.0);
+  runner.woken(&mut cx);
+  runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+  runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+
+  let sizes: Vec<LogicalSize> = cx.updated.iter().map(|(_, desc)| desc.size).collect();
+  assert_eq!(
+    sizes,
+    [LogicalSize {
+      width: None,
+      height: Some(10.0)
     }]
   );
 }
@@ -998,6 +1082,74 @@ fn surface_detached_into_another_panics_before_rendering() {
   let message = message.downcast_ref::<String>().map_or("", String::as_str);
   assert!(message.contains("is inside the Surface"), "{message}");
   assert_eq!(renderer.rendered.get(), 0);
+}
+
+// A surface built inside another surface's content is caught at the first settle, before any
+// window opens.
+#[test]
+fn surface_nested_from_the_start_panics_at_started() {
+  let (mut tree, application, surfaces) = titled(&["first", "second"]);
+  let (first, second) = (surfaces[0], surfaces[1]);
+  tree.detach(TreeKind::Logical, second);
+  tree.detach(TreeKind::Visual, second);
+  tree.add_child(TreeKind::Visual, first, second);
+  let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let mut cx = Context::default();
+
+  let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    runner.started(&mut cx, Waker::new(|| {}));
+  }));
+
+  let message = result.expect_err("nesting a surface panics");
+  let message = message.downcast_ref::<String>().map_or("", String::as_str);
+  assert!(message.contains("is inside the Surface"), "{message}");
+  assert!(cx.opened.is_empty());
+}
+
+// A surface nested inside a closed surface is caught too: the rule is about the tree, not about
+// what is drawn.
+#[test]
+fn surface_nested_in_a_closed_surface_panics_at_started() {
+  let (mut tree, application, surfaces) = titled(&["first", "second", "third"]);
+  let (first, third) = (surfaces[0], surfaces[2]);
+  surface(&tree, first).is_open.set(false);
+  tree.detach(TreeKind::Logical, third);
+  tree.detach(TreeKind::Visual, third);
+  tree.add_child(TreeKind::Visual, first, third);
+  let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let mut cx = Context::default();
+
+  let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    runner.started(&mut cx, Waker::new(|| {}));
+  }));
+
+  let message = result.expect_err("nesting a surface panics");
+  let message = message.downcast_ref::<String>().map_or("", String::as_str);
+  assert!(message.contains("is inside the Surface"), "{message}");
+}
+
+// A hook that frees a bound surface closes its window at the frame's settle, and the other surface
+// is drawn.
+#[test]
+fn surface_freed_by_a_hook_closes_its_window() {
+  let (tree, application, surfaces) = titled(&["first", "second"]);
+  let second = surfaces[1];
+  let renderer = Counter::default();
+  let mut runner = Runner::new(tree, renderer.clone(), Box::new(engine()), application);
+  let mut cx = Context::default();
+  runner.started(&mut cx, Waker::new(|| {}));
+  runner.surface_changed(&mut cx, FIRST, info(64, 64, 1.0));
+  runner.hooks().before_layout(move |tree, _, _, _| {
+    if tree.contains(second) {
+      tree.free(second);
+    }
+  });
+  let mut buffer = pixels();
+
+  runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+
+  assert_eq!(cx.closed, [SurfaceId::new(2)]);
+  assert_eq!(renderer.rendered.get(), 1);
 }
 
 // A hook that closes the surface being drawn closes its window instead of drawing it once more.

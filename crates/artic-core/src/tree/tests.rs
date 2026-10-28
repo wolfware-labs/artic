@@ -6,6 +6,7 @@ mod handle;
 mod inheritance;
 mod links;
 mod objects;
+mod structure;
 mod wiring;
 
 use crate::Object;
