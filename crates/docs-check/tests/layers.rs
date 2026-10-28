@@ -32,8 +32,18 @@ struct Edge {
 /// The rows of the table in `document` (read from `path`) whose header line is `header`, each a list
 /// of trimmed cells.
 fn table(document: &str, path: &str, header: &str) -> Vec<Vec<String>> {
-  let mut lines = document.lines().map(str::trim).skip_while(|line| *line != header).skip(2);
+  let mut lines = document.lines().map(str::trim).skip_while(|line| *line != header).skip(1);
   let width = cells(header).len();
+  if let Some(separator) = lines.next() {
+    let dashes = cells(separator);
+    assert!(
+      dashes.len() == width
+        && dashes
+          .iter()
+          .all(|cell| !cell.is_empty() && cell.chars().all(|c| matches!(c, '-' | ':'))),
+      "{path}: the table headed {header} has `{separator}` where its separator should be"
+    );
+  }
   let mut rows = Vec::new();
   for line in lines.by_ref() {
     if !line.starts_with('|') {
@@ -624,4 +634,11 @@ fn a_blank_line_inside_a_table_is_an_error() {
 #[should_panic(expected = "doc.md: `| 1 |` has 1 cells; the table headed | A | B | has 2")]
 fn a_short_row_is_an_error() {
   table("| A | B |\n| --- | --- |\n| 1 |\n", "doc.md", "| A | B |");
+}
+
+// A header must be followed by its separator, so a table without one doesn't lose its first row.
+#[test]
+#[should_panic(expected = "doc.md: the table headed | A | B | has `| 1 | 2 |` where its separator should be")]
+fn a_missing_separator_is_an_error() {
+  table("| A | B |\n| 1 | 2 |\n| 3 | 4 |\n", "doc.md", "| A | B |");
 }
