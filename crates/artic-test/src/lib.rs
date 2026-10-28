@@ -1,4 +1,5 @@
-//! Test utilities for artic: golden images, headless layout, a headless host, the test text engine, tree helpers and tree serialization.
+//! Test utilities for artic: golden images, headless layout, shared scenes and the test text engine.
+//! A headless host (`TestHost`, #101) and tree serialization (#60) are planned.
 
 pub use artic_core::reactive::{LiveCounts, assert_no_reactive_leaks, live_counts};
 

@@ -12,9 +12,5 @@ repository.workspace = true
 name = "cargo-artic"
 path = "src/main.rs"
 
-[dependencies]
-artic-xaml.workspace = true
-artic-xaml-lang.workspace = true
-
 [lints]
 workspace = true

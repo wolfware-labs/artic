@@ -136,12 +136,12 @@ jobs:
       - name: Test
         run: cargo test --workspace
       - name: Smoke
-        run: cargo run -p artic-winit --example smoke
+        run: cargo run -p artic-examples --example smoke
         timeout-minutes: 5
         env:
           ARTIC_SMOKE_FRAMES: "60"
       - name: Idle
-        run: cargo run -p artic-winit --example frames
+        run: cargo run -p artic-examples --example frames
         timeout-minutes: 5
 
   test-macos:
@@ -157,12 +157,12 @@ jobs:
       - name: Test
         run: cargo test --workspace
       - name: Smoke
-        run: cargo run -p artic-winit --example smoke
+        run: cargo run -p artic-examples --example smoke
         timeout-minutes: 5
         env:
           ARTIC_SMOKE_FRAMES: "60"
       - name: Idle
-        run: cargo run -p artic-winit --example frames
+        run: cargo run -p artic-examples --example frames
         timeout-minutes: 5
 
   lint:

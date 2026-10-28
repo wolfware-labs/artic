@@ -3,7 +3,7 @@
 // A window lost before that many frames, such as one that couldn't be created, exits with code 1.
 // It draws nothing; the `frames` example draws through the frame pipeline.
 //
-// Run with `ARTIC_SMOKE_FRAMES=120 cargo run -p artic-winit --example smoke`.
+// Run with `ARTIC_SMOKE_FRAMES=120 cargo run -p artic-examples --example smoke`.
 
 use artic_platform::{
   AppHandler, Axes, Chrome, Host as _, HostContext, HostEvent, LogicalSize, SurfaceInfo, SurfaceLoss, Waker, WindowDesc,

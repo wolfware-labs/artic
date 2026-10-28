@@ -6,7 +6,7 @@
 // so there it draws with a renderer that draws nothing: the check is about when frames run, not
 // what they show.
 //
-// Run with `cargo run -p artic-winit --example frames`.
+// Run with `cargo run -p artic-examples --example frames`.
 
 use artic_core::Object;
 use artic_core::property::{Affects, Inheritance, Property, PropertyKey, PropertyVisitor};

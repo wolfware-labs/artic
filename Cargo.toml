@@ -8,6 +8,7 @@ members = [
     "crates/artic-core",
     "crates/artic-diagnostics",
     "crates/artic-element",
+    "crates/artic-examples",
     "crates/artic-i18n",
     "crates/artic-ident",
     "crates/artic-layout",
@@ -88,6 +89,7 @@ proc-macro2 = "1.0.107"
 proptest = "1.11.0"
 quote = "1.0.47"
 raw-window-handle = "0.6.2"
+serde_json = "1.0.151"
 static_assertions = "1.1.0"
 syn = { version = "3.0.6", features = ["full"] }
 thiserror = "2.0.21"

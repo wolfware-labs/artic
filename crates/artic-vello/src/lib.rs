@@ -6,7 +6,7 @@
 //! on [`Target::Pixels`](artic_render::Target::Pixels) (offscreen, read back from the GPU), using
 //! DX12 on Windows, Metal on macOS and Vulkan elsewhere. `WGPU_BACKEND` overrides the choice.
 //!
-//! Run `cargo run -p artic-vello --example primitives` to see it draw every primitive.
+//! Run `cargo run -p artic-examples --example primitives` to see it draw every primitive.
 
 mod backend;
 mod error;

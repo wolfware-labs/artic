@@ -1,12 +1,11 @@
 //! Keeps the crate's list of documents whole, so every Rust block in the repository's documents, the
 //! Markdown files outside `crates/` and `.github/`, is compiled.
 
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn repository() -> PathBuf {
-  Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
+use common::repository;
+use std::path::Path;
+use std::process::Command;
 
 fn markdown_files() -> Vec<String> {
   let output = Command::new("git")

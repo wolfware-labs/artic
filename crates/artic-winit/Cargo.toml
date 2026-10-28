@@ -1,6 +1,6 @@
 [package]
 name = "artic-winit"
-description = "The winit host for artic: windows, input and the event loop on Windows, macOS and Linux."
+description = "The winit host for artic: desktop windows and the event loop on Windows, macOS and Linux."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,7 +9,6 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-artic-core.workspace = true
 artic-platform.workspace = true
 artic-render.workspace = true
 # winit's defaults, except Wayland decorations without title text: drawing it needs ttf-parser,
@@ -17,11 +16,6 @@ artic-render.workspace = true
 winit = { workspace = true, features = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita-notitle"] }
 
 [dev-dependencies]
-accesskit.workspace = true
-artic-text.workspace = true
-artic-element.workspace = true
-artic-layout.workspace = true
-artic-vello.workspace = true
 pretty_assertions.workspace = true
 
 [lints]

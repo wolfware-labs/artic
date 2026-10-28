@@ -1,6 +1,6 @@
 [package]
 name = "artic-platform"
-description = "Platform hosts: windowing, input, lifecycle, OS services and accessibility."
+description = "The host seam and the frame pipeline: hosts, windows, surfaces and frames."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
