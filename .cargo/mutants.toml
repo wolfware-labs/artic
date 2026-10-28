@@ -1,0 +1,17 @@
+# cargo-mutants: CI mutates the lines a pull request changes, and every mutant must make a test
+# fail or stop the build. A mutant that survives marks code no test checks.
+
+# Much of artic is tested from the crates above the one that holds the code, such as layout
+# through the controls, so each mutant runs the whole workspace's tests.
+test_workspace = true
+
+# The auto timeout comes from the baseline run, whose trybuild cases are already compiled. A mutant
+# below the macros makes trybuild compile them again, which takes minutes, not seconds.
+minimum_test_timeout = 300
+
+exclude_globs = [
+    # Test-only packages outside the layers: what they hold is the tests themselves.
+    "crates/artic-examples/**",
+    "crates/docs-check/**",
+    "crates/*/fixtures/**",
+]
