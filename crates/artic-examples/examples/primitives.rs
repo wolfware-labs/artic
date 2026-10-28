@@ -220,9 +220,12 @@ impl AppHandler for Demo {
     cx.request_frame(surface);
   }
 
-  fn surface_lost(&mut self, cx: &mut dyn HostContext, surface: SurfaceId, _loss: SurfaceLoss) {
+  fn surface_lost(&mut self, cx: &mut dyn HostContext, surface: SurfaceId, loss: SurfaceLoss) {
     self.renderer.surface_lost(surface);
-    cx.exit();
+    self.surface = None;
+    if loss == SurfaceLoss::Gone {
+      cx.exit();
+    }
   }
 
   fn event(&mut self, cx: &mut dyn HostContext, event: HostEvent) {
