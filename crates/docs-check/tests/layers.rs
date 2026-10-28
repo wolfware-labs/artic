@@ -210,10 +210,14 @@ impl Architecture {
   /// a crate, and every crate a table names is a workspace member in a layer.
   fn read(packages: &BTreeMap<String, Package>) -> Architecture {
     let document = read(ARCHITECTURE);
-    let seams = table(&document, ARCHITECTURE, SEAMS)
-      .into_iter()
-      .map(|row| (row[0].clone(), names(&row[2])))
-      .collect();
+    let mut seams = BTreeMap::new();
+    for row in table(&document, ARCHITECTURE, SEAMS) {
+      assert!(
+        seams.insert(row[0].clone(), names(&row[2])).is_none(),
+        "the Seams table has two {} rows",
+        row[0]
+      );
+    }
     let mut layers = BTreeMap::new();
     for row in table(&document, ARCHITECTURE, LAYERS) {
       let layer = if row[0] == "outside" {
