@@ -13,7 +13,8 @@ use common::{
   Context, Counter, Leaf, LeafHandles, Recorder, Wrap, application, column, engine, info, label, leaf, pixels, surface, target,
 };
 use pretty_assertions::assert_eq;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -21,9 +22,30 @@ use artic_platform::{Error, Host, HostEvent, SurfaceLoss, run};
 use artic_render::{RenderError, TargetKind};
 const FIRST: SurfaceId = SurfaceId::new(1);
 
+/// Each surface's last frame stats, recorded through the `after_present` hook.
+#[derive(Clone, Default)]
+struct StatsLog(Rc<RefCell<HashMap<NodeId, FrameStats>>>);
+
+impl StatsLog {
+  fn attach(runner: &mut Runner<Counter>) -> StatsLog {
+    let log = StatsLog::default();
+    let stats = log.0.clone();
+    runner.hooks().after_present(move |_, root, frame| {
+      stats.borrow_mut().insert(root, *frame);
+    });
+    log
+  }
+
+  fn last(&self, root: NodeId) -> Option<FrameStats> {
+    self.0.borrow().get(&root).copied()
+  }
+}
+
 /// A runner with one window holding two leaves, started, sized and drawn once.
 struct Fixture {
   runner: Runner<Counter>,
+  stats: StatsLog,
+  surface: NodeId,
   cx: Context,
   renderer: Counter,
   top: LeafHandles,
@@ -41,12 +63,15 @@ impl Fixture {
     let (title, is_open) = (surface(&tree, surfaces[0]).title, surface(&tree, surfaces[0]).is_open);
     let renderer = Counter::default();
     let mut runner = Runner::new(tree, renderer.clone(), Box::new(engine()), application);
+    let stats = StatsLog::attach(&mut runner);
     configure(&mut runner);
     let mut cx = Context::default();
     runner.started(&mut cx, Waker::new(|| {}));
     runner.surface_changed(&mut cx, FIRST, info(64, 64, 1.0));
     let mut fixture = Fixture {
       runner,
+      stats,
+      surface: surfaces[0],
       cx,
       renderer,
       top,
@@ -62,7 +87,7 @@ impl Fixture {
   fn frame(&mut self) -> FrameStats {
     let mut buffer = pixels();
     self.runner.frame(&mut self.cx, FIRST, target(&mut buffer), Duration::ZERO);
-    self.runner.stats(FIRST).expect("the window drew")
+    self.stats.last(self.surface).expect("the window drew")
   }
 
   /// Settles a change made outside any call, as a host event would.
@@ -271,8 +296,9 @@ fn windows_keep_their_own_caches() {
   let right = leaf(&mut tree, 20.0);
   let (first_root, _) = column(&mut tree, &[left.id]);
   let (second_root, _) = column(&mut tree, &[right.id]);
-  let (application, _) = application(&mut tree, &[("first", first_root), ("second", second_root)]);
+  let (application, surfaces) = application(&mut tree, &[("first", first_root), ("second", second_root)]);
   let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let log = StatsLog::attach(&mut runner);
   let mut cx = Context::default();
   let second = SurfaceId::new(2);
   runner.started(&mut cx, Waker::new(|| {}));
@@ -290,8 +316,8 @@ fn windows_keep_their_own_caches() {
     runner.frame(&mut cx, surface, target(&mut buffer), Duration::ZERO);
   }
 
-  assert_eq!(runner.stats(FIRST).unwrap().recorded, 1);
-  assert_eq!(runner.stats(second).unwrap().recorded, 0);
+  assert_eq!(log.last(surfaces[0]).unwrap().recorded, 1);
+  assert_eq!(log.last(surfaces[1]).unwrap().recorded, 0);
 }
 
 // A child of a hidden panel resized while hidden is recorded again once the panel shows, though
@@ -302,8 +328,9 @@ fn node_resized_while_hidden_is_recorded_when_shown() {
   let child = leaf(&mut tree, 20.0);
   let (inner, inner_visible) = column(&mut tree, &[child.id]);
   let (root, _) = column(&mut tree, &[inner]);
-  let (application, _) = application(&mut tree, &[("main", root)]);
+  let (application, surfaces) = application(&mut tree, &[("main", root)]);
   let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let log = StatsLog::attach(&mut runner);
   let mut cx = Context::default();
   let mut buffer = pixels();
   runner.started(&mut cx, Waker::new(|| {}));
@@ -319,7 +346,7 @@ fn node_resized_while_hidden_is_recorded_when_shown() {
   runner.woken(&mut cx);
   runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
 
-  assert_eq!(runner.stats(FIRST).unwrap().recorded, 2);
+  assert_eq!(log.last(surfaces[0]).unwrap().recorded, 2);
 }
 
 // A frame before the surface's first `surface_changed` has no size to lay out in, so it draws
@@ -328,15 +355,18 @@ fn node_resized_while_hidden_is_recorded_when_shown() {
 fn frame_before_surface_info_is_ignored() {
   let mut tree = UiTree::new();
   let (root, _) = column(&mut tree, &[]);
-  let (application, _) = application(&mut tree, &[("main", root)]);
-  let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let (application, surfaces) = application(&mut tree, &[("main", root)]);
+  let renderer = Counter::default();
+  let mut runner = Runner::new(tree, renderer.clone(), Box::new(engine()), application);
+  let log = StatsLog::attach(&mut runner);
   let mut cx = Context::default();
   let mut buffer = pixels();
   runner.started(&mut cx, Waker::new(|| {}));
 
   runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
 
-  assert_eq!(runner.stats(FIRST), None);
+  assert_eq!(log.last(surfaces[0]), None);
+  assert_eq!(renderer.rendered.get(), 0);
 }
 
 // The first frame for a surface draws in full even when the host sends it unasked.
@@ -345,8 +375,9 @@ fn first_frame_without_a_request_draws() {
   let mut tree = UiTree::new();
   let child = leaf(&mut tree, 20.0);
   let (root, _) = column(&mut tree, &[child.id]);
-  let (application, _) = application(&mut tree, &[("main", root)]);
+  let (application, surfaces) = application(&mut tree, &[("main", root)]);
   let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let log = StatsLog::attach(&mut runner);
   let mut cx = Context::default();
   let mut buffer = pixels();
   runner.started(&mut cx, Waker::new(|| {}));
@@ -354,7 +385,7 @@ fn first_frame_without_a_request_draws() {
 
   runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
 
-  assert_eq!(runner.stats(FIRST).unwrap().recorded, 3);
+  assert_eq!(log.last(surfaces[0]).unwrap().recorded, 3);
 }
 
 // Closing the last surface's window writes IsOpen = false, closes it through the host and exits.
@@ -383,7 +414,12 @@ fn closed_window_is_released_from_the_renderer() {
   fixture.runner.surface_lost(&mut fixture.cx, FIRST, SurfaceLoss::Gone);
 
   assert_eq!(*fixture.renderer.lost.borrow(), [FIRST]);
-  assert_eq!(fixture.runner.stats(FIRST), None);
+  let rendered = fixture.renderer.rendered.get();
+  let mut buffer = pixels();
+  fixture
+    .runner
+    .frame(&mut fixture.cx, FIRST, target(&mut buffer), Duration::ZERO);
+  assert_eq!(fixture.renderer.rendered.get(), rendered);
 }
 
 // A lost surface makes the renderer drop what it kept and asks for a frame that rebuilds it.
@@ -528,7 +564,12 @@ fn destroyed_window_exits() {
   fixture.runner.surface_lost(&mut fixture.cx, FIRST, SurfaceLoss::Gone);
 
   assert!(fixture.cx.exited);
-  assert_eq!(fixture.runner.stats(FIRST), None);
+  let rendered = fixture.renderer.rendered.get();
+  let mut buffer = pixels();
+  fixture
+    .runner
+    .frame(&mut fixture.cx, FIRST, target(&mut buffer), Duration::ZERO);
+  assert_eq!(fixture.renderer.rendered.get(), rendered);
 }
 
 // A failed frame's error says what the renderer reported.

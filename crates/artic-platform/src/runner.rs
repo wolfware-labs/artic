@@ -2,8 +2,8 @@
 //! draws, and what a frame runs.
 
 use crate::{
-  AppHandler, Axes, Error, FrameServices, FrameStats, Hooks, Host, HostContext, HostEvent, LogicalSize, Pipeline, SurfaceInfo,
-  SurfaceLoss, Waker, WindowDesc,
+  AppHandler, Axes, Error, FrameServices, Hooks, Host, HostContext, HostEvent, LogicalSize, Pipeline, SurfaceInfo, SurfaceLoss,
+  Waker, WindowDesc,
 };
 use artic_core::dispatcher::Dispatcher;
 use artic_core::property::Affects;
@@ -50,7 +50,6 @@ struct Bound {
   needs_frame: bool,
   suspended: bool,
   pipeline: Pipeline,
-  stats: Option<FrameStats>,
 }
 
 /// A surface's `Desktop` settings, as one reconcile reads them.
@@ -143,12 +142,6 @@ impl<R: Renderer> Runner<R> {
   /// The hooks each frame runs.
   pub fn hooks(&mut self) -> &mut Hooks {
     &mut self.hooks
-  }
-
-  /// What `surface`'s last frame did, or `None` if it hasn't drawn.
-  #[must_use]
-  pub fn stats(&self, surface: SurfaceId) -> Option<FrameStats> {
-    self.bound.iter().find(|bound| bound.id == surface)?.stats
   }
 
   fn drain() {
@@ -244,7 +237,6 @@ impl<R: Renderer> Runner<R> {
         needs_frame: true,
         suspended: false,
         pipeline,
-        stats: None,
       });
     } else if !self.spare.is_empty() {
       let (id, info) = self.spare.remove(0);
@@ -256,7 +248,6 @@ impl<R: Renderer> Runner<R> {
         needs_frame: true,
         suspended: false,
         pipeline: Pipeline::new(),
-        stats: None,
       });
       if info.is_some() {
         cx.request_frame(id);
@@ -446,7 +437,6 @@ impl<R: Renderer> AppHandler for Runner<R> {
     };
     match result {
       Ok(stats) => {
-        self.bound[index].stats = Some(stats);
         for hook in &mut self.hooks.after_present {
           hook(&self.tree, root, &stats);
         }

@@ -23,7 +23,7 @@ All in `artic-platform`, which depends on `artic-element` to drive the tree as `
 | `Frame` | The surface's `SurfaceId`, size and scale, the owned `Scene`, and the stats so far. `Send` |
 | `FrameStats` | `{ measured: u32, arranged: u32, recorded: u32, rendered: bool }`, `Copy + Eq + Default` |
 | `Hooks` | Per-stage lists of boxed closures: `before_layout`, `after_present`, `wants_frame`, and `on_error` for a frame that failed |
-| `Runner<R: Renderer>` | `impl AppHandler`. Owns the `UiTree`, the renderer, the text engine, the `Hooks` and the `ElementTypes` cast table, built once and lent with the engine to every pipeline as `FrameServices`, and per surface its root, latest `SurfaceInfo`, a `needs_frame` mark, its `Pipeline` and the last `FrameStats` |
+| `Runner<R: Renderer>` | `impl AppHandler`. Owns the `UiTree`, the renderer, the text engine, the `Hooks` and the `ElementTypes` cast table, built once and lent with the engine to every pipeline as `FrameServices`, and per surface its root, latest `SurfaceInfo`, a `needs_frame` mark, and its `Pipeline` |
 | `run(host, runner) -> Result<(), Error>` | Checks `renderer.accepts(host.targets())`, then `host.run(runner)`; returns the error a frame failed with, if any, when the host's `run` returns after the loop ends |
 | `Error` | `Unsupported(TargetKind)`: the renderer can't draw on what the host offers; `Render(RenderError)`: a frame failed |
 
@@ -31,7 +31,6 @@ All in `artic-platform`, which depends on `artic-element` to drive the tree as `
 impl<R: Renderer> Runner<R> {
   pub fn new(tree: UiTree, renderer: R, text: Box<dyn TextEngine>, application: NodeId) -> Self;
   pub fn hooks(&mut self) -> &mut Hooks;
-  pub fn stats(&self, surface: SurfaceId) -> Option<FrameStats>;
 }
 
 impl Hooks {
@@ -77,7 +76,7 @@ Pending work never keeps the loop awake by itself: the queue is empty after each
 5. Clear the mark and `pipeline.prepare(tree, root, info, &mut services)`, lending the runner's `ElementTypes` and text engine as `FrameServices`, from which the pipeline builds the `LayoutNodes` and render `Nodes` for this frame:
    - `LayoutManager::run` at `size / scale` in logical units, with pixel snapping and the runner's text engine ([text design](text.md)). It measures only layout-dirty nodes and those whose desired size a change reached, and reports the nodes whose arranged size changed and the nodes whose layout result was set or dropped, including by a `measure` call since the last run.
    - `Compositor::compose` through the pipeline's render `Nodes` (section 5). It records only render-dirty nodes and the nodes layout resized or changed the layout result of, and reuses every other fragment.
-6. `pipeline.present(renderer, frame, target)` builds the renderer's `SurfaceView` from the frame's id, size and scale and the lent target, and renders; then the `after_present` hooks run and the surface's `FrameStats` are kept.
+6. `pipeline.present(renderer, frame, target)` builds the renderer's `SurfaceView` from the frame's id, size and scale and the lent target, and renders; then the `after_present` hooks run with the stats.
 7. If any `wants_frame` hook returns true, mark the surface and request its next frame.
 8. Settle (section 3). A write made in steps 5 to 7, such as by an `after_present` hook, sets the pending flag after step 3 read it; settling marks the surfaces and asks for exactly one more frame.
 
@@ -116,7 +115,7 @@ A node that isn't an element gets default layers and records nothing. A node lay
 
 ## 7. Stats
 
-Each stage counts what it did: `LayoutManager::run` returns `LayoutStats { measured, arranged, resized, results }`, where `resized` lists the nodes whose arranged size changed and `results` the nodes whose layout result was set or dropped since the last run ([text design](text.md)), the compositor counts the fragments it recorded, and `present` sets `rendered`. A frame that stops at step 4 has `FrameStats { rendered: true, ..Default::default() }`, and nothing else ran. They're plain integers returned from the call that did the work, always on, so tests read exactly the frame they ran and the debug overlay reads `Runner::stats`.
+Each stage counts what it did: `LayoutManager::run` returns `LayoutStats { measured, arranged, resized, results }`, where `resized` lists the nodes whose arranged size changed and `results` the nodes whose layout result was set or dropped since the last run ([text design](text.md)), the compositor counts the fragments it recorded, and `present` sets `rendered`. A frame that stops at step 4 has `FrameStats { rendered: true, ..Default::default() }`, and nothing else ran. They're plain integers returned from the call that did the work, always on, so tests and the debug overlay read exactly the frame they ran, through `after_present`.
 
 ## 8. Testing
 
