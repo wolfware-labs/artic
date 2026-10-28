@@ -14,5 +14,8 @@ artic-controls.workspace = true
 artic-core.workspace = true
 artic-registry.workspace = true
 
+[dev-dependencies]
+serde_json.workspace = true
+
 [lints]
 workspace = true

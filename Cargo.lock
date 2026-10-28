@@ -859,6 +859,7 @@ dependencies = [
  "artic-controls",
  "artic-core",
  "artic-registry",
+ "serde_json",
 ]
 
 [[package]]

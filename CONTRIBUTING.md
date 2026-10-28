@@ -26,6 +26,7 @@ CI runs these on every pull request. Run them locally before pushing:
 | Lints | `cargo clippy --workspace --all-targets -- -D warnings` | Lint |
 | Facade features | `cargo test -p artic --all-features` | Test (Ubuntu) |
 | Host examples | `cargo run -p artic-examples --example smoke` (with `ARTIC_SMOKE_FRAMES=60`) and `--example frames` | Test (Windows, macOS) |
+| Layering | `cargo test -p docs-check --test layers` and `cargo deny check bans` | Docs, Test, Deny |
 | UI-language neutral | `scripts/check-ui-neutral.sh` | Lint |
 | Docs | `cargo doc --workspace --no-deps --exclude docs-check` with `RUSTDOCFLAGS=-D warnings` | Docs |
 | Code in documents | `cargo test -p docs-check` | Docs |
