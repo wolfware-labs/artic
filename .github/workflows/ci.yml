@@ -6,6 +6,9 @@ name: CI
 # The "Protect main" ruleset requires every job below by name. A skipped job still satisfies its
 # required check, but only under its exact name, which is why the test jobs aren't a matrix: a
 # skipped matrix job reports the unexpanded `Test (${{ matrix.os }})`.
+#
+# The mutants shards are a matrix, so the ruleset requires `Mutants`, the job that reports
+# whether every shard passed or was skipped.
 
 on:
   pull_request:
@@ -49,6 +52,7 @@ jobs:
               - 'Cargo.lock'
               - 'rust-toolchain.toml'
               - 'rustfmt.toml'
+              - '.cargo/**'
               - '.github/workflows/ci.yml'
               - '.github/actions/**'
             dependencies:
@@ -122,6 +126,58 @@ jobs:
           files: lcov.info
           use_oidc: true
           fail_ci_if_error: false
+
+  # Mutates the lines a pull request changes (.cargo/mutants.toml): each mutant must make a test
+  # fail or stop the build, so one that survives, code no test checks, fails its shard.
+  mutants:
+    name: Mutants (shard ${{ matrix.shard }}/8)
+    needs: changes
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.rust == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+      - name: Diff against the base branch
+        env:
+          BASE: ${{ github.base_ref }}
+        run: git diff "origin/$BASE...HEAD" > "$RUNNER_TEMP/pr.diff"
+      # --in-place builds in the checkout, so the restored dependency cache is reused instead of
+      # copying the tree for every mutant.
+      - name: Mutate the changed lines
+        run: >-
+          cargo mutants --in-diff "$RUNNER_TEMP/pr.diff" --in-place --no-shuffle
+          --shard ${{ matrix.shard }}/8 --output "$RUNNER_TEMP"
+      - name: Keep the report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutants-${{ matrix.shard }}
+          path: ${{ runner.temp }}/mutants.out
+          retention-days: 7
+
+  mutants-ok:
+    name: Mutants
+    needs: mutants
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every shard passed or was skipped
+        env:
+          RESULT: ${{ needs.mutants.result }}
+        run: |
+          echo "mutants: $RESULT"
+          [ "$RESULT" = success ] || [ "$RESULT" = skipped ]
 
   test-windows:
     name: Test (windows-latest)
