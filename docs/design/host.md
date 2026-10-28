@@ -113,7 +113,7 @@ The desktop adapter, at layer 6, depending on `artic-platform`, `artic-render` a
 
 - The `WindowId` → `SurfaceId` map gives distinct ids and maps each back; displays get stable ids, distinct monitors distinct ones, and a window on no monitor one of its own.
 - `artic-platform`: `Waker` is `Clone + Send + Sync` and `wake()` runs the host's hook; a minimal fake host drives a recording `AppHandler`, showing a host can be written against the seam alone, as `TestHost` (#101) will be.
-- `artic-platform` has no `winit` dependency, and no `winit` type appears in `artic-winit`'s public items.
+- `cargo deny` bans `winit` everywhere but `artic-winit`, and no `winit` type appears in `artic-winit`'s public items.
 - A smoke example, `artic-examples/examples/smoke.rs`: an `AppHandler` that opens one window in `started`, through `HostContext::windows()` with a `WindowDesc` it builds itself, and asks for a frame after each frame; with `ARTIC_SMOKE_FRAMES=N` it exits after N frames, otherwise it runs until the window closes. It calls only `Host::new()` and `run`, with no target-specific code, and draws nothing: it checks the host alone, without the runner, and the `frames` example draws through the runner. #53 runs it in CI; the PR records manual runs on Windows, macOS and Linux.
 
 ## 7. What this changes

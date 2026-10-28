@@ -15,8 +15,6 @@ Commands:
 No commands are implemented yet.
 ";
 
-// Cargo runs a subcommand as `cargo-artic artic <args>`, so the first command to read its arguments
-// skips `artic`.
 fn main() {
   print!("{USAGE}");
 }

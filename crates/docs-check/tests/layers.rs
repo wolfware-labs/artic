@@ -3,20 +3,19 @@
 //! only where the exceptions table says so, nothing in the layers reaches an adapter, and the facade
 //! depends only on what it re-exports.
 
+mod common;
+
+use common::repository;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Path, PathBuf};
 use std::process::Command;
 
+const ARCHITECTURE: &str = "docs/architecture.md";
 const SEAMS: &str = "| Seam | Interface | v1 |";
 const LAYERS: &str = "| Layer | Crates | Role |";
 const DEPENDENCIES: &str = "| Crate | Depends on | Dev-dependencies |";
 const EXCEPTIONS: &str = "| Crate | Dev-depends on | Why |";
 const README_LAYERS: &str = "| Layer | Crate | Responsibility |";
-
-fn repository() -> PathBuf {
-  Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
 
 fn read(path: &str) -> String {
   std::fs::read_to_string(repository().join(path)).unwrap_or_else(|error| panic!("{path}: {error}"))
@@ -30,17 +29,35 @@ struct Edge {
   feature: Option<String>,
 }
 
-/// The rows of the table whose header line is `header`, each a list of trimmed cells.
-fn table(document: &str, header: &str) -> Vec<Vec<String>> {
-  let mut lines = document.lines().map(str::trim).skip_while(|line| *line != header);
-  assert!(lines.next().is_some(), "docs/architecture.md has no table headed {header}");
-  let rows: Vec<Vec<String>> = lines
-    .skip(1)
-    .take_while(|line| line.starts_with('|'))
-    .map(|line| line.trim_matches('|').split('|').map(|cell| cell.trim().to_owned()).collect())
-    .collect();
-  assert!(!rows.is_empty(), "the table headed {header} has no rows");
+/// The rows of the table in `document` (read from `path`) whose header line is `header`, each a list
+/// of trimmed cells.
+fn table(document: &str, path: &str, header: &str) -> Vec<Vec<String>> {
+  let mut lines = document.lines().map(str::trim).skip_while(|line| *line != header).skip(2);
+  let width = cells(header).len();
+  let mut rows = Vec::new();
+  for line in lines.by_ref() {
+    if !line.starts_with('|') {
+      break;
+    }
+    let row = cells(line);
+    assert!(
+      row.len() == width,
+      "{path}: `{line}` has {} cells; the table headed {header} has {width}",
+      row.len()
+    );
+    rows.push(row);
+  }
+  assert!(!rows.is_empty(), "{path} has no table headed {header}, or it has no rows");
+  let next = lines.find(|line| !line.is_empty());
+  assert!(
+    !next.is_some_and(|line| line.starts_with('|')),
+    "blank line inside the table headed {header} in {path}"
+  );
   rows
+}
+
+fn cells(line: &str) -> Vec<String> {
+  line.trim_matches('|').split('|').map(|cell| cell.trim().to_owned()).collect()
 }
 
 /// Every backticked name in `text`.
@@ -179,14 +196,16 @@ struct Architecture {
 }
 
 impl Architecture {
-  fn read() -> Architecture {
-    let document = read("docs/architecture.md");
-    let seams = table(&document, SEAMS)
+  /// Reads the tables and checks their shape against the workspace: the three Seams rows each name
+  /// a crate, and every crate a table names is a workspace member in a layer.
+  fn read(packages: &BTreeMap<String, Package>) -> Architecture {
+    let document = read(ARCHITECTURE);
+    let seams = table(&document, ARCHITECTURE, SEAMS)
       .into_iter()
       .map(|row| (row[0].clone(), names(&row[2])))
       .collect();
     let mut layers = BTreeMap::new();
-    for row in table(&document, LAYERS) {
+    for row in table(&document, ARCHITECTURE, LAYERS) {
       let layer = if row[0] == "outside" {
         None
       } else {
@@ -203,7 +222,7 @@ impl Architecture {
     let mut depends = BTreeMap::new();
     let mut dev = BTreeMap::new();
     let mut problems = Vec::new();
-    for row in table(&document, DEPENDENCIES) {
+    for row in table(&document, ARCHITECTURE, DEPENDENCIES) {
       let crate_name = names(&row[0]).concat();
       for (column, edges) in [(&row[1], &mut depends), (&row[2], &mut dev)] {
         match cell(column) {
@@ -217,7 +236,7 @@ impl Architecture {
       }
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
-    let exceptions = table(&document, EXCEPTIONS)
+    let exceptions = table(&document, ARCHITECTURE, EXCEPTIONS)
       .into_iter()
       .map(|row| {
         let crate_name = if row[0] == "any crate" {
@@ -228,13 +247,56 @@ impl Architecture {
         (crate_name, names(&row[1]))
       })
       .collect();
-    Architecture {
+    let architecture = Architecture {
       seams,
       layers,
       depends,
       dev,
       exceptions,
+    };
+    architecture.validate(packages);
+    architecture
+  }
+
+  fn validate(&self, packages: &BTreeMap<String, Package>) {
+    let mut problems = Vec::new();
+    let rows: Vec<&str> = self.seams.keys().map(String::as_str).collect();
+    if rows != ["Host", "Renderer", "UI language"] {
+      problems.push(format!(
+        "the Seams table has rows {rows:?}, not Host, Renderer and UI language"
+      ));
     }
+    for (seam, crates) in &self.seams {
+      if crates.is_empty() {
+        problems.push(format!("the Seams row {seam} names no crate in backticks"));
+      }
+    }
+    let named = self
+      .seams
+      .values()
+      .flatten()
+      .chain(
+        self
+          .depends
+          .values()
+          .chain(self.dev.values())
+          .flatten()
+          .map(|edge| &edge.name),
+      )
+      .chain(self.exceptions.iter().flat_map(|(_, targets)| targets))
+      .chain(
+        self
+          .exceptions
+          .iter()
+          .map(|(name, _)| name)
+          .filter(|name| *name != "any crate"),
+      );
+    for name in named {
+      if !packages.contains_key(name) || self.layer(name).is_none() {
+        problems.push(format!("{name}: named in {ARCHITECTURE}, not a workspace member in a layer"));
+      }
+    }
+    assert_none(problems);
   }
 
   fn layer(&self, name: &str) -> Option<usize> {
@@ -302,7 +364,7 @@ fn an_unknown_qualifier_is_an_error() {
 #[test]
 fn every_member_has_a_layer() {
   let packages = metadata();
-  let architecture = Architecture::read();
+  let architecture = Architecture::read(&packages);
   let mut problems = Vec::new();
   for (name, package) in &packages {
     match architecture.layers.get(name) {
@@ -334,7 +396,7 @@ fn every_member_has_a_layer() {
 #[test]
 fn the_table_lists_every_edge() {
   let packages = metadata();
-  let architecture = Architecture::read();
+  let architecture = Architecture::read(&packages);
   let mut problems = Vec::new();
   for (name, package) in &packages {
     if architecture.layer(name).is_none() {
@@ -365,7 +427,7 @@ fn the_table_lists_every_edge() {
             )),
             (Some(feature), true) => {
               let enables = package.features.get(feature).cloned().unwrap_or_default();
-              if !enables.contains(&format!("dep:{target}")) && feature != target {
+              if !enables.contains(&format!("dep:{target}")) {
                 problems.push(format!("{name} -> {target} ({kind}): feature `{feature}` doesn't add it"));
               }
             }
@@ -389,7 +451,7 @@ fn the_table_lists_every_edge() {
 // A crate's layer is one more than the deepest crate it depends on, planned included.
 #[test]
 fn layers_are_depths() {
-  let architecture = Architecture::read();
+  let architecture = Architecture::read(&metadata());
   let mut problems = Vec::new();
   for (name, edges) in &architecture.depends {
     let Some(layer) = architecture.layer(name) else { continue };
@@ -409,7 +471,7 @@ fn layers_are_depths() {
 // exception there is a dev-dependency the table has.
 #[test]
 fn dev_edges_follow_the_layers() {
-  let architecture = Architecture::read();
+  let architecture = Architecture::read(&metadata());
   let mut problems = Vec::new();
   for (name, edges) in &architecture.dev {
     let Some(layer) = architecture.layer(name) else { continue };
@@ -440,6 +502,11 @@ fn dev_edges_follow_the_layers() {
           "exception {crate_name} -> {target}: no such dev-dependency in the table"
         ));
       }
+      if crate_name != "any crate" && architecture.layer(target) < architecture.layer(crate_name) {
+        problems.push(format!(
+          "exception {crate_name} -> {target}: points to a lower layer, which needs no exception"
+        ));
+      }
     }
   }
   assert_none(problems);
@@ -449,7 +516,7 @@ fn dev_edges_follow_the_layers() {
 #[test]
 fn nothing_depends_on_an_adapter() {
   let packages = metadata();
-  let architecture = Architecture::read();
+  let architecture = Architecture::read(&packages);
   let adapters: BTreeSet<&String> = ["Host", "Renderer"]
     .iter()
     .flat_map(|seam| {
@@ -483,7 +550,7 @@ fn nothing_depends_on_an_adapter() {
 #[test]
 fn the_facade_depends_only_on_what_it_re_exports() {
   let packages = metadata();
-  let architecture = Architecture::read();
+  let architecture = Architecture::read(&packages);
   let facade = &packages["artic"];
   let lib = read("crates/artic/src/lib.rs");
   let seams = architecture.seam_crates();
@@ -495,7 +562,8 @@ fn the_facade_depends_only_on_what_it_re_exports() {
     if seams.contains(target.as_str()) {
       problems.push(format!("artic -> {target}: a seam's crate, so it comes with a feature"));
     }
-    if !lib.contains(&format!("pub use {} ", target.replace('-', "_"))) {
+    let re_export = format!("pub use {} ", target.replace('-', "_"));
+    if !lib.lines().any(|line| line.trim_start().starts_with(&re_export)) {
       problems.push(format!("artic -> {target}: depended on, not re-exported in src/lib.rs"));
     }
   }
@@ -503,16 +571,19 @@ fn the_facade_depends_only_on_what_it_re_exports() {
   let mut seen = BTreeSet::new();
   while let Some(feature) = pending.pop() {
     for enabled in facade.features.get(&feature).into_iter().flatten() {
-      match enabled.strip_prefix("dep:") {
-        Some(target) if seams.contains(target) => {
-          problems.push(format!("artic's default features add {target}, a seam's crate"));
-        }
-        Some(_) => {}
-        None => {
+      let added = match (enabled.strip_prefix("dep:"), enabled.split_once('/')) {
+        (Some(target), _) => Some(target),
+        (None, Some((target, _))) if !target.ends_with('?') => Some(target),
+        (None, Some(_)) => None,
+        (None, None) => {
           if seen.insert(enabled.clone()) {
             pending.push(enabled.clone());
           }
+          None
         }
+      };
+      if let Some(target) = added.filter(|target| seams.contains(target)) {
+        problems.push(format!("artic's default features add {target}, a seam's crate"));
       }
     }
   }
@@ -522,11 +593,13 @@ fn the_facade_depends_only_on_what_it_re_exports() {
 // The README's table of crates and layers agrees with docs/architecture.md.
 #[test]
 fn readme_layers_match() {
-  let architecture = Architecture::read();
-  let readme: BTreeMap<String, Option<usize>> = table(&read("README.md"), README_LAYERS)
-    .into_iter()
+  let architecture = Architecture::read(&metadata());
+  let rows = table(&read("README.md"), "README.md", README_LAYERS);
+  let readme: BTreeMap<String, Option<usize>> = rows
+    .iter()
     .map(|row| (names(&row[1]).concat(), row[0].parse().ok()))
     .collect();
+  assert_eq!(readme.len(), rows.len(), "README.md lists a crate twice");
   let layered: BTreeMap<String, Option<usize>> = architecture
     .layers
     .iter()
@@ -537,4 +610,18 @@ fn readme_layers_match() {
     readme, layered,
     "README.md's crates and layers differ from docs/architecture.md's"
   );
+}
+
+// A blank line inside a table is an error, not the table's end, so no row is dropped unseen.
+#[test]
+#[should_panic(expected = "blank line inside the table headed | A | B | in doc.md")]
+fn a_blank_line_inside_a_table_is_an_error() {
+  table("| A | B |\n| --- | --- |\n| 1 | 2 |\n\n| 3 | 4 |\n", "doc.md", "| A | B |");
+}
+
+// A row with fewer cells than the header is an error naming the row.
+#[test]
+#[should_panic(expected = "doc.md: `| 1 |` has 1 cells; the table headed | A | B | has 2")]
+fn a_short_row_is_an_error() {
+  table("| A | B |\n| --- | --- |\n| 1 |\n", "doc.md", "| A | B |");
 }
