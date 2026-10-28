@@ -62,11 +62,12 @@ pub enum GoldenError {
     diff: PathBuf,
   },
   /// A file couldn't be read, decoded or written.
-  #[error("{}: {error}", path.display())]
+  #[error("{} couldn't be read, decoded or written", path.display())]
   Io {
     /// The file.
     path: PathBuf,
     /// What went wrong.
+    #[source]
     error: io::Error,
   },
 }
@@ -175,10 +176,14 @@ impl Golden {
   ///
   /// # Panics
   ///
-  /// When the check fails, with its error's message.
+  /// When the check fails, with its error's message and causes.
   pub fn assert(&self, actual: &Image) {
     if let Err(error) = self.check(actual) {
-      panic!("{error}");
+      panic!(
+        "{}",
+        std::iter::successors(std::error::Error::source(&error), |cause| cause.source())
+          .fold(error.to_string(), |message, cause| format!("{message}: {cause}"))
+      );
     }
   }
 
@@ -438,10 +443,27 @@ mod tests {
 
     let error = golden.check_in(&plain([0; 4]), Mode::Compare).expect_err("unreadable");
 
+    let source = std::error::Error::source(&error).and_then(|source| source.downcast_ref::<io::Error>());
+    assert_eq!(source.map(io::Error::kind), Some(io::ErrorKind::InvalidData));
     let GoldenError::Io { path, error } = error else {
       panic!("{error:?}")
     };
     assert_eq!((path, error.kind()), (golden.path(), io::ErrorKind::InvalidData));
+  }
+
+  // `assert` panics with the message and the cause, so the decoder's words still reach the test
+  // log.
+  #[test]
+  fn assert_names_the_cause_of_an_unreadable_golden() {
+    let golden = Golden::at(scratch("assert_names_the_cause_of_an_unreadable_golden").join("bad.png"));
+    fs::write(golden.path(), b"not a png").expect("writes");
+    let error = golden.check_in(&plain([0; 4]), Mode::Compare).expect_err("unreadable");
+    let cause = std::error::Error::source(&error).expect("the io error").to_string();
+
+    let panic =
+      std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| golden.assert(&plain([0; 4])))).expect_err("assert panics");
+
+    assert_eq!(panic.downcast_ref::<String>(), Some(&format!("{error}: {cause}")));
   }
 
   // A golden that can't be read removes what an earlier failure left beside it.

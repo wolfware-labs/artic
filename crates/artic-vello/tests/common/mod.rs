@@ -28,7 +28,13 @@ fn start() -> Result<Renderer, String> {
       eprintln!("using {renderer:?}");
       Ok(renderer)
     }
-    Err(error @ (Error::Adapter(_) | Error::UnsupportedAdapter(_))) => Err(error.to_string()),
-    Err(error) => panic!("the renderer failed to start: {error}"),
+    Err(error @ (Error::Adapter(_) | Error::UnsupportedAdapter(_))) => Err(chain(&error)),
+    Err(error) => panic!("the renderer failed to start: {}", chain(&error)),
   }
+}
+
+/// `error`'s message, then each cause.
+fn chain(error: &dyn std::error::Error) -> String {
+  std::iter::successors(error.source(), |cause| cause.source())
+    .fold(error.to_string(), |message, cause| format!("{message}: {cause}"))
 }

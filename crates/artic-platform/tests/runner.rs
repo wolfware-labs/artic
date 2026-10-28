@@ -572,12 +572,15 @@ fn destroyed_window_exits() {
   assert_eq!(fixture.renderer.rendered.get(), rendered);
 }
 
-// A failed frame's error says what the renderer reported.
+// A failed frame's message says a frame failed, and the renderer's error is its source, printed
+// once by a chain reporter.
 #[test]
-fn render_error_message_names_the_cause() {
+fn render_error_shows_its_cause_once() {
+  use std::error::Error as _;
   let error = Error::Render(RenderError::Backend("no device".into()));
 
-  assert_eq!(error.to_string(), "a frame failed to render: no device");
+  assert_eq!(error.to_string(), "a frame failed to render");
+  assert_eq!(error.source().map(ToString::to_string), Some("no device".to_owned()));
 }
 
 /// A runner over `tree`'s `application`, started on a host with windows.

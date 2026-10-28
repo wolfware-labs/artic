@@ -21,7 +21,7 @@ pub enum CompileError {
     diagnostics: Diagnostics,
   },
   /// A file or directory couldn't be read or written.
-  #[error("{}: {error}", .path.display())]
+  #[error("{} couldn't be read or written", .path.display())]
   Io {
     /// The file or directory.
     path: PathBuf,
@@ -37,11 +37,13 @@ pub enum CompileError {
   NoOutDir,
 }
 
-/// Shows the error as its `Display` does, so a build script that unwraps it, or returns it from
-/// `main`, prints the rendered diagnostics rather than the source map.
+/// Shows the error as its `Display` does, then each cause, so a build script that unwraps it, or
+/// returns it from `main`, prints the rendered diagnostics, or the message and its causes, rather
+/// than the source map.
 impl Debug for CompileError {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    Display::fmt(self, f)
+    Display::fmt(self, f)?;
+    std::iter::successors(std::error::Error::source(self), |cause| cause.source()).try_for_each(|cause| write!(f, ": {cause}"))
   }
 }
 

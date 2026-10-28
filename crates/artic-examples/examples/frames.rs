@@ -129,10 +129,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
   match artic_vello::Renderer::new() {
     Ok(renderer) => check(renderer),
     Err(error @ artic_vello::Error::UnsupportedAdapter(_)) => {
-      println!("{error}: drawing nothing");
+      println!("{}: drawing nothing", artic_examples::chain(&error));
       check(Blank)
     }
-    Err(error) => Err(format!("no GPU renderer: {error}").into()),
+    Err(error) => Err(format!("no GPU renderer: {}", artic_examples::chain(&error)).into()),
   }
 }
 
@@ -159,7 +159,9 @@ fn check(renderer: impl Renderer + 'static) -> Result<(), Box<dyn std::error::Er
       red.set(255);
     }
   });
-  runner.hooks().on_error(|error| eprintln!("frame failed: {error}"));
+  runner
+    .hooks()
+    .on_error(|error| eprintln!("frame failed: {}", artic_examples::chain(error)));
 
   let quiet = Rc::new(Cell::new(None));
   let idle = Idle {

@@ -38,7 +38,7 @@ fn main() -> Result<(), artic_winit::Error> {
   let renderer = match Renderer::new() {
     Ok(renderer) => renderer,
     Err(error) => {
-      eprintln!("can't start the renderer: {error}");
+      eprintln!("can't start the renderer: {}", artic_examples::chain(&error));
       std::process::exit(1);
     }
   };

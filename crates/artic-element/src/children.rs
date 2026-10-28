@@ -84,6 +84,7 @@ impl Child {
   pub fn set(tree: &mut UiTree, parent: NodeId, child: Option<NodeId>) {
     let old = match current(tree, parent) {
       Ok(old) => old,
+      Err(ValueError::InvalidChild(error)) => panic!("{error}"),
       Err(error) => panic!("{error}"),
     };
     if child == old {

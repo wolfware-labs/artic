@@ -9,6 +9,6 @@ pub enum Error {
   #[error("the renderer can't draw on {0:?} targets, which is what the host offers")]
   Unsupported(TargetKind),
   /// A frame failed to render.
-  #[error("a frame failed to render: {0}")]
+  #[error("a frame failed to render")]
   Render(#[source] RenderError),
 }
