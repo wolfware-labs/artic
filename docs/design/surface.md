@@ -41,7 +41,7 @@ The vocabulary splits by layer. App code says `Surface`, with platform settings 
 | Type | Crate | Shape |
 | --- | --- | --- |
 | `Application` | `artic-element` | An `#[element]`, the root of the tree. Its content is the collection of its `Surface`s. #122 adds `Resources` and `Styles` to it |
-| `Surface` | `artic-element` | An `#[element]` with `Title: String` (`affects = surface | render`, so a change also rebuilds the accesskit node) and `IsOpen: bool` (default `true`, `affects = surface`), and a single content. Allowed only as a child of `Application`. Accesskit role `Window`, named by `Title` |
+| `Surface` | `artic-element` | An `#[element]` with `Title: String` (`affects = surface | render`, so a change also rebuilds the accesskit node) and `IsOpen: bool` (default `true`, `affects = surface`), and a single content. Allowed only as a child of `Application`: the runner checks it at the first settle or frame after any change to the tree's structure, and panics. Accesskit role `Window`, named by `Title` |
 | `Desktop` | `artic-element` | An attached-property owner with no instances. `Width: Option<f32>`, `Height: Option<f32>`, `SizeToContent`, `Chrome`, all `inherits`, `affects = surface`, `target = any` |
 | `SizeToContent` | `artic-element` | `UiEnum`: `Manual` (default), `Width`, `Height`, `WidthAndHeight` |
 | `Chrome` | `artic-element` | `UiEnum`: `System` (default: the OS draws the title bar and borders), `None` (the app draws everything) |
@@ -72,7 +72,7 @@ Precedence is the usual one, `Local > Binding > StyleSetter > Inherited > Defaul
 
 ## 4. Lifecycle
 
-Settle, which the runner runs after every callback ([frame design](frame.md) §3), ends with **reconcile**: the runner walks `Application`'s `Surface` children and makes the host match them.
+Settle, which the runner runs after every callback ([frame design](frame.md) §3), ends with **reconcile**: the runner goes through `Application`'s `Surface` children, listed again when the tree's structure changed, and makes the host match them.
 
 | A surface that is | Reconcile |
 | --- | --- |

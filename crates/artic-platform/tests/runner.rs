@@ -1000,6 +1000,52 @@ fn surface_detached_into_another_panics_before_rendering() {
   assert_eq!(renderer.rendered.get(), 0);
 }
 
+// A surface built inside another surface's content is caught at the first settle, before any
+// window opens.
+#[test]
+fn surface_nested_from_the_start_panics_at_started() {
+  let (mut tree, application, surfaces) = titled(&["first", "second"]);
+  let (first, second) = (surfaces[0], surfaces[1]);
+  tree.detach(TreeKind::Logical, second);
+  tree.detach(TreeKind::Visual, second);
+  tree.add_child(TreeKind::Visual, first, second);
+  let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let mut cx = Context::default();
+
+  let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    runner.started(&mut cx, Waker::new(|| {}));
+  }));
+
+  let message = result.expect_err("nesting a surface panics");
+  let message = message.downcast_ref::<String>().map_or("", String::as_str);
+  assert!(message.contains("is inside the Surface"), "{message}");
+  assert!(cx.opened.is_empty());
+}
+
+// A hook that frees a bound surface closes its window at the frame's settle, and the other surface
+// is drawn.
+#[test]
+fn surface_freed_by_a_hook_closes_its_window() {
+  let (tree, application, surfaces) = titled(&["first", "second"]);
+  let second = surfaces[1];
+  let renderer = Counter::default();
+  let mut runner = Runner::new(tree, renderer.clone(), Box::new(engine()), application);
+  let mut cx = Context::default();
+  runner.started(&mut cx, Waker::new(|| {}));
+  runner.surface_changed(&mut cx, FIRST, info(64, 64, 1.0));
+  runner.hooks().before_layout(move |tree, _, _, _| {
+    if tree.contains(second) {
+      tree.free(second);
+    }
+  });
+  let mut buffer = pixels();
+
+  runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+
+  assert_eq!(cx.closed, [SurfaceId::new(2)]);
+  assert_eq!(renderer.rendered.get(), 1);
+}
+
 // A hook that closes the surface being drawn closes its window instead of drawing it once more.
 #[test]
 fn surface_closed_by_a_hook_isnt_drawn() {

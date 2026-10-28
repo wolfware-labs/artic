@@ -34,6 +34,8 @@ pub struct Runner<R> {
   hooks: Hooks,
   application: NodeId,
   bound: Vec<Bound>,
+  surfaces: Vec<NodeId>,
+  checked: Option<u64>,
   spare: Vec<(SurfaceId, Option<SurfaceInfo>)>,
   lost: HashSet<NodeId>,
   error: Rc<RefCell<Option<Error>>>,
@@ -130,6 +132,8 @@ impl<R: Renderer> Runner<R> {
       hooks: Hooks::default(),
       application,
       bound: Vec::new(),
+      surfaces: Vec::new(),
+      checked: None,
       spare: Vec::new(),
       lost: HashSet::new(),
       error: Rc::new(RefCell::new(None)),
@@ -174,10 +178,10 @@ impl<R: Renderer> Runner<R> {
     self.reconcile(cx);
   }
 
-  #[track_caller]
   fn reconcile(&mut self, cx: &mut dyn HostContext) {
-    let surfaces = self.surfaces();
-    let shown: Vec<NodeId> = surfaces
+    self.refresh_surfaces();
+    let shown: Vec<NodeId> = self
+      .surfaces
       .iter()
       .copied()
       .filter(|node| {
@@ -201,7 +205,8 @@ impl<R: Renderer> Runner<R> {
       }
     }
     self.tree.clear_dirty(self.application, Affects::SURFACE);
-    for node in surfaces {
+    for index in 0..self.surfaces.len() {
+      let node = self.surfaces[index];
       let settings = Settings::of(&mut self.tree, node);
       let dirty = self.tree.dirty(node).contains(Affects::SURFACE);
       self.tree.clear_dirty(node, Affects::SURFACE);
@@ -286,8 +291,11 @@ impl<R: Renderer> Runner<R> {
     }
   }
 
-  #[track_caller]
-  fn surfaces(&self) -> Vec<NodeId> {
+  fn refresh_surfaces(&mut self) {
+    let generation = self.tree.structure_generation();
+    if self.checked == Some(generation) {
+      return;
+    }
     let surfaces: Vec<NodeId> = self.tree.children(TreeKind::Logical, self.application).collect();
     for node in &surfaces {
       assert!(
@@ -299,7 +307,17 @@ impl<R: Renderer> Runner<R> {
         "the Surface {node:?} isn't a visual child of the Application; each Surface is a logical and visual child of it, so no surface draws inside another"
       );
     }
-    surfaces
+    for root in &surfaces {
+      let nested = self
+        .tree
+        .descendants(TreeKind::Visual, *root)
+        .find(|node| self.tree.get_as::<Surface>(*node).is_some());
+      if let Some(nested) = nested {
+        panic!("the Surface {nested:?} is inside the Surface {root:?}; no surface draws inside another");
+      }
+    }
+    self.surfaces = surfaces;
+    self.checked = Some(generation);
   }
 
   fn title(&self, node: NodeId) -> String {
@@ -390,17 +408,11 @@ impl<R: Renderer> AppHandler for Runner<R> {
     if self.tree.take_pending() {
       self.mark_all(cx, Some(surface));
     }
+    self.refresh_surfaces();
     let open = self.tree.get_as::<Surface>(root).is_some_and(|surface| surface.is_open.get());
-    if !self.surfaces().contains(&root) || !open {
+    if !self.surfaces.contains(&root) || !open {
       self.settle(cx);
       return;
-    }
-    let nested = self
-      .tree
-      .descendants(TreeKind::Visual, root)
-      .find(|node| self.tree.get_as::<Surface>(*node).is_some());
-    if let Some(nested) = nested {
-      panic!("the Surface {nested:?} is inside the Surface {root:?}; no surface draws inside another");
     }
     let content = if self.bound[index].applied.is_some() {
       Axes::from(self.tree.attached(root, Desktop::SIZE_TO_CONTENT))

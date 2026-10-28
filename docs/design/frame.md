@@ -60,7 +60,7 @@ The runner ends every `AppHandler` call by **settling**:
 
 1. **Drain**: `Dispatcher::run_pending()`, then `flush_effects()`, repeated until the queue is empty. `run_pending` flushes effects only after each task it runs, so a write made directly in a callback or a hook, with no task queued, needs the explicit flush; an effect can post a task, hence the repeat.
 2. If `tree.take_pending()` is true, every live surface gets `needs_frame` and a `cx.request_frame`.
-3. **Reconcile**: the host is made to match the `Application`'s surfaces, opening, updating and closing them ([surface design](surface.md) §4), so an `IsOpen` or `Desktop` write from any call reaches the host in the same settle.
+3. **Reconcile**: when `UiTree::structure_generation()` moved since the last check, the runner first checks the `Application`'s shape (only `Surface` children, each a visual child of it, none inside another) and lists its surfaces again; then the host is made to match those surfaces, opening, updating and closing them ([surface design](surface.md) §4), so an `IsOpen` or `Desktop` write from any call reaches the host in the same settle.
 
 Every change happens inside some call (an event, a wake-up, a task run from one), so settling catches it. The flag is tree-wide, so a change in one window also redraws the others: each one composes again and presents, but records nothing that didn't change. A flag per surface would avoid that and can replace this one behind `take_pending`.
 
@@ -72,7 +72,7 @@ Pending work never keeps the loop awake by itself: the queue is empty after each
 
 1. If the surface is unknown or lost, return.
 2. Drain, then run the `before_layout` hooks with this surface's root, `SurfaceInfo` and the frame's `time`, the host's monotonic estimate of when the frame reaches the display, so animations tick from the display's timing rather than a clock of their own.
-3. Drain again, so the effects of the hooks' writes land, then `take_pending()`; if true, mark every surface and request frames for the others. Writes from step 2, such as the style pass's, count for this frame.
+3. Drain again, so the effects of the hooks' writes land, then `take_pending()`; if true, mark every surface and request frames for the others. Writes from step 2, such as the style pass's, count for this frame. If the hooks changed the tree's structure, the `Application`'s shape is checked again here, so a hook that breaks it is caught before anything renders.
 4. If this surface isn't marked, nothing changed for it, but the host still asked for pixels: an OS redraw, such as a window uncovered or restored, reaches `frame` like a requested one, and a host can't always tell them apart (winit can't). The pipeline presents the last `Scene` again, with nothing measured or recorded, then settles and returns; the loop goes back to sleep. A surface with no scene yet goes on to step 5.
 5. Clear the mark and `pipeline.prepare(tree, root, info, &mut services)`, lending the runner's `ElementTypes` and text engine as `FrameServices`, from which the pipeline builds the `LayoutNodes` and render `Nodes` for this frame:
    - `LayoutManager::run` at `size / scale` in logical units, with pixel snapping and the runner's text engine ([text design](text.md)). It measures only layout-dirty nodes and those whose desired size a change reached, and reports the nodes whose arranged size changed and the nodes whose layout result was set or dropped, including by a `measure` call since the last run.
