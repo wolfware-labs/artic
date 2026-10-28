@@ -1,0 +1,98 @@
+name: Full mutants
+
+# Mutates the whole workspace, where CI mutates only the lines a pull request changes. A mutant
+# that survives is code no test checks: the run fails, so GitHub reports it, and the Survivors job
+# lists every one by crate on the run's summary page. It isn't a required check: it measures the
+# code already merged, which pull requests can't fix one line at a time.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_TEST_DEBUG: line-tables-only
+
+jobs:
+  mutants:
+    name: Full mutants (shard ${{ matrix.shard }}/32)
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+      # The same configuration as the pull request check (.cargo/mutants.toml), over every file.
+      - name: Mutate the workspace
+        run: cargo mutants --in-place --no-shuffle --shard ${{ matrix.shard }}/32 --output "$RUNNER_TEMP"
+      - name: Keep the report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutants-full-${{ matrix.shard }}
+          path: ${{ runner.temp }}/mutants.out
+          retention-days: 30
+
+  survivors:
+    name: Survivors
+    needs: mutants
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: mutants-full-*
+          path: reports
+      # One list for the whole run, grouped by crate, on the summary page and as an artifact. The
+      # job fails when a mutant survived or timed out, or a shard didn't finish.
+      - name: List the survivors
+        env:
+          SHARDS: ${{ needs.mutants.result }}
+        run: |
+          cat reports/*/missed.txt 2>/dev/null | sort -u > survivors.txt || true
+          cat reports/*/timeout.txt 2>/dev/null | sort -u > timeouts.txt || true
+          {
+            echo "# Full mutants"
+            echo
+            echo "$(wc -l < survivors.txt) survived, $(wc -l < timeouts.txt) timed out; shards: $SHARDS."
+            for crate in $(cut -d/ -f2 survivors.txt | sort -u); do
+              echo
+              echo "## $crate ($(grep -c "^crates/$crate/" survivors.txt))"
+              echo
+              grep "^crates/$crate/" survivors.txt | sed 's/^/- `/; s/$/`/'
+            done
+            if [ -s timeouts.txt ]; then
+              echo
+              echo "## Timed out"
+              echo
+              sed 's/^/- `/; s/$/`/' timeouts.txt
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ ! -s survivors.txt ] && [ ! -s timeouts.txt ] && [ "$SHARDS" = success ]
+      - name: Keep the list
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutants-full-survivors
+          path: |
+            survivors.txt
+            timeouts.txt
+          retention-days: 30
