@@ -41,7 +41,7 @@ jobs:
           tool: cargo-mutants
       # The same configuration as the pull request check (.cargo/mutants.toml), over every file.
       - name: Mutate the workspace
-        run: cargo mutants --in-place --no-shuffle --shard ${{ matrix.shard }}/32 --output "$RUNNER_TEMP"
+        run: cargo mutants --workspace --in-place --no-shuffle --shard ${{ matrix.shard }}/32 --output "$RUNNER_TEMP"
       - name: Keep the report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
