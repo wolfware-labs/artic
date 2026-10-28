@@ -8,6 +8,7 @@ members = [
     "crates/artic-core",
     "crates/artic-diagnostics",
     "crates/artic-element",
+    "crates/artic-examples",
     "crates/artic-i18n",
     "crates/artic-ident",
     "crates/artic-layout",

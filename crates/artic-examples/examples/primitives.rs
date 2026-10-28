@@ -4,26 +4,24 @@
 // rectangle, rounded rectangle and path, nested opacity, and wrapped text in a gradient, shaped
 // with the system's fonts.
 //
-// Run with `cargo run -p artic-vello --example primitives`. It drives `winit` itself, so it needs
-// no host crate.
+// Run with `cargo run -p artic-examples --example primitives`.
 
 use artic_core::Object;
 use artic_core::property::{Affects, PropertyVisitor};
 use artic_core::tree::{NodeId, UiTree};
 use artic_layout::geometry::{CornerRadius, Path, Point, Rect, RelativePoint, RelativeScalar, RoundedRect, Transform};
 use artic_layout::text::{FontFamily, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle, TextWrapping};
+use artic_platform::{
+  AppHandler, Axes, Chrome, Host as _, HostContext, HostEvent, LogicalSize, SurfaceInfo, SurfaceLoss, Waker, WindowDesc,
+};
 use artic_render::Renderer as _;
 use artic_render::{
-  BoxShadow, Color, Compositor, GradientStop, Layers, LineJoin, LinearGradientBrush, Nodes, PhysicalSize, RadialGradientBrush,
-  SceneBuilder, Stroke, SurfaceId, SurfaceView, Target,
+  BoxShadow, Color, Compositor, GradientStop, Layers, LineJoin, LinearGradientBrush, Nodes, RadialGradientBrush, SceneBuilder,
+  Stroke, SurfaceId, SurfaceView, Target,
 };
 use artic_vello::Renderer;
 use std::f32::consts::{FRAC_PI_2, PI};
-use std::sync::Arc;
-use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::window::{Window, WindowId};
+use std::time::Duration;
 
 const TILE: f32 = 160.0;
 const GAP: f32 = 24.0;
@@ -36,7 +34,7 @@ const BLUE: Color = Color::rgb(59, 130, 246);
 const PINK: Color = Color::rgb(236, 72, 153);
 const YELLOW: Color = Color::rgb(250, 204, 21);
 
-fn main() {
+fn main() -> Result<(), artic_winit::Error> {
   let renderer = match Renderer::new() {
     Ok(renderer) => renderer,
     Err(error) => {
@@ -44,9 +42,8 @@ fn main() {
       std::process::exit(1);
     }
   };
-  let event_loop = EventLoop::new().expect("an event loop");
-  let mut app = Demo::new(renderer);
-  event_loop.run_app(&mut app).expect("the event loop runs");
+  artic_winit::Host::new()?.run(Demo::new(renderer));
+  Ok(())
 }
 
 #[derive(Debug)]
@@ -173,7 +170,7 @@ struct Demo {
   tree: UiTree,
   root: NodeId,
   primitives: Primitives,
-  window: Option<Arc<Window>>,
+  surface: Option<(SurfaceId, SurfaceInfo)>,
 }
 
 impl Demo {
@@ -197,62 +194,61 @@ impl Demo {
         height: 0.0,
         paragraph,
       },
-      window: None,
-    }
-  }
-
-  fn redraw(&mut self) {
-    let Some(window) = self.window.clone() else { return };
-    let physical = window.inner_size();
-    let scale = window.scale_factor() as f32;
-    let (width, height) = (physical.width as f32 / scale, physical.height as f32 / scale);
-    if (width, height) != (self.primitives.width, self.primitives.height) {
-      self.tree.mark_dirty(self.root, Affects::RENDER);
-      (self.primitives.width, self.primitives.height) = (width, height);
-    }
-
-    let scene = self.compositor.compose(&mut self.tree, self.root, &mut self.primitives);
-    let surface = SurfaceView {
-      id: SurfaceId::new(1),
-      size: PhysicalSize::new(physical.width, physical.height),
-      scale,
-      target: Target::Handles(window.as_ref()),
-    };
-    if let Err(error) = self.renderer.render(&scene, surface) {
-      eprintln!("frame skipped: {error}");
+      surface: None,
     }
   }
 }
 
-impl ApplicationHandler for Demo {
-  fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-    if self.window.is_some() {
-      return;
-    }
-    let width = f64::from(COLUMNS as f32 * (TILE + GAP) + GAP);
-    let height = f64::from(ROWS as f32 * (TILE + GAP) + GAP);
-    let attributes = Window::default_attributes()
-      .with_title("artic · primitives")
-      .with_inner_size(winit::dpi::LogicalSize::new(width, height));
-    let window = event_loop.create_window(attributes).expect("a window");
-    window.request_redraw();
-    self.window = Some(Arc::new(window));
+impl AppHandler for Demo {
+  fn started(&mut self, cx: &mut dyn HostContext, _waker: Waker) {
+    let windows = cx.windows().expect("a desktop host has windows");
+    windows.open(&WindowDesc {
+      title: "artic · primitives".into(),
+      size: LogicalSize {
+        width: Some(COLUMNS as f32 * (TILE + GAP) + GAP),
+        height: Some(ROWS as f32 * (TILE + GAP) + GAP),
+      },
+      chrome: Chrome::System,
+      resizable: Axes::BOTH,
+    });
   }
 
-  fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-    match event {
-      WindowEvent::CloseRequested => {
-        self.renderer.surface_lost(SurfaceId::new(1));
-        self.window = None;
-        event_loop.exit();
-      }
-      WindowEvent::RedrawRequested => self.redraw(),
-      WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
-        if let Some(window) = &self.window {
-          window.request_redraw();
-        }
-      }
-      _ => {}
+  fn woken(&mut self, _cx: &mut dyn HostContext) {}
+
+  fn surface_changed(&mut self, cx: &mut dyn HostContext, surface: SurfaceId, info: SurfaceInfo) {
+    self.surface = Some((surface, info));
+    cx.request_frame(surface);
+  }
+
+  fn surface_lost(&mut self, cx: &mut dyn HostContext, surface: SurfaceId, _loss: SurfaceLoss) {
+    self.renderer.surface_lost(surface);
+    cx.exit();
+  }
+
+  fn event(&mut self, cx: &mut dyn HostContext, event: HostEvent) {
+    if let HostEvent::CloseRequested { .. } = event {
+      cx.exit();
+    }
+  }
+
+  fn frame(&mut self, _cx: &mut dyn HostContext, surface: SurfaceId, target: Target<'_>, _time: Duration) {
+    let Some((_, info)) = self.surface.filter(|(id, _)| *id == surface) else {
+      return;
+    };
+    let (width, height) = (info.size.width as f32 / info.scale, info.size.height as f32 / info.scale);
+    if (width, height) != (self.primitives.width, self.primitives.height) {
+      self.tree.mark_dirty(self.root, Affects::RENDER);
+      (self.primitives.width, self.primitives.height) = (width, height);
+    }
+    let scene = self.compositor.compose(&mut self.tree, self.root, &mut self.primitives);
+    let view = SurfaceView {
+      id: surface,
+      size: info.size,
+      scale: info.scale,
+      target,
+    };
+    if let Err(error) = self.renderer.render(&scene, view) {
+      eprintln!("frame skipped: {error}");
     }
   }
 }

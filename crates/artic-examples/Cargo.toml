@@ -1,0 +1,24 @@
+[package]
+name = "artic-examples"
+description = "Examples that run artic in a window, through a host and a renderer."
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dev-dependencies]
+accesskit.workspace = true
+artic-core.workspace = true
+artic-element.workspace = true
+artic-layout.workspace = true
+artic-platform.workspace = true
+artic-render.workspace = true
+artic-text.workspace = true
+artic-vello.workspace = true
+artic-winit.workspace = true
+
+[lints]
+workspace = true

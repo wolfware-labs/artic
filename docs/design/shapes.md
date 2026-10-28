@@ -158,7 +158,7 @@ Glyph runs (#37), images (#71), golden images (#38) and blend modes other than `
 | `artic-vello` | `shapes_convert_to_kurbo` (per-corner radii, curves), `stroke_converts_join_cap_and_miter`, `invalid_shapes_and_strokes_draw_nothing` (each row of section 4's table, infinities included), `box_shadow_values_are_made_drawable`, `box_shadow_grows_moves_and_blurs` (spread, offset, standard deviation) |
 | `artic-vello` pixels | `rounded_rect_leaves_corners_clear`, `stroke_paints_only_the_outline`, `path_clip_masks_drawing`, `fill_rule_decides_a_star_center`, `box_shadow_fades_outside_the_rect`, `unequal_radii_shadow_matches_each_corner` (each corner matches a shadow with that corner's radius everywhere), `box_shadow_stays_outside_its_caster`, `gradient_on_path_uses_its_bounds` |
 
-The example `artic-vello/examples/primitives.rs` draws every primitive in one window: a rounded rectangle, a stroked star, linear and radial swatches, clips by rectangle, rounded rectangle and path, nested opacity, and a card with a shadow. It replaces `window.rs`, whose rectangles, clip and opacity it covers. Its PR records a manual check on each desktop available.
+The example `artic-examples/examples/primitives.rs` draws every primitive in one window: a rounded rectangle, a stroked star, linear and radial swatches, clips by rectangle, rounded rectangle and path, nested opacity, and a card with a shadow. It replaces `window.rs`, whose rectangles, clip and opacity it covers. Its PR records a manual check on each desktop available.
 
 ## 7. Pull requests
 

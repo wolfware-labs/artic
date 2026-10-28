@@ -169,6 +169,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "artic-examples"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "artic-core",
+ "artic-element",
+ "artic-layout",
+ "artic-platform",
+ "artic-render",
+ "artic-text",
+ "artic-vello",
+ "artic-winit",
+]
+
+[[package]]
 name = "artic-i18n"
 version = "0.1.0"
 dependencies = [
@@ -352,7 +367,6 @@ dependencies = [
  "skrifa 0.49.0",
  "thiserror 2.0.21",
  "vello",
- "winit",
 ]
 
 [[package]]
@@ -387,14 +401,8 @@ dependencies = [
 name = "artic-winit"
 version = "0.1.0"
 dependencies = [
- "accesskit",
- "artic-core",
- "artic-element",
- "artic-layout",
  "artic-platform",
  "artic-render",
- "artic-text",
- "artic-vello",
  "pretty_assertions",
  "winit",
 ]

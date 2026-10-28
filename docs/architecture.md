@@ -115,7 +115,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-lsp` | `artic-xaml`, `artic-xaml-lang` |
 | `artic-theme` | `artic-controls`, `artic-style` |
 | `artic-test` | `artic-core`, `artic-layout`, `artic-render`, `artic-text`, `artic-test-fonts`, `artic-element`, `artic-platform`; planned: `artic-registry`, `artic-style` |
-| `artic-winit` | `artic-core`, `artic-render`, `artic-platform` |
+| `artic-winit` | `artic-render`, `artic-platform` |
 | `artic-vello` | `artic-layout`, `artic-render` |
 | `artic` | `artic-core`, `artic-element`, `artic-layout`, `artic-render`, `artic-controls`; planned: `artic-platform` (#55), `artic-style`, `artic-theme` (#106); `artic-xaml` with the `xaml` feature, which `xaml-compiler` turns on; planned: `artic-xaml-runtime` only with `xaml-runtime` or `xaml-hot-reload`, which will turn `xaml` on; `artic-view-compiler` with `view-compiler`, which `xaml-compiler` turns on; `artic-xaml-lang` only with `xaml-compiler`, which an app enables on its build-dependency on the facade |
 
@@ -131,6 +131,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 - Dev-dependencies may point from any crate to `artic-test`, as long as `artic-test` does not depend back on that crate. Control, theme and language-server tests use `TestHost` this way.
 - Test data that a crate below `artic-test` needs too, such as the test font, lives in a data-only crate with no dependencies (`artic-test-fonts`), not in `artic-test`, so the crate's tests can use it without a cycle.
 - The crates under `crates/artic-registry/fixtures/` are test-only (`publish = false`) and sit outside the layers. Two register two UI types each (`Alpha` or `Beta`, and `Twin`); `artic-registry-linking` holds the tests that check which of them reach the registry.
+- `crates/artic-examples` is test-only (`publish = false`) and sits outside the layers: its examples (`frames`, `smoke`, `primitives`) run artic through the `winit` host and the `vello` renderer, which no crate in the layers may depend on. `examples/hello` joins it with #55.
 - `artic-xaml-lang`'s tests dev-depend on `artic-view-compiler`, in its layer, and on the facade (`xaml`, `view-compiler`), whose real paths its snapshots pin. Cargo allows these dev-only loops: `artic-xaml-lang` itself depends on neither, and the facade depends on it only with `xaml-compiler`.
 - The crates under `crates/artic-xaml-lang/fixtures/` are test-only (`publish = false`) and sit outside the layers: `app` compiles its views from its build script through the facade, and `controls` is a control crate its map names and no view uses.
 - `artic-macros`' own tests dev-depend on crates that use the macros, such as `artic-core`, `artic-registry` and `artic-element`. Cargo allows these dev-only loops: `artic-macros` itself depends only on `artic-ident`, so its build has no cycle.
@@ -141,7 +142,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 - Release builds will link `artic-xaml-runtime` only when the app enables `xaml-runtime`; `xaml-hot-reload` is for development builds. Compiled views never touch the loader.
 - The facade's default features add no UI language, host or renderer. Each one comes with an opt-in feature named after it, such as `xaml`, so adding a language or a renderer never costs an app that doesn't use it. The facade depends on a crate only to re-export it.
 - App-facing crates stay free of native-only dependencies, so a web target can be added later without app changes (D24 in the spec).
-- Backend adapters (`artic-winit`, `artic-vello`, and any third-party adapter) depend only on the public API of `artic-render` and `artic-platform`. Nothing in artic depends on an adapter: each target's launcher names its host and renderer ([backend design](design/backends.md)). `artic-render` and `artic-platform` have no backend dependencies (`wgpu`, `vello`, `winit` and the OS crates live in adapters). An adapter's tests may dev-depend on `artic-controls` for control goldens, since goldens belong to each renderer ([golden images](design/golden-images.md)); its library still depends only on `artic-render` and `artic-platform`.
+- Backend adapters (`artic-winit`, `artic-vello`, and any third-party adapter) depend only on the public API of `artic-render` and `artic-platform`. Nothing in artic depends on an adapter: each target's launcher names its host and renderer ([backend design](design/backends.md)). `artic-render` and `artic-platform` have no backend dependencies (`wgpu`, `vello`, `winit` and the OS crates live in adapters). An adapter's tests may dev-depend on `artic-controls` for control goldens, since goldens belong to each renderer ([golden images](design/golden-images.md)); its library still depends only on `artic-render` and `artic-platform`. Examples that need both a host and a renderer live in `artic-examples`, so no adapter depends on another.
 
 ## Why this differs from the original §2 diagram
 
