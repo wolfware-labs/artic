@@ -772,6 +772,22 @@ fn windowless_host_binds_in_tree_order() {
   assert_eq!(drawn.get(), Some(surfaces[0]));
 }
 
+// A host surface reported before any Surface takes it asks for a frame as soon as one does.
+#[test]
+fn lent_surface_reported_first_is_drawn_once_bound() {
+  let (tree, application, _) = titled(&["first"]);
+  let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let mut cx = Context {
+    windowless: true,
+    ..Context::default()
+  };
+
+  runner.surface_changed(&mut cx, SurfaceId::new(9), info(64, 64, 1.0));
+  runner.started(&mut cx, Waker::new(|| {}));
+
+  assert_eq!(cx.frames, [SurfaceId::new(9)]);
+}
+
 // On a host without windows, a closed surface gives its host surface to the next open one.
 #[test]
 fn closed_surface_frees_its_host_surface() {

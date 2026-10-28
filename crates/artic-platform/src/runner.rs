@@ -36,7 +36,7 @@ pub struct Runner<R> {
   bound: Vec<Bound>,
   surfaces: Vec<NodeId>,
   checked: Option<u64>,
-  spare: Vec<(SurfaceId, Option<SurfaceInfo>)>,
+  spare: Vec<Spare>,
   lost: HashSet<NodeId>,
   error: Rc<RefCell<Option<Error>>>,
 }
@@ -45,11 +45,24 @@ pub struct Runner<R> {
 struct Bound {
   id: SurfaceId,
   node: NodeId,
-  applied: Option<WindowDesc>,
+  presentation: Presentation,
   info: Option<SurfaceInfo>,
   needs_frame: bool,
   suspended: bool,
   pipeline: Pipeline,
+}
+
+/// How the host shows a bound surface: a window the runner opened, with the description it last
+/// sent, or a host surface lent to it.
+enum Presentation {
+  Window { applied: WindowDesc },
+  Lent,
+}
+
+/// A host surface no `Surface` holds yet, on a host without windows.
+struct Spare {
+  id: SurfaceId,
+  info: Option<SurfaceInfo>,
 }
 
 /// A surface's `Desktop` settings, as one reconcile reads them.
@@ -192,9 +205,12 @@ impl<R: Renderer> Runner<R> {
         continue;
       }
       let bound = self.bound.remove(index);
-      match (bound.applied.is_some(), cx.windows()) {
-        (true, Some(windows)) => windows.close(bound.id),
-        _ => self.spare.push((bound.id, bound.info)),
+      match (&bound.presentation, cx.windows()) {
+        (Presentation::Window { .. }, Some(windows)) => windows.close(bound.id),
+        _ => self.spare.push(Spare {
+          id: bound.id,
+          info: bound.info,
+        }),
       }
     }
     self.tree.clear_dirty(self.application, Affects::SURFACE);
@@ -232,18 +248,18 @@ impl<R: Renderer> Runner<R> {
       self.bound.push(Bound {
         id,
         node,
-        applied: Some(desc),
+        presentation: Presentation::Window { applied: desc },
         info: None,
         needs_frame: true,
         suspended: false,
         pipeline,
       });
     } else if !self.spare.is_empty() {
-      let (id, info) = self.spare.remove(0);
+      let Spare { id, info } = self.spare.remove(0);
       self.bound.push(Bound {
         id,
         node,
-        applied: None,
+        presentation: Presentation::Lent,
         info,
         needs_frame: true,
         suspended: false,
@@ -262,9 +278,9 @@ impl<R: Renderer> Runner<R> {
     let node = self.bound[index].node;
     let title = self.title(node);
     let bound = &mut self.bound[index];
-    if bound.applied.is_none() {
+    let Presentation::Window { applied } = &mut bound.presentation else {
       return;
-    }
+    };
     let host = bound
       .info
       .map(|info| Size::new(info.size.width as f32 / info.scale, info.size.height as f32 / info.scale));
@@ -276,9 +292,9 @@ impl<R: Renderer> Runner<R> {
       bound.pipeline.measure(&mut self.tree, node, available, &mut services)
     });
     let desc = settings.desc(title, desired);
-    if bound.applied.as_ref() != Some(&desc) {
+    if *applied != desc {
       windows.update(bound.id, &desc);
-      bound.applied = Some(desc);
+      *applied = desc;
     }
   }
 
@@ -351,10 +367,13 @@ impl<R: Renderer> AppHandler for Runner<R> {
       bound.suspended = false;
       bound.needs_frame = true;
       cx.request_frame(surface);
-    } else if let Some(spare) = self.spare.iter_mut().find(|(id, _)| *id == surface) {
-      spare.1 = Some(info);
+    } else if let Some(spare) = self.spare.iter_mut().find(|spare| spare.id == surface) {
+      spare.info = Some(info);
     } else {
-      self.spare.push((surface, Some(info)));
+      self.spare.push(Spare {
+        id: surface,
+        info: Some(info),
+      });
     }
     self.settle(cx);
   }
@@ -367,7 +386,7 @@ impl<R: Renderer> AppHandler for Runner<R> {
         let bound = self.bound.remove(index);
         self.lost.insert(bound.node);
       }
-      (None, SurfaceLoss::Gone) => self.spare.retain(|(id, _)| *id != surface),
+      (None, SurfaceLoss::Gone) => self.spare.retain(|spare| spare.id != surface),
       (None, SurfaceLoss::Suspended) => {}
     }
     self.settle(cx);
@@ -405,10 +424,9 @@ impl<R: Renderer> AppHandler for Runner<R> {
       self.settle(cx);
       return;
     }
-    let content = if self.bound[index].applied.is_some() {
-      Axes::from(self.tree.attached(root, Desktop::SIZE_TO_CONTENT))
-    } else {
-      Axes::NONE
+    let content = match self.bound[index].presentation {
+      Presentation::Window { .. } => Axes::from(self.tree.attached(root, Desktop::SIZE_TO_CONTENT)),
+      Presentation::Lent => Axes::NONE,
     };
     let window = &mut self.bound[index];
     let result = if window.needs_frame {
@@ -420,7 +438,7 @@ impl<R: Renderer> AppHandler for Runner<R> {
       let frame = window
         .pipeline
         .prepare(&mut self.tree, root, surface, &info, &mut services, content);
-      if let (Some(applied), Some(desired)) = (&window.applied, window.pipeline.desired(root)) {
+      if let (Presentation::Window { applied }, Some(desired)) = (&window.presentation, window.pipeline.desired(root)) {
         let requested = applied.size;
         let grew = (content.width && requested.width != Some(desired.width))
           || (content.height && requested.height != Some(desired.height));
