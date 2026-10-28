@@ -1,6 +1,6 @@
 [package]
 name = "artic-test"
-description = "Test utilities for artic: golden images, headless host, arena helpers and tree serialization."
+description = "Test utilities for artic: golden images, headless layout, shared scenes and the test text engine."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

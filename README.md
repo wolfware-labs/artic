@@ -85,11 +85,11 @@ The workspace is layered. A crate depends only on crates in lower layers, so the
 | 4 | `artic-lsp` | Language server for `.xaml` files |
 | 4 | `artic-vello` | Default renderer adapter: `vello` on `wgpu` |
 | 5 | `artic-controls` | Templated controls such as `Button`, `TextBox` and `ListBox` |
-| 5 | `artic-platform` | The `Host` seam, `artic::run` and the frame pipeline (hosts are adapter crates) |
+| 5 | `artic-platform` | The `Host` seam and the frame pipeline (hosts are adapter crates) |
 | 5 | `artic-cli` | The `cargo artic` command |
 | 6 | `artic-theme` | Default token-based theme and control templates |
-| 6 | `artic-test` | Headless host and test helpers |
-| 6 | `artic-winit` | Default host adapter: windows, input and OS services through `winit` |
+| 6 | `artic-test` | Golden images, headless layout and test helpers |
+| 6 | `artic-winit` | Default host adapter: desktop windows and the event loop through `winit` |
 | 7 | `artic` | Facade crate that apps depend on |
 
 ```mermaid
