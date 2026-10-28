@@ -172,14 +172,3 @@ fn fake_host_drives_a_handler() {
     (["main".to_string()].as_slice(), [SurfaceId::new(7)].as_slice(), true)
   );
 }
-
-// The seam crate stays free of backends: no winit and no window-handle crate.
-#[test]
-fn platform_has_no_winit_dependency() {
-  let manifest = include_str!("../Cargo.toml");
-
-  assert!(
-    !manifest.contains("winit") && !manifest.contains("raw-window-handle"),
-    "artic-platform must not depend on a backend"
-  );
-}

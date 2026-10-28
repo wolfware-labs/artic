@@ -31,6 +31,13 @@ exceptions = [{ crate = "artic-test-fonts", allow = ["OFL-1.1"] }]
 multiple-versions = "warn"
 wildcards = "deny"
 allow-wildcard-paths = true
+# The backends stay in their adapters (docs/architecture.md): only artic-winit reaches winit, only
+# artic-vello reaches vello, and wgpu arrives through vello.
+deny = [
+    { crate = "winit", wrappers = ["artic-winit"] },
+    { crate = "vello", wrappers = ["artic-vello"] },
+    { crate = "wgpu", wrappers = ["vello"] },
+]
 
 [sources]
 unknown-registry = "deny"
