@@ -2,8 +2,8 @@
 //! draws, and what a frame runs.
 
 use crate::{
-  AppHandler, Axes, Error, FrameServices, Hooks, Host, HostContext, HostEvent, LogicalSize, Pipeline, SurfaceInfo, SurfaceLoss,
-  Waker, WindowDesc,
+  AppHandler, Axes, Error, FrameServices, FrameStats, Hooks, Host, HostContext, HostEvent, LogicalSize, Pipeline, SurfaceInfo,
+  SurfaceLoss, Waker, WindowDesc,
 };
 use artic_core::dispatcher::Dispatcher;
 use artic_core::property::Affects;
@@ -29,8 +29,7 @@ use std::time::Duration;
 pub struct Runner<R> {
   tree: UiTree,
   renderer: R,
-  text: Box<dyn TextEngine>,
-  types: ElementTypes,
+  services: Services,
   hooks: Hooks,
   application: NodeId,
   bound: Vec<Bound>,
@@ -39,6 +38,21 @@ pub struct Runner<R> {
   spare: Vec<Spare>,
   lost: HashSet<NodeId>,
   error: Rc<RefCell<Option<Error>>>,
+}
+
+/// What the runner lends every surface's pipeline: one element table and one text engine.
+struct Services {
+  types: ElementTypes,
+  text: Box<dyn TextEngine>,
+}
+
+impl Services {
+  fn borrow(&mut self) -> FrameServices<'_> {
+    FrameServices {
+      types: &self.types,
+      text: &mut *self.text,
+    }
+  }
 }
 
 /// A `Surface` the host presents, and what the runner knows about it.
@@ -139,8 +153,10 @@ impl<R: Renderer> Runner<R> {
     Runner {
       tree,
       renderer,
-      text,
-      types: ElementTypes::from_link_time(),
+      services: Services {
+        types: ElementTypes::from_link_time(),
+        text,
+      },
       hooks: Hooks::default(),
       application,
       bound: Vec::new(),
@@ -236,13 +252,9 @@ impl<R: Renderer> Runner<R> {
   fn present(&mut self, cx: &mut dyn HostContext, node: NodeId, settings: &Settings) {
     if let Some(windows) = cx.windows() {
       let mut pipeline = Pipeline::new();
-      let desired = settings.available(None).map(|available| {
-        let mut services = FrameServices {
-          types: &self.types,
-          text: &mut *self.text,
-        };
-        pipeline.measure(&mut self.tree, node, available, &mut services)
-      });
+      let desired = settings
+        .available(None)
+        .map(|available| pipeline.measure(&mut self.tree, node, available, &mut self.services.borrow()));
       let desc = settings.desc(self.title(node), desired);
       let id = windows.open(&desc);
       self.bound.push(Bound {
@@ -285,16 +297,78 @@ impl<R: Renderer> Runner<R> {
       .info
       .map(|info| Size::new(info.size.width as f32 / info.scale, info.size.height as f32 / info.scale));
     let desired = settings.available(host).map(|available| {
-      let mut services = FrameServices {
-        types: &self.types,
-        text: &mut *self.text,
-      };
-      bound.pipeline.measure(&mut self.tree, node, available, &mut services)
+      bound
+        .pipeline
+        .measure(&mut self.tree, node, available, &mut self.services.borrow())
     });
     let desc = settings.desc(title, desired);
     if *applied != desc {
       windows.update(bound.id, &desc);
       *applied = desc;
+    }
+  }
+
+  fn run_before_layout(
+    &mut self,
+    cx: &mut dyn HostContext,
+    surface: SurfaceId,
+    root: NodeId,
+    info: &SurfaceInfo,
+    time: Duration,
+  ) {
+    Self::drain();
+    for hook in &mut self.hooks.before_layout {
+      hook(&mut self.tree, root, info, time);
+    }
+    Self::drain();
+    if self.tree.take_pending() {
+      self.mark_all(cx, Some(surface));
+    }
+  }
+
+  fn draw(
+    &mut self,
+    index: usize,
+    root: NodeId,
+    info: &SurfaceInfo,
+    target: Target<'_>,
+  ) -> Option<Result<FrameStats, RenderError>> {
+    let content = match self.bound[index].presentation {
+      Presentation::Window { .. } => Axes::from(self.tree.attached(root, Desktop::SIZE_TO_CONTENT)),
+      Presentation::Lent => Axes::NONE,
+    };
+    let window = &mut self.bound[index];
+    if !window.needs_frame {
+      return window.pipeline.redraw(&mut self.renderer, window.id, info, target);
+    }
+    window.needs_frame = false;
+    let frame = window
+      .pipeline
+      .prepare(&mut self.tree, root, window.id, info, &mut self.services.borrow(), content);
+    if let (Presentation::Window { applied }, Some(desired)) = (&window.presentation, window.pipeline.desired(root)) {
+      let requested = applied.size;
+      let content_resized = (content.width && requested.width != Some(desired.width))
+        || (content.height && requested.height != Some(desired.height));
+      if content_resized {
+        self.tree.mark_dirty(root, Affects::SURFACE);
+      }
+    }
+    Some(window.pipeline.present(&mut self.renderer, frame, target))
+  }
+
+  fn after_frame(&mut self, cx: &mut dyn HostContext, index: usize, root: NodeId, drawn: Result<FrameStats, RenderError>) {
+    match drawn {
+      Ok(stats) => {
+        for hook in &mut self.hooks.after_present {
+          hook(&self.tree, root, &stats);
+        }
+      }
+      Err(error) => self.failed(cx, index, error),
+    }
+    let wants = self.hooks.wants_frame.iter_mut().fold(false, |wants, hook| hook() | wants);
+    if wants {
+      self.bound[index].needs_frame = true;
+      cx.request_frame(self.bound[index].id);
     }
   }
 
@@ -410,63 +484,17 @@ impl<R: Renderer> AppHandler for Runner<R> {
       return;
     };
     let root = self.bound[index].node;
-    Self::drain();
-    for hook in &mut self.hooks.before_layout {
-      hook(&mut self.tree, root, &info, time);
-    }
-    Self::drain();
-    if self.tree.take_pending() {
-      self.mark_all(cx, Some(surface));
-    }
+    self.run_before_layout(cx, surface, root, &info, time);
     self.refresh_surfaces();
     let open = self.tree.get_as::<Surface>(root).is_some_and(|surface| surface.is_open.get());
     if !self.surfaces.contains(&root) || !open {
       self.settle(cx);
       return;
     }
-    let content = match self.bound[index].presentation {
-      Presentation::Window { .. } => Axes::from(self.tree.attached(root, Desktop::SIZE_TO_CONTENT)),
-      Presentation::Lent => Axes::NONE,
-    };
-    let window = &mut self.bound[index];
-    let result = if window.needs_frame {
-      window.needs_frame = false;
-      let mut services = FrameServices {
-        types: &self.types,
-        text: &mut *self.text,
-      };
-      let frame = window
-        .pipeline
-        .prepare(&mut self.tree, root, surface, &info, &mut services, content);
-      if let (Presentation::Window { applied }, Some(desired)) = (&window.presentation, window.pipeline.desired(root)) {
-        let requested = applied.size;
-        let grew = (content.width && requested.width != Some(desired.width))
-          || (content.height && requested.height != Some(desired.height));
-        if grew {
-          self.tree.mark_dirty(root, Affects::SURFACE);
-        }
-      }
-      Some(window.pipeline.present(&mut self.renderer, frame, target))
-    } else {
-      window.pipeline.redraw(&mut self.renderer, surface, &info, target)
-    };
-    let Some(result) = result else {
-      return;
-    };
-    match result {
-      Ok(stats) => {
-        for hook in &mut self.hooks.after_present {
-          hook(&self.tree, root, &stats);
-        }
-      }
-      Err(error) => self.failed(cx, index, error),
+    if let Some(drawn) = self.draw(index, root, &info, target) {
+      self.after_frame(cx, index, root, drawn);
+      self.settle(cx);
     }
-    let wants = self.hooks.wants_frame.iter_mut().fold(false, |wants, hook| hook() | wants);
-    if wants {
-      self.bound[index].needs_frame = true;
-      cx.request_frame(surface);
-    }
-    self.settle(cx);
   }
 }
 

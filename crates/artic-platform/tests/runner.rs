@@ -886,6 +886,33 @@ fn content_growth_resizes_window() {
   );
 }
 
+// Content that shrinks resizes a window sized to it too, once.
+#[test]
+fn shrinking_content_resizes_window() {
+  let mut tree = UiTree::new();
+  let content = leaf(&mut tree, 20.0);
+  let (application, surfaces) = application(&mut tree, &[("main", content.id)]);
+  Desktop::set_size_to_content(&mut tree, surfaces[0], SizeToContent::Height);
+  let (mut runner, mut cx) = started(tree, application);
+  let mut buffer = pixels();
+  runner.surface_changed(&mut cx, FIRST, info(64, 20, 1.0));
+  runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+
+  content.height.set(10.0);
+  runner.woken(&mut cx);
+  runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+  runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+
+  let sizes: Vec<LogicalSize> = cx.updated.iter().map(|(_, desc)| desc.size).collect();
+  assert_eq!(
+    sizes,
+    [LogicalSize {
+      width: None,
+      height: Some(10.0)
+    }]
+  );
+}
+
 // A surface on a host without windows fills its host surface: SizeToContent doesn't apply.
 #[test]
 fn windowless_surface_ignores_size_to_content() {
