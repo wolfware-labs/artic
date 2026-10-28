@@ -1106,6 +1106,28 @@ fn surface_nested_from_the_start_panics_at_started() {
   assert!(cx.opened.is_empty());
 }
 
+// A surface nested inside a closed surface is caught too: the rule is about the tree, not about
+// what is drawn.
+#[test]
+fn surface_nested_in_a_closed_surface_panics_at_started() {
+  let (mut tree, application, surfaces) = titled(&["first", "second", "third"]);
+  let (first, third) = (surfaces[0], surfaces[2]);
+  surface(&tree, first).is_open.set(false);
+  tree.detach(TreeKind::Logical, third);
+  tree.detach(TreeKind::Visual, third);
+  tree.add_child(TreeKind::Visual, first, third);
+  let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let mut cx = Context::default();
+
+  let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    runner.started(&mut cx, Waker::new(|| {}));
+  }));
+
+  let message = result.expect_err("nesting a surface panics");
+  let message = message.downcast_ref::<String>().map_or("", String::as_str);
+  assert!(message.contains("is inside the Surface"), "{message}");
+}
+
 // A hook that frees a bound surface closes its window at the frame's settle, and the other surface
 // is drawn.
 #[test]

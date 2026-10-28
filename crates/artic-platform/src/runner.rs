@@ -73,6 +73,17 @@ enum Presentation {
   Lent,
 }
 
+impl Presentation {
+  /// The axes `root`'s window sizes to its content on: those its `Desktop.SizeToContent` names, or
+  /// none for a lent surface, which fills the host surface.
+  fn content(&self, tree: &UiTree, root: NodeId) -> Axes {
+    match self {
+      Presentation::Window { .. } => Axes::from(tree.attached(root, Desktop::SIZE_TO_CONTENT)),
+      Presentation::Lent => Axes::NONE,
+    }
+  }
+}
+
 /// A host surface no `Surface` holds yet, on a host without windows.
 struct Spare {
   id: SurfaceId,
@@ -201,7 +212,7 @@ impl<R: Renderer> Runner<R> {
   }
 
   fn reconcile(&mut self, cx: &mut dyn HostContext) {
-    self.refresh_surfaces();
+    self.check_surfaces();
     let shown: Vec<NodeId> = self
       .surfaces
       .iter()
@@ -333,19 +344,16 @@ impl<R: Renderer> Runner<R> {
     info: &SurfaceInfo,
     target: Target<'_>,
   ) -> Option<Result<FrameStats, RenderError>> {
-    let content = match self.bound[index].presentation {
-      Presentation::Window { .. } => Axes::from(self.tree.attached(root, Desktop::SIZE_TO_CONTENT)),
-      Presentation::Lent => Axes::NONE,
-    };
-    let window = &mut self.bound[index];
-    if !window.needs_frame {
-      return window.pipeline.redraw(&mut self.renderer, window.id, info, target);
+    let content = self.bound[index].presentation.content(&self.tree, root);
+    let bound = &mut self.bound[index];
+    if !bound.needs_frame {
+      return bound.pipeline.redraw(&mut self.renderer, bound.id, info, target);
     }
-    window.needs_frame = false;
-    let frame = window
+    bound.needs_frame = false;
+    let frame = bound
       .pipeline
-      .prepare(&mut self.tree, root, window.id, info, &mut self.services.borrow(), content);
-    if let (Presentation::Window { applied }, Some(desired)) = (&window.presentation, window.pipeline.desired(root)) {
+      .prepare(&mut self.tree, root, bound.id, info, &mut self.services.borrow(), content);
+    if let (Presentation::Window { applied }, Some(desired)) = (&bound.presentation, bound.pipeline.desired(root)) {
       let requested = applied.size;
       let content_resized = (content.width && requested.width != Some(desired.width))
         || (content.height && requested.height != Some(desired.height));
@@ -353,7 +361,7 @@ impl<R: Renderer> Runner<R> {
         self.tree.mark_dirty(root, Affects::SURFACE);
       }
     }
-    Some(window.pipeline.present(&mut self.renderer, frame, target))
+    Some(bound.pipeline.present(&mut self.renderer, frame, target))
   }
 
   fn after_frame(&mut self, cx: &mut dyn HostContext, index: usize, root: NodeId, drawn: Result<FrameStats, RenderError>) {
@@ -372,7 +380,7 @@ impl<R: Renderer> Runner<R> {
     }
   }
 
-  fn refresh_surfaces(&mut self) {
+  fn check_surfaces(&mut self) {
     let generation = self.tree.structure_generation();
     if self.checked == Some(generation) {
       return;
@@ -485,7 +493,7 @@ impl<R: Renderer> AppHandler for Runner<R> {
     };
     let root = self.bound[index].node;
     self.run_before_layout(cx, surface, root, &info, time);
-    self.refresh_surfaces();
+    self.check_surfaces();
     let open = self.tree.get_as::<Surface>(root).is_some_and(|surface| surface.is_open.get());
     if !self.surfaces.contains(&root) || !open {
       self.settle(cx);
