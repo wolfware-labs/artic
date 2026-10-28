@@ -577,6 +577,147 @@ fn run_that_draws_returns_ok() {
   assert!(run(OneFrame, one_window(Counter::default())).is_ok());
 }
 
+/// A host that draws once, then lends two frames that fail.
+struct FailsTwice {
+  fail: Rc<RefCell<Option<RenderError>>>,
+}
+
+impl Host for FailsTwice {
+  type Error = std::convert::Infallible;
+
+  fn targets(&self) -> TargetKind {
+    TargetKind::Pixels
+  }
+
+  fn run(self, mut app: impl AppHandler + 'static) -> Result<(), std::convert::Infallible> {
+    let mut cx = Context::default();
+    let mut buffer = pixels();
+    app.started(&mut cx, Waker::new(|| {}));
+    app.surface_changed(&mut cx, FIRST, info(64, 64, 1.0));
+    app.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+    for cause in ["first", "second"] {
+      *self.fail.borrow_mut() = Some(RenderError::Backend(cause.into()));
+      app.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+    }
+    Ok(())
+  }
+}
+
+// Of two failed frames, `run` returns the first, the one that ended the loop.
+#[test]
+fn first_render_error_is_returned() {
+  let renderer = Counter::default();
+  let fail = Rc::clone(&renderer.fail);
+
+  let result = run(FailsTwice { fail }, one_window(renderer));
+
+  let Err(Error::Render(RenderError::Backend(cause))) = result else {
+    panic!("{result:?}")
+  };
+  assert_eq!(cause.to_string(), "first");
+}
+
+/// A host that makes every call of the seam once, recording what the app asked of it.
+struct Scripted {
+  cx: Rc<RefCell<Context>>,
+  height: Property<f32>,
+}
+
+impl Host for Scripted {
+  type Error = std::convert::Infallible;
+
+  fn targets(&self) -> TargetKind {
+    TargetKind::Pixels
+  }
+
+  fn run(self, mut app: impl AppHandler + 'static) -> Result<(), std::convert::Infallible> {
+    let mut guard = self.cx.borrow_mut();
+    let cx = &mut *guard;
+    let mut buffer = pixels();
+    app.started(cx, Waker::new(|| {}));
+    app.surface_changed(cx, FIRST, info(64, 64, 1.0));
+    app.frame(cx, FIRST, target(&mut buffer), Duration::ZERO);
+    self.height.set(40.0);
+    app.woken(cx);
+    app.event(cx, HostEvent::CloseRequested { surface: FIRST });
+    app.surface_lost(cx, FIRST, SurfaceLoss::Gone);
+    Ok(())
+  }
+}
+
+// `run`'s handler passes each host call to the runner: the window opens, frames are asked for and
+// drawn, a woken write and the close's IsOpen write each ask again, a close closes and exits, a loss
+// releases the renderer.
+#[test]
+fn run_passes_every_host_call_to_the_runner() {
+  let mut tree = UiTree::new();
+  let content = leaf(&mut tree, 20.0);
+  let (application, _) = application(&mut tree, &[("main", content.id)]);
+  let renderer = Counter::default();
+  let runner = Runner::new(tree, renderer.clone(), Box::new(engine()), application);
+  let cx = Rc::new(RefCell::new(Context::default()));
+
+  let result = run(
+    Scripted {
+      cx: Rc::clone(&cx),
+      height: content.height,
+    },
+    runner,
+  );
+
+  assert!(result.is_ok(), "{result:?}");
+  let cx = cx.borrow();
+  assert_eq!(cx.opened.len(), 1);
+  assert_eq!(cx.frames, [FIRST, FIRST, FIRST]);
+  assert_eq!(renderer.rendered.get(), 1);
+  assert_eq!(cx.closed, [FIRST]);
+  assert!(cx.exited);
+  assert_eq!(*renderer.lost.borrow(), [FIRST]);
+}
+
+/// A host whose loop can't block, like a browser's: it keeps the app and returns.
+struct ReturnsAtOnce {
+  app: Rc<RefCell<Option<Box<dyn AppHandler>>>>,
+}
+
+impl Host for ReturnsAtOnce {
+  type Error = std::convert::Infallible;
+
+  fn targets(&self) -> TargetKind {
+    TargetKind::Pixels
+  }
+
+  fn run(self, app: impl AppHandler + 'static) -> Result<(), std::convert::Infallible> {
+    *self.app.borrow_mut() = Some(Box::new(app));
+    Ok(())
+  }
+}
+
+// `run` on a host that returns at once returns `Ok`, and a frame that fails later reaches
+// `on_error`.
+#[test]
+fn host_that_returns_at_once_runs_ok() {
+  let renderer = Counter::default();
+  *renderer.fail.borrow_mut() = Some(RenderError::Backend("no device".into()));
+  let seen = Rc::new(Cell::new(0));
+  let hook_seen = Rc::clone(&seen);
+  let mut runner = one_window(renderer);
+  runner.hooks().on_error(move |_| hook_seen.set(hook_seen.get() + 1));
+  let kept = Rc::new(RefCell::new(None));
+
+  let result = run(ReturnsAtOnce { app: Rc::clone(&kept) }, runner);
+
+  assert!(result.is_ok(), "{result:?}");
+  let mut app = kept.borrow_mut().take().expect("the host kept the app");
+  let mut cx = Context::default();
+  let mut buffer = pixels();
+  app.started(&mut cx, Waker::new(|| {}));
+  app.surface_changed(&mut cx, FIRST, info(64, 64, 1.0));
+  app.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+  assert_eq!(seen.get(), 1);
+  assert!(cx.exited);
+}
+
 // A window the host lost before ever reporting it, such as one that failed to open, is forgotten,
 // and with no window left the app exits rather than running with none.
 #[test]

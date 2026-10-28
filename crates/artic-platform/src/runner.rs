@@ -2,7 +2,7 @@
 //! draws, and what a frame runs.
 
 use crate::{
-  AppHandler, Axes, Error, FrameServices, FrameStats, Hooks, Host, HostContext, HostEvent, LogicalSize, Pipeline, SurfaceInfo,
+  AppHandler, Axes, Error, FrameServices, FrameStats, Hooks, HostContext, HostEvent, LogicalSize, Pipeline, SurfaceInfo,
   SurfaceLoss, Waker, WindowDesc,
 };
 use artic_core::dispatcher::Dispatcher;
@@ -12,18 +12,16 @@ use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{Application, Chrome, Desktop, ElementTypes, Surface};
 use artic_layout::geometry::Size;
 use artic_layout::text::TextEngine;
-use artic_render::{RenderError, Renderer, SurfaceId, Target};
-use std::cell::RefCell;
+use artic_render::{RenderError, Renderer, SurfaceId, Target, TargetKind};
 use std::collections::HashSet;
 use std::fmt::{self, Debug, Formatter};
-use std::rc::Rc;
 use std::time::Duration;
 
 /// Drives a tree's frames from a host: it presents the open [`Surface`]s of the tree's
 /// [`Application`], asks for a frame when something changed, and runs each frame's stages.
 ///
 /// Build it with the tree, a renderer, a text engine and the `Application` node, register hooks, and hand it to
-/// [`run`]. After every call from the host it reconciles the surfaces with the host: a surface
+/// [`run`](crate::run). After every call from the host it reconciles the surfaces with the host: a surface
 /// opened is presented, one closed or taken out of the tree is taken down, and one whose title,
 /// size or chrome changed is updated.
 pub struct Runner<R> {
@@ -37,7 +35,6 @@ pub struct Runner<R> {
   checked: Option<u64>,
   spare: Vec<Spare>,
   lost: HashSet<NodeId>,
-  error: Rc<RefCell<Option<Error>>>,
 }
 
 /// What the runner lends every surface's pipeline: one element table and one text engine.
@@ -175,7 +172,6 @@ impl<R: Renderer> Runner<R> {
       checked: None,
       spare: Vec::new(),
       lost: HashSet::new(),
-      error: Rc::new(RefCell::new(None)),
     }
   }
 
@@ -364,20 +360,28 @@ impl<R: Renderer> Runner<R> {
     Some(bound.pipeline.present(&mut self.renderer, frame, target))
   }
 
-  fn after_frame(&mut self, cx: &mut dyn HostContext, index: usize, root: NodeId, drawn: Result<FrameStats, RenderError>) {
-    match drawn {
+  fn after_frame(
+    &mut self,
+    cx: &mut dyn HostContext,
+    index: usize,
+    root: NodeId,
+    drawn: Result<FrameStats, RenderError>,
+  ) -> Option<Error> {
+    let failure = match drawn {
       Ok(stats) => {
         for hook in &mut self.hooks.after_present {
           hook(&self.tree, root, &stats);
         }
+        None
       }
       Err(error) => self.failed(cx, index, error),
-    }
+    };
     let wants = self.hooks.wants_frame.iter_mut().fold(false, |wants, hook| hook() | wants);
     if wants {
       self.bound[index].needs_frame = true;
       cx.request_frame(self.bound[index].id);
     }
+    failure
   }
 
   fn check_surfaces(&mut self) {
@@ -417,20 +421,47 @@ impl<R: Renderer> Runner<R> {
       .unwrap_or_default()
   }
 
-  fn failed(&mut self, cx: &mut dyn HostContext, index: usize, error: RenderError) {
+  fn failed(&mut self, cx: &mut dyn HostContext, index: usize, error: RenderError) -> Option<Error> {
     if matches!(error, RenderError::SurfaceLost) {
       let id = self.bound[index].id;
       self.renderer.surface_lost(id);
       self.bound[index].needs_frame = true;
       cx.request_frame(id);
-      return;
+      return None;
     }
     let error = Error::Render(error);
     for hook in &mut self.hooks.on_error {
       hook(&error);
     }
-    *self.error.borrow_mut() = Some(error);
     cx.exit();
+    Some(error)
+  }
+
+  pub(crate) fn accepts(&self, kind: TargetKind) -> bool {
+    self.renderer.accepts(kind)
+  }
+
+  pub(crate) fn render_frame(
+    &mut self,
+    cx: &mut dyn HostContext,
+    surface: SurfaceId,
+    target: Target<'_>,
+    time: Duration,
+  ) -> Option<Error> {
+    let index = self.bound.iter().position(|bound| bound.id == surface && !bound.suspended)?;
+    let info = self.bound[index].info?;
+    let root = self.bound[index].node;
+    self.run_before_layout(cx, surface, root, &info, time);
+    self.check_surfaces();
+    let open = self.tree.get_as::<Surface>(root).is_some_and(|surface| surface.is_open.get());
+    if !self.surfaces.contains(&root) || !open {
+      self.settle(cx);
+      return None;
+    }
+    let drawn = self.draw(index, root, &info, target)?;
+    let failure = self.after_frame(cx, index, root, drawn);
+    self.settle(cx);
+    failure
   }
 }
 
@@ -485,24 +516,7 @@ impl<R: Renderer> AppHandler for Runner<R> {
   }
 
   fn frame(&mut self, cx: &mut dyn HostContext, surface: SurfaceId, target: Target<'_>, time: Duration) {
-    let Some(index) = self.bound.iter().position(|bound| bound.id == surface && !bound.suspended) else {
-      return;
-    };
-    let Some(info) = self.bound[index].info else {
-      return;
-    };
-    let root = self.bound[index].node;
-    self.run_before_layout(cx, surface, root, &info, time);
-    self.check_surfaces();
-    let open = self.tree.get_as::<Surface>(root).is_some_and(|surface| surface.is_open.get());
-    if !self.surfaces.contains(&root) || !open {
-      self.settle(cx);
-      return;
-    }
-    if let Some(drawn) = self.draw(index, root, &info, target) {
-      self.after_frame(cx, index, root, drawn);
-      self.settle(cx);
-    }
+    self.render_frame(cx, surface, target, time);
   }
 }
 
@@ -514,25 +528,4 @@ impl<R> Debug for Runner<R> {
       .field("hooks", &self.hooks)
       .finish_non_exhaustive()
   }
-}
-
-/// Runs `runner` on `host`, after checking that its renderer can draw on what the host offers.
-///
-/// # Errors
-///
-/// Returns [`Error::Unsupported`] before starting if the renderer can't draw on the host's
-/// targets. Once a host whose `run` blocks until the loop ends returns, [`Error::Render`] if a
-/// frame failed, or else [`Error::Host`] with the host's own error; a frame's error comes first
-/// when both happen, since it ended the loop.
-pub fn run<H: Host, R: Renderer + 'static>(host: H, runner: Runner<R>) -> Result<(), Error> {
-  let kind = host.targets();
-  if !runner.renderer.accepts(kind) {
-    return Err(Error::Unsupported(kind));
-  }
-  let error = Rc::clone(&runner.error);
-  let ended = host.run(runner);
-  if let Some(error) = error.borrow_mut().take() {
-    return Err(error);
-  }
-  ended.map_err(|error| Error::Host(Box::new(error)))
 }
