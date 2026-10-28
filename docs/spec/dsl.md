@@ -21,7 +21,7 @@ Some of the contract is built and some comes with XAML's back ends. Each section
 
 A language interprets its source when the app runs, or generates Rust when the app builds. Both build the same tree.
 
-- **At run time** the language reads the registry: it looks types and properties up by name and calls the function pointers in their descriptors. XAML's runtime loader will work this way, for hot reload and the `runtime-xaml` feature.
+- **At run time** the language reads the registry: it looks types and properties up by name and calls the function pointers in their descriptors. XAML's runtime loader will work this way, for hot reload and the `xaml-runtime` feature.
 - **At build time** the language reads the registry while it generates code, and the code calls the types directly, such as `Border::default()` and `border.padding.set(...)`. Nothing is looked up when the app runs. XAML's compiler will work this way, from the app's `build.rs`.
 
 `build.rs` is a separate program, and its registry holds only the crates it links. A build-time language lists the crates it reaches as build-dependencies and names each one, as [Finding types](#2-finding-types) explains.

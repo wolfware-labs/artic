@@ -4,14 +4,14 @@
 [![Coverage](https://img.shields.io/codecov/c/github/wolfware-labs/artic?logo=codecov&label=coverage)](https://codecov.io/gh/wolfware-labs/artic)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
 
-A cross-platform UI framework for Rust. Views are written in XAML, all logic is Rust, and one GPU renderer draws the same pixels on Windows, macOS, Linux, iOS and Android.
+A cross-platform UI framework for Rust. Views are written in a UI language, XAML for now, all logic is Rust, and one GPU renderer draws the same pixels on Windows, macOS, Linux, iOS and Android.
 
 ## Goals
 
 - Views use XAML syntax (a defined subset of MS-XAML 2012) with CSS-like style selectors.
 - The design follows Rust, not a class hierarchy: controls are structs composed from shared state, nodes live in a tree and are referenced by id, and values convert through `FromStr` and `TryFrom`.
 - Bindings are typed and checked at compile time. There is no runtime reflection.
-- Release builds compile XAML to plain Rust in `build.rs`, so there is no parsing at startup. With `--features hot-reload`, views reload from disk while the app runs.
+- Release builds compile XAML to plain Rust in `build.rs`, so there is no parsing at startup. Hot reload, planned behind the facade's `xaml-hot-reload` feature, will reload views from disk while the app runs.
 - Signals propagate every change. View-models and `{Binding}` are built on them.
 - `vello` on `wgpu` draws every platform. Layouts adapt to screen size and input mode, not to the OS.
 - Every control exposes an `accesskit` node.
@@ -76,7 +76,7 @@ The workspace is layered. A crate depends only on crates in lower layers, so the
 | 2 | `artic-layout` | Measure and arrange protocol, geometry and text types, panels |
 | 2 | `artic-style` | Selectors, styles, setters, resource dictionaries |
 | 2 | `artic-view` | The view every UI language reads its files into, and its checks |
-| 2 | `artic-xaml-runtime` | Runtime loader for hot reload and `runtime-xaml` |
+| 2 | `artic-xaml-runtime` | Runtime loader, planned: the facade's `xaml-runtime` and `xaml-hot-reload` features will add it |
 | 3 | `artic-render` | `Renderer` trait and retained scene (backends are adapter crates) |
 | 3 | `artic-text` | Text shaping and line breaking with `parley`, fonts with `fontique` |
 | 3 | `artic-view-compiler` | Build-time compiler from any UI language to Rust |
@@ -110,7 +110,7 @@ flowchart BT
 ### How a view becomes pixels
 
 1. `artic-xaml` parses a `.xaml` file into an infoset.
-2. In a normal build, `artic-xaml-lang` reads the infoset into a view and `artic-view-compiler` turns it into Rust from `build.rs`. With hot reload, `artic-xaml-runtime` builds the same tree at runtime. A conformance test keeps the two paths identical.
+2. In a normal build, `artic-xaml-lang` reads the infoset into a view and `artic-view-compiler` turns it into Rust from `build.rs`. With hot reload, planned, `artic-xaml-runtime` will build the same tree at runtime, and a conformance test will keep the two paths identical.
 3. `artic-core` holds the tree and the signals. Bindings and styles write to properties through one invalidation path.
 4. Each frame runs only the dirty stages: style, layout (`artic-layout`), scene building and rendering (`artic-render`), then the accessibility update (`artic-platform`).
 

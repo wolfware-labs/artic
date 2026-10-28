@@ -19,4 +19,4 @@ You can expect a first reply within 7 days. Once a fix is ready, the advisory is
 
 ## Scope
 
-Loading untrusted XAML with the `runtime-xaml` feature is in scope: the loader is meant to reject hostile input without panicking, hanging or exhausting memory. Bugs in third-party dependencies should be reported upstream, but let us know if artic is affected.
+Loading untrusted XAML with the planned `xaml-runtime` feature will be in scope once the loader exists: it is meant to reject hostile input without panicking, hanging or exhausting memory. Bugs in third-party dependencies should be reported upstream, but let us know if artic is affected.
