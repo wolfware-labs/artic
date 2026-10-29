@@ -121,7 +121,7 @@ The tests share one renderer, as `pixels.rs` does; the sample leaves that out.
 
 The variable is ours rather than the `CI` most CI services set, because a CI machine without a GPU is normal today: GitHub's Windows runners have only WARP, and its Ubuntu runners no adapter. This design changes #53's plan, which ran Windows goldens on WARP:
 
-- Ubuntu installs lavapipe and sets `ARTIC_REQUIRE_GPU=1`.
+- Ubuntu installs lavapipe and sets `ARTIC_REQUIRE_GPU=1`. Its test job and the mutants jobs do this today, through `.github/actions/setup-lavapipe`.
 - Windows installs Mesa's lavapipe for Windows (mesa-dist-win) and sets `WGPU_BACKEND=vulkan`, which `artic-vello` already reads through `Backends::from_env` in place of its DX12 default, and `ARTIC_REQUIRE_GPU=1`. If vello can't run on lavapipe there, #53 drops Windows from its golden jobs and says so in its acceptance, rather than keeping a job that skips every golden and passes.
 - macOS sets `ARTIC_REQUIRE_GPU=1`; GitHub's macOS runners have a Metal device.
 
