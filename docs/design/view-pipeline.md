@@ -1,8 +1,8 @@
 # Design: the view pipeline beside every UI language
 
-Issue: #325. Builds on: the [XAML compiler](xaml-compiler.md) (#49), [UI languages beside XAML](dsl-neutral.md) (#305), the [language contract](../spec/dsl.md). Unblocks: #52's compiler changes ([code type design](ui-class.md)), #51 diagnostics in cargo output, #59 the runtime loader.
+Issue: #325. Builds on: the [XAML compiler](xaml-compiler.md) (#49), [UI languages beside XAML](dsl-neutral.md) (#305), the [language contract](../spec/dsl.md). Unblocks: #52's compiler changes ([code type design](ui-class.md)), #51 diagnostics in cargo output, #58 the runtime loader.
 
-The compiler #49 built sits in the XAML crates, but most of it isn't XAML: diagnostics with source spans, checking a view's members against the registry, writing Rust, and driving a build script would be the same for any language. This design moves those parts into three crates no language owns. A language then writes one front end, from its syntax to a plain `Document`, and gets the compiler and, with #59, the loader from it. The XAML crates keep XAML's syntax and meaning only.
+The compiler #49 built sits in the XAML crates, but most of it isn't XAML: diagnostics with source spans, checking a view's members against the registry, writing Rust, and driving a build script would be the same for any language. This design moves those parts into three crates no language owns. A language then writes one front end, from its syntax to a plain `Document`, and gets the compiler and, with #58, the loader from it. The XAML crates keep XAML's syntax and meaning only.
 
 Apart from a name's field, now in snake_case, which changes the `names.xaml` snapshot's fields and drops `#[allow(non_snake_case)]` from every compiled snapshot, and the help a duplicate name gets when two spellings give one field ([What changes for an app](#what-changes-for-an-app)), the generated code and every diagnostic stay the same: every other snapshot line and the fixture app stay unchanged, except the render snapshot of `artic-diagnostics`, whose test now uses a neutral file name and message; the header insta writes above a moved snapshot, which names its source file, follows the move. PR 4 changes three lines of every compiled file: the tree types come from `::artic::core::tree` in place of `::artic::prelude`, the file links `::artic::core` beside the other crates, and the `View` doc says "one handle per named element" in place of "per `x:Name`". Three differences touch only a misconfigured path, [below](#writing-rust): the help of "isn't a Rust path" names `CratePaths::path` in place of `NamespaceMap::path`, which goes; the element with such a path has its members checked; and a value provider written as an element with such a path is reported as a value provider. No snapshot has any of them; the one test of the message checks only its text, not its help. One difference touches names: a name is taken as written, so spaces or a comment around it make it invalid, where `syn`'s parser dropped them from the field, and `gen` gives `r#gen`. A few names an app's build script can reach move; [What changes for an app](#what-changes-for-an-app) lists them.
 
@@ -18,7 +18,7 @@ Document                      artic-view: elements with their types looked up, m
   ▼
 CheckedView                   artic-view: every member found, content placed, names checked
   ├─ artic-view-compiler: emit → Rust; compile_dir drives a build script
-  └─ the runtime loader (#59): build → UiTree
+  └─ the runtime loader (#58): build → UiTree
 ```
 
 | Crate | Holds | Depends on |
@@ -118,7 +118,7 @@ pub struct Problem {
 - `Content::span` runs from the first node to the last, the span a content property's text is set at.
 - `module` keeps the module a document named, as XAML's `using:` does, so generated code names the type there. Without one, the type is reached at its crate's root, the [convention](xaml-compiler.md#naming-types-in-generated-code) every artic crate follows.
 - `Content::Text` carries both forms because a type whose whitespace is significant (`Whitespace::Significant`) reads `raw`; the rules that make `text` are the language's own.
-- The document holds only what artic can build today. A construct a later issue adds is an `Unsupported` problem until that issue adds it: attached properties (#50), an element as a property's value (#57), value providers (#94, #112), resource keys (#111). The code type and field visibility come with #52 and the data type with #94, each as a member of the document, so the loader (#59) gets them from the same document as the compiler.
+- The document holds only what artic can build today. A construct a later issue adds is an `Unsupported` problem until that issue adds it: attached properties (#50), an element as a property's value (#57), value providers (#94, #112), resource keys (#111). The code type and field visibility come with #52 and the data type with #94, each as a member of the document, so the loader (#58) gets them from the same document as the compiler.
 - The types are `artic_view::document::Element` and the like; code that also uses `artic_element::Element` names the module.
 
 ## A language
@@ -312,7 +312,7 @@ Beside the move, a name gives its field in snake_case, with each run of undersco
 - `artic-diagnostics` joins layer 0, and `artic-xaml`, which now depends on it, moves to layer 1.
 - `artic-view` is in layer 2; `artic-view-compiler` and `artic-xaml-lang` are in layer 3.
 - `artic-lsp`, which depends on `artic-xaml-lang`, moves to layer 4, and `artic-cli`, planned to depend on `artic-lsp`, to layer 5. These moves land with PR 3: the XAML compiler crate starts depending on `artic-view` there, so it moves to layer 3, and `artic-lsp` and `artic-cli`, which depend on it, move above it.
-- `artic-xaml-runtime` depends on neither new crate yet and stays in layer 2; #59 moves it when the loader uses them.
+- `artic-xaml-runtime` depends on neither new crate yet and stays in layer 2; #58 moves it when the loader uses them.
 - `artic-xaml-lang`'s tests compile XAML end to end, so it dev-depends on `artic-view-compiler`, in the same layer, and on the facade (`xaml`, `view-compiler`), whose real paths its snapshots pin; `docs/architecture.md` lists that beside its other dev-dependency rules. Cargo allows these dev-only loops: `artic-xaml-lang` itself depends on neither, and the facade depends on it only with `xaml-compiler`.
 - `scripts/check-ui-neutral.sh` allows `artic-xaml-lang` in place of the XAML compiler crate, and covers the three new crates like every other.
 
@@ -344,7 +344,7 @@ Documents that describe the code change with the pull request that changes it.
 ## Not in this design
 
 - The language server's type index read from source (#180, #183): the document holds `&'static TypeInfo` from the link-time registry, and an index that isn't linked would need descriptors of its own. That design decides how they reach a `Document`.
-- The runtime loader (#59) and where it lives.
+- The runtime loader (#58) and where it lives.
 
 ## Pull requests
 

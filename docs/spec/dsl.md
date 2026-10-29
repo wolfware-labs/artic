@@ -17,7 +17,7 @@ Some of the contract is built and some comes with XAML's back ends. Each section
 
 ## 1. Two paths
 
-**The registry both paths read is built. XAML's two back ends aren't yet: the compiler comes with #49 and the runtime loader with #57.**
+**The registry both paths read and the XAML compiler (#49) are built. The runtime loader comes with #58.**
 
 A language interprets its source when the app runs, or generates Rust when the app builds. Both build the same tree.
 
@@ -76,7 +76,7 @@ A build-time language writes the constructor instead: `Border::new()` and the bu
 
 ## 4. Properties
 
-**Lookup is built. Setting a value by name comes with the runtime loader (#57).**
+**Lookup is built. Setting a value by name comes with the runtime loader (#58).**
 
 `TypeInfo::property` finds a property among the type's own and those of the groups it embeds, such as `Width` from the `Layout` group every control has. The `PropertyRef` it returns names the group's field, so generated code can write `border.layout.width`:
 
@@ -106,7 +106,7 @@ A language sets values at the `Local` precedence: above styles and bindings, bel
 
 ## 5. Attached properties
 
-**Lookup is built. Setting one by name comes with the runtime loader (#57).**
+**Lookup is built. Setting one by name comes with the runtime loader (#58).**
 
 An owner type declares them with `#[ui(attached(...))]`, and a language sets them on other nodes, as XAML's `Grid.Row="1"`. `Registry::attached_property` finds one by owner and name. Its `target` says where it may go: `AttachedTarget::Any`, or `AttachedTarget::ChildrenOfOwner`, the logical children of a node of the owner type, as for `Grid.Row`. The language checks the target and reports a misplaced one.
 
@@ -163,7 +163,7 @@ A value provider computes a property's value when the UI is built: a binding, a 
 
 ## 9. Language features
 
-**Planned, with the XAML compiler (#49) and `#[ui_class]` (#52).**
+**Node names are built with the XAML compiler (#49). The code type and field visibility come with `#[ui_class]` (#52), the data type with #94, resource keys with #111 and typed literals with #62.**
 
 These aren't in the registry. A language offers them in its own syntax, with these meanings:
 
@@ -194,7 +194,7 @@ A language that reads into a `Document` reports its own syntax errors, and recor
 
 ## 11. XAML's mapping
 
-**The parser and the namespace map are built; the back ends that use this mapping are planned (#49, #57).**
+**The parser, the namespace map and the compiler are built; the runtime loader that also uses this mapping comes with #58.**
 
 Each construct [spec §4](technical_spec.md#supported) supports, and the section it uses:
 
@@ -220,4 +220,4 @@ XAML spells namespaces as URIs. `NamespaceMap` in `artic-xaml` says which crates
 
 **`Document`, `check` and `Language` are built (#325), and the compiler takes a `Language`.**
 
-A front end turns its syntax into a `Document` from `artic-view`: each element's type looked up in the registry, each member as written, and each problem it found recorded where it occurs rather than reported. `artic_view::check` finds every member on its type and returns a `CheckedView`, the elements children first, which a back end builds. A language implements `Language`, its file extension and a `read` from a file to a document, and the compiler in `artic-view-compiler` takes it, as the runtime loader will with #59. The [view pipeline design](../design/view-pipeline.md) has the details.
+A front end turns its syntax into a `Document` from `artic-view`: each element's type looked up in the registry, each member as written, and each problem it found recorded where it occurs rather than reported. `artic_view::check` finds every member on its type and returns a `CheckedView`, the elements children first, which a back end builds. A language implements `Language`, its file extension and a `read` from a file to a document, and the compiler in `artic-view-compiler` takes it, as the runtime loader will with #58. The [view pipeline design](../design/view-pipeline.md) has the details.
