@@ -149,7 +149,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup-rust
-      - uses: ./.github/actions/setup-lavapipe
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-mutants
@@ -157,14 +156,11 @@ jobs:
         env:
           BASE: ${{ github.base_ref }}
         run: git diff "origin/$BASE...HEAD" > "$RUNNER_TEMP/pr.diff"
-      # --in-place builds in the checkout, so the restored dependency cache is reused instead of
-      # copying the tree for every mutant.
       - name: Mutate the changed lines
-        env:
-          ARTIC_REQUIRE_GPU: "1"
-        run: >-
-          cargo mutants --in-diff "$RUNNER_TEMP/pr.diff" --in-place --no-shuffle
-          --shard ${{ matrix.shard }}/8 --output "$RUNNER_TEMP"
+        uses: ./.github/actions/mutate
+        with:
+          shard: ${{ matrix.shard }}/8
+          diff: ${{ runner.temp }}/pr.diff
       - name: Keep the report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
