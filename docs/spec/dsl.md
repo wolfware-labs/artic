@@ -157,7 +157,7 @@ A child the tree can't link is `ValueError::InvalidChild`, a second child where 
 
 ## 8. Value providers
 
-**The descriptors are built. Resolving a value provider comes with typed bindings (#94) and static resources (#112).**
+**The descriptors are built. Resolving each value provider comes with its issue: bindings #94, static and dynamic resources #112 and #113, template bindings #85, and type references, static items and null #62.**
 
 A value provider computes a property's value when the UI is built: a binding, a resource lookup, a type reference, a static item, or null. Its type declares its arguments with `#[ui(value_provider(positional(...)))]`, and `TypeInfo::value_provider` holds them as `ValueProviderInfo`: `named` lists every argument, each a property of the type, and `positional` lists, in order, those that may also be given by position. A markup language writes one inline, as XAML's `{Binding Name, Mode=TwoWay}`; a code language calls it like a function. Resolving one gives one of the four forms in [Properties](#4-properties).
 
