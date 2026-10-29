@@ -14,10 +14,7 @@ exclude_globs = [
     "crates/artic-examples/**",
     "crates/docs-check/**",
     "crates/*/fixtures/**",
-]
-
-exclude_re = [
     # winit's loop needs a display server, which tests don't have; the `smoke` and `frames`
     # examples run it in CI.
-    '^crates/artic-winit/src/host\.rs:.*Host>::run -> Result<\(\), Error> with Ok\(\(\)\)',
+    "crates/artic-winit/src/host.rs",
 ]

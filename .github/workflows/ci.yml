@@ -72,9 +72,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-rust
+      - uses: ./.github/actions/setup-lavapipe
       - name: Build
         run: cargo build --workspace --all-targets
+      # Without a GPU the goldens skip and pass; lavapipe is there, so a missing adapter fails.
       - name: Test
+        env:
+          ARTIC_REQUIRE_GPU: "1"
         run: cargo test --workspace
       - name: Test the facade's features
         run: cargo test -p artic --all-features
@@ -89,14 +93,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-rust
+      - uses: ./.github/actions/setup-lavapipe
       - name: Install llvm-tools
         run: rustup component add llvm-tools
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov
       # The test jobs are the gate: a test that fails here, such as trybuild's comparison of
-      # compiler output under instrumentation, still leaves a report. The GPU goldens skip on a
-      # runner without a GPU, so the renderer's draw paths read as uncovered.
+      # compiler output under instrumentation, still leaves a report. lavapipe lets the goldens run,
+      # so the renderer's draw paths count as covered.
       - name: Measure
         run: cargo llvm-cov --workspace --ignore-run-fail --lcov --output-path lcov.info
       - uses: actions/upload-artifact@v7
@@ -152,12 +157,11 @@ jobs:
         env:
           BASE: ${{ github.base_ref }}
         run: git diff "origin/$BASE...HEAD" > "$RUNNER_TEMP/pr.diff"
-      # --in-place builds in the checkout, so the restored dependency cache is reused instead of
-      # copying the tree for every mutant.
       - name: Mutate the changed lines
-        run: >-
-          cargo mutants --in-diff "$RUNNER_TEMP/pr.diff" --in-place --no-shuffle
-          --shard ${{ matrix.shard }}/8 --output "$RUNNER_TEMP"
+        uses: ./.github/actions/mutate
+        with:
+          shard: ${{ matrix.shard }}/8
+          diff: ${{ runner.temp }}/pr.diff
       - name: Keep the report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7

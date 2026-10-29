@@ -55,6 +55,7 @@ impl Default for Tolerance { /* channel 8, pixels 0.001 */ }
 impl Tolerance {
   pub fn with_channel(self, channel: u8) -> Tolerance;
   pub fn with_pixels(self, pixels: f32) -> Tolerance;
+  pub fn text() -> Tolerance; // the default with 0.6% of the pixels
 }
 
 pub struct Golden { /* path, tolerance, per_os */ }
@@ -90,6 +91,8 @@ A golden that can't be read or decoded, or an output that can't be written, is `
 
 The default tolerance is a channel difference of 8 and 0.1% of the pixels. GPUs round anti-aliased edges and blurs differently by a few levels, which the channel limit absorbs. A wrong color changes a channel by far more than 8, and an edge one pixel off changes a whole row of pixels: 64, which is 1.6% of a 64×64 image. A test that needs another tolerance passes its own, built from the default: `Tolerance::default().with_channel(16)`.
 
+Text goldens use `Tolerance::text()`, which allows 0.6% of the pixels. Rasterizers cover a glyph's edge pixels slightly differently: on lavapipe, Ubuntu CI's Vulkan driver on the CPU, the text goldens differ from a GPU's in up to 0.3% of their pixels, while shapes and fills stay within the default.
+
 ## 3. Updating and skipping
 
 Two environment variables, each on only when set to `1`:
@@ -121,7 +124,7 @@ The tests share one renderer, as `pixels.rs` does; the sample leaves that out.
 
 The variable is ours rather than the `CI` most CI services set, because a CI machine without a GPU is normal today: GitHub's Windows runners have only WARP, and its Ubuntu runners no adapter. This design changes #53's plan, which ran Windows goldens on WARP:
 
-- Ubuntu installs lavapipe and sets `ARTIC_REQUIRE_GPU=1`.
+- Ubuntu installs lavapipe and sets `ARTIC_REQUIRE_GPU=1`. Its test job and the mutants jobs do this today, through `.github/actions/setup-lavapipe`.
 - Windows installs Mesa's lavapipe for Windows (mesa-dist-win) and sets `WGPU_BACKEND=vulkan`, which `artic-vello` already reads through `Backends::from_env` in place of its DX12 default, and `ARTIC_REQUIRE_GPU=1`. If vello can't run on lavapipe there, #53 drops Windows from its golden jobs and says so in its acceptance, rather than keeping a job that skips every golden and passes.
 - macOS sets `ARTIC_REQUIRE_GPU=1`; GitHub's macOS runners have a Metal device.
 
@@ -157,7 +160,7 @@ The exact pixel tests in `artic-vello/tests/pixels.rs` stay. They check rules a 
 
 | Crate | Tests |
 | --- | --- |
-| `artic-test` | `identical_images_match`, `small_differences_within_tolerance_match`, `too_many_differing_pixels_fail`, `different_sizes_fail`, `png_round_trips`, `golden_mismatch_writes_diff`, `passing_check_removes_old_outputs`, `missing_golden_says_how_to_create_it`, `unreadable_golden_is_an_io_error`, `updating_twice_changes_no_bytes`, `render_reads_the_renderers_pixels` and `render_tree_draws_the_root` (both with a renderer that fills the buffer with one color) |
+| `artic-test` | `identical_images_match`, `small_differences_within_tolerance_match`, `too_many_differing_pixels_fail`, `different_sizes_fail`, `png_round_trips`, `golden_mismatch_writes_diff`, `passing_check_removes_old_outputs`, `text_tolerance_allows_glyph_edges_drawn_on_another_rasterizer`, `missing_golden_says_how_to_create_it`, `unreadable_golden_is_an_io_error`, `updating_twice_changes_no_bytes`, `render_reads_the_renderers_pixels` and `render_tree_draws_the_root` (both with a renderer that fills the buffer with one color) |
 | `artic-vello` goldens | one test per scene in section 4 |
 
 The file tests write into a temporary directory through `Golden::at`, and take the update mode as a value instead of setting the variable: `set_var` is `unsafe` in edition 2024 because tests run on parallel threads. The first run of the vello goldens creates the PNGs with `ARTIC_UPDATE_GOLDENS=1`, and each is checked by eye before it's committed.

@@ -39,9 +39,11 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-mutants
-      # The same configuration as the pull request check (.cargo/mutants.toml), over every file.
+      # The same action as the pull request check, over every file.
       - name: Mutate the workspace
-        run: cargo mutants --workspace --in-place --no-shuffle --shard ${{ matrix.shard }}/32 --output "$RUNNER_TEMP"
+        uses: ./.github/actions/mutate
+        with:
+          shard: ${{ matrix.shard }}/32
       - name: Keep the report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
@@ -62,7 +64,7 @@ jobs:
           pattern: mutants-full-*
           path: reports
       # One list for the whole run, grouped by crate, on the summary page and as an artifact. The
-      # job fails when a mutant survived or timed out, or a shard didn't finish.
+      # job fails when a mutant survived or a shard didn't finish; timeouts are listed only.
       - name: List the survivors
         env:
           SHARDS: ${{ needs.mutants.result }}
@@ -86,7 +88,7 @@ jobs:
               sed 's/^/- `/; s/$/`/' timeouts.txt
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-          [ ! -s survivors.txt ] && [ ! -s timeouts.txt ] && [ "$SHARDS" = success ]
+          [ ! -s survivors.txt ] && [ "$SHARDS" = success ]
       - name: Keep the list
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7

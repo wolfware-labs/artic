@@ -1,0 +1,30 @@
+name: Mutate
+description: Runs cargo-mutants on lavapipe with .cargo/mutants.toml, then passes or fails the run as verdict.sh decides.
+
+inputs:
+  shard:
+    description: The shard to run, such as `3/8`, zero-based.
+    required: true
+  diff:
+    description: A diff whose changed lines are the only ones mutated; empty mutates every file.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup-lavapipe
+    # --in-place builds in the checkout, so the restored dependency cache is reused instead of
+    # copying the tree for every mutant. The report goes to the summary, a missed mutant first.
+    - name: Mutate
+      shell: bash
+      env:
+        SHARD: ${{ inputs.shard }}
+        DIFF: ${{ inputs.diff }}
+        ARTIC_REQUIRE_GPU: "1"
+      run: |
+        args=(--workspace --in-place --no-shuffle --shard "$SHARD" --output "$RUNNER_TEMP")
+        if [ -n "$DIFF" ]; then args+=(--in-diff "$DIFF"); fi
+        status=0
+        cargo mutants "${args[@]}" || status=$?
+        bash "$GITHUB_ACTION_PATH/verdict.sh" "$RUNNER_TEMP" "$status" | tee -a "$GITHUB_STEP_SUMMARY"

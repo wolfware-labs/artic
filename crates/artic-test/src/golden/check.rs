@@ -91,6 +91,13 @@ impl Default for Tolerance {
 }
 
 impl Tolerance {
+  /// For drawn text: the default, with 0.6% of the pixels allowed to differ. Rasterizers cover a
+  /// glyph's edge pixels slightly differently, such as a GPU and lavapipe, a Vulkan driver on the
+  /// CPU, which differ in up to 0.3% of a text golden's pixels; shapes and fills match closer.
+  pub fn text() -> Tolerance {
+    Tolerance::default().with_pixels(0.006)
+  }
+
   /// The same tolerance with `channel`.
   #[must_use]
   pub fn with_channel(self, channel: u8) -> Tolerance {
@@ -502,6 +509,16 @@ mod tests {
       [allowed(f32::NAN), allowed(-1.0), allowed(0.001), allowed(2.0)],
       [0, 0, 4, 4096]
     );
+  }
+
+  // Text allows the glyph edges lavapipe draws differently from a GPU: 69 of a 160×160 image's
+  // pixels, measured, fit with room to spare, and a pixel still counts at the default channel.
+  #[test]
+  fn text_tolerance_allows_glyph_edges_drawn_on_another_rasterizer() {
+    let text = Tolerance::text();
+
+    assert!(text.allowed(160 * 160) >= 2 * 69, "{text:?}");
+    assert_eq!(text.channel, Tolerance::default().channel);
   }
 
   // A golden per system puts the system's name before `.png`, and its failures beside that name.
