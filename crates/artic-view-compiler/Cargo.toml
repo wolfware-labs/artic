@@ -9,6 +9,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+artic-core.workspace = true
 artic-diagnostics.workspace = true
 artic-registry = { workspace = true, features = ["literals"] }
 artic-view.workspace = true
@@ -19,7 +20,6 @@ syn.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-artic-core.workspace = true
 pretty_assertions.workspace = true
 syn = { workspace = true, features = ["full"] }
 

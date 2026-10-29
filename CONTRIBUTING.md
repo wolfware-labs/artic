@@ -47,6 +47,10 @@ cargo insta review
 
 Commit the updated `.snap` files with the change that caused them. Never commit `.snap.new` files.
 
+## Errors
+
+An error's message says what failed at its own layer and never formats its cause. The cause is `#[source]` (or `#[from]`, or the whole error is `transparent`), so a chain reporter such as `anyhow` prints each cause once. Code that shows an error to a person, in a panic, a log line or a `main`, shows `artic_core::error::Chain(&error)`, which prints the message and then each `source()`.
+
 ## Dependencies
 
 `deny.toml` defines the dependency policy. Dependencies must use one of the allowed licenses, come from crates.io, and have no open security advisories. A new dependency that fails `cargo deny check` needs a discussion in its pull request before the policy changes.

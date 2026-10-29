@@ -634,7 +634,7 @@ Backends are adapters. A **`Host`** drives the screen (surfaces, input, the even
 
 ```rust,ignore
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    artic::run(artic_winit::Host::new()?, artic_vello::Renderer::new()?, my_app::app());
+    artic::run(artic_winit::Host::new()?, artic_vello::Renderer::new()?, my_app::app())?;
     Ok(())
 }
 ```
@@ -652,8 +652,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust,ignore
 pub trait Host {
+    type Error: std::error::Error + Send + Sync + 'static;           // the host's own failure
     fn targets(&self) -> TargetKind;                                  // checked against the renderer before run
-    fn run(self, app: impl AppHandler + 'static);                     // may return at once (browser)
+    fn run(self, app: impl AppHandler + 'static) -> Result<(), Self::Error>; // may return at once (browser)
 }
 pub trait AppHandler {                                                // artic's side, called by the host
     fn started(&mut self, cx: &mut dyn HostContext, waker: Waker);

@@ -20,13 +20,17 @@ All in `artic-platform`, which has no backend dependencies.
 
 ```rust,ignore
 pub trait Host {
+  /// Why the host's loop can fail, such as a lost connection to the display server.
+  type Error: std::error::Error + Send + Sync + 'static;
+
   /// What kind of target the host offers, so `artic::run` can reject a renderer that can't draw
   /// on it before the loop starts.
   fn targets(&self) -> TargetKind;
 
-  /// Runs the loop, calling `app` until it exits. A host whose loop can't block, such as a
-  /// browser, installs its callbacks and returns at once; the callbacks keep calling `app`.
-  fn run(self, app: impl AppHandler + 'static);
+  /// Runs the loop, calling `app` until it exits, and returns the host's own failure. A host whose
+  /// loop can't block, such as a browser, installs its callbacks and returns `Ok(())` at once; the
+  /// callbacks keep calling `app`.
+  fn run(self, app: impl AppHandler + 'static) -> Result<(), Self::Error>;
 }
 
 pub trait AppHandler {
@@ -83,7 +87,7 @@ pub trait Windows {
 
 ## 5. `artic-winit`
 
-The desktop adapter, at layer 6, depending on `artic-platform`, `artic-render` and `winit`. It exports `Host` and `Error`: `Host::new() -> Result<Host, Error>` fails if the event loop can't be created, such as with no display, and `Error` carries only a message, so no `winit` type appears in a public item. Inside, `Host` implements winit's `ApplicationHandler` and keeps a map from winit's `WindowId` to artic's `SurfaceId`.
+The desktop adapter, at layer 6, depending on `artic-platform`, `artic-render` and `winit`. It exports `Host` and `Error`: `Host::new() -> Result<Host, Error>` fails if the event loop can't be created, such as with no display, and `Error` boxes winit's error as its `source()`, so no `winit` type appears in a public item. Inside, `Host` implements winit's `ApplicationHandler` and keeps a map from winit's `WindowId` to artic's `SurfaceId`.
 
 | winit | `artic-winit` | `AppHandler` |
 | --- | --- | --- |
@@ -98,14 +102,14 @@ The desktop adapter, at layer 6, depending on `artic-platform`, `artic-render` a
 | `about_to_wait` | `ControlFlow::Wait`: sleep until the next event or wake-up | |
 
 - `cx.request_frame(id)` calls the window's `request_redraw()`, which schedules one `RedrawRequested` for that window; winit merges repeated requests. Scheduling isn't pacing: a handler that asks for the next frame from inside `frame` runs as fast as rendering allows unless something waits for the display. Pacing each surface to its display's refresh (§10) comes from the renderer's vsync'd presentation and the platform's frame callbacks ([frame design](frame.md) §4).
-- `cx.exit()` exits the loop; windows still open are reported through `surface_lost(…, Gone)` before `run` returns.
+- `cx.exit()` exits the loop; windows still open are reported through `surface_lost(…, Gone)` before `run` returns, and `run` returns `Ok(())`.
 - `targets()` is `TargetKind::Handles`.
 - The monitor is read on every resize, scale change, move and frame, because Wayland sends no `Moved` and a move between monitors of equal scale sends no scale change; a display change on its own is still reported. A monitor's `DisplayId` follows the monitor's identity as winit gives it, its `MonitorHandle`: the display's UUID on macOS, the `HMONITOR` on Windows, the RandR CRTC on X11 and the `wl_output` global on Wayland. Rearranging displays doesn't change an id, and monitors connected together always have different ones, two of one model included; a monitor plugged in again may get a new id, and on X11 one plugged in later may take the id of one unplugged from its CRTC. A window on no monitor has an id of its own.
 - A closed window is kept until its `surface_lost` has been delivered, and so is every window when the loop exits, so the handles a renderer holds stay valid until it's told they're gone. While the loop exits, `open` creates no window and its id is never reported, so a handler that opens a window from `surface_lost` can't keep the loop alive.
 - A loss says whether the surface comes back: `Suspended` on suspend, `Gone` when its window is closed, destroyed or never created, or the loop exits. A window closed or destroyed while suspended is reported again, as `Gone`, so a handler never waits for a surface that won't return.
 - On Windows, a scale change reports the new scale with the window's old size, and the `Resized` that follows corrects it.
 - A window opened during a handler call reports its first `surface_changed` right after that call returns, since the context can't call the handler while it's in a call. A window that couldn't be created reports `surface_lost(…, Gone)` the same way.
-- `run` panics if winit's loop ends with an error, such as a lost connection to the display server, after the surfaces have been reported lost: the seam's `run` returns nothing, and a silent failure would hide it.
+- `run` returns `Error::Loop` if winit's loop ends with an error, such as a lost connection to the display server, after the surfaces have been reported lost.
 
 `translate` reads a winit `WindowEvent` and its window and says what the event means: new surface facts, a close request, a frame, a move or the window's destruction. A scale change reads its new size from the window, since winit's `ScaleFactorChanged` carries a size writer rather than a size; so translation needs a real window, and the smoke example covers it.
 
@@ -120,7 +124,7 @@ The desktop adapter, at layer 6, depending on `artic-platform`, `artic-render` a
 
 | Before (§10, [backends](backends.md)) | After |
 | --- | --- |
-| `Host::run(self, app: App)` | `Host::run(self, app: impl AppHandler + 'static)`; `App` stays the app author's type |
+| `Host::run(self, app: App)` | `Host::run(self, app: impl AppHandler + 'static) -> Result<(), Self::Error>`; `App` stays the app author's type |
 | Capabilities as methods on `Host` | Capabilities on `HostContext`, reached inside callbacks; `Host` keeps `targets()` and `run` |
 | "artic asks for frames and wake-ups through a small handle" | `HostContext::request_frame` and `exit` on every call; `Waker` for other threads |
 | The host drains the dispatcher | artic drains it in `woken` and after events |

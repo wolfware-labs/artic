@@ -9,14 +9,17 @@
 // Run with `cargo run -p artic-examples --example frames`.
 
 use artic_core::Object;
+use artic_core::error::Chain;
 use artic_core::property::{Affects, Inheritance, Property, PropertyKey, PropertyVisitor};
 use artic_core::tree::{TreeKind, UiTree};
 use artic_element::{AccessCx, Application, Desktop, Element, RenderCx, Surface};
+use artic_examples::Report;
 use artic_layout::geometry::{Rect, Size};
 use artic_layout::{ArrangeCx, Layoutable, MeasureCx};
 use artic_platform::{AppHandler, Host as _, HostContext, HostEvent, Runner, SurfaceInfo, SurfaceLoss, Waker};
 use artic_render::{Color, RenderError, Renderer, Scene, SceneBuilder, SurfaceId, SurfaceView, Target, TargetKind};
 use std::cell::Cell;
+use std::io;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -125,19 +128,19 @@ impl Renderer for Blank {
   }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Report> {
   match artic_vello::Renderer::new() {
     Ok(renderer) => check(renderer),
     Err(error @ artic_vello::Error::UnsupportedAdapter(_)) => {
-      println!("{error}: drawing nothing");
+      println!("{}: drawing nothing", Chain(&error));
       check(Blank)
     }
-    Err(error) => Err(format!("no GPU renderer: {error}").into()),
+    Err(error) => Err(error.into()),
   }
 }
 
 /// Runs the app with `renderer` and returns whether it went idle.
-fn check(renderer: impl Renderer + 'static) -> Result<(), Box<dyn std::error::Error>> {
+fn check(renderer: impl Renderer + 'static) -> Result<(), Report> {
   let mut tree = UiTree::new();
   let red = Property::new(&RED, 128);
   let swatch = tree.alloc(Box::new(Swatch { red }));
@@ -159,7 +162,7 @@ fn check(renderer: impl Renderer + 'static) -> Result<(), Box<dyn std::error::Er
       red.set(255);
     }
   });
-  runner.hooks().on_error(|error| eprintln!("frame failed: {error}"));
+  runner.hooks().on_error(|error| eprintln!("frame failed: {}", Chain(error)));
 
   let quiet = Rc::new(Cell::new(None));
   let idle = Idle {
@@ -168,10 +171,10 @@ fn check(renderer: impl Renderer + 'static) -> Result<(), Box<dyn std::error::Er
     frames: Vec::new(),
     quiet: Rc::clone(&quiet),
   };
-  artic_winit::Host::new()?.run(idle);
+  artic_winit::Host::new()?.run(idle)?;
   match quiet.get() {
     Some(true) => Ok(()),
-    Some(false) => Err("frames ran after the app should have gone idle".into()),
-    None => Err("the loop ended before the check".into()),
+    Some(false) => Err(io::Error::other("frames ran after the app should have gone idle").into()),
+    None => Err(io::Error::other("the loop ended before the check").into()),
   }
 }

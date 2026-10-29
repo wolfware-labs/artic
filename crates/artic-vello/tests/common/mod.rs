@@ -1,5 +1,6 @@
 // The renderer the GPU tests share, or why this machine can't run them.
 
+use artic_core::error::Chain;
 use artic_test::golden;
 use artic_vello::{Error, Renderer};
 use std::sync::{Mutex, OnceLock, PoisonError};
@@ -28,7 +29,7 @@ fn start() -> Result<Renderer, String> {
       eprintln!("using {renderer:?}");
       Ok(renderer)
     }
-    Err(error @ (Error::Adapter(_) | Error::UnsupportedAdapter(_))) => Err(error.to_string()),
-    Err(error) => panic!("the renderer failed to start: {error}"),
+    Err(error @ (Error::Adapter(_) | Error::UnsupportedAdapter(_))) => Err(Chain(&error).to_string()),
+    Err(error) => panic!("the renderer failed to start: {}", Chain(&error)),
   }
 }

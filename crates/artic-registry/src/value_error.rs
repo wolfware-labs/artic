@@ -34,7 +34,7 @@ pub enum ValueError {
   #[error("the node isn't of the property's or content's owner type")]
   WrongNode,
   /// The child can't be linked to its parent.
-  #[error("can't add the child: {0}")]
+  #[error("can't add the child")]
   InvalidChild(#[source] LinkError),
   /// A second child for an element that takes one.
   #[error("this element takes a single child")]
@@ -51,5 +51,26 @@ mod tests {
     let error = ValueError::NotNullable { property: "Background" };
 
     assert_eq!(error.to_string(), "Background can't be null");
+  }
+
+  // A refused child says so, and the link error is its source.
+  #[test]
+  fn invalid_child_shows_its_cause_once() {
+    use std::error::Error as _;
+    let id = artic_core::tree::UiTree::new().alloc(Box::new(Leaf));
+    let error = ValueError::InvalidChild(LinkError::NotInTree(id));
+
+    assert_eq!(error.to_string(), "can't add the child");
+    assert_eq!(
+      error.source().map(ToString::to_string),
+      Some(LinkError::NotInTree(id).to_string())
+    );
+  }
+
+  #[derive(Debug)]
+  struct Leaf;
+
+  impl artic_core::Object for Leaf {
+    fn visit_properties(&self, _visitor: &mut artic_core::property::PropertyVisitor<'_>) {}
   }
 }

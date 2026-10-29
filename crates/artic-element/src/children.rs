@@ -1,6 +1,7 @@
 //! Content the tree owns: a panel's children and a single child, as logical and visual children of
 //! the same element.
 
+use artic_core::error::Chain;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_registry::{UiCollection, ValueError};
 
@@ -84,7 +85,7 @@ impl Child {
   pub fn set(tree: &mut UiTree, parent: NodeId, child: Option<NodeId>) {
     let old = match current(tree, parent) {
       Ok(old) => old,
-      Err(error) => panic!("{error}"),
+      Err(error) => panic!("{}", Chain(&error)),
     };
     if child == old {
       return;

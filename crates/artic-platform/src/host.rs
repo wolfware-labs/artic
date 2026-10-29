@@ -10,6 +10,10 @@ use std::time::Duration;
 /// An adapter crate implements it for one family of targets, such as `artic-winit` for desktop
 /// windows. A launcher passes the host to `artic::run` with a renderer and the app.
 pub trait Host {
+  /// Why the host's loop can fail, such as a lost connection to the display server;
+  /// `std::convert::Infallible` for a host whose loop can't.
+  type Error: std::error::Error + Send + Sync + 'static;
+
   /// What kind of target the host lends in [`AppHandler::frame`], checked against the renderer
   /// before the loop starts.
   fn targets(&self) -> TargetKind;
@@ -18,7 +22,13 @@ pub trait Host {
   ///
   /// A host whose loop can't block, such as a browser's, installs its callbacks and returns at
   /// once; the callbacks keep calling `app`, which is why it must be `'static`.
-  fn run(self, app: impl AppHandler + 'static);
+  ///
+  /// # Errors
+  ///
+  /// The host's own failure, once the surfaces have been reported lost. `app`'s failures are its
+  /// own and reach it through its own channel; a host whose loop can't block returns `Ok(())` at
+  /// once.
+  fn run(self, app: impl AppHandler + 'static) -> Result<(), Self::Error>;
 }
 
 /// artic's side of the loop, which a host calls.

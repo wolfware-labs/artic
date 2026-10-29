@@ -1,5 +1,6 @@
 use crate::{ContentInfo, UiType};
 use artic_core::Object;
+use artic_core::error::Chain;
 use artic_core::tree::{Handle, NodeId, UiTree};
 
 /// A node waiting to be built, with the children to link once it is: what the generated `.child`
@@ -51,7 +52,7 @@ impl<T: UiType + Object, I: IntoIterator<Item: Into<NodeId>>> WithChildren<T, I>
     let node = tree.alloc_typed(self.node);
     for child in children {
       add_child(tree, node.id(), child)
-        .unwrap_or_else(|error| panic!("`{name}`'s content refused a child that passed the checks: {error}"));
+        .unwrap_or_else(|error| panic!("`{name}`'s content refused a child that passed the checks: {}", Chain(&error)));
     }
     node
   }

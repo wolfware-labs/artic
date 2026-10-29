@@ -52,7 +52,8 @@ fn first_failing_view_stops_the_run() {
   assert!(!root.join("out/c.rs").exists());
 }
 
-// A directory that doesn't exist is an I/O error naming it.
+// A directory that doesn't exist is an I/O error naming it, and Debug, which build scripts print,
+// adds the cause.
 #[test]
 fn missing_dir_is_an_io_error() {
   let root = setup("missing", &[]);
@@ -61,6 +62,9 @@ fn missing_dir_is_an_io_error() {
     matches!(error, CompileError::Io { ref path, .. } if path.ends_with("views")),
     "{error}"
   );
+  assert!(error.to_string().ends_with("views couldn't be read or written"), "{error}");
+  let cause = std::error::Error::source(&error).expect("the io error");
+  assert_eq!(format!("{error:?}"), format!("{error}: {cause}"));
 }
 
 // An absolute directory names each view relative to it, so the header has no absolute path.

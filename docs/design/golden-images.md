@@ -86,7 +86,7 @@ pub enum GoldenError {
 - The check fails when more than `pixels`, a fraction of the image, differ, rounded down: 4 pixels of a 64×64 image by default. A `pixels` below 0 or NaN counts as 0, and one above 1 as 1. It also fails when the sizes differ, or when the golden is missing, with a message naming `ARTIC_UPDATE_GOLDENS`.
 - When pixels differ it writes `<name>.actual.png` and `<name>.diff.png` beside the golden and returns them in `GoldenError::Pixels`, whose message prints both paths. When the sizes differ there's no pixel to pair, so it writes only `<name>.actual.png`, returned in `GoldenError::Size`. The diff shows matching pixels faded to gray and differing pixels in red. Every check removes the files it doesn't write, so neither outlives the run it belongs to.
 
-A golden that can't be read or decoded, or an output that can't be written, is `GoldenError::Io` with the path; a PNG that isn't valid reads as an `io::Error` of kind `InvalidData`. `assert` panics with the error's message. `.gitignore` ignores `*.actual.png` and `*.diff.png`.
+A golden that can't be read or decoded, or an output that can't be written, is `GoldenError::Io` with the path; a PNG that isn't valid reads as an `io::Error` of kind `InvalidData`. `assert` panics with the error's message and its cause. `.gitignore` ignores `*.actual.png` and `*.diff.png`.
 
 The default tolerance is a channel difference of 8 and 0.1% of the pixels. GPUs round anti-aliased edges and blurs differently by a few levels, which the channel limit absorbs. A wrong color changes a channel by far more than 8, and an edge one pixel off changes a whole row of pixels: 64, which is 1.6% of a 64×64 image. A test that needs another tolerance passes its own, built from the default: `Tolerance::default().with_channel(16)`.
 
@@ -109,8 +109,8 @@ Each renderer's tests skip when the renderer reports no usable GPU, in the helpe
 fn with_renderer(test: impl FnOnce(&mut Renderer)) {
   match Renderer::new() {
     Ok(mut renderer) => test(&mut renderer),
-    Err(error @ (Error::Adapter(_) | Error::UnsupportedAdapter(_))) => golden::no_gpu(error),
-    Err(error) => panic!("the renderer failed to start: {error}"),
+    Err(error @ (Error::Adapter(_) | Error::UnsupportedAdapter(_))) => golden::no_gpu(Chain(&error)),
+    Err(error) => panic!("the renderer failed to start: {}", Chain(&error)),
   }
 }
 ```
