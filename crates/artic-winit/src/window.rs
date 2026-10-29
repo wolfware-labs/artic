@@ -174,6 +174,19 @@ mod tests {
     );
   }
 
+  // A chrome change turns the system's decorations off for chrome the app draws, and back on.
+  #[test]
+  fn chrome_change_sets_the_decorations() {
+    let drawn = WindowDesc {
+      chrome: Chrome::None,
+      ..locked()
+    };
+    let current = LogicalSize::new(300.0, 200.0);
+
+    assert_eq!(steps(Some(&locked()), &drawn, current), [Step::Decorations(false)]);
+    assert_eq!(steps(Some(&drawn), &locked(), current), [Step::Decorations(true)]);
+  }
+
   // A window whose size goes back to the host's keeps its current size: no resize is requested.
   #[test]
   fn unset_size_requests_no_resize() {
