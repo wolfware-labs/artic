@@ -22,7 +22,7 @@ Some of the contract is built and some comes with XAML's back ends. Each section
 A language interprets its source when the app runs, or generates Rust when the app builds. Both build the same tree.
 
 - **At run time** the language reads the registry: it looks types and properties up by name and calls the function pointers in their descriptors. XAML's runtime loader will work this way, for hot reload and the `xaml-runtime` feature.
-- **At build time** the language reads the registry while it generates code, and the code calls the types directly, such as `Border::default()` and `border.padding.set(...)`. Nothing is looked up when the app runs. XAML's compiler will work this way, from the app's `build.rs`.
+- **At build time** the language reads the registry while it generates code, and the code calls the types directly, such as `Border::default()` and `border.padding.set(...)`. Nothing is looked up when the app runs. XAML's compiler works this way, from the app's `build.rs`.
 
 `build.rs` is a separate program, and its registry holds only the crates it links. A build-time language lists the crates it reaches as build-dependencies and names each one, as [Finding types](#2-finding-types) explains.
 
@@ -157,7 +157,7 @@ A child the tree can't link is `ValueError::InvalidChild`, a second child where 
 
 ## 8. Value providers
 
-**The descriptors are built. Resolving a value provider comes with the runtime loader and the compiler.**
+**The descriptors are built. Resolving a value provider comes with typed bindings (#94) and static resources (#112).**
 
 A value provider computes a property's value when the UI is built: a binding, a resource lookup, a type reference, a static item, or null. Its type declares its arguments with `#[ui(value_provider(positional(...)))]`, and `TypeInfo::value_provider` holds them as `ValueProviderInfo`: `named` lists every argument, each a property of the type, and `positional` lists, in order, those that may also be given by position. A markup language writes one inline, as XAML's `{Binding Name, Mode=TwoWay}`; a code language calls it like a function. Resolving one gives one of the four forms in [Properties](#4-properties).
 
