@@ -9,6 +9,7 @@ mod error;
 mod host;
 mod surfaces;
 mod translate;
+mod window;
 
 pub use error::Error;
 pub use host::Host;
