@@ -8,7 +8,8 @@ use std::time::Duration;
 /// draws frames when it asks.
 ///
 /// An adapter crate implements it for one family of targets, such as `artic-winit` for desktop
-/// windows. A launcher passes the host to `artic::run` with a renderer and the app.
+/// windows. A launcher passes the host and a [`Runner`](crate::Runner) to [`run`](crate::run); with #55
+/// it passes the host, a renderer and the app to `artic::run`.
 pub trait Host {
   /// Why the host's loop can fail, such as a lost connection to the display server;
   /// `std::convert::Infallible` for a host whose loop can't.
