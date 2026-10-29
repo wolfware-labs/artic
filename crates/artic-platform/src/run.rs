@@ -26,7 +26,7 @@ pub fn run<H: Host, R: Renderer + 'static>(host: H, runner: Runner<R>) -> Result
     runner,
     failure: Rc::clone(&failure),
   });
-  if let Some(error) = failure.borrow_mut().take() {
+  if let Some(error) = failure.take() {
     return Err(error);
   }
   ended.map_err(|error| Error::Host(Box::new(error)))
@@ -61,10 +61,8 @@ impl<R: Renderer> AppHandler for Reporting<R> {
   }
 
   fn frame(&mut self, cx: &mut dyn HostContext, surface: SurfaceId, target: Target<'_>, time: Duration) {
-    if let Some(error) = self.runner.render_frame(cx, surface, target, time)
-      && self.failure.borrow().is_none()
-    {
-      *self.failure.borrow_mut() = Some(error);
+    if let Some(error) = self.runner.render_frame(cx, surface, target, time) {
+      self.failure.borrow_mut().get_or_insert(error);
     }
   }
 }

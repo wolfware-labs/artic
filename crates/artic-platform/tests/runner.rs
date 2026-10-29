@@ -577,12 +577,14 @@ fn run_that_draws_returns_ok() {
   assert!(run(OneFrame, one_window(Counter::default())).is_ok());
 }
 
-/// A host that draws once, then lends two frames that fail.
-struct FailsTwice {
+/// A host that draws once, then lends a frame for each of `outcomes`, which fails with its error, if
+/// it has one.
+struct Frames {
   fail: Rc<RefCell<Option<RenderError>>>,
+  outcomes: Vec<Option<RenderError>>,
 }
 
-impl Host for FailsTwice {
+impl Host for Frames {
   type Error = std::convert::Infallible;
 
   fn targets(&self) -> TargetKind {
@@ -595,8 +597,8 @@ impl Host for FailsTwice {
     app.started(&mut cx, Waker::new(|| {}));
     app.surface_changed(&mut cx, FIRST, info(64, 64, 1.0));
     app.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
-    for cause in ["first", "second"] {
-      *self.fail.borrow_mut() = Some(RenderError::Backend(cause.into()));
+    for outcome in self.outcomes {
+      *self.fail.borrow_mut() = outcome;
       app.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
     }
     Ok(())
@@ -609,12 +611,32 @@ fn first_render_error_is_returned() {
   let renderer = Counter::default();
   let fail = Rc::clone(&renderer.fail);
 
-  let result = run(FailsTwice { fail }, one_window(renderer));
+  let outcomes = ["first", "second"].map(|cause| Some(RenderError::Backend(cause.into())));
+
+  let result = run(
+    Frames {
+      fail,
+      outcomes: outcomes.into(),
+    },
+    one_window(renderer),
+  );
 
   let Err(Error::Render(RenderError::Backend(cause))) = result else {
     panic!("{result:?}")
   };
   assert_eq!(cause.to_string(), "first");
+}
+
+// A lost surface isn't a failure: the next frame rebuilds it, and `run` returns `Ok`.
+#[test]
+fn lost_surface_isnt_returned_from_run() {
+  let renderer = Counter::default();
+  let fail = Rc::clone(&renderer.fail);
+  let outcomes = vec![Some(RenderError::SurfaceLost), None];
+
+  let result = run(Frames { fail, outcomes }, one_window(renderer));
+
+  assert!(result.is_ok(), "{result:?}");
 }
 
 /// A host that makes every call of the seam once, recording what the app asked of it.

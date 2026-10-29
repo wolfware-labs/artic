@@ -634,7 +634,7 @@ Backends are adapters. A **`Host`** drives the screen (surfaces, input, the even
 
 ```rust,ignore
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    artic::run(artic_winit::Host::new()?, artic_vello::Renderer::new()?, my_app::app());
+    artic::run(artic_winit::Host::new()?, artic_vello::Renderer::new()?, my_app::app())?;
     Ok(())
 }
 ```
