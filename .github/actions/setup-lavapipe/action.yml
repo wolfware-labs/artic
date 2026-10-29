@@ -1,0 +1,11 @@
+name: Set up lavapipe
+description: Installs Mesa's lavapipe, a Vulkan driver that runs on the CPU, so wgpu finds an adapter on a runner without a GPU.
+
+runs:
+  using: composite
+  steps:
+    - name: Install lavapipe
+      shell: bash
+      run: |
+        sudo apt-get update -q
+        sudo apt-get install -y -q --no-install-recommends mesa-vulkan-drivers libvulkan1

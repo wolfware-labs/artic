@@ -72,9 +72,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-rust
+      - uses: ./.github/actions/setup-lavapipe
       - name: Build
         run: cargo build --workspace --all-targets
+      # Without a GPU the goldens skip and pass; lavapipe is there, so a missing adapter fails.
       - name: Test
+        env:
+          ARTIC_REQUIRE_GPU: "1"
         run: cargo test --workspace
       - name: Test the facade's features
         run: cargo test -p artic --all-features
