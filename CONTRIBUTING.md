@@ -49,7 +49,7 @@ Commit the updated `.snap` files with the change that caused them. Never commit 
 
 ## Errors
 
-An error's message says what failed at its own layer and never formats its cause. The cause is `#[source]` (or `#[from]`, or the whole error is `transparent`), so a chain reporter such as `anyhow` prints each cause once. Code that shows an error to a person prints the message and then each `source()`.
+An error's message says what failed at its own layer and never formats its cause. The cause is `#[source]` (or `#[from]`, or the whole error is `transparent`), so a chain reporter such as `anyhow` prints each cause once. Code that shows an error to a person, in a panic, a log line or a `main`, shows `artic_core::error::Chain(&error)`, which prints the message and then each `source()`.
 
 ## Dependencies
 

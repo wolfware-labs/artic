@@ -10,6 +10,7 @@
 //! - [`input`]: [`InputEvent`](input::InputEvent), the input an element receives.
 //! - [`dispatcher`]: [`Dispatcher`](dispatcher::Dispatcher), the UI thread's task queue, which flushes
 //!   effects after each task.
+//! - [`error`]: [`Chain`](error::Chain), which shows an error to a person with each of its causes.
 //! - [`ToRust`]: a value that writes the Rust expression that builds it, into a [`RustExpr`], for
 //!   code generated at build time.
 //!
@@ -18,6 +19,7 @@
 
 pub(crate) mod arena;
 pub mod dispatcher;
+pub mod error;
 pub mod event;
 pub mod input;
 mod object;

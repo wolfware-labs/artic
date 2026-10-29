@@ -5,13 +5,14 @@
 //
 // Run with `ARTIC_SMOKE_FRAMES=120 cargo run -p artic-examples --example smoke`.
 
+use artic_examples::Report;
 use artic_platform::{
   AppHandler, Axes, Chrome, Host as _, HostContext, HostEvent, LogicalSize, SurfaceInfo, SurfaceLoss, Waker, WindowDesc,
 };
 use artic_render::{SurfaceId, Target};
 use std::time::Duration;
 
-fn main() -> Result<(), artic_winit::Error> {
+fn main() -> Result<(), Report> {
   artic_winit::Host::new()?.run(Smoke::from_env())?;
   Ok(())
 }

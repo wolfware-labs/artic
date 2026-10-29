@@ -2,6 +2,7 @@
 
 use crate::CratePaths;
 use crate::compile_str;
+use artic_core::error::Chain;
 use artic_diagnostics::{Diagnostics, SourceMap};
 use artic_registry::{Registry, RegistryError};
 use artic_view::Language;
@@ -42,8 +43,7 @@ pub enum CompileError {
 /// than the source map.
 impl Debug for CompileError {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    Display::fmt(self, f)?;
-    std::iter::successors(std::error::Error::source(self), |cause| cause.source()).try_for_each(|cause| write!(f, ": {cause}"))
+    Display::fmt(&Chain(self), f)
   }
 }
 

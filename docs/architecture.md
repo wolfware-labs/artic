@@ -106,7 +106,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-text` | `artic-layout` | `artic-test-fonts` |
 | `artic-style` | `artic-core`, `artic-registry` | none |
 | `artic-view` | `artic-registry`, `artic-diagnostics`, `artic-ident` | `artic-core` |
-| `artic-view-compiler` | `artic-view`, `artic-registry`, `artic-diagnostics` | `artic-core` |
+| `artic-view-compiler` | `artic-core`, `artic-view`, `artic-registry`, `artic-diagnostics` | none |
 | `artic-xaml-lang` | `artic-xaml`, `artic-view`, `artic-registry`, `artic-diagnostics` | `artic`, `artic-core`, `artic-macros`, `artic-view-compiler` |
 | `artic-xaml-runtime` | `artic-xaml`, `artic-registry`, `artic-core` | none |
 | `artic-element` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-macros` | `artic-text` |

@@ -9,9 +9,11 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[dependencies]
+artic-core.workspace = true
+
 [dev-dependencies]
 accesskit.workspace = true
-artic-core.workspace = true
 artic-element.workspace = true
 artic-layout.workspace = true
 artic-platform.workspace = true

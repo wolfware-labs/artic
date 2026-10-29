@@ -1,4 +1,5 @@
 use super::{Image, flag};
+use artic_core::error::Chain;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -179,11 +180,7 @@ impl Golden {
   /// When the check fails, with its error's message and causes.
   pub fn assert(&self, actual: &Image) {
     if let Err(error) = self.check(actual) {
-      panic!(
-        "{}",
-        std::iter::successors(std::error::Error::source(&error), |cause| cause.source())
-          .fold(error.to_string(), |message, cause| format!("{message}: {cause}"))
-      );
+      panic!("{}", Chain(&error));
     }
   }
 

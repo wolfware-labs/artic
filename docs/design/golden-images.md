@@ -109,8 +109,8 @@ Each renderer's tests skip when the renderer reports no usable GPU, in the helpe
 fn with_renderer(test: impl FnOnce(&mut Renderer)) {
   match Renderer::new() {
     Ok(mut renderer) => test(&mut renderer),
-    Err(error @ (Error::Adapter(_) | Error::UnsupportedAdapter(_))) => golden::no_gpu(error),
-    Err(error) => panic!("the renderer failed to start: {error}"),
+    Err(error @ (Error::Adapter(_) | Error::UnsupportedAdapter(_))) => golden::no_gpu(Chain(&error)),
+    Err(error) => panic!("the renderer failed to start: {}", Chain(&error)),
   }
 }
 ```

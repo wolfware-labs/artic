@@ -7,8 +7,10 @@
 // Run with `cargo run -p artic-examples --example primitives`.
 
 use artic_core::Object;
+use artic_core::error::Chain;
 use artic_core::property::{Affects, PropertyVisitor};
 use artic_core::tree::{NodeId, UiTree};
+use artic_examples::Report;
 use artic_layout::geometry::{CornerRadius, Path, Point, Rect, RelativePoint, RelativeScalar, RoundedRect, Transform};
 use artic_layout::text::{FontFamily, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle, TextWrapping};
 use artic_platform::{
@@ -34,15 +36,8 @@ const BLUE: Color = Color::rgb(59, 130, 246);
 const PINK: Color = Color::rgb(236, 72, 153);
 const YELLOW: Color = Color::rgb(250, 204, 21);
 
-fn main() -> Result<(), artic_winit::Error> {
-  let renderer = match Renderer::new() {
-    Ok(renderer) => renderer,
-    Err(error) => {
-      eprintln!("can't start the renderer: {}", artic_examples::chain(&error));
-      std::process::exit(1);
-    }
-  };
-  artic_winit::Host::new()?.run(Demo::new(renderer))?;
+fn main() -> Result<(), Report> {
+  artic_winit::Host::new()?.run(Demo::new(Renderer::new()?))?;
   Ok(())
 }
 
@@ -251,7 +246,7 @@ impl AppHandler for Demo {
       target,
     };
     if let Err(error) = self.renderer.render(&scene, view) {
-      eprintln!("frame skipped: {error}");
+      eprintln!("frame skipped: {}", Chain(&error));
     }
   }
 }
