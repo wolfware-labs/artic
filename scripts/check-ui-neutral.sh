@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Fails when a crate below the XAML layer names XAML or writes one of its `x:` directives, such as
-# `x:Name`. The XAML crates, the language server, the CLI, the facade's XAML module, the lines of
-# the facade root that declare and document its `xaml` and `xaml-compiler` features, and
-# docs-check's list of every document are allowed to.
+# `x:Name`. The XAML crates, the language server, the CLI, the facade's XAML module and its tests,
+# the lines of the facade root that declare and document its `xaml` and `xaml-compiler` features,
+# and docs-check's list of every document are allowed to.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 allowed=(':!crates/artic-xaml/' ':!crates/artic-xaml-lang/' ':!crates/artic-xaml-runtime/'
@@ -19,7 +19,12 @@ for status in "$names_status" "$directives_status"; do
   fi
 done
 features='^crates/artic/(Cargo\.toml:[0-9]+:(xaml(-compiler)? = |artic-xaml(-lang)? = )|src/lib\.rs:[0-9]+:(//! - `xaml(-compiler)?`: |#\[cfg\(feature = "xaml"\)\]$|pub mod xaml;$))'
-hits=$(printf '%s\n%s' "$names" "$directives" | grep -v -E "$features" | sed '/^$/d')
+hits=$(printf '%s\n%s' "$names" "$directives" | grep -v -E "$features")
+if [ $? -gt 1 ]; then
+  echo "the facade's feature pattern is invalid"
+  exit 2
+fi
+hits=$(printf '%s\n' "$hits" | sed '/^$/d')
 if [ -n "$hits" ]; then
   echo "These lines name XAML or write its directives below the XAML layer:"
   echo "$hits"
