@@ -8,11 +8,11 @@ report="$1/mutants.out"
 status="$2"
 if [ -s "$report/timeout.txt" ]; then
   echo "Timed out:"
-  sed 's/^/- /' "$report/timeout.txt"
+  sed 's/^/- `/; s/$/`/' "$report/timeout.txt"
 fi
 if [ -s "$report/missed.txt" ]; then
   echo "Missed:"
-  sed 's/^/- /' "$report/missed.txt"
+  sed 's/^/- `/; s/$/`/' "$report/missed.txt"
   exit 2
 fi
 [ "$status" -eq 0 ] || [ "$status" -eq 3 ] || exit "$status"
