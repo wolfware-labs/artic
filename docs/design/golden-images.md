@@ -55,6 +55,7 @@ impl Default for Tolerance { /* channel 8, pixels 0.001 */ }
 impl Tolerance {
   pub fn with_channel(self, channel: u8) -> Tolerance;
   pub fn with_pixels(self, pixels: f32) -> Tolerance;
+  pub fn text() -> Tolerance; // the default with 0.6% of the pixels
 }
 
 pub struct Golden { /* path, tolerance, per_os */ }
@@ -89,6 +90,8 @@ pub enum GoldenError {
 A golden that can't be read or decoded, or an output that can't be written, is `GoldenError::Io` with the path; a PNG that isn't valid reads as an `io::Error` of kind `InvalidData`. `assert` panics with the error's message and its cause. `.gitignore` ignores `*.actual.png` and `*.diff.png`.
 
 The default tolerance is a channel difference of 8 and 0.1% of the pixels. GPUs round anti-aliased edges and blurs differently by a few levels, which the channel limit absorbs. A wrong color changes a channel by far more than 8, and an edge one pixel off changes a whole row of pixels: 64, which is 1.6% of a 64×64 image. A test that needs another tolerance passes its own, built from the default: `Tolerance::default().with_channel(16)`.
+
+Text goldens use `Tolerance::text()`, which allows 0.6% of the pixels. Rasterizers cover a glyph's edge pixels slightly differently: on lavapipe, Ubuntu CI's Vulkan driver on the CPU, the text goldens differ from a GPU's in up to 0.3% of their pixels, while shapes and fills stay within the default.
 
 ## 3. Updating and skipping
 
@@ -157,7 +160,7 @@ The exact pixel tests in `artic-vello/tests/pixels.rs` stay. They check rules a 
 
 | Crate | Tests |
 | --- | --- |
-| `artic-test` | `identical_images_match`, `small_differences_within_tolerance_match`, `too_many_differing_pixels_fail`, `different_sizes_fail`, `png_round_trips`, `golden_mismatch_writes_diff`, `passing_check_removes_old_outputs`, `missing_golden_says_how_to_create_it`, `unreadable_golden_is_an_io_error`, `updating_twice_changes_no_bytes`, `render_reads_the_renderers_pixels` and `render_tree_draws_the_root` (both with a renderer that fills the buffer with one color) |
+| `artic-test` | `identical_images_match`, `small_differences_within_tolerance_match`, `too_many_differing_pixels_fail`, `different_sizes_fail`, `png_round_trips`, `golden_mismatch_writes_diff`, `passing_check_removes_old_outputs`, `text_tolerance_allows_glyph_edges_drawn_on_another_rasterizer`, `missing_golden_says_how_to_create_it`, `unreadable_golden_is_an_io_error`, `updating_twice_changes_no_bytes`, `render_reads_the_renderers_pixels` and `render_tree_draws_the_root` (both with a renderer that fills the buffer with one color) |
 | `artic-vello` goldens | one test per scene in section 4 |
 
 The file tests write into a temporary directory through `Golden::at`, and take the update mode as a value instead of setting the variable: `set_var` is `unsafe` in edition 2024 because tests run on parallel threads. The first run of the vello goldens creates the PNGs with `ARTIC_UPDATE_GOLDENS=1`, and each is checked by eye before it's committed.

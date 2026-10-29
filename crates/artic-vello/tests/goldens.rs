@@ -11,15 +11,19 @@ use artic_layout::HorizontalAlignment;
 use artic_layout::geometry::{CornerRadius, Point, Thickness};
 use artic_layout::text::{TextAlignment, TextTrimming, TextWrapping};
 use artic_render::{BoxShadow, Color, PhysicalSize, Scene};
-use artic_test::golden::{render, render_tree};
+use artic_test::golden::{Tolerance, render, render_tree};
 use artic_test::{golden, scenes};
 use common::with_renderer;
 use std::num::NonZeroU32;
 
 fn check(name: &str, scene: fn() -> Scene) {
+  check_within(name, scene, Tolerance::default());
+}
+
+fn check_within(name: &str, scene: fn() -> Scene, tolerance: Tolerance) {
   with_renderer(|renderer| {
     let image = render(renderer, &scene(), scenes::SIZE, 1.0).expect("renders");
-    golden!(name).assert(&image);
+    golden!(name).with_tolerance(tolerance).assert(&image);
   });
 }
 
@@ -62,19 +66,19 @@ fn box_shadow() {
 // "Text" in solid blue.
 #[test]
 fn text_solid() {
-  check("text_solid", scenes::text_solid);
+  check_within("text_solid", scenes::text_solid, Tolerance::text());
 }
 
 // Two lines painted with one gradient across the paragraph.
 #[test]
 fn text_gradient() {
-  check("text_gradient", scenes::text_gradient);
+  check_within("text_gradient", scenes::text_gradient, Tolerance::text());
 }
 
 // A sentence wrapped to the width.
 #[test]
 fn text_wrapped() {
-  check("text_wrapped", scenes::text_wrapped);
+  check_within("text_wrapped", scenes::text_wrapped, Tolerance::text());
 }
 
 // A gradient clipped by a rectangle.
@@ -244,7 +248,7 @@ fn text_blocks_golden(name: &str, blocks: Vec<Configure>) {
       Children::add(&mut tree, root, child);
     }
     let image = render_tree(renderer, &mut tree, root, &ElementTypes::from_link_time(), TEXT_SIZE, 1.0).expect("renders");
-    golden!(name).assert(&image);
+    golden!(name).with_tolerance(Tolerance::text()).assert(&image);
   });
 }
 
