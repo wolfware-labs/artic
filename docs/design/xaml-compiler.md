@@ -77,7 +77,7 @@ impl RustExpr {
 
 ## What a compiled view gives the app
 
-Each `src/views/<name>.xaml` becomes `$OUT_DIR/views/<name>.rs`, at its path under the directory `compile_dir` reads (#52 moves it to its path in the crate, `$OUT_DIR/views/src/views/<name>.rs`), a module body with one constant, one struct and one function:
+Each `src/views/<name>.xaml` becomes `$OUT_DIR/views/<name>.rs`, at its path under the directory `compile_dir` reads (#52 moves it to its path in the crate, `$OUT_DIR/views/src/views/<name>.rs`), a module body with one struct and one function. #52 adds the `CODE_TYPE` constant the sample shows:
 
 ```rust,ignore
 // Generated from src/views/login_view.xaml.
@@ -116,11 +116,11 @@ pub fn build(tree: &mut UiTree) -> View {
 - A property becomes its builder method, named after the field (`PropertyInfo::field`). A group's property uses the same name through the group's methods trait. `PropertyGroupInfo` gains `methods: &'static str`, the trait's defining path from `PropertyGroup::METHODS`. The compiler never writes that path, which may name a private module: it takes the crate (first segment) and the trait's name (last segment), and since the trait sits at its crate's root, imports it once per file as `use <crate path>::<Trait> as _;` with the crate's path from `CratePaths`, such as `use ::artic::element::LayoutMethods as _;`.
 - Content comes last, after the property methods, because `.child` and `.children` return a `WithChildren` that has only `build`. `ContentInfo::Collection` gains `method: Option<ContentMethod>`, the method the derive generated (`ContentMethod::Child` or `ContentMethod::Children`) or `None` for a collection of values; a `ContentInfo::Property` content is that property's method, given text or a literal. Text content takes the node's `text`, or its `raw` text for a type marked `whitespace = "significant"`.
 - `x:Name` adds a field to `View`, typed by the element, named by the name in snake_case, each run of underscores inside it written as one: `SubmitButton` gives `submit_button`, `URLField` gives `url_field`, `first__name` gives `first_name`. The name is taken as written and its field must be a Rust identifier; a field that is a keyword becomes a raw identifier (`r#type`), and a field `self`, `crate`, `super` or `root` is rejected. Two names with one field, such as `Email` and `email`, are a duplicate, and the error's help names both spellings.
-- `CODE_TYPE` is `None` for a view without `x:Class`, as here. With one, it is `Some("<crate>::<path>")` and the root is the code type.
-- `x:Class` makes the view's root its code type, and `x:FieldModifier` sets a named node's field visibility ([code type design](ui-class.md)); `x:DataType` is recorded for #94; `x:Uid` is accepted and ignored until localization (#168).
+- With #52, `CODE_TYPE` is `None` for a view without `x:Class`, as here. With one, it is `Some("<crate>::<path>")` and the root is the code type.
+- With #52, `x:Class` makes the view's root its code type, and `x:FieldModifier` sets a named node's field visibility ([code type design](ui-class.md)). Until then the compiler accepts both and ignores them. `x:DataType` is recorded for #94; `x:Uid` is accepted and ignored until localization (#168).
 - The file references every crate the namespace map names and every crate `CratePaths` names, with `use <path> as _;`, so their types stay in the app's link (below).
 
-The block above is a view without a code type. The builder design's sample is a view with one: its `build` returns the code type at the root, `View` holds only the named nodes, and `CODE_TYPE` names the type ([code type design](ui-class.md#building-it)).
+The block above is a view without a code type. With #52, the builder design's sample is a view with one: its `build` returns the code type at the root, `View` holds only the named nodes, and `CODE_TYPE` names the type ([code type design](ui-class.md#building-it)).
 
 ## What the compiler reports
 
