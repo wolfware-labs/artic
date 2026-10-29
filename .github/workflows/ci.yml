@@ -149,6 +149,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup-rust
+      - uses: ./.github/actions/setup-lavapipe
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-mutants
@@ -159,6 +160,8 @@ jobs:
       # --in-place builds in the checkout, so the restored dependency cache is reused instead of
       # copying the tree for every mutant.
       - name: Mutate the changed lines
+        env:
+          ARTIC_REQUIRE_GPU: "1"
         run: >-
           cargo mutants --in-diff "$RUNNER_TEMP/pr.diff" --in-place --no-shuffle
           --shard ${{ matrix.shard }}/8 --output "$RUNNER_TEMP"

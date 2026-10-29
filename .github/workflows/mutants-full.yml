@@ -36,11 +36,14 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-rust
+      - uses: ./.github/actions/setup-lavapipe
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-mutants
       # The same configuration as the pull request check (.cargo/mutants.toml), over every file.
       - name: Mutate the workspace
+        env:
+          ARTIC_REQUIRE_GPU: "1"
         run: cargo mutants --workspace --in-place --no-shuffle --shard ${{ matrix.shard }}/32 --output "$RUNNER_TEMP"
       - name: Keep the report
         if: ${{ !cancelled() }}
