@@ -118,7 +118,7 @@ pub struct Problem {
 - `Content::span` runs from the first node to the last, the span a content property's text is set at.
 - `module` keeps the module a document named, as XAML's `using:` does, so generated code names the type there. Without one, the type is reached at its crate's root, the [convention](xaml-compiler.md#naming-types-in-generated-code) every artic crate follows.
 - `Content::Text` carries both forms because a type whose whitespace is significant (`Whitespace::Significant`) reads `raw`; the rules that make `text` are the language's own.
-- The document holds only what artic can build today. A construct a later issue adds is an `Unsupported` problem until that issue adds it: attached properties (#50), an element as a property's value (#57), value providers (#94, #112), resource keys (#111). The code type and field visibility come with #52 and the data type with #94, each as a member of the document, so the loader (#58) gets them from the same document as the compiler.
+- The document holds only what artic can build today. A construct a later issue adds is an `Unsupported` problem until that issue adds it: attached properties (#50), an element as a property's value (#57), value providers (#94, #112, #113, #85, #62), resource keys (#111). The code type and field visibility come with #52 and the data type with #94, each as a member of the document, so the loader (#58) gets them from the same document as the compiler.
 - The types are `artic_view::document::Element` and the like; code that also uses `artic_element::Element` names the module.
 
 ## A language
