@@ -57,8 +57,12 @@ use objects::Objects;
 use std::any::Any;
 #[cfg(debug_assertions)]
 use std::cell::RefCell;
+#[cfg(debug_assertions)]
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
+#[cfg(debug_assertions)]
+use std::hash::{BuildHasherDefault, DefaultHasher};
 
 /// The UI tree: owns every node, links them into the logical and visual trees, and tracks what each
 /// node needs redone.
@@ -100,7 +104,7 @@ pub struct UiTree {
   attached_values: AttachedValues,
   structure_generation: u64,
   #[cfg(debug_assertions)]
-  touched: RefCell<Vec<(NodeId, Vec<SignalId>)>>,
+  touched: RefCell<HashMap<NodeId, Vec<SignalId>, BuildHasherDefault<DefaultHasher>>>,
 }
 
 /// A handle to a node stored in a [`UiTree`].
@@ -197,7 +201,7 @@ impl UiTree {
       attached_values: AttachedValues::new(),
       structure_generation: 0,
       #[cfg(debug_assertions)]
-      touched: RefCell::new(Vec::new()),
+      touched: RefCell::new(HashMap::with_hasher(BuildHasherDefault::new())),
     }
   }
 
@@ -333,10 +337,7 @@ impl UiTree {
     let object = self.objects.get_mut(id)?;
     #[cfg(debug_assertions)]
     {
-      let touched = self.touched.get_mut();
-      if !touched.iter().any(|(node, _)| *node == id) {
-        touched.push((id, property_ids(object)));
-      }
+      self.touched.get_mut().entry(id).or_insert_with(|| property_ids(object));
     }
     Some(object)
   }
