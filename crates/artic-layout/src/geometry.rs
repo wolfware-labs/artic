@@ -301,7 +301,6 @@ impl RoundedRect {
       (height, top_right + bottom_right),
     ]
     .into_iter()
-    .filter(|&(side, radii)| radii > side)
     .map(|(side, radii)| side / radii)
     .fold(1.0, f64::min);
     let down = |radius: f64| {

@@ -200,7 +200,7 @@ impl LayoutManager {
       .pass
       .slots
       .iter()
-      .filter(|(_, slot)| slot.arrange_dirty && slot.offered.is_some())
+      .filter(|(_, slot)| slot.arrange_dirty)
       .map(|(node, _)| (depths[node], *node))
       .collect();
     waiting.sort_by_key(|(depth, _)| *depth);

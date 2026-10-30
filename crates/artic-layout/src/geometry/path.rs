@@ -209,17 +209,17 @@ impl PathBuilder {
 fn quad_turns(start: f32, control: f32, end: f32) -> impl Iterator<Item = f32> {
   let [start, control, end] = [start, control, end].map(f64::from);
   let t = (start - control) / (start - 2.0 * control + end);
-  Some(t).filter(|t| *t > 0.0 && *t < 1.0).map(|t| t as f32).into_iter()
+  Some(t).filter(|t| (0.0..=1.0).contains(t)).map(|t| t as f32).into_iter()
 }
 
 fn cubic_turns(start: f32, first: f32, second: f32, end: f32) -> impl Iterator<Item = f32> {
   let [start, first, second, end] = [start, first, second, end].map(f64::from);
   let (a, b, c) = (first - start, second - first, end - second);
   let (qa, qb, qc) = (a - 2.0 * b + c, 2.0 * (b - a), a);
-  let q = -0.5 * (qb + qb.signum() * (qb * qb - 4.0 * qa * qc).sqrt());
+  let q = -0.5 * (qb + (qb * qb - 4.0 * qa * qc).sqrt().copysign(qb));
   [q / qa, qc / q]
     .into_iter()
-    .filter(|t| *t > 0.0 && *t < 1.0)
+    .filter(|t| (0.0..=1.0).contains(t))
     .map(|t| t as f32)
 }
 
