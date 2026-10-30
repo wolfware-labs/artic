@@ -297,8 +297,12 @@ impl LayoutManager {
       measured: Vec::new(),
     };
 
-    // Upward: a dirty node measures again in the size it had. If its desired size is unchanged,
-    // the change stops there and only the node is arranged again; otherwise its parent is next.
+    // Upward, deepest first: a dirty node measures again in the size it had. If its desired size
+    // is unchanged, the change stops there and only the node is arranged again; otherwise its
+    // parent is next. The order is what lets a clean child answer from its cache: when a node is
+    // measured here, every dirty node below it has either been measured and marked its way up, or
+    // sits under a dirty ancestor on a path `between` keeps dirty, so a child still clean has
+    // nothing new under it.
     while let Some((_, deepest)) = by_depth.pop_last() {
       for node in deepest {
         if node == root || !cx.dirty.contains(&node) {
