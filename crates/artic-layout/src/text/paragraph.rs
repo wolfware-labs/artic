@@ -391,6 +391,20 @@ mod tests {
     assert!(!height_only.limited_width() && height_only.limited_height());
   }
 
+  // Two different fonts hash differently, as they compare unequal; a clone hashes as its original.
+  #[test]
+  fn fonts_hash_by_identity() {
+    fn hash(font: &FontData) -> u64 {
+      let mut hasher = std::hash::DefaultHasher::new();
+      font.hash(&mut hasher);
+      hasher.finish()
+    }
+    let first = font();
+
+    assert_eq!(hash(&first), hash(&first.clone()));
+    assert_ne!(hash(&first), hash(&font()));
+  }
+
   // Bytes embedded with `include_bytes!`, a fixed-size array, convert like a slice.
   #[test]
   fn font_bytes_take_an_embedded_array() {

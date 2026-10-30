@@ -72,13 +72,14 @@ impl BitOrAssign for Affects {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use pretty_assertions::assert_eq;
 
-  // A union keeps a stage both sides have, as `|` does.
+  // A union keeps a stage both sides have, and every stage either side has.
   #[test]
   fn union_keeps_the_stages_both_sides_have() {
-    let both = Affects::LAYOUT | Affects::RENDER;
+    let merged = Affects::LAYOUT.union(Affects::RENDER).union(Affects::LAYOUT);
 
-    assert_eq!(both.union(Affects::LAYOUT), both);
+    assert!(merged.contains(Affects::LAYOUT));
+    assert!(merged.contains(Affects::RENDER));
+    assert!(!merged.contains(Affects::SURFACE));
   }
 }

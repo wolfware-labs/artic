@@ -215,6 +215,17 @@ fn infinite_desired_size_panics_in_debug() {
   run(&mut LayoutManager::default(), &mut tree, root, WINDOW);
 }
 
+// The root offered an invalid size is reported as offered by the layout root, since no node did.
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "the layout root offered node")]
+fn invalid_root_size_names_the_layout_root() {
+  let mut tree = UiTree::new();
+  let root = leaf(&mut tree, 10.0, 10.0);
+
+  run(&mut LayoutManager::default(), &mut tree, root, Size::new(-1.0, 10.0));
+}
+
 // The panic names the node that returned the infinite size.
 #[test]
 #[cfg(debug_assertions)]

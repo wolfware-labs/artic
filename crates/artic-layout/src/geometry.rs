@@ -722,6 +722,33 @@ mod tests {
     assert_ne!(shape.path().elements(), &ring.elements()[..=close]);
   }
 
+  // A corner's radius also stops at the inner edge of the side below or above it: a 15-wide bottom
+  // border on a 20-high box leaves the top corners 5.
+  #[test]
+  fn fitted_for_border_reaches_down_to_the_opposite_border() {
+    let shape = RoundedRect::new(Rect::new(0.0, 0.0, 40.0, 20.0), CornerRadius::uniform(10.0));
+
+    let outline = shape.fitted_for_border(Thickness::new(0.0, 0.0, 0.0, 15.0));
+
+    assert_eq!(outline.radius, CornerRadius::new(5.0, 5.0, 10.0, 10.0));
+  }
+
+  // A corner the border leaves with a vertical radius but none across is drawn with straight
+  // lines, like a square corner, not a curve.
+  #[test]
+  fn inner_corner_without_a_horizontal_radius_is_straight() {
+    let shape = RoundedRect::new(Rect::new(0.0, 0.0, 40.0, 40.0), CornerRadius::uniform(10.0));
+
+    let inner = shape.inner(Thickness::new(10.0, 2.0, 0.0, 0.0));
+    let curves = inner
+      .elements()
+      .iter()
+      .filter(|element| matches!(element, PathElement::CubicTo(..)))
+      .count();
+
+    assert_eq!(curves, 2);
+  }
+
   // Radii far larger than the box are fitted to it before anything else.
   #[test]
   fn huge_radii_are_fitted_first() {
