@@ -313,6 +313,34 @@ mod tests {
     golden
   }
 
+  // The diff image shows unchanged pixels as light gray, from 192 for black to 255 for white, and
+  // lighter the more transparent they are.
+  #[test]
+  fn faded_grays_by_luma_under_alpha() {
+    let faded = [[0, 0, 0, 255], [255, 255, 255, 255], [200, 100, 50, 255], [200, 100, 50, 128]].map(faded);
+
+    assert_eq!(
+      faded,
+      [
+        [192, 192, 192, 255],
+        [255, 255, 255, 255],
+        [223, 223, 223, 255],
+        [207, 207, 207, 255]
+      ]
+    );
+  }
+
+  // Removing a file that isn't there is fine; any other failure, such as a directory in its place,
+  // is reported.
+  #[test]
+  fn remove_reports_errors_other_than_missing() {
+    let dir = scratch("remove");
+    std::fs::create_dir_all(&dir).expect("creates");
+
+    assert!(remove(&[&dir.join("missing.png")]).is_ok());
+    assert!(matches!(remove(&[&dir]), Err(GoldenError::Io { .. })));
+  }
+
   // An image compared with itself has no differing pixel.
   #[test]
   fn identical_images_match() {

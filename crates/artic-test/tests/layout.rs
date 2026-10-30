@@ -73,6 +73,23 @@ fn elements_count_their_calls() {
   assert_eq!((stack.measured(), stack.arranged()), (1, 1));
 }
 
+// A run at another size measures and arranges every node again, and the counters say so.
+#[test]
+fn elements_count_each_call() {
+  let mut layout = Headless::new();
+  let leaf = layout.add("leaf", Fixed::new(10.0, 10.0));
+  let root = layout.parent("stack", Stack::new(), &[leaf]);
+
+  layout.run(root, WINDOW, 1.0);
+  layout.run(root, Size::new(200.0, 100.0), 1.0);
+
+  let tree = layout.tree();
+  let fixed = tree.get_as::<Fixed>(leaf).expect("a fixed");
+  let stack = tree.get_as::<Stack>(root).expect("a stack");
+  assert_eq!((fixed.measured(), fixed.arranged()), (2, 2));
+  assert_eq!((stack.measured(), stack.arranged()), (2, 2));
+}
+
 // A new size on a `Fixed` shows after its node is invalidated.
 #[test]
 fn set_size_shows_after_invalidating() {
