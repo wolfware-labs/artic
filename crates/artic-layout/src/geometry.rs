@@ -281,8 +281,8 @@ impl RoundedRect {
 
   /// The same shape with radii that can be drawn: a negative, NaN or infinite radius is `0`, and
   /// when two radii on one side add up to more than the side, all four shrink by the same factor,
-  /// as in CSS, rounded down so they never add up to more than the side. Fitting a fitted shape
-  /// changes nothing.
+  /// as in CSS, and both are nudged down where `f32` rounding would make them add up to more than
+  /// the side. Fitting a fitted shape changes nothing.
   #[must_use]
   pub fn fitted(self) -> RoundedRect {
     let drawable = |radius: f32| f64::from(finite::usable(radius));
@@ -303,17 +303,9 @@ impl RoundedRect {
     .into_iter()
     .map(|(side, radii)| side / radii)
     .fold(1.0, f64::min);
-    let down = |radius: f64| {
-      let rounded = radius as f32;
-      if f64::from(rounded) > radius {
-        rounded.next_down()
-      } else {
-        rounded
-      }
-    };
-    let mut radii = [top_left, top_right, bottom_right, bottom_left].map(|radius| down(radius * scale));
+    let mut radii = [top_left, top_right, bottom_right, bottom_left].map(|radius| (radius * scale) as f32);
     for (side, first, second) in [(width, 0, 1), (width, 3, 2), (height, 0, 3), (height, 1, 2)] {
-      if f64::from(radii[first]) + f64::from(radii[second]) > side {
+      while f64::from(radii[first]) + f64::from(radii[second]) > side {
         radii[first] = radii[first].next_down().max(0.0);
         radii[second] = radii[second].next_down().max(0.0);
       }
@@ -875,6 +867,19 @@ mod tests {
       }
     }
     assert_eq!(refitted, []);
+  }
+
+  // Scaled radii that `f32` can't hold exactly are rounded so a side's two never add up to more
+  // than the side, each staying within one step of its exact share: 1/3 and 2/3 of a 1-wide side.
+  #[test]
+  fn fitted_radii_round_to_fit_their_side() {
+    let rect = Rect::new(0.0, 0.0, 1.0, 10.0);
+    let CornerRadius { top_left, top_right, .. } =
+      RoundedRect::new(rect, CornerRadius::new(1.0, 2.0, 0.0, 0.0)).fitted().radius;
+
+    assert!(f64::from(top_left) + f64::from(top_right) <= 1.0);
+    assert!((f64::from(top_left) - 1.0 / 3.0).abs() <= f64::from(f32::EPSILON) / 3.0);
+    assert!((f64::from(top_right) - 2.0 / 3.0).abs() <= f64::from(f32::EPSILON) / 3.0);
   }
 
   // Radii that two corners of one side can't share shrink together, by the factor the tightest
