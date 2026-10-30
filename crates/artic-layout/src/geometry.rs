@@ -281,8 +281,8 @@ impl RoundedRect {
 
   /// The same shape with radii that can be drawn: a negative, NaN or infinite radius is `0`, and
   /// when two radii on one side add up to more than the side, all four shrink by the same factor,
-  /// as in CSS, rounded down so they never add up to more than the side. Fitting a fitted shape
-  /// changes nothing.
+  /// as in CSS, and both are nudged down where `f32` rounding would make them add up to more than
+  /// the side. Fitting a fitted shape changes nothing.
   #[must_use]
   pub fn fitted(self) -> RoundedRect {
     let drawable = |radius: f32| f64::from(finite::usable(radius));
@@ -301,18 +301,9 @@ impl RoundedRect {
       (height, top_right + bottom_right),
     ]
     .into_iter()
-    .filter(|&(side, radii)| radii > side)
     .map(|(side, radii)| side / radii)
     .fold(1.0, f64::min);
-    let down = |radius: f64| {
-      let rounded = radius as f32;
-      if f64::from(rounded) > radius {
-        rounded.next_down()
-      } else {
-        rounded
-      }
-    };
-    let mut radii = [top_left, top_right, bottom_right, bottom_left].map(|radius| down(radius * scale));
+    let mut radii = [top_left, top_right, bottom_right, bottom_left].map(|radius| (radius * scale) as f32);
     for (side, first, second) in [(width, 0, 1), (width, 3, 2), (height, 0, 3), (height, 1, 2)] {
       if f64::from(radii[first]) + f64::from(radii[second]) > side {
         radii[first] = radii[first].next_down().max(0.0);
@@ -731,6 +722,33 @@ mod tests {
     assert_ne!(shape.path().elements(), &ring.elements()[..=close]);
   }
 
+  // A corner's radius also stops at the inner edge of the side below or above it: a 15-wide bottom
+  // border on a 20-high box leaves the top corners 5.
+  #[test]
+  fn fitted_for_border_reaches_down_to_the_opposite_border() {
+    let shape = RoundedRect::new(Rect::new(0.0, 0.0, 40.0, 20.0), CornerRadius::uniform(10.0));
+
+    let outline = shape.fitted_for_border(Thickness::new(0.0, 0.0, 0.0, 15.0));
+
+    assert_eq!(outline.radius, CornerRadius::new(5.0, 5.0, 10.0, 10.0));
+  }
+
+  // A corner the border leaves with a vertical radius but none across is drawn with straight
+  // lines, like a square corner, not a curve.
+  #[test]
+  fn inner_corner_without_a_horizontal_radius_is_straight() {
+    let shape = RoundedRect::new(Rect::new(0.0, 0.0, 40.0, 40.0), CornerRadius::uniform(10.0));
+
+    let inner = shape.inner(Thickness::new(10.0, 2.0, 0.0, 0.0));
+    let curves = inner
+      .elements()
+      .iter()
+      .filter(|element| matches!(element, PathElement::CubicTo(..)))
+      .count();
+
+    assert_eq!(curves, 2);
+  }
+
   // Radii far larger than the box are fitted to it before anything else.
   #[test]
   fn huge_radii_are_fitted_first() {
@@ -876,6 +894,21 @@ mod tests {
       }
     }
     assert_eq!(refitted, []);
+  }
+
+  // Scaled radii that `f32` can't hold exactly are rounded so a side's two never add up to more
+  // than the side: of a 1-wide side, 1/3 and 2/3 round up, so each ends one step below that.
+  #[test]
+  fn fitted_radii_round_to_fit_their_side() {
+    let rect = Rect::new(0.0, 0.0, 1.0, 10.0);
+    let CornerRadius { top_left, top_right, .. } =
+      RoundedRect::new(rect, CornerRadius::new(1.0, 2.0, 0.0, 0.0)).fitted().radius;
+
+    assert!(f64::from(top_left) + f64::from(top_right) <= 1.0);
+    assert_eq!(
+      [top_left, top_right],
+      [(1.0_f32 / 3.0).next_down(), (2.0_f32 / 3.0).next_down()]
+    );
   }
 
   // Radii that two corners of one side can't share shrink together, by the factor the tightest

@@ -154,6 +154,31 @@ fn changed_desired_size_propagates_to_the_parent() {
   assert_eq!(manager.rect(second), Some(Rect::new(0.0, 50.0, 400.0, 30.0)));
 }
 
+// Changes are measured deepest first, so a parent is measured once when one changed child is
+// right below it and another is four levels down. Measured after the near one alone, it would take
+// the far one's still clean ancestors from their cache, and be measured again once the far change
+// climbed up to it.
+#[test]
+fn changes_at_uneven_depths_measure_the_parent_once() {
+  let mut tree = UiTree::new();
+  let [near, far] = [leaf(&mut tree, 100.0, 20.0), leaf(&mut tree, 100.0, 30.0)];
+  let lowest = stack(&mut tree, &[far]);
+  let lower = stack(&mut tree, &[lowest]);
+  let upper = stack(&mut tree, &[lower]);
+  let parent = stack(&mut tree, &[near, upper]);
+  let root = stack(&mut tree, &[parent]);
+  let mut manager = LayoutManager::default();
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  for leaf in [near, far] {
+    node(&tree, leaf).size.set(Size::new(100.0, 60.0));
+    LayoutManager::invalidate_measure(&mut tree, leaf);
+  }
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  assert_eq!(node(&tree, parent).measured.get(), 2);
+}
+
 // Removing a visual child lays its parent out again, and drops the child's results.
 #[test]
 fn removed_children_relayout_the_parent() {
@@ -213,6 +238,17 @@ fn infinite_desired_size_panics_in_debug() {
   let root = stack(&mut tree, &[child]);
 
   run(&mut LayoutManager::default(), &mut tree, root, WINDOW);
+}
+
+// The root offered an invalid size is reported as offered by the layout root, since no node did.
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "the layout root offered node")]
+fn invalid_root_size_names_the_layout_root() {
+  let mut tree = UiTree::new();
+  let root = leaf(&mut tree, 10.0, 10.0);
+
+  run(&mut LayoutManager::default(), &mut tree, root, Size::new(-1.0, 10.0));
 }
 
 // The panic names the node that returned the infinite size.
@@ -1571,4 +1607,75 @@ fn results_dropped_with_their_slot_are_reported() {
   tree.detach(TreeKind::Visual, node);
   LayoutManager::invalidate_measure(&mut tree, holder);
   assert_eq!(lay_out(&mut layout, &mut tree, holder, WINDOW).results, [node]);
+}
+
+mod moving {
+  use super::*;
+  use pretty_assertions::assert_eq;
+
+  /// Measures 10 by 10 and arranges each child at its own offset, so a change to the offset
+  /// moves the children without changing any size. It counts its arranges.
+  #[derive(Debug, Default)]
+  struct Mover {
+    offset: Cell<f32>,
+    arranged: Cell<u32>,
+  }
+
+  impl Object for Mover {
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+  }
+
+  impl Layoutable for Mover {
+    fn measure(&self, cx: &mut MeasureCx<'_>, available: Size) -> Size {
+      for child in cx.children() {
+        cx.measure(child, available);
+      }
+      Size::new(10.0, 10.0)
+    }
+
+    fn arrange(&self, cx: &mut ArrangeCx<'_>, rect: Rect) {
+      self.arranged.set(self.arranged.get() + 1);
+      for child in cx.children() {
+        cx.arrange(child, Rect::new(self.offset.get(), 0.0, rect.width, rect.height));
+      }
+    }
+  }
+
+  struct Movers;
+
+  impl LayoutNodes for Movers {
+    fn layoutable<'a>(&self, tree: &'a UiTree, node: NodeId) -> Option<&'a dyn Layoutable> {
+      tree.get_as::<Mover>(node).map(|node| node as &dyn Layoutable)
+    }
+  }
+
+  // Nodes waiting to be arranged again are arranged shallowest first: a parent that moves its
+  // child arranges it in its new place once, rather than the child being arranged in its old place
+  // first. Ten pairs, since nodes of one depth come in any order.
+  #[test]
+  fn waiting_parents_are_arranged_before_their_children() {
+    let mut tree = UiTree::new();
+    let root = tree.alloc(Box::new(Mover::default()));
+    let pairs: Vec<[NodeId; 2]> = (0..10)
+      .map(|_| {
+        let [parent, child] = [(); 2].map(|()| tree.alloc(Box::new(Mover::default())));
+        tree.add_child(TreeKind::Visual, root, parent);
+        tree.add_child(TreeKind::Visual, parent, child);
+        [parent, child]
+      })
+      .collect();
+    let mut manager = LayoutManager::default();
+    manager.run(&mut tree, &Movers, root, WINDOW, GRID, &mut Recorder::default());
+
+    for [parent, child] in &pairs {
+      tree.get_as::<Mover>(*parent).unwrap().offset.set(5.0);
+      manager.invalidate_arrange(*child);
+      manager.invalidate_arrange(*parent);
+    }
+    manager.run(&mut tree, &Movers, root, WINDOW, GRID, &mut Recorder::default());
+
+    for [_, child] in &pairs {
+      assert_eq!(tree.get_as::<Mover>(*child).unwrap().arranged.get(), 2);
+    }
+  }
 }

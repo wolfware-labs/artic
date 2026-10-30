@@ -161,10 +161,9 @@ impl FromStr for Transform {
     let mut functions = Vec::new();
     while !rest.is_empty() {
       let unknown = || fail(GeometryProblem::UnknownFunction(rest.to_owned()));
-      let open = rest.find('(').ok_or_else(unknown)?;
-      let close = rest.find(')').filter(|close| *close > open).ok_or_else(unknown)?;
-      let name = &rest[..open];
-      let numbers = read_numbers(&rest[open + 1..close], Sign::Any).map_err(fail)?;
+      let (name, after) = rest.split_once('(').ok_or_else(unknown)?;
+      let (numbers, tail) = after.split_once(')').ok_or_else(unknown)?;
+      let numbers = read_numbers(numbers, Sign::Any).map_err(fail)?;
       let function = match (name, numbers.as_slice()) {
         ("translate", [x]) => Transform::translate(*x, 0.0),
         ("translate", [x, y]) => Transform::translate(*x, *y),
@@ -175,7 +174,7 @@ impl FromStr for Transform {
         (other, _) => return Err(fail(GeometryProblem::UnknownFunction(other.to_owned()))),
       };
       functions.push(function);
-      rest = rest[close + 1..].trim_start();
+      rest = tail.trim_start();
     }
     let rightmost_first = functions.into_iter().rev().reduce(Transform::then);
     Ok(rightmost_first.expect("the text isn't empty, so it has a function"))
@@ -562,5 +561,23 @@ mod tests {
       GeometryProblem::UnknownFunction("translate(1, 2".to_owned())
     );
     assert_eq!(problem("  "), GeometryProblem::Empty);
+  }
+
+  // A stray parenthesis makes the function unknown: its name is the text before the next `(`, or
+  // the whole rest when no `(` and `)` follow.
+  #[test]
+  fn stray_parentheses_are_errors() {
+    let problem = |text: &str| text.parse::<Transform>().unwrap_err().problem;
+
+    assert_eq!(problem(")rotate(45)"), GeometryProblem::UnknownFunction(")rotate".to_owned()));
+    assert_eq!(
+      problem("rotate)45("),
+      GeometryProblem::UnknownFunction("rotate)45(".to_owned())
+    );
+    assert_eq!(problem("rotate(45"), GeometryProblem::UnknownFunction("rotate(45".to_owned()));
+    assert_eq!(
+      problem("translate(1)) scale(2)"),
+      GeometryProblem::UnknownFunction(") scale".to_owned())
+    );
   }
 }

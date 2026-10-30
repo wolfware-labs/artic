@@ -209,17 +209,17 @@ impl PathBuilder {
 fn quad_turns(start: f32, control: f32, end: f32) -> impl Iterator<Item = f32> {
   let [start, control, end] = [start, control, end].map(f64::from);
   let t = (start - control) / (start - 2.0 * control + end);
-  Some(t).filter(|t| *t > 0.0 && *t < 1.0).map(|t| t as f32).into_iter()
+  Some(t).filter(|t| (0.0..=1.0).contains(t)).map(|t| t as f32).into_iter()
 }
 
 fn cubic_turns(start: f32, first: f32, second: f32, end: f32) -> impl Iterator<Item = f32> {
   let [start, first, second, end] = [start, first, second, end].map(f64::from);
   let (a, b, c) = (first - start, second - first, end - second);
   let (qa, qb, qc) = (a - 2.0 * b + c, 2.0 * (b - a), a);
-  let q = -0.5 * (qb + qb.signum() * (qb * qb - 4.0 * qa * qc).sqrt());
+  let q = -0.5 * (qb + (qb * qb - 4.0 * qa * qc).sqrt().copysign(qb));
   [q / qa, qc / q]
     .into_iter()
-    .filter(|t| *t > 0.0 && *t < 1.0)
+    .filter(|t| (0.0..=1.0).contains(t))
     .map(|t| t as f32)
 }
 
@@ -308,6 +308,19 @@ mod tests {
     let bounds = cubic.bounds();
 
     assert!((bounds.height - std::f32::consts::SQRT_2).abs() < 1e-5, "{bounds}");
+  }
+
+  // A cubic that rises, dips and rises again turns twice; its box reaches the higher turn, which
+  // sits above its end.
+  #[test]
+  fn path_bounds_reach_the_higher_of_two_turns() {
+    let cubic = Path::builder(Point::new(0.0, 0.0))
+      .cubic_to(Point::new(1.0, 4.0), Point::new(2.0, 1.0), Point::new(3.0, 2.0))
+      .build();
+
+    let bounds = cubic.bounds();
+
+    assert!((bounds.height - 2.151_741_2).abs() < 1e-5, "{bounds}");
   }
 
   // A quadratic arch raised to a cubic, as SVG and font tools write one, has the quadratic's box,

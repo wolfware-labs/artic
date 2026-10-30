@@ -152,6 +152,32 @@ mod tests {
     assert_eq!(scale.then(translate).apply(point), translate.apply(scale.apply(point)));
   }
 
+  // Composing uses every component of both transforms: each point goes where applying one, then
+  // the other, sends it.
+  #[test]
+  fn then_composes_every_component() {
+    let first = Transform {
+      xx: 2.0,
+      yx: 3.0,
+      xy: 4.0,
+      yy: 5.0,
+      dx: 6.0,
+      dy: 7.0,
+    };
+    let next = Transform {
+      xx: 7.0,
+      yx: 8.0,
+      xy: 9.0,
+      yy: 10.0,
+      dx: 11.0,
+      dy: 12.0,
+    };
+
+    for point in [Point::new(0.0, 0.0), Point::new(1.0, 0.0), Point::new(0.0, 1.0)] {
+      assert_eq!(first.then(next).apply(point), next.apply(first.apply(point)));
+    }
+  }
+
   // A transform prints in CSS's `matrix(...)` order.
   #[test]
   fn display_is_css_matrix() {

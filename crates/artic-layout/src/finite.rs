@@ -32,8 +32,8 @@ pub fn positive(value: f32) -> Option<f32> {
 }
 
 const fn saturated(result: f32, finite_operands: bool) -> f32 {
-  if finite_operands && result.is_infinite() {
-    if result > 0.0 { f32::MAX } else { f32::MIN }
+  if finite_operands {
+    result.clamp(f32::MIN, f32::MAX)
   } else {
     result
   }
