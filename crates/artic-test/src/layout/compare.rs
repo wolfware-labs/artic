@@ -1,7 +1,11 @@
 use artic_layout::geometry::{Rect, Size};
 
 pub(crate) fn close(a: f32, b: f32, tolerance: f32) -> bool {
-  a == b || (a - b).abs() <= tolerance
+  if a.is_infinite() || b.is_infinite() {
+    a == b
+  } else {
+    (a - b).abs() <= tolerance
+  }
 }
 
 pub(crate) fn sizes_match(a: Size, b: Size, tolerance: f32) -> bool {
@@ -37,6 +41,14 @@ mod tests {
     assert!(!close(f32::INFINITY, f32::MAX, TOLERANCE));
     assert!(!close(f32::INFINITY, f32::NEG_INFINITY, TOLERANCE));
     assert!(!close(1.0, f32::INFINITY, TOLERANCE));
+  }
+
+  // An infinite tolerance still matches infinity only to itself.
+  #[test]
+  fn infinity_matches_only_infinity_under_any_tolerance() {
+    assert!(close(f32::INFINITY, f32::INFINITY, f32::INFINITY));
+    assert!(!close(f32::INFINITY, f32::NEG_INFINITY, f32::INFINITY));
+    assert!(!close(1.0, f32::INFINITY, f32::INFINITY));
   }
 
   // A NaN never matches, not even another NaN, so a NaN in a result always fails.
