@@ -18,3 +18,10 @@ exclude_globs = [
     # examples run it in CI.
     "crates/artic-winit/src/host.rs",
 ]
+
+exclude_re = [
+    # Hand-written Debug output is for a person reading a panic; no behavior depends on its text.
+    '<impl (std::)?(fmt::)?Debug for ',
+    # It returns `T::default()`, the expression the mutant writes.
+    '<impl SharedKey<T> for PropertyKey<T>>::initial_value',
+]

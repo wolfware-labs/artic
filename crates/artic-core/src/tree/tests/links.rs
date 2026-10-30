@@ -323,6 +323,22 @@ fn check_link_reports_without_changing_anything() {
   assert_eq!(children(&tree, TreeKind::Visual, parent), [child]);
 }
 
+// A child moving within its own parent doesn't count itself: with it gone there is one index
+// fewer, so its own position past the end is out of range.
+#[test]
+fn check_link_counts_the_children_without_the_child_itself() {
+  let mut tree = UiTree::new();
+  let [parent, first, second] = nodes(&mut tree);
+  tree.add_child(TreeKind::Visual, parent, first);
+  tree.add_child(TreeKind::Visual, parent, second);
+
+  assert_eq!(tree.check_link(TreeKind::Visual, parent, Some(1), first), Ok(()));
+  assert_eq!(
+    tree.check_link(TreeKind::Visual, parent, Some(2), first),
+    Err(LinkError::IndexOutOfRange { index: 2, len: 1 })
+  );
+}
+
 // Freeing a node frees its children and cuts it from its parent, so no live node names it.
 #[test]
 fn free_detaches_and_frees_the_subtree() {
