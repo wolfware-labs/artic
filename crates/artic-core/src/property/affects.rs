@@ -59,13 +59,13 @@ impl BitOr for Affects {
   type Output = Affects;
 
   fn bitor(self, other: Affects) -> Affects {
-    Affects(self.0 | other.0)
+    self.union(other)
   }
 }
 
 impl BitOrAssign for Affects {
   fn bitor_assign(&mut self, other: Affects) {
-    self.0 |= other.0;
+    *self = self.union(other);
   }
 }
 
