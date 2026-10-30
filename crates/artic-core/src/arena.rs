@@ -465,6 +465,21 @@ mod tests {
     assert_eq!(map.get(button), None);
   }
 
+  // Writing through an id reaches only that id's value: the id of the node that reused the slot
+  // finds nothing to write.
+  #[test]
+  fn slot_map_writes_only_by_exact_id() {
+    let mut arena = Arena::new();
+    let mut map = SlotMap::new();
+    let button = arena.alloc(Item);
+    map.insert(button, "button");
+    arena.free(button);
+    let label = arena.alloc(Item);
+
+    assert_eq!(map.get_mut(label), None);
+    assert_eq!(map.get_mut(button), Some(&mut "button"));
+  }
+
   // Removing takes the value out only for its own id.
   #[test]
   fn slot_map_removes_only_its_own_id() {
