@@ -56,38 +56,27 @@ fn parent_links_children_in_order() {
   assert_eq!(children, [second, first]);
 }
 
-// The elements count each measure and arrange, so tests can check what layout skipped.
+// The elements count each measure and arrange, so tests can check what layout skipped: a second
+// run at the same size calls nothing, and a run at another size calls every node again.
 #[test]
 fn elements_count_their_calls() {
   let mut layout = Headless::new();
   let leaf = layout.add("leaf", Fixed::new(10.0, 10.0));
   let root = layout.parent("stack", Stack::new(), &[leaf]);
+  let counts = |layout: &mut Headless| {
+    let tree = layout.tree();
+    let fixed = tree.get_as::<Fixed>(leaf).expect("a fixed");
+    let stack = tree.get_as::<Stack>(root).expect("a stack");
+    [fixed.measured(), fixed.arranged(), stack.measured(), stack.arranged()]
+  };
 
   layout.run(root, WINDOW, 1.0);
   layout.run(root, WINDOW, 1.0);
-
-  let tree = layout.tree();
-  let fixed = tree.get_as::<Fixed>(leaf).expect("a fixed");
-  let stack = tree.get_as::<Stack>(root).expect("a stack");
-  assert_eq!((fixed.measured(), fixed.arranged()), (1, 1));
-  assert_eq!((stack.measured(), stack.arranged()), (1, 1));
-}
-
-// A run at another size measures and arranges every node again, and the counters say so.
-#[test]
-fn elements_count_each_call() {
-  let mut layout = Headless::new();
-  let leaf = layout.add("leaf", Fixed::new(10.0, 10.0));
-  let root = layout.parent("stack", Stack::new(), &[leaf]);
-
-  layout.run(root, WINDOW, 1.0);
+  let skipped = counts(&mut layout);
   layout.run(root, Size::new(200.0, 100.0), 1.0);
 
-  let tree = layout.tree();
-  let fixed = tree.get_as::<Fixed>(leaf).expect("a fixed");
-  let stack = tree.get_as::<Stack>(root).expect("a stack");
-  assert_eq!((fixed.measured(), fixed.arranged()), (2, 2));
-  assert_eq!((stack.measured(), stack.arranged()), (2, 2));
+  assert_eq!(skipped, [1; 4]);
+  assert_eq!(counts(&mut layout), [2; 4]);
 }
 
 // A new size on a `Fixed` shows after its node is invalidated.
@@ -285,6 +274,14 @@ struct Shove(fn(Rect) -> Rect);
 
 fn past_the_right(rect: Rect) -> Rect {
   Rect::new(rect.width, 0.0, 10.0, 10.0)
+}
+
+fn below(rect: Rect) -> Rect {
+  Rect::new(0.0, rect.height, 10.0, 10.0)
+}
+
+fn a_pixel_past_the_right(rect: Rect) -> Rect {
+  Rect::new(rect.width - 9.0, 0.0, 10.0, 10.0)
 }
 
 impl Object for Shove {
@@ -485,7 +482,7 @@ fn invariants_catch_a_child_outside_its_parent() {
 fn invariants_catch_a_child_below_its_parent() {
   let mut layout = Headless::new();
   let pushed = layout.add("pushed", Fixed::new(10.0, 10.0));
-  let root = layout.parent("shove", Shove(|rect| Rect::new(0.0, rect.height, 10.0, 10.0)), &[pushed]);
+  let root = layout.parent("shove", Shove(below), &[pushed]);
 
   Invariants::default()
     .contained()
@@ -499,7 +496,7 @@ fn invariants_catch_a_child_below_its_parent() {
 fn snapped_containment_allows_one_device_pixel_not_more() {
   let mut layout = Headless::new();
   let pushed = layout.add("pushed", Fixed::new(10.0, 10.0));
-  let root = layout.parent("shove", Shove(|rect| Rect::new(rect.width - 9.0, 0.0, 10.0, 10.0)), &[pushed]);
+  let root = layout.parent("shove", Shove(a_pixel_past_the_right), &[pushed]);
 
   Invariants::default()
     .contained()

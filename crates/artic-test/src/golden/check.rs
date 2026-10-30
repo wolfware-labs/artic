@@ -314,7 +314,7 @@ mod tests {
   }
 
   // The diff image shows unchanged pixels as light gray, from 192 for black to 255 for white, and
-  // lighter the more transparent they are.
+  // closer to 192 the more transparent they are.
   #[test]
   fn faded_grays_by_luma_under_alpha() {
     let faded = [[0, 0, 0, 255], [255, 255, 255, 255], [200, 100, 50, 255], [200, 100, 50, 128]].map(faded);
@@ -334,8 +334,7 @@ mod tests {
   // is reported.
   #[test]
   fn remove_reports_errors_other_than_missing() {
-    let dir = scratch("remove");
-    std::fs::create_dir_all(&dir).expect("creates");
+    let dir = scratch("remove_reports_errors_other_than_missing");
 
     assert!(remove(&[&dir.join("missing.png")]).is_ok());
     assert!(matches!(remove(&[&dir]), Err(GoldenError::Io { .. })));
