@@ -83,6 +83,19 @@ fn a_replaced_field_on_the_second_node_touched_panics() {
   let _ = tree.take_pending();
 }
 
+// A node touched again after a field was replaced is still checked against the properties it
+// listed the first time it was touched.
+#[test]
+#[should_panic(expected = "a property field was replaced through get_mut or get_as_mut")]
+fn a_field_replaced_before_the_node_is_touched_again_panics() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Panel::new()));
+  tree.get_as_mut::<Panel>(node).unwrap().width = Property::new(&WIDTH, 5);
+  tree.get_as_mut::<Panel>(node).unwrap().items.push(1);
+
+  let _ = tree.take_pending();
+}
+
 // `free` reports a replaced field too, before it frees anything.
 #[test]
 fn a_replaced_field_panics_at_free_before_freeing() {

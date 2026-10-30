@@ -57,8 +57,12 @@ use objects::Objects;
 use std::any::Any;
 #[cfg(debug_assertions)]
 use std::cell::RefCell;
+#[cfg(debug_assertions)]
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
+#[cfg(debug_assertions)]
+use std::hash::{BuildHasherDefault, DefaultHasher};
 
 /// The UI tree: owns every node, links them into the logical and visual trees, and tracks what each
 /// node needs redone.
@@ -100,7 +104,7 @@ pub struct UiTree {
   attached_values: AttachedValues,
   structure_generation: u64,
   #[cfg(debug_assertions)]
-  touched: RefCell<Vec<(NodeId, Vec<SignalId>)>>,
+  touched: RefCell<HashMap<NodeId, Vec<SignalId>, BuildHasherDefault<DefaultHasher>>>,
 }
 
 /// A handle to a node stored in a [`UiTree`].
@@ -197,7 +201,7 @@ impl UiTree {
       attached_values: AttachedValues::new(),
       structure_generation: 0,
       #[cfg(debug_assertions)]
-      touched: RefCell::new(Vec::new()),
+      touched: RefCell::new(HashMap::with_hasher(BuildHasherDefault::new())),
     }
   }
 
@@ -257,7 +261,10 @@ impl UiTree {
   }
 
   /// Removes one live node from the arena and disposes its properties and attached values. Its
-  /// links are left to [`free`](UiTree::free), which only calls this once no surviving node names it.
+  /// links are left to [`free`](UiTree::free), which only calls this once no surviving node names
+  /// it, and to dropping the tree, which frees every node. A property is disposed only if this node
+  /// lists it: where a field replaced through `get_mut` goes unreported, in release builds or when the
+  /// tree is dropped, one swapped in from another node stays that node's, and a new one is left.
   fn free_node(&mut self, node_id: NodeId) {
     let object = self.objects.free(node_id).expect("free passes only live nodes");
     let flags = self.dirty_flags.shared(node_id);
@@ -330,10 +337,7 @@ impl UiTree {
     let object = self.objects.get_mut(id)?;
     #[cfg(debug_assertions)]
     {
-      let touched = self.touched.get_mut();
-      if touched.last().is_none_or(|(node, _)| *node != id) {
-        touched.push((id, property_ids(object)));
-      }
+      self.touched.get_mut().entry(id).or_insert_with(|| property_ids(object));
     }
     Some(object)
   }
