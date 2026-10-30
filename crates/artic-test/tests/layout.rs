@@ -7,7 +7,7 @@ use artic_core::tree::{NodeId, TreeKind};
 use artic_element::{AccessCx, Element, ElementTypes, RenderCx};
 use artic_layout::geometry::{Rect, Size};
 use artic_layout::{ArrangeCx, LayoutManager, Layoutable, MeasureCx};
-use artic_render::{Color, SceneBuilder};
+use artic_render::{Color, Layers, SceneBuilder};
 use artic_test::layout::strategy;
 use artic_test::layout::{Fixed, Headless, Invariants, Stack};
 use pretty_assertions::assert_eq;
@@ -279,8 +279,13 @@ impl Layoutable for Growing {
   fn arrange(&self, _cx: &mut ArrangeCx<'_>, _rect: Rect) {}
 }
 
-#[derive(Debug, Default)]
-struct Shove;
+/// Measures as 10 by 10 but arranges its children wherever its placement puts them, inside or out.
+#[derive(Debug)]
+struct Shove(fn(Rect) -> Rect);
+
+fn past_the_right(rect: Rect) -> Rect {
+  Rect::new(rect.width, 0.0, 10.0, 10.0)
+}
 
 impl Object for Shove {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
@@ -296,7 +301,7 @@ impl Layoutable for Shove {
 
   fn arrange(&self, cx: &mut ArrangeCx<'_>, rect: Rect) {
     for child in cx.children() {
-      cx.arrange(child, Rect::new(rect.width, 0.0, 10.0, 10.0));
+      cx.arrange(child, (self.0)(rect));
     }
   }
 }
@@ -357,6 +362,41 @@ impl Element for Swatch {
 
 artic_element::element_type!(Swatch);
 
+/// Fills its box like [`Swatch`], but its layers hide it.
+#[derive(Debug)]
+struct Hidden;
+
+impl Object for Hidden {
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+}
+
+impl Layoutable for Hidden {
+  fn measure(&self, _cx: &mut MeasureCx<'_>, _available: Size) -> Size {
+    Size::new(10.0, 10.0)
+  }
+
+  fn arrange(&self, _cx: &mut ArrangeCx<'_>, _rect: Rect) {}
+}
+
+impl Element for Hidden {
+  fn render(&self, cx: &mut RenderCx<'_>, scene: &mut SceneBuilder) {
+    Swatch.render(cx, scene);
+  }
+
+  fn accessibility(&self, cx: &AccessCx<'_>) -> accesskit::Node {
+    Swatch.accessibility(cx)
+  }
+
+  fn layers(&self, _size: Size) -> Layers {
+    Layers {
+      visible: false,
+      ..Layers::default()
+    }
+  }
+}
+
+artic_element::element_type!(Hidden);
+
 // Recording a node draws only that node, not the children inside it.
 #[test]
 fn record_draws_the_node_without_its_children() {
@@ -366,6 +406,16 @@ fn record_draws_the_node_without_its_children() {
   layout.run(root, WINDOW, 1.0);
 
   assert_eq!(layout.record(root).len(), 1);
+}
+
+// A hidden node isn't drawn, as in a window, though layout placed it.
+#[test]
+fn record_skips_a_hidden_node() {
+  let mut layout = Headless::new();
+  let node = layout.add("hidden", Hidden);
+  layout.run(node, WINDOW, 1.0);
+
+  assert!(layout.record(node).is_empty());
 }
 
 // A node layout never reached isn't drawn, as in a window.
@@ -422,11 +472,38 @@ fn invariants_accept_children_inside_their_parent() {
 fn invariants_catch_a_child_outside_its_parent() {
   let mut layout = Headless::new();
   let pushed = layout.add("pushed", Fixed::new(10.0, 10.0));
-  let root = layout.parent("shove", Shove, &[pushed]);
+  let root = layout.parent("shove", Shove(past_the_right), &[pushed]);
 
   Invariants::default()
     .contained()
     .assert(&mut layout, root, Size::new(100.0, 100.0), 1.0);
+}
+
+// A child past its parent's bottom edge fails containment too.
+#[test]
+#[should_panic(expected = r#""pushed": rect 0,100,10,10 lies outside its parent "shove" (100,100)"#)]
+fn invariants_catch_a_child_below_its_parent() {
+  let mut layout = Headless::new();
+  let pushed = layout.add("pushed", Fixed::new(10.0, 10.0));
+  let root = layout.parent("shove", Shove(|rect| Rect::new(0.0, rect.height, 10.0, 10.0)), &[pushed]);
+
+  Invariants::default()
+    .contained()
+    .assert(&mut layout, root, Size::new(100.0, 100.0), 1.0);
+}
+
+// With snapping, an edge may stick out by one device pixel, half a logical one at scale 2; a whole
+// logical pixel is still outside.
+#[test]
+#[should_panic(expected = r#""pushed": rect 91,0,10,10 lies outside its parent "shove" (100,100)"#)]
+fn snapped_containment_allows_one_device_pixel_not_more() {
+  let mut layout = Headless::new();
+  let pushed = layout.add("pushed", Fixed::new(10.0, 10.0));
+  let root = layout.parent("shove", Shove(|rect| Rect::new(rect.width - 9.0, 0.0, 10.0, 10.0)), &[pushed]);
+
+  Invariants::default()
+    .contained()
+    .assert(&mut layout, root, Size::new(100.0, 100.0), 2.0);
 }
 
 // Containment says nothing when an axis is infinite.
@@ -434,7 +511,7 @@ fn invariants_catch_a_child_outside_its_parent() {
 fn containment_ignores_infinite_available() {
   let mut layout = Headless::new();
   let pushed = layout.add("pushed", Fixed::new(10.0, 10.0));
-  let root = layout.parent("shove", Shove, &[pushed]);
+  let root = layout.parent("shove", Shove(past_the_right), &[pushed]);
 
   Invariants::default()
     .contained()
@@ -446,7 +523,7 @@ fn containment_ignores_infinite_available() {
 fn containment_is_opt_in() {
   let mut layout = Headless::new();
   let pushed = layout.add("pushed", Fixed::new(10.0, 10.0));
-  let root = layout.parent("shove", Shove, &[pushed]);
+  let root = layout.parent("shove", Shove(past_the_right), &[pushed]);
 
   Invariants::default().assert(&mut layout, root, Size::new(100.0, 100.0), 1.0);
 }
