@@ -305,7 +305,7 @@ impl RoundedRect {
     .fold(1.0, f64::min);
     let mut radii = [top_left, top_right, bottom_right, bottom_left].map(|radius| (radius * scale) as f32);
     for (side, first, second) in [(width, 0, 1), (width, 3, 2), (height, 0, 3), (height, 1, 2)] {
-      while f64::from(radii[first]) + f64::from(radii[second]) > side {
+      if f64::from(radii[first]) + f64::from(radii[second]) > side {
         radii[first] = radii[first].next_down().max(0.0);
         radii[second] = radii[second].next_down().max(0.0);
       }
@@ -897,7 +897,7 @@ mod tests {
   }
 
   // Scaled radii that `f32` can't hold exactly are rounded so a side's two never add up to more
-  // than the side, each staying within one step of its exact share: 1/3 and 2/3 of a 1-wide side.
+  // than the side: of a 1-wide side, 1/3 and 2/3 round up, so each ends one step below that.
   #[test]
   fn fitted_radii_round_to_fit_their_side() {
     let rect = Rect::new(0.0, 0.0, 1.0, 10.0);
@@ -905,8 +905,10 @@ mod tests {
       RoundedRect::new(rect, CornerRadius::new(1.0, 2.0, 0.0, 0.0)).fitted().radius;
 
     assert!(f64::from(top_left) + f64::from(top_right) <= 1.0);
-    assert!((f64::from(top_left) - 1.0 / 3.0).abs() <= f64::from(f32::EPSILON) / 3.0);
-    assert!((f64::from(top_right) - 2.0 / 3.0).abs() <= f64::from(f32::EPSILON) / 3.0);
+    assert_eq!(
+      [top_left, top_right],
+      [(1.0_f32 / 3.0).next_down(), (2.0_f32 / 3.0).next_down()]
+    );
   }
 
   // Radii that two corners of one side can't share shrink together, by the factor the tightest
