@@ -24,4 +24,6 @@ exclude_re = [
     '<impl (std::)?(fmt::)?Debug for ',
     # It returns `T::default()`, the expression the mutant writes.
     '<impl SharedKey<T> for PropertyKey<T>>::initial_value',
+    # The star is symmetric about its vertical axis, so mirroring its x draws the same pixels.
+    'artic-test/src/scenes\.rs:\d+:21: replace \+ with - in star',
 ]

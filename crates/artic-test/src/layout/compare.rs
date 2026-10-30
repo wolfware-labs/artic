@@ -43,6 +43,14 @@ mod tests {
     assert!(!close(1.0, f32::INFINITY, TOLERANCE));
   }
 
+  // An infinite tolerance still matches infinity only to itself.
+  #[test]
+  fn infinity_matches_only_infinity_under_any_tolerance() {
+    assert!(close(f32::INFINITY, f32::INFINITY, f32::INFINITY));
+    assert!(!close(f32::INFINITY, f32::NEG_INFINITY, f32::INFINITY));
+    assert!(!close(1.0, f32::INFINITY, f32::INFINITY));
+  }
+
   // A NaN never matches, not even another NaN, so a NaN in a result always fails.
   #[test]
   fn nan_never_matches() {
