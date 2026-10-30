@@ -563,8 +563,8 @@ mod tests {
     assert_eq!(problem("  "), GeometryProblem::Empty);
   }
 
-  // A stray parenthesis is an error naming the text before the next `(`, or the whole rest when
-  // no `(` or `)` follows.
+  // A stray parenthesis makes the function unknown: its name is the text before the next `(`, or
+  // the whole rest when no `(` and `)` follow.
   #[test]
   fn stray_parentheses_are_errors() {
     let problem = |text: &str| text.parse::<Transform>().unwrap_err().problem;
