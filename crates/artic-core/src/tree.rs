@@ -257,7 +257,10 @@ impl UiTree {
   }
 
   /// Removes one live node from the arena and disposes its properties and attached values. Its
-  /// links are left to [`free`](UiTree::free), which only calls this once no surviving node names it.
+  /// links are left to [`free`](UiTree::free), which only calls this once no surviving node names
+  /// it, and to dropping the tree, which frees every node. A property is disposed only if this node
+  /// lists it: where a field replaced through `get_mut` goes unreported, in release builds or when the
+  /// tree is dropped, one swapped in from another node stays that node's, and a new one is left.
   fn free_node(&mut self, node_id: NodeId) {
     let object = self.objects.free(node_id).expect("free passes only live nodes");
     let flags = self.dirty_flags.shared(node_id);
@@ -331,7 +334,7 @@ impl UiTree {
     #[cfg(debug_assertions)]
     {
       let touched = self.touched.get_mut();
-      if touched.last().is_none_or(|(node, _)| *node != id) {
+      if !touched.iter().any(|(node, _)| *node == id) {
         touched.push((id, property_ids(object)));
       }
     }
