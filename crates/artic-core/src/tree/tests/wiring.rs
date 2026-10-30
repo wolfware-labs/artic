@@ -70,6 +70,19 @@ fn a_field_given_a_disposed_handle_panics() {
   let _ = tree.take_pending();
 }
 
+// Each node `get_as_mut` reaches is checked, not only the first: a field replaced on the second
+// node touched is reported too.
+#[test]
+#[should_panic(expected = "a property field was replaced through get_mut or get_as_mut")]
+fn a_replaced_field_on_the_second_node_touched_panics() {
+  let mut tree = UiTree::new();
+  let [first, second] = [(); 2].map(|_| tree.alloc(Box::new(Panel::new())));
+  tree.get_as_mut::<Panel>(first).unwrap().items.push(1);
+  tree.get_as_mut::<Panel>(second).unwrap().width = Property::new(&WIDTH, 5);
+
+  let _ = tree.take_pending();
+}
+
 // `free` reports a replaced field too, before it frees anything.
 #[test]
 fn a_replaced_field_panics_at_free_before_freeing() {

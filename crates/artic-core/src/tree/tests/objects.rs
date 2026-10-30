@@ -99,6 +99,15 @@ fn default_tree_arena_is_empty() {
   assert_eq!(tree.len(), 0);
 }
 
+// A tree holding a node isn't empty.
+#[test]
+fn tree_with_a_node_is_not_empty() {
+  let mut tree = UiTree::new();
+  let _node = tree.alloc(Box::new(Control));
+
+  assert!(!tree.is_empty());
+}
+
 // A new node has no parent in either tree, and a stale id has none either.
 #[test]
 fn new_node_has_no_parent() {

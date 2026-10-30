@@ -1,5 +1,5 @@
 use crate::Object;
-use crate::property::{Affects, AttachedKey, Inheritance, Property, PropertyKey, PropertyVisitor};
+use crate::property::{Affects, AnyProperty, AttachedKey, Inheritance, Property, PropertyKey, PropertyVisitor};
 use crate::reactive::{Scope, live_counts};
 use crate::tree::{TreeKind, UiTree};
 use pretty_assertions::assert_eq;
@@ -111,6 +111,20 @@ fn free_disposes_a_property_listed_twice_once() {
   assert_eq!(live_counts(), baseline);
 }
 
+// A freed node's dirty flags and attached values go with it: its id reads as clean and stores
+// nothing, even before another node takes its slot.
+#[test]
+fn free_drops_the_dirty_flags_and_attached_values() {
+  let mut tree = UiTree::new();
+  let label = tree.alloc(Box::new(Label::new()));
+  tree.attached_property(label, &ROW).set(2);
+
+  tree.free(label);
+
+  assert_eq!(tree.dirty(label), Affects::NONE);
+  assert_eq!(tree.attached_values.count(label), 0);
+}
+
 // A property whose scope was disposed first is skipped: the tree frees the node anyway.
 #[test]
 fn free_skips_properties_their_scope_disposed() {
@@ -195,6 +209,19 @@ fn a_node_with_a_disposed_property_is_refused_unchanged() {
 
   assert!(refused.is_err());
   assert!(tree.is_empty());
+}
+
+// A property is listed only by the node that holds it: `free` asks this before disposing, so a
+// property swapped in from another node survives in release builds.
+#[test]
+fn a_property_is_listed_only_by_its_own_node() {
+  let mut tree = UiTree::new();
+  let [first, second] = [(); 2].map(|_| tree.alloc(Box::new(Label::new())));
+  let property = tree.get_as::<Label>(first).unwrap().font_size;
+  let property = AnyProperty::new(&property);
+
+  assert!(property.is_listed_by(&tree.dirty_flags.shared(first)));
+  assert!(!property.is_listed_by(&tree.dirty_flags.shared(second)));
 }
 
 // A field swapped through `get_as_mut` for another node's property isn't this node's to dispose:

@@ -3,6 +3,7 @@ use crate::property::PropertyVisitor;
 use crate::tree::{Handle, NodeId, UiTree};
 use pretty_assertions::assert_eq;
 use static_assertions::{assert_eq_size, assert_impl_all};
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 #[derive(Debug, PartialEq, Eq)]
 struct Label(&'static str);
@@ -79,6 +80,20 @@ fn handles_compare_by_node() {
 
   assert_eq!(first, copy);
   assert!(first != second);
+}
+
+// A handle hashes as the id of its node does, so maps keyed by either agree.
+#[test]
+fn handle_hashes_as_its_node_id() {
+  let mut tree = UiTree::new();
+  let label = tree.alloc_typed(Label("a"));
+  fn hash(value: impl Hash) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
+  }
+
+  assert_eq!(hash(label), hash(label.id()));
 }
 
 // Writing through a handle whose node was freed is a bug, and panics.
