@@ -1,11 +1,7 @@
 use artic_layout::geometry::{Rect, Size};
 
 pub(crate) fn close(a: f32, b: f32, tolerance: f32) -> bool {
-  if a.is_infinite() || b.is_infinite() {
-    a == b
-  } else {
-    (a - b).abs() <= tolerance
-  }
+  a == b || (a - b).abs() <= tolerance
 }
 
 pub(crate) fn sizes_match(a: Size, b: Size, tolerance: f32) -> bool {
