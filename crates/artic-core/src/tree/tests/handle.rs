@@ -82,7 +82,7 @@ fn handles_compare_by_node() {
   assert!(first != second);
 }
 
-// A handle hashes as the id of its node does, so maps keyed by either agree.
+// A handle hashes as the id of its node does, so its hash agrees with its equality.
 #[test]
 fn handle_hashes_as_its_node_id() {
   let mut tree = UiTree::new();
