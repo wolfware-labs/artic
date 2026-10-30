@@ -310,6 +310,19 @@ mod tests {
     assert!((bounds.height - std::f32::consts::SQRT_2).abs() < 1e-5, "{bounds}");
   }
 
+  // A cubic that rises, dips and rises again turns twice; its box reaches the higher turn, which
+  // sits above its end.
+  #[test]
+  fn path_bounds_reach_the_higher_of_two_turns() {
+    let cubic = Path::builder(Point::new(0.0, 0.0))
+      .cubic_to(Point::new(1.0, 4.0), Point::new(2.0, 1.0), Point::new(3.0, 2.0))
+      .build();
+
+    let bounds = cubic.bounds();
+
+    assert!((bounds.height - 2.151_741_2).abs() < 1e-5, "{bounds}");
+  }
+
   // A quadratic arch raised to a cubic, as SVG and font tools write one, has the quadratic's box,
   // though its cubic term is only rounding noise.
   #[test]
