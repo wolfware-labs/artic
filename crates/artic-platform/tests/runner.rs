@@ -7,7 +7,7 @@ use artic_core::reactive::{Signal, effect};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{Desktop, SizeToContent};
 use artic_layout::geometry::Size;
-use artic_platform::{AppHandler, Axes, Chrome, FrameStats, LogicalSize, Runner, Waker, WindowDesc};
+use artic_platform::{AppHandler, Axes, Chrome, FrameStats, LogicalSize, Runner, SurfaceInfo, Waker, WindowDesc};
 use artic_render::SurfaceId;
 use common::{
   Context, Counter, Leaf, LeafHandles, Recorder, Wrap, application, column, engine, info, label, leaf, pixels, surface, target,
@@ -1182,7 +1182,7 @@ fn windowless_surface_ignores_size_to_content() {
 #[test]
 fn width_change_measures_content_at_the_new_width() {
   let mut tree = UiTree::new();
-  let content = tree.alloc(Box::new(Wrap));
+  let content = tree.alloc(Box::new(Wrap::Down));
   let (application, surfaces) = application(&mut tree, &[("main", content)]);
   Desktop::set_size_to_content(&mut tree, surfaces[0], SizeToContent::Height);
   let width = tree.attached_property(surfaces[0], Desktop::WIDTH);
@@ -1207,6 +1207,45 @@ fn width_change_measures_content_at_the_new_width() {
       height: Some(10.0)
     }]
   );
+}
+
+// A user resizing a window whose content sizes its height, at scale 2, refits the height to the
+// new logical width at once, before a frame draws at the old height.
+#[test]
+fn host_width_refits_content_height_before_the_frame() {
+  assert_eq!(
+    refit(SizeToContent::Height, Wrap::Down, info(100, 40, 2.0)),
+    [LogicalSize {
+      width: None,
+      height: Some(20.0)
+    }]
+  );
+}
+
+// Turned, a window whose content sizes its width refits it to the new logical height.
+#[test]
+fn host_height_refits_content_width_before_the_frame() {
+  assert_eq!(
+    refit(SizeToContent::Width, Wrap::Across, info(40, 100, 2.0)),
+    [LogicalSize {
+      width: Some(20.0),
+      height: None
+    }]
+  );
+}
+
+/// The sizes the runner sends after the host reports `info` for a window sized to `content` on
+/// `sizes`.
+fn refit(sizes: SizeToContent, content: Wrap, info: SurfaceInfo) -> Vec<LogicalSize> {
+  let mut tree = UiTree::new();
+  let content = tree.alloc(Box::new(content));
+  let (application, surfaces) = application(&mut tree, &[("main", content)]);
+  Desktop::set_size_to_content(&mut tree, surfaces[0], sizes);
+  let (mut runner, mut cx) = started(tree, application);
+
+  runner.surface_changed(&mut cx, FIRST, info);
+
+  cx.updated.iter().map(|(_, desc)| desc.size).collect()
 }
 
 // A surface must be a visual child of the Application too, so no surface draws inside another;

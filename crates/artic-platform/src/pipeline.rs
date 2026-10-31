@@ -143,18 +143,12 @@ impl Pipeline {
   }
 
   /// Measures `root`'s visual subtree in `available` without arranging it, as before its window
-  /// opens, and returns the size it wants. The next [`prepare`](Pipeline::prepare) in the same
-  /// available size answers from the cache.
+  /// opens or when its window's description is rebuilt, and returns the size it wants. The next
+  /// [`prepare`](Pipeline::prepare) in the same available size answers from the cache.
   pub fn measure(&mut self, tree: &mut UiTree, root: NodeId, available: Size, services: &mut FrameServices<'_>) -> Size {
     self
       .layout
       .measure(tree, services.types, root, available, &mut *services.text)
-  }
-
-  /// The size `root` wanted in its last measure.
-  #[must_use]
-  pub fn desired(&self, root: NodeId) -> Option<Size> {
-    self.layout.desired(root)
   }
 
   /// Renders `frame` on `target` and, once it's drawn, keeps its scene for a later

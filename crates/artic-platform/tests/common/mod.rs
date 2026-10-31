@@ -123,10 +123,14 @@ impl Element for Leaf {
 
 artic_element::element_type!(Leaf);
 
-/// Text-like content of a fixed area: as wide as offered, up to 100, and as tall as its area needs
-/// at that width.
+/// Text-like content of a fixed area. `Down` is as wide as offered, up to 100, and as tall as its
+/// area needs at that width, as lines wrap; `Across` is the same turned, as columns of vertical
+/// text wrap.
 #[derive(Debug)]
-pub struct Wrap;
+pub enum Wrap {
+  Down,
+  Across,
+}
 
 impl Object for Wrap {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
@@ -134,8 +138,16 @@ impl Object for Wrap {
 
 impl Layoutable for Wrap {
   fn measure(&self, _cx: &mut MeasureCx<'_>, available: Size) -> Size {
-    let width = available.width.min(100.0);
-    Size::new(width, 1000.0 / width)
+    match self {
+      Wrap::Down => {
+        let width = available.width.min(100.0);
+        Size::new(width, 1000.0 / width)
+      }
+      Wrap::Across => {
+        let height = available.height.min(100.0);
+        Size::new(1000.0 / height, height)
+      }
+    }
   }
 
   fn arrange(&self, _cx: &mut ArrangeCx<'_>, _rect: Rect) {}

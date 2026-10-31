@@ -169,7 +169,7 @@ fn failed_present_keeps_no_scene() {
 }
 
 // A surface measured before its window opens, in the size its content axes get, answers the
-// first frame's measures from the cache, and the frame lays it out at its desired size there.
+// first frame's measures from the cache.
 #[test]
 fn measure_before_open_serves_the_first_frame() {
   let mut tree = UiTree::new();
@@ -187,7 +187,6 @@ fn measure_before_open_serves_the_first_frame() {
   let frame = pipeline.prepare(&mut tree, root, SURFACE, &info(64, 64, 1.0), &mut services, Axes::BOTH);
 
   assert_eq!(desired, Size::new(10.0, 20.0));
-  assert_eq!(pipeline.desired(root), Some(desired));
   assert_eq!(frame.stats().measured, 0);
 }
 

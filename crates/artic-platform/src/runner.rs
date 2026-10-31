@@ -6,7 +6,6 @@ use crate::{
   SurfaceLoss, Waker, WindowDesc,
 };
 use artic_core::dispatcher::Dispatcher;
-use artic_core::property::Affects;
 use artic_core::reactive::flush_effects;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{Application, Chrome, Desktop, ElementTypes, Surface};
@@ -236,18 +235,14 @@ impl<R: Renderer> Runner<R> {
         }),
       }
     }
-    self.tree.clear_dirty(self.application, Affects::SURFACE);
     for index in 0..self.surfaces.len() {
       let node = self.surfaces[index];
       let settings = Settings::of(&mut self.tree, node);
-      let dirty = self.tree.dirty(node).contains(Affects::SURFACE);
-      self.tree.clear_dirty(node, Affects::SURFACE);
       if !shown.contains(&node) || self.lost.contains(&node) {
         continue;
       }
       match self.bound.iter().position(|bound| bound.node == node) {
-        Some(index) if dirty => self.update(cx, index, &settings),
-        Some(_) => {}
+        Some(index) => self.update(cx, index, &settings),
         None => self.present(cx, node, &settings),
       }
     }
@@ -349,14 +344,6 @@ impl<R: Renderer> Runner<R> {
     let frame = bound
       .pipeline
       .prepare(&mut self.tree, root, bound.id, info, &mut self.services.borrow(), content);
-    if let (Presentation::Window { applied }, Some(desired)) = (&bound.presentation, bound.pipeline.desired(root)) {
-      let requested = applied.size;
-      let content_resized = (content.width && requested.width != Some(desired.width))
-        || (content.height && requested.height != Some(desired.height));
-      if content_resized {
-        self.tree.mark_dirty(root, Affects::SURFACE);
-      }
-    }
     Some(bound.pipeline.present(&mut self.renderer, frame, target))
   }
 
