@@ -7,6 +7,7 @@ use artic_element::{AccessCx, ElementTypes, Visibility};
 use artic_layout::Orientation;
 use artic_layout::geometry::{Rect, Size};
 use artic_registry::{ContentInfo, ContentMethod, UiType};
+use artic_render::{Color, Command};
 use artic_test::layout::{Fixed, Headless, Invariants, strategy};
 use proptest::prelude::*;
 
@@ -189,6 +190,21 @@ fn a_child_too_tall_to_fit_ends_at_the_largest_coordinate() {
   let rect = layout.manager().rect(c).expect("arranged");
   assert!((rect.y + rect.height).is_finite(), "{rect:?}");
   assert!(rect.height > 2.0e38, "{rect:?}");
+}
+
+// A stack panel draws its background.
+#[test]
+fn stack_panel_draws_its_background() {
+  let mut layout = Headless::new();
+  let panel = stack(Orientation::Vertical, 0.0);
+  panel.panel.background.set(Some(Color::rgb(255, 0, 0).into()));
+  let child = layout.add("child", Fixed::new(10.0, 10.0));
+  let root = layout.parent("stack", panel, &[child]);
+  layout.run(root, WINDOW, 1.0);
+
+  let commands = layout.record(root);
+
+  assert!(matches!(commands.as_slice(), [Command::Fill { .. }]), "{commands:?}");
 }
 
 // The children field is the type's content, taken by the `children` method.
