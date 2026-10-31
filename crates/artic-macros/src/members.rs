@@ -324,20 +324,22 @@ fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttributes)
       key,
     })));
   }
-  let property_only = attributes.spec.default.is_some()
-    || attributes.key.is_some()
-    || !attributes.spec.affects.is_empty()
-    || attributes.spec.inherits.is_some();
-  if property_only {
+  if attributes.sets_property() {
     return Err(Error::new_spanned(
       &field.ty,
       "`default`, `key`, `affects` and `inherits` only apply to `Property` fields",
     ));
   }
-  Ok(match generic_argument(&field.ty, "Event") {
-    Some(args) => Member::Event(EventField { ident, ui_name, args }),
-    None => Member::Collection,
-  })
+  match generic_argument(&field.ty, "Event") {
+    Some(args) => Ok(Member::Event(EventField { ident, ui_name, args })),
+    None => match &attributes.name {
+      Some(name) => Err(Error::new_spanned(
+        name,
+        "`name` only applies to `Property` and `Event` fields",
+      )),
+      None => Ok(Member::Collection),
+    },
+  }
 }
 
 /// What a member marked `#[ui(content)]` would make the content: itself, or nothing, for an event.
@@ -552,6 +554,19 @@ mod tests {
     assert!(error(&input, Kind::Type).contains("only apply to `Property` fields"));
   }
 
+  // A content field has no name in a UI language, so `name` on one is rejected rather than dropped.
+  #[test]
+  fn a_name_on_content_is_an_error() {
+    let input: DeriveInput = parse_quote! {
+      struct Border { #[ui(content, name = "Inner")] child: Child }
+    };
+
+    assert_eq!(
+      error(&input, Kind::Type),
+      "`name` only applies to `Property` and `Event` fields"
+    );
+  }
+
   // A `Child` or `Children` field without `#[ui]` is rejected too, rather than left as plain data
   // that no child ever reaches.
   #[test]
@@ -605,5 +620,15 @@ mod tests {
 
     assert!(Members::analyze(&input, Kind::Type).is_ok());
     assert_eq!(error(&input, Kind::Group), "`UiProperties` needs a struct with named fields");
+  }
+
+  // A wrapper takes one type argument: two make it another type.
+  #[test]
+  fn two_type_arguments_are_no_wrapper() {
+    assert!(generic_argument(&parse_quote!(Property<u8, u16>), "Property").is_none());
+    assert_eq!(
+      generic_argument(&parse_quote!(Property<u8>), "Property").map(text),
+      Some("u8".to_owned())
+    );
   }
 }

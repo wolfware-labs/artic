@@ -191,6 +191,19 @@ mod tests {
     assert_eq!(attributes.whitespace, Whitespace::Significant);
   }
 
+  // `whitespace` takes "collapse" as well as "significant".
+  #[test]
+  fn whitespace_collapse_is_parsed() {
+    let input: DeriveInput = parse_quote! {
+      #[ui(whitespace = "collapse")]
+      struct Border { child: u8 }
+    };
+
+    let attributes = parse_type_attributes(&input).expect("valid attributes");
+
+    assert_eq!(attributes.whitespace, Whitespace::Collapse);
+  }
+
   // `crate` names the path generated code uses to reach artic.
   #[test]
   fn crate_path_is_parsed() {
