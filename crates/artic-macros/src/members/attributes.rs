@@ -24,6 +24,13 @@ pub struct FieldAttributes {
   pub content: Option<Span>,
 }
 
+impl FieldAttributes {
+  /// Whether it has a setting only a property takes: `default`, `key`, `affects` or `inherits`.
+  pub fn sets_property(&self) -> bool {
+    self.spec.default.is_some() || self.key.is_some() || !self.spec.affects.is_empty() || self.spec.inherits.is_some()
+  }
+}
+
 /// How a property inherits, from a bare `inherits` or `inherits = path`.
 #[cfg_attr(test, derive(Debug))]
 pub enum Inherits {
@@ -101,12 +108,7 @@ pub fn parse_field_attributes(field: &Field) -> syn::Result<Option<FieldAttribut
   }
   if let Some(attributes) = &found
     && attributes.flatten.is_some()
-    && (attributes.spec.default.is_some()
-      || attributes.key.is_some()
-      || !attributes.spec.affects.is_empty()
-      || attributes.spec.inherits.is_some()
-      || attributes.name.is_some()
-      || attributes.content.is_some())
+    && (attributes.sets_property() || attributes.name.is_some() || attributes.content.is_some())
   {
     return Err(Error::new_spanned(
       field,
@@ -206,6 +208,42 @@ mod tests {
 
     assert!(parse_field_attributes(first_field(&bare)).expect("valid").is_some());
     assert!(parse_field_attributes(first_field(&missing)).expect("valid").is_none());
+  }
+
+  // `default`, `key`, `affects` and `inherits` each make a field a property; `name` alone doesn't.
+  #[test]
+  fn each_property_setting_is_property_only() {
+    let sets = |input: DeriveInput| field_attributes(&input).sets_property();
+
+    assert!(sets(parse_quote! { struct A { #[ui(default = 1)] a: u8 } }));
+    assert!(sets(parse_quote! { struct A { #[ui(key = KEY)] a: u8 } }));
+    assert!(sets(parse_quote! { struct A { #[ui(affects = layout)] a: u8 } }));
+    assert!(sets(parse_quote! { struct A { #[ui(inherits)] a: u8 } }));
+    assert!(!sets(parse_quote! { struct A { #[ui(name = "B")] a: u8 } }));
+    assert!(!sets(parse_quote! { struct A { #[ui] a: u8 } }));
+  }
+
+  // `flatten` takes no other setting, each one refused alone.
+  #[test]
+  fn flatten_takes_no_other_setting() {
+    for setting in [
+      "default = 1",
+      "key = KEY",
+      "affects = layout",
+      "inherits",
+      "name = \"B\"",
+      "content",
+    ] {
+      let setting: proc_macro2::TokenStream = setting.parse().expect("tokens");
+      let input: DeriveInput = parse_quote! { struct A { #[ui(flatten, #setting)] a: u8 } };
+
+      let error = parse_field_attributes(first_field(&input)).expect_err(&setting.to_string());
+
+      assert!(
+        error.to_string().starts_with("`flatten` takes no other settings"),
+        "{setting}"
+      );
+    }
   }
 
   // A shared key can't be combined with `affects` or `inherits`, which the key already holds.

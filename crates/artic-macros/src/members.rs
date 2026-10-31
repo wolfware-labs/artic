@@ -324,11 +324,7 @@ fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttributes)
       key,
     })));
   }
-  let property_only = attributes.spec.default.is_some()
-    || attributes.key.is_some()
-    || !attributes.spec.affects.is_empty()
-    || attributes.spec.inherits.is_some();
-  if property_only {
+  if attributes.sets_property() {
     return Err(Error::new_spanned(
       &field.ty,
       "`default`, `key`, `affects` and `inherits` only apply to `Property` fields",
