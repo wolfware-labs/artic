@@ -27,12 +27,6 @@ impl DisplayId {
   pub const fn new(id: u64) -> DisplayId {
     DisplayId(id)
   }
-
-  /// The host's number for the display.
-  #[must_use]
-  pub const fn get(self) -> u64 {
-    self.0
-  }
 }
 
 /// Why a surface went away.
