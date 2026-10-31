@@ -215,7 +215,7 @@ mod tests {
     assert_eq!(cx.bounds_test(Point::new(0.0, 0.0)), HitTestResult::Miss);
   }
 
-  // Each context hands back the tree and the size it was built with.
+  // Each context hands back the tree it was built with, and a hit test its size.
   #[test]
   fn contexts_hand_back_what_they_were_built_with() {
     let (tree, node) = one_node();

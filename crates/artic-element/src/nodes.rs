@@ -295,7 +295,7 @@ mod tests {
     assert_ne!(format!("{builder:?}"), format!("{:?}", SceneBuilder::default()));
   }
 
-  // An offset along one axis only is still an offset, on either axis.
+  // An offset along either axis alone is an offset.
   #[test]
   fn an_offset_along_one_axis_is_still_an_offset() {
     let types = ElementTypes::from_link_time();
