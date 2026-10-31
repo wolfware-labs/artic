@@ -193,12 +193,12 @@ impl Renderer {
       PixelFormat::Bgra8 => true,
       other => return Err(RenderError::UnsupportedFormat(other)),
     };
+    if size.is_empty() {
+      return Ok(());
+    }
     let row_bytes = size.width as usize * 4;
     if buffer.stride < row_bytes || buffer.data.len() < buffer.stride * size.height as usize {
       return Err(backend("the pixel buffer is smaller than the surface"));
-    }
-    if size.is_empty() {
-      return Ok(());
     }
     let texture = self.draw_offscreen(size, TextureUsages::COPY_SRC)?;
     let padded = row_bytes.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize);

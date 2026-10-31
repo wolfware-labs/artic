@@ -575,11 +575,12 @@ fn a_buffer_smaller_than_the_surface_fails() {
   });
 }
 
-// A surface with no width draws nothing and succeeds, with no buffer to draw into.
+// A surface without width or height draws nothing and succeeds, with no buffer to draw into.
 #[test]
-fn a_surface_without_width_draws_nothing() {
+fn a_surface_without_pixels_draws_nothing() {
   with_renderer(|renderer| {
-    render_into(renderer, PhysicalSize::new(0, 8), 0, 0).expect("nothing to draw");
+    render_into(renderer, PhysicalSize::new(0, 8), 0, 0).expect("no width");
+    render_into(renderer, PhysicalSize::new(8, 0), 0, 0).expect("no height");
   });
 }
 
