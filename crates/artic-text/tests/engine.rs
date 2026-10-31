@@ -257,12 +257,17 @@ fn system_font_keeps_its_id() {
 // Debug shows the default family and how many faces the engine has drawn from.
 #[test]
 fn engine_debug_shows_default_family_and_faces() {
-  let mut engine = Engine::with_fonts([REGULAR]);
+  let mut engine = Engine::with_fonts([REGULAR, BOLD]);
   shape(&mut engine, "Hello", &style());
+  let bold = TextStyle {
+    weight: FontWeight::BOLD,
+    ..style()
+  };
+  shape(&mut engine, "Hello", &bold);
 
   assert_eq!(
     format!("{engine:?}"),
-    r#"Engine { default_family: Named("Atkinson Hyperlegible"), faces: 1 }"#
+    r#"Engine { default_family: Named("Atkinson Hyperlegible"), faces: 2 }"#
   );
 }
 
@@ -1320,4 +1325,61 @@ fn clamped_line_never_shows_dropped_text() {
   let paragraph = laid_out(&mut engine, "ab cdefghij", &clamp, TextLimits::width(room));
 
   assert_eq!(ids(&paragraph), ids(&shape(&mut engine, "ab\u{2026}", &style())));
+}
+
+// A mark the font positions on its base keeps its offset: the acute over "ñ" sits left of the
+// pen and above the baseline.
+#[test]
+fn marks_keep_their_offsets() {
+  let paragraph = shape(&mut engine(), "n\u{303}\u{301}", &style());
+  let mark = paragraph.runs()[0].glyphs()[1];
+
+  assert_close(mark.x, 3.86);
+  assert_close(mark.y, 12.24);
+}
+
+// A right-to-left line trimmed to its width draws inside it, from 0.
+#[test]
+fn trimmed_right_to_left_line_stays_inside() {
+  let cut = ParagraphStyle {
+    trimming: TextTrimming::CharacterEllipsis,
+    ..overflowing()
+  };
+  let limits = TextLimits {
+    max_width: Some(60.0),
+    max_height: Some(LINE),
+  };
+
+  let paragraph = laid_out(&mut engine(), HEBREW, &cut, limits);
+
+  assert_eq!(left_edge(&paragraph, &paragraph.lines()[0]), 0.0);
+}
+
+// A line exactly as wide as the limit fits: it keeps its text and gets no ellipsis.
+#[test]
+fn line_exactly_as_wide_as_the_limit_is_not_trimmed() {
+  let mut engine = engine();
+  let width = shape(&mut engine, "Hello, world", &style()).size().width;
+  let cut = ParagraphStyle {
+    trimming: TextTrimming::CharacterEllipsis,
+    ..overflowing()
+  };
+
+  let paragraph = laid_out(&mut engine, "Hello, world", &cut, TextLimits::width(width));
+
+  assert!(!ids(&paragraph).contains(&ellipsis(&mut engine)));
+}
+
+// Justify leaves the last kept line at its own width, also when the height drops the lines after
+// it and nothing trims it.
+#[test]
+fn justify_leaves_the_last_kept_line() {
+  let limits = TextLimits {
+    max_width: Some(100.0),
+    max_height: Some(LINE * 2.0),
+  };
+
+  let paragraph = laid_out(&mut engine(), FOX, &aligned(TextAlignment::Justify), limits);
+
+  assert!(paragraph.lines().last().unwrap().width < 100.0);
 }
