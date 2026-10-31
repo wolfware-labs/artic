@@ -26,4 +26,6 @@ exclude_re = [
     '<impl SharedKey<T> for PropertyKey<T>>::initial_value',
     # The star is symmetric about its vertical axis, so mirroring its x draws the same pixels.
     'artic-test/src/scenes\.rs:\d+:21: replace \+ with - in star',
+    # The renderer's `|`s join disjoint wgpu usage flags, where `^` sets the same bits.
+    'artic-vello/src/renderer\.rs:\d+:\d+: replace \| with \^',
 ]

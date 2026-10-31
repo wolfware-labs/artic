@@ -1,0 +1,20 @@
+name: Set up a display
+description: Starts Xvfb, a virtual X server, so tests can open windows on a runner without a screen.
+
+runs:
+  using: composite
+  steps:
+    # winit loads the X libraries when it runs, so they're installed beside the server.
+    - name: Install Xvfb
+      shell: bash
+      run: |
+        sudo apt-get update -q
+        sudo apt-get install -y -q --no-install-recommends \
+          xvfb libx11-xcb1 libxcursor1 libxi6 libxrandr2 libxkbcommon-x11-0
+    - name: Start Xvfb
+      shell: bash
+      run: |
+        Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp &
+        for _ in $(seq 50); do [ -S /tmp/.X11-unix/X99 ] && break; sleep 0.1; done
+        [ -S /tmp/.X11-unix/X99 ]
+        echo "DISPLAY=:99" >> "$GITHUB_ENV"

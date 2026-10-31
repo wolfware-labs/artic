@@ -73,12 +73,15 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-rust
       - uses: ./.github/actions/setup-lavapipe
+      - uses: ./.github/actions/setup-display
       - name: Build
         run: cargo build --workspace --all-targets
-      # Without a GPU the goldens skip and pass; lavapipe is there, so a missing adapter fails.
+      # Without a GPU the goldens skip and pass, and without a display the window test does;
+      # lavapipe and Xvfb are there, so a missing adapter or display fails.
       - name: Test
         env:
           ARTIC_REQUIRE_GPU: "1"
+          ARTIC_REQUIRE_DISPLAY: "1"
         run: cargo test --workspace
       - name: Test the facade's features
         run: cargo test -p artic --all-features
@@ -94,6 +97,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-rust
       - uses: ./.github/actions/setup-lavapipe
+      - uses: ./.github/actions/setup-display
       - name: Install llvm-tools
         run: rustup component add llvm-tools
       - uses: taiki-e/install-action@v2
