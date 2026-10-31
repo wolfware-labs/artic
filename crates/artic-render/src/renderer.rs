@@ -78,6 +78,12 @@ impl PhysicalSize {
   pub const fn new(width: u32, height: u32) -> PhysicalSize {
     PhysicalSize { width, height }
   }
+
+  /// Whether the size has no pixels: its width or its height is 0.
+  #[must_use]
+  pub const fn is_empty(self) -> bool {
+    self.width == 0 || self.height == 0
+  }
 }
 
 /// How a renderer gets pixels onto a surface.
@@ -193,6 +199,14 @@ mod tests {
       }
       Ok(())
     }
+  }
+
+  // A size with no pixels on either axis is empty.
+  #[test]
+  fn a_size_without_width_or_height_is_empty() {
+    assert!(PhysicalSize::new(0, 8).is_empty());
+    assert!(PhysicalSize::new(8, 0).is_empty());
+    assert!(!PhysicalSize::new(8, 8).is_empty());
   }
 
   fn red_scene() -> Scene {

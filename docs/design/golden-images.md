@@ -103,6 +103,7 @@ Two environment variables, each on only when set to `1`:
 | `ARTIC_REQUIRE_GPU=1` | a golden test that finds no usable GPU fails instead of skipping |
 
 ```rust,ignore
+// artic_test::require
 pub fn no_gpu(reason: impl Display);
 ```
 
@@ -112,7 +113,7 @@ Each renderer's tests skip when the renderer reports no usable GPU, in the helpe
 fn with_renderer(test: impl FnOnce(&mut Renderer)) {
   match Renderer::new() {
     Ok(mut renderer) => test(&mut renderer),
-    Err(error @ (Error::Adapter(_) | Error::UnsupportedAdapter(_))) => golden::no_gpu(Chain(&error)),
+    Err(error @ (Error::Adapter(_) | Error::UnsupportedAdapter(_))) => require::no_gpu(Chain(&error)),
     Err(error) => panic!("the renderer failed to start: {}", Chain(&error)),
   }
 }

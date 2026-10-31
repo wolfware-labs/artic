@@ -92,7 +92,7 @@ impl Renderer {
   }
 
   fn render_to_window(&mut self, id: SurfaceId, size: PhysicalSize, handles: &dyn RawHandles) -> Result<(), RenderError> {
-    if size.width == 0 || size.height == 0 {
+    if size.is_empty() {
       return Ok(());
     }
     if !self.swapchains.contains_key(&id) {
@@ -125,18 +125,17 @@ impl Renderer {
     size: PhysicalSize,
     handles: &dyn RawHandles,
   ) -> Result<Option<wgpu::SurfaceTexture>, RenderError> {
-    for attempt in 0..2 {
+    for retry in [false, true] {
       let swapchain = &self.swapchains[&id];
-      match swapchain.surface.get_current_texture() {
-        CurrentSurfaceTexture::Success(frame) | CurrentSurfaceTexture::Suboptimal(frame) => return Ok(Some(frame)),
-        CurrentSurfaceTexture::Timeout | CurrentSurfaceTexture::Occluded => return Ok(None),
-        CurrentSurfaceTexture::Outdated if attempt == 0 => swapchain.surface.configure(&self.device, &swapchain.config),
-        CurrentSurfaceTexture::Lost if attempt == 0 => {
+      match acquired(swapchain.surface.get_current_texture(), retry) {
+        Acquired::Frame(frame) => return Ok(Some(frame)),
+        Acquired::Skip => return Ok(None),
+        Acquired::Reconfigure => swapchain.surface.configure(&self.device, &swapchain.config),
+        Acquired::Recreate => {
           let swapchain = self.create_swapchain(handles, size)?;
           self.swapchains.insert(id, swapchain);
         }
-        CurrentSurfaceTexture::Outdated | CurrentSurfaceTexture::Lost => return Err(RenderError::SurfaceLost),
-        CurrentSurfaceTexture::Validation => return Err(backend("the surface texture failed validation")),
+        Acquired::Failed(error) => return Err(error),
       }
     }
     Ok(None)
@@ -194,12 +193,12 @@ impl Renderer {
       PixelFormat::Bgra8 => true,
       other => return Err(RenderError::UnsupportedFormat(other)),
     };
+    if size.is_empty() {
+      return Ok(());
+    }
     let row_bytes = size.width as usize * 4;
     if buffer.stride < row_bytes || buffer.data.len() < buffer.stride * size.height as usize {
       return Err(backend("the pixel buffer is smaller than the surface"));
-    }
-    if size.width == 0 || size.height == 0 {
-      return Ok(());
     }
     let texture = self.draw_offscreen(size, TextureUsages::COPY_SRC)?;
     let padded = row_bytes.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize);
@@ -279,6 +278,26 @@ impl std::fmt::Debug for Renderer {
   }
 }
 
+/// What `acquire` does with the surface's answer, on the first try or the retry.
+enum Acquired {
+  Frame(wgpu::SurfaceTexture),
+  Skip,
+  Reconfigure,
+  Recreate,
+  Failed(RenderError),
+}
+
+fn acquired(answer: CurrentSurfaceTexture, retry: bool) -> Acquired {
+  match answer {
+    CurrentSurfaceTexture::Success(frame) | CurrentSurfaceTexture::Suboptimal(frame) => Acquired::Frame(frame),
+    CurrentSurfaceTexture::Timeout | CurrentSurfaceTexture::Occluded => Acquired::Skip,
+    CurrentSurfaceTexture::Outdated if !retry => Acquired::Reconfigure,
+    CurrentSurfaceTexture::Lost if !retry => Acquired::Recreate,
+    CurrentSurfaceTexture::Outdated | CurrentSurfaceTexture::Lost => Acquired::Failed(RenderError::SurfaceLost),
+    CurrentSurfaceTexture::Validation => Acquired::Failed(backend("the surface texture failed validation")),
+  }
+}
+
 fn extent(size: PhysicalSize) -> Extent3d {
   Extent3d {
     width: size.width,
@@ -308,4 +327,34 @@ fn storage_view(device: &Device, size: PhysicalSize) -> TextureView {
 /// A library failure, as the `RenderError` the renderer seam reports.
 fn backend(error: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> RenderError {
   RenderError::Backend(error.into())
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  // The first outdated answer reconfigures the surface and the first lost one recreates it; on the
+  // retry either fails.
+  #[test]
+  fn an_outdated_or_lost_surface_is_retried_once() {
+    assert!(matches!(
+      acquired(CurrentSurfaceTexture::Outdated, false),
+      Acquired::Reconfigure
+    ));
+    assert!(matches!(acquired(CurrentSurfaceTexture::Lost, false), Acquired::Recreate));
+    let lost = |answer| matches!(acquired(answer, true), Acquired::Failed(RenderError::SurfaceLost));
+    assert!(lost(CurrentSurfaceTexture::Outdated), "outdated on the retry");
+    assert!(lost(CurrentSurfaceTexture::Lost), "lost on the retry");
+  }
+
+  // A hidden window or a timed-out GPU skips the frame; a validation failure is an error.
+  #[test]
+  fn a_hidden_or_failed_surface_gives_no_frame() {
+    for retry in [false, true] {
+      assert!(matches!(acquired(CurrentSurfaceTexture::Timeout, retry), Acquired::Skip));
+      assert!(matches!(acquired(CurrentSurfaceTexture::Occluded, retry), Acquired::Skip));
+      let failed = acquired(CurrentSurfaceTexture::Validation, retry);
+      assert!(matches!(failed, Acquired::Failed(RenderError::Backend(_))));
+    }
+  }
 }

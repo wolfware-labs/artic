@@ -32,11 +32,11 @@ CI runs these on every pull request. Run them locally before pushing:
 | Code in documents | `cargo test -p docs-check` | Docs |
 | Links in documents | `lychee --offline --include-fragments --root-dir "$PWD" '*.md' 'docs/**/*.md'` | Docs |
 | Dependency policy | `cargo deny check` | Deny |
-| Mutation testing | `git diff origin/main... > pr.diff`, then `cargo mutants --in-diff pr.diff --in-place`, with `ARTIC_REQUIRE_GPU=1` on a machine with a GPU or lavapipe, since a skipped golden catches no mutant | Mutants |
+| Mutation testing | `git diff origin/main... > pr.diff`, then `cargo mutants --in-diff pr.diff --in-place`, with `ARTIC_REQUIRE_GPU=1` and `ARTIC_REQUIRE_DISPLAY=1` on a machine with a GPU or lavapipe and an X server (Xvfb or XWayland), since a skipped golden or window test catches no mutant | Mutants |
 
 On Windows PowerShell, set the docs flag with `$env:RUSTDOCFLAGS="-D warnings"` before running `cargo doc`.
 
-The required status checks for `main` are `Test (windows-latest)`, `Test (macos-latest)`, `Test (ubuntu-latest)`, `Lint`, `Docs`, `Deny`, `Mutants` and `Socket Security: Pull Request Alerts`. Socket checks the dependencies a pull request adds or changes for known vulnerabilities and supply-chain risks. `Mutants` mutates the lines a pull request changes and fails when a mutant survives, that is when no test fails with it; a mutant that makes the tests hang is listed and passes. The Ubuntu job's `Test` step and the mutants jobs run on lavapipe, a Vulkan driver on the CPU, with `ARTIC_REQUIRE_GPU=1`, so the goldens run there instead of skipping.
+The required status checks for `main` are `Test (windows-latest)`, `Test (macos-latest)`, `Test (ubuntu-latest)`, `Lint`, `Docs`, `Deny`, `Mutants` and `Socket Security: Pull Request Alerts`. Socket checks the dependencies a pull request adds or changes for known vulnerabilities and supply-chain risks. `Mutants` mutates the lines a pull request changes and fails when a mutant survives, that is when no test fails with it; a mutant that makes the tests hang is listed and passes. The Ubuntu job's `Test` step and the mutants jobs run on lavapipe, a Vulkan driver on the CPU, and Xvfb, a virtual X server, with `ARTIC_REQUIRE_GPU=1` and `ARTIC_REQUIRE_DISPLAY=1`, so the goldens and the window test run there instead of skipping.
 
 ## Snapshot tests
 

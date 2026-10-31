@@ -16,8 +16,8 @@
 //! }
 //! ```
 //!
-//! A renderer's tests decide what a usable GPU is and call [`no_gpu`] instead of running a test
-//! when there's none. It skips, or fails when `ARTIC_REQUIRE_GPU` is `1`.
+//! A renderer's tests decide what a usable GPU is and call [`require::no_gpu`](crate::require::no_gpu)
+//! instead of running a test when there's none. It skips, or fails when `ARTIC_REQUIRE_GPU` is `1`.
 
 mod check;
 mod image;
@@ -29,7 +29,6 @@ use artic_core::tree::{NodeId, UiTree};
 use artic_element::ElementTypes;
 use artic_platform::{Axes, DisplayId, FrameServices, Pipeline, SurfaceInfo};
 use artic_render::{PhysicalSize, PixelBuffer, PixelFormat, RenderError, Renderer, Scene, SurfaceId, SurfaceView, Target};
-use std::fmt::Display;
 
 const SURFACE: SurfaceId = SurfaceId::new(1);
 
@@ -95,20 +94,6 @@ pub fn render_tree(
   pixels(size, |target| pipeline.present(renderer, frame, target).map(|_| ()))
 }
 
-/// Skips a golden test on a machine without a usable GPU, printing `reason`.
-///
-/// # Panics
-///
-/// When `ARTIC_REQUIRE_GPU` is `1`: a job that promises a GPU fails without one.
-pub fn no_gpu(reason: impl Display) {
-  skip(&reason, flag("ARTIC_REQUIRE_GPU"));
-}
-
-fn skip(reason: &dyn Display, required: bool) {
-  assert!(!required, "no usable GPU, and ARTIC_REQUIRE_GPU=1: {reason}");
-  eprintln!("skipped: {reason}");
-}
-
 fn pixels(size: PhysicalSize, draw: impl FnOnce(Target<'_>) -> Result<(), RenderError>) -> Result<Image, RenderError> {
   let width = size.width as usize;
   let mut data = vec![0; width * size.height as usize * 4];
@@ -120,32 +105,10 @@ fn pixels(size: PhysicalSize, draw: impl FnOnce(Target<'_>) -> Result<(), Render
   Ok(Image::new(size.width, size.height, data.as_chunks::<4>().0.to_vec()))
 }
 
-fn flag(name: &str) -> bool {
-  std::env::var_os(name).is_some_and(|value| value == "1")
-}
-
 #[cfg(test)]
 pub(crate) fn scratch(name: &str) -> std::path::PathBuf {
   let dir = std::env::temp_dir().join(format!("artic-golden-{name}-{}", std::process::id()));
   let _ = std::fs::remove_dir_all(&dir);
   std::fs::create_dir_all(&dir).expect("a scratch folder");
   dir
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  // Without a GPU a test skips by default.
-  #[test]
-  fn missing_gpu_skips_by_default() {
-    skip(&"no adapter", false);
-  }
-
-  // A job that requires a GPU fails without one.
-  #[test]
-  #[should_panic(expected = "ARTIC_REQUIRE_GPU=1: no adapter")]
-  fn required_gpu_fails_without_one() {
-    skip(&"no adapter", true);
-  }
 }

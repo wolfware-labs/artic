@@ -5,8 +5,14 @@ pub use artic_core::reactive::{LiveCounts, assert_no_reactive_leaks, live_counts
 
 pub mod golden;
 pub mod layout;
+pub mod require;
 pub mod scenes;
 pub mod text;
+
+/// Whether the environment variable `name` is `1`.
+fn flag(name: &str) -> bool {
+  std::env::var_os(name).is_some_and(|value| value == "1")
+}
 
 #[doc(hidden)]
 pub mod __private {

@@ -101,6 +101,8 @@ skrifa = { version = "=0.49.0", default-features = false, features = ["std"] }
 # vello is pre-1.0 (spec §13 risks): pinned exactly. Its wgpu is used through `vello::wgpu`.
 vello = "=0.11.0"
 winit = { version = "0.30.13", default-features = false }
+# The window test reads presented pixels back from the X server. winit already depends on it.
+x11rb = "0.13.2"
 xmlparser = "0.13.6"
 
 [workspace.lints.rust]
