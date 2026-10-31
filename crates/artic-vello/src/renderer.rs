@@ -92,7 +92,7 @@ impl Renderer {
   }
 
   fn render_to_window(&mut self, id: SurfaceId, size: PhysicalSize, handles: &dyn RawHandles) -> Result<(), RenderError> {
-    if size.width == 0 || size.height == 0 {
+    if size.is_empty() {
       return Ok(());
     }
     if !self.swapchains.contains_key(&id) {
@@ -198,7 +198,7 @@ impl Renderer {
     if buffer.stride < row_bytes || buffer.data.len() < buffer.stride * size.height as usize {
       return Err(backend("the pixel buffer is smaller than the surface"));
     }
-    if size.width == 0 || size.height == 0 {
+    if size.is_empty() {
       return Ok(());
     }
     let texture = self.draw_offscreen(size, TextureUsages::COPY_SRC)?;
