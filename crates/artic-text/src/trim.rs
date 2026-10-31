@@ -338,4 +338,11 @@ mod tests {
 
     assert_eq!(dropped, Some(0..12));
   }
+
+  // The path cut widens the dropped run one segment at a time, alternating right and left: two
+  // segments around the middle go before three to its right.
+  #[test]
+  fn path_cut_widens_alternately() {
+    assert_eq!(shown(TextTrimming::PathSegmentEllipsis, "a/b/c/d/e/f/g/h", 11), "a/b/c/…/g/h");
+  }
 }

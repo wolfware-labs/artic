@@ -1383,3 +1383,17 @@ fn justify_leaves_the_last_kept_line() {
 
   assert!(paragraph.lines().last().unwrap().width < 100.0);
 }
+
+// Justify spreads a line's spare width evenly over its gaps: the last glyph moves by all of it.
+#[test]
+fn justify_spreads_the_spare_width_over_the_gaps() {
+  let mut engine = engine();
+  let justified = laid_out(&mut engine, FOX, &aligned(TextAlignment::Justify), TextLimits::width(200.0));
+  let start = laid_out(&mut engine, FOX, &overflowing(), TextLimits::width(200.0));
+  let (line, natural) = (&justified.lines()[0], &start.lines()[0]);
+
+  assert_close(
+    right_glyph(&justified, line) - right_glyph(&start, natural),
+    200.0 - natural.width,
+  );
+}
