@@ -175,8 +175,8 @@ fn huge_spacing_stays_finite() {
   );
 }
 
-// A child too tall to fit after the ones before it is cut to end at a finite coordinate, keeping
-// nearly all the room left, also where no snapping to the pixel grid would clamp it.
+// A child too tall to fit after the ones before it is cut by layout to end at a finite
+// coordinate, keeping nearly all the room left, also where no snapping would clamp it.
 #[test]
 fn a_child_too_tall_to_fit_is_cut_to_a_finite_end() {
   let mut layout = Headless::new();
