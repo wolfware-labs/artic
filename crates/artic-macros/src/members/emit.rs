@@ -277,13 +277,14 @@ mod tests {
     );
   }
 
-  // A number type is `f32` itself or a path to it through `core::primitive` or `std::primitive`:
-  // a path from the root, through another module or from another crate isn't one.
+  // A number type is `f32` itself or a path to it through `core::primitive` or `std::primitive`,
+  // from the root or not; a bare name from the root, another module or another crate isn't one.
   #[test]
   fn number_paths_go_only_through_primitive() {
     assert!(is_number(&parse_quote!(f32)));
     assert!(is_number(&parse_quote!(core::primitive::f32)));
     assert!(is_number(&parse_quote!(std::primitive::u8)));
+    assert!(is_number(&parse_quote!(::core::primitive::f32)));
     assert!(!is_number(&parse_quote!(::f32)));
     assert!(!is_number(&parse_quote!(core::other::f32)));
     assert!(!is_number(&parse_quote!(units::primitive::f32)));

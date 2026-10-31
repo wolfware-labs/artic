@@ -287,7 +287,7 @@ mod tests {
   // `pub(self)` is private; a scope with another path is exposed only when written as the group's,
   // and a public field always is.
   #[test]
-  fn visibility_scopes_compare_by_reach() {
+  fn visibility_scopes_compare_by_reach_or_text() {
     let vis = |tokens: &str| -> Visibility { syn::parse_str(tokens).expect("a visibility") };
 
     assert!(exposed(&vis("pub(self)"), &vis("")));

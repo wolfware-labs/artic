@@ -25,7 +25,7 @@ pub struct FieldAttributes {
 }
 
 impl FieldAttributes {
-  /// Whether it has a setting only a property takes: `default`, `key`, `affects` or `inherits`.
+  /// Whether the field has a setting only a property takes: `default`, `key`, `affects` or `inherits`.
   pub fn sets_property(&self) -> bool {
     self.spec.default.is_some() || self.key.is_some() || !self.spec.affects.is_empty() || self.spec.inherits.is_some()
   }
