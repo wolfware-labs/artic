@@ -503,6 +503,33 @@ fn wider_box_wraps_again() {
   ));
 }
 
+// A box exactly one device pixel narrower than the measure shapes nothing: only more does.
+#[test]
+fn a_box_exactly_one_device_pixel_narrower_shapes_nothing() {
+  let block = wrapping(SENTENCE, TextWrapping::Wrap);
+
+  assert!(!reshaped_by_second_arrange(
+    block,
+    Size::new(101.0, 300.0),
+    Size::new(100.0, 300.0),
+    1.0
+  ));
+}
+
+// A paragraph no limit shaped, narrower than a narrower box, shapes nothing: the box still holds
+// it as it is, also where a device pixel is a third of a unit.
+#[test]
+fn short_paragraph_in_a_narrower_box_shapes_nothing() {
+  let block = wrapping("Hello world", TextWrapping::Wrap);
+
+  assert!(!reshaped_by_second_arrange(
+    block,
+    Size::new(200.0, 300.0),
+    Size::new(100.0, 300.0),
+    3.0
+  ));
+}
+
 /// Every wrapping mode.
 fn wrappings() -> impl Strategy<Value = TextWrapping> {
   prop_oneof![

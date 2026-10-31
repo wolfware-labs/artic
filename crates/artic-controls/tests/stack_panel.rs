@@ -7,6 +7,7 @@ use artic_element::{AccessCx, ElementTypes, Visibility};
 use artic_layout::Orientation;
 use artic_layout::geometry::{Rect, Size};
 use artic_registry::{ContentInfo, ContentMethod, UiType};
+use artic_render::{Color, Command};
 use artic_test::layout::{Fixed, Headless, Invariants, strategy};
 use proptest::prelude::*;
 
@@ -30,6 +31,20 @@ fn stack_vertical_measure() {
   layout.run(root, WINDOW, 1.0);
 
   layout.assert_desired(root, Size::new(200.0, 75.0));
+}
+
+// Spacing goes between each pair of children: three children get it twice.
+#[test]
+fn spacing_goes_between_each_pair() {
+  let mut layout = Headless::new();
+  let a = layout.add("a", Fixed::new(10.0, 10.0));
+  let b = layout.add("b", Fixed::new(10.0, 20.0));
+  let c = layout.add("c", Fixed::new(10.0, 30.0));
+  let root = layout.parent("stack", stack(Orientation::Vertical, 5.0), &[a, b, c]);
+
+  layout.run(root, WINDOW, 1.0);
+
+  layout.assert_desired(root, Size::new(10.0, 70.0));
 }
 
 // A horizontal stack swaps the axes.
@@ -157,6 +172,41 @@ fn huge_spacing_stays_finite() {
       .iter()
       .all(|value| value.is_finite()),
     "{rect:?}"
+  );
+}
+
+// A child too tall to fit after the ones before it is cut to end at a finite coordinate, keeping
+// nearly all the room left, also where no snapping to the pixel grid would clamp it.
+#[test]
+fn a_child_too_tall_to_fit_is_cut_to_a_finite_end() {
+  let mut layout = Headless::new();
+  layout.set_snap(false);
+  let a = layout.add("a", Fixed::new(10.0, 1.0e38));
+  let c = layout.add("c", Fixed::new(10.0, f32::MAX));
+  let root = layout.parent("stack", stack(Orientation::Vertical, 0.0), &[a, c]);
+
+  layout.run(root, WINDOW, 1.0);
+
+  let rect = layout.manager().rect(c).expect("arranged");
+  assert!((rect.y + rect.height).is_finite(), "{rect:?}");
+  assert!(rect.height > 2.0e38, "{rect:?}");
+}
+
+// A stack panel draws its background.
+#[test]
+fn stack_panel_draws_its_background() {
+  let mut layout = Headless::new();
+  let panel = stack(Orientation::Vertical, 0.0);
+  panel.panel.background.set(Some(Color::rgb(255, 0, 0).into()));
+  let child = layout.add("child", Fixed::new(10.0, 10.0));
+  let root = layout.parent("stack", panel, &[child]);
+
+  layout.run(root, WINDOW, 1.0);
+  let commands = layout.record(root);
+
+  assert!(
+    matches!(commands.as_slice(), [Command::Fill { brush, .. }] if *brush == Color::rgb(255, 0, 0).into()),
+    "{commands:?}"
   );
 }
 
