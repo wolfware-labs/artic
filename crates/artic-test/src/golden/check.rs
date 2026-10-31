@@ -1,4 +1,5 @@
-use super::{Image, flag};
+use super::Image;
+use crate::flag;
 use artic_core::error::Chain;
 use std::fs;
 use std::io;

@@ -14,7 +14,7 @@ runs:
     - name: Start Xvfb
       shell: bash
       run: |
-        Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp &
+        Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp > "$RUNNER_TEMP/xvfb.log" 2>&1 &
         for _ in $(seq 50); do [ -S /tmp/.X11-unix/X99 ] && break; sleep 0.1; done
         [ -S /tmp/.X11-unix/X99 ]
         echo "DISPLAY=:99" >> "$GITHUB_ENV"

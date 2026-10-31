@@ -83,6 +83,7 @@ jobs:
           ARTIC_REQUIRE_GPU: "1"
           ARTIC_REQUIRE_DISPLAY: "1"
         run: cargo test --workspace
+        timeout-minutes: 30
       - name: Test the facade's features
         run: cargo test -p artic --all-features
       - name: Test the registry without literals
@@ -108,6 +109,7 @@ jobs:
       # so the renderer's draw paths count as covered.
       - name: Measure
         run: cargo llvm-cov --workspace --ignore-run-fail --lcov --output-path lcov.info
+        timeout-minutes: 30
       - uses: actions/upload-artifact@v7
         with:
           name: lcov

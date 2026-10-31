@@ -1,6 +1,7 @@
 //! Skipping a test on a machine without what it needs. A job that promises the machine has it sets
 //! the requirement's variable to `1`, and the test fails instead.
 
+use crate::flag;
 use std::fmt::Display;
 
 /// Something a test needs from the machine, and the variable that makes it required.
@@ -42,10 +43,6 @@ impl Need {
     assert!(!required, "{}, and {}=1: {reason}", self.missing, self.variable);
     eprintln!("skipped: {reason}");
   }
-}
-
-pub(crate) fn flag(name: &str) -> bool {
-  std::env::var_os(name).is_some_and(|value| value == "1")
 }
 
 #[cfg(test)]

@@ -2,7 +2,8 @@
 // presented pixels back from the X server. It covers what a pixel buffer can't: the swapchain each
 // window gets, its reconfiguring on a resize, and its drop when the host reports the surface lost.
 // winit's loop must own the main thread, so this test runs without the harness. It needs X11:
-// without an X display it skips, or fails when `ARTIC_REQUIRE_DISPLAY` is `1`.
+// without an X server it skips, or fails when `ARTIC_REQUIRE_DISPLAY` is `1`. A run that hasn't
+// finished after a minute fails.
 
 use artic_core::error::Chain;
 use artic_layout::geometry::Rect;
@@ -22,16 +23,26 @@ use x11rb::rust_connection::RustConnection;
 const RED: [u8; 3] = [255, 0, 0];
 const BLUE: [u8; 3] = [0, 0, 255];
 const GREEN: [u8; 3] = [0, 255, 0];
+const TIMEOUT: Duration = Duration::from_secs(60);
 
 // A window shows what the renderer draws, at its first size and after a resize, and a surface the
 // host reports lost is dropped, so its id can name another window's surface.
 fn main() {
-  if cfg!(any(target_os = "macos", windows)) || std::env::var_os("DISPLAY").is_none() {
+  if cfg!(any(target_os = "macos", windows)) {
     require::no_display("the window test reads pixels from an X server");
+    return;
+  }
+  if let Err(error) = RustConnection::connect(None) {
+    require::no_display(format!("no X server answers: {error}"));
     return;
   }
   // SAFETY: no other thread has started, so nothing reads the environment meanwhile.
   unsafe { std::env::remove_var("WAYLAND_DISPLAY") };
+  std::thread::spawn(|| {
+    std::thread::sleep(TIMEOUT);
+    eprintln!("the window test timed out: a window never drew, or the window manager didn't resize it");
+    std::process::exit(1);
+  });
   let renderer = match artic_vello::Renderer::new() {
     Ok(renderer) => renderer,
     Err(error @ (artic_vello::Error::Adapter(_) | artic_vello::Error::UnsupportedAdapter(_))) => {
@@ -130,8 +141,7 @@ impl AppHandler for Script {
         windows.update(surface, &desc("window A", 160.0, 120.0));
         self.step = Step::Resized(size);
       }
-      Step::Resized(old) if size == old => cx.request_frame(surface),
-      Step::Resized(_) => {
+      Step::Resized(old) if size != old => {
         self.fill(surface, size, handles, BLUE);
         assert_shows(handles, size.width - 2, size.height - 2, BLUE, "the corner after the resize");
         cx.windows()
@@ -146,7 +156,7 @@ impl AppHandler for Script {
         self.done.set(true);
         cx.exit();
       }
-      Step::Reused { .. } => {}
+      Step::Resized(_) | Step::Reused { .. } => {}
     }
   }
 }

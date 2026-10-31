@@ -25,8 +25,6 @@ mod image;
 pub use check::{Golden, GoldenError, Tolerance};
 pub use image::Image;
 
-use crate::require::flag;
-
 use artic_core::tree::{NodeId, UiTree};
 use artic_element::ElementTypes;
 use artic_platform::{Axes, DisplayId, FrameServices, Pipeline, SurfaceInfo};
