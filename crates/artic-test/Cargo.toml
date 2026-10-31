@@ -25,7 +25,7 @@ thiserror.workspace = true
 pretty_assertions.workspace = true
 
 [[test]]
-name = "require_gpu"
+name = "requirements"
 harness = false
 
 [lints]

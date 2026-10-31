@@ -1,12 +1,12 @@
 // The renderer the GPU tests share, or why this machine can't run them.
 
 use artic_core::error::Chain;
-use artic_test::golden;
+use artic_test::require;
 use artic_vello::{Error, Renderer};
 use std::sync::{Mutex, OnceLock, PoisonError};
 
 /// Runs `test` with the renderer the tests share, one at a time, or skips it through
-/// [`golden::no_gpu`] when there's no adapter, or only WARP, Windows' software DX12 adapter, on
+/// [`require::no_gpu`] when there's no adapter, or only WARP, Windows' software DX12 adapter, on
 /// which vello's compute shaders crash.
 ///
 /// # Panics
@@ -18,7 +18,7 @@ pub fn with_renderer(test: impl FnOnce(&mut Renderer)) {
   let mut renderer = shared.lock().unwrap_or_else(PoisonError::into_inner);
   match renderer.as_mut() {
     Ok(renderer) => test(renderer),
-    Err(reason) => golden::no_gpu(reason),
+    Err(reason) => require::no_gpu(reason),
   }
 }
 
