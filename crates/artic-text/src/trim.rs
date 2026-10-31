@@ -319,4 +319,30 @@ mod tests {
     assert!(dropped.start == 6 || dropped.start <= 3);
     assert!(!asked.is_empty());
   }
+
+  // Three segments are enough for a path cut: the middle one goes.
+  #[test]
+  fn three_segment_path_drops_its_middle() {
+    assert_eq!(shown(TextTrimming::PathSegmentEllipsis, "a/bcdef/g", 5), "a/…/g");
+  }
+
+  // The prefix cut always drops something after the prefix: an ellipsis there that drops nothing
+  // is no candidate, so with only that fitting, the cut falls back to dropping everything.
+  #[test]
+  fn prefix_cut_never_drops_nothing_after_the_prefix() {
+    let text = "abcdefghijkl";
+
+    let dropped = cut(TextTrimming::PrefixCharacterEllipsis, text, &clusters(text), &mut |dropped| {
+      *dropped == (8..8)
+    });
+
+    assert_eq!(dropped, Some(0..12));
+  }
+
+  // The path cut widens the dropped run one segment at a time, alternating right and left: two
+  // segments around the middle go before three to its right.
+  #[test]
+  fn path_cut_widens_alternately() {
+    assert_eq!(shown(TextTrimming::PathSegmentEllipsis, "a/b/c/d/e/f/g/h", 11), "a/b/c/…/g/h");
+  }
 }

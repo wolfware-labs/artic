@@ -257,12 +257,17 @@ fn system_font_keeps_its_id() {
 // Debug shows the default family and how many faces the engine has drawn from.
 #[test]
 fn engine_debug_shows_default_family_and_faces() {
-  let mut engine = Engine::with_fonts([REGULAR]);
+  let mut engine = Engine::with_fonts([REGULAR, BOLD]);
   shape(&mut engine, "Hello", &style());
+  let bold = TextStyle {
+    weight: FontWeight::BOLD,
+    ..style()
+  };
+  shape(&mut engine, "Hello", &bold);
 
   assert_eq!(
     format!("{engine:?}"),
-    r#"Engine { default_family: Named("Atkinson Hyperlegible"), faces: 1 }"#
+    r#"Engine { default_family: Named("Atkinson Hyperlegible"), faces: 2 }"#
   );
 }
 
@@ -1320,4 +1325,72 @@ fn clamped_line_never_shows_dropped_text() {
   let paragraph = laid_out(&mut engine, "ab cdefghij", &clamp, TextLimits::width(room));
 
   assert_eq!(ids(&paragraph), ids(&shape(&mut engine, "ab\u{2026}", &style())));
+}
+
+// A mark the font positions on its base keeps its offset: the acute over "ñ" sits left of the
+// pen and above the baseline.
+#[test]
+fn marks_keep_their_offsets() {
+  let paragraph = shape(&mut engine(), "n\u{303}\u{301}", &style());
+  let mark = paragraph.runs()[0].glyphs()[1];
+
+  assert_close(mark.x, 3.86);
+  assert_close(mark.y, 12.24);
+}
+
+// A right-to-left line clamped by the height and trimmed draws inside the paragraph, from 0.
+#[test]
+fn trimmed_right_to_left_line_stays_inside() {
+  let cut = ParagraphStyle {
+    trimming: TextTrimming::CharacterEllipsis,
+    ..overflowing()
+  };
+
+  let paragraph = laid_out(&mut engine(), HEBREW, &cut, limits(Some(60.0), Some(LINE)));
+
+  assert_eq!(left_edge(&paragraph, &paragraph.lines()[0]), 0.0);
+  assert!(right_glyph(&paragraph, &paragraph.lines()[0]) <= paragraph.size().width);
+}
+
+// A line exactly as wide as the limit fits: it keeps its text and gets no ellipsis.
+#[test]
+fn line_exactly_as_wide_as_the_limit_is_not_trimmed() {
+  let mut engine = engine();
+  let width = shape(&mut engine, "Hello, world", &style()).size().width;
+  let cut = ParagraphStyle {
+    trimming: TextTrimming::CharacterEllipsis,
+    ..overflowing()
+  };
+
+  let paragraph = laid_out(&mut engine, "Hello, world", &cut, TextLimits::width(width));
+
+  assert_eq!(ids(&paragraph), ids(&shape(&mut engine, "Hello, world", &style())));
+}
+
+// Justify stretches a line that ends at a wrap also when the height drops the lines after it, so
+// a height limit doesn't change how the lines it keeps look.
+#[test]
+fn justify_stretches_the_last_kept_line_of_a_cut_paragraph() {
+  let paragraph = laid_out(
+    &mut engine(),
+    FOX,
+    &aligned(TextAlignment::Justify),
+    limits(Some(100.0), Some(LINE * 2.0)),
+  );
+
+  assert_eq!(paragraph.lines().last().unwrap().width, 100.0);
+}
+
+// Justify spreads a line's spare width evenly over its gaps: the last glyph moves by all of it.
+#[test]
+fn justify_spreads_the_spare_width_over_the_gaps() {
+  let mut engine = engine();
+  let justified = laid_out(&mut engine, FOX, &aligned(TextAlignment::Justify), TextLimits::width(200.0));
+  let start = laid_out(&mut engine, FOX, &overflowing(), TextLimits::width(200.0));
+  let (line, natural) = (&justified.lines()[0], &start.lines()[0]);
+
+  assert_close(
+    right_glyph(&justified, line) - right_glyph(&start, natural),
+    200.0 - natural.width,
+  );
 }
