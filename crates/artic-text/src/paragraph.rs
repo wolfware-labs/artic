@@ -41,7 +41,6 @@ pub(crate) fn paragraph(
     .map(|(index, line)| {
       style.alignment == TextAlignment::Justify
         && index != last
-        && !line.trimmed
         && line.soft_break
         && line.gaps > 0
         && max_width.is_some_and(|max| line.width() <= max)

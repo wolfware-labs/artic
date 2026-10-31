@@ -40,7 +40,6 @@ pub(crate) struct DraftLine {
   pub(crate) hung: usize,
   pub(crate) height: f32,
   pub(crate) soft_break: bool,
-  pub(crate) trimmed: bool,
   pub(crate) gaps: u32,
   pub(crate) baseline: f32,
   pub(crate) start: f32,
@@ -105,7 +104,6 @@ impl DraftLine {
       text: range,
       hung,
       height: metrics.line_height,
-      trimmed: false,
       soft_break: matches!(line.break_reason(), BreakReason::Regular | BreakReason::Emergency),
       gaps,
       baseline: metrics.baseline,
@@ -127,7 +125,6 @@ impl DraftLine {
       }
     }
     DraftLine {
-      trimmed: true,
       gaps: 0,
       start: trimmed.start,
       end: trimmed.end,
