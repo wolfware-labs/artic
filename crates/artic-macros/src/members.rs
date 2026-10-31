@@ -602,4 +602,14 @@ mod tests {
     assert!(Members::analyze(&input, Kind::Type).is_ok());
     assert_eq!(error(&input, Kind::Group), "`UiProperties` needs a struct with named fields");
   }
+
+  // A wrapper takes one type argument: two make it another type.
+  #[test]
+  fn two_type_arguments_are_no_wrapper() {
+    assert!(generic_argument(&parse_quote!(Property<u8, u16>), "Property").is_none());
+    assert_eq!(
+      generic_argument(&parse_quote!(Property<u8>), "Property").map(text),
+      Some("u8".to_owned())
+    );
+  }
 }
