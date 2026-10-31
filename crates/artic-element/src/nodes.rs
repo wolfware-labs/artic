@@ -294,4 +294,21 @@ mod tests {
 
     assert_ne!(format!("{builder:?}"), format!("{:?}", SceneBuilder::default()));
   }
+
+  // An offset along either axis alone is an offset.
+  #[test]
+  fn an_offset_along_one_axis_is_still_an_offset() {
+    let types = ElementTypes::from_link_time();
+
+    for at in [(5.0, 0.0), (0.0, 7.0)] {
+      let (tree, spot, _, layout) = laid_out(at, None);
+      let layers = ElementNodes {
+        types: &types,
+        layout: &layout,
+      }
+      .layers(&tree, spot);
+
+      assert_eq!(layers.transform, Some(Transform::translate(at.0, at.1)));
+    }
+  }
 }
