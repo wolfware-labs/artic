@@ -1184,6 +1184,27 @@ fn clamped_window_lays_content_out_at_its_desired_size() {
   assert_eq!(seen.get(), Some(Size::new(64.0, 20.0)));
 }
 
+// A window that stops sizing to its content at the same size draws again, laid out at the window's
+// height instead of the content's.
+#[test]
+fn size_to_content_change_requests_a_frame() {
+  let mut tree = UiTree::new();
+  let content = leaf(&mut tree, 20.0);
+  let (application, surfaces) = application(&mut tree, &[("main", content.id)]);
+  Desktop::set_size_to_content(&mut tree, surfaces[0], SizeToContent::Height);
+  let sizes = tree.attached_property(surfaces[0], Desktop::SIZE_TO_CONTENT);
+  let (mut runner, mut cx) = started(tree, application);
+  let mut buffer = pixels();
+  runner.surface_changed(&mut cx, FIRST, info(64, 20, 1.0));
+  runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+  cx.clear();
+
+  sizes.set(SizeToContent::Manual);
+  runner.woken(&mut cx);
+
+  assert_eq!(cx.frames, [FIRST]);
+}
+
 // Content that grows resizes a window sized to it, once.
 #[test]
 fn content_growth_resizes_window() {

@@ -42,7 +42,7 @@ The vocabulary splits by layer. App code says `Surface`, with platform settings 
 | --- | --- | --- |
 | `Application` | `artic-element` | An `#[element]`, the root of the tree. Its content is the collection of its `Surface`s. #122 adds `Resources` and `Styles` to it |
 | `Surface` | `artic-element` | An `#[element]` with `Title: String` (`affects = render`, so a change also rebuilds the accesskit node) and `IsOpen: bool` (default `true`), and a single content. Allowed only as a child of `Application`: the runner checks it at the first settle or frame after any change to the tree's structure, and panics. Accesskit role `Window`, named by `Title` |
-| `Desktop` | `artic-element` | An attached-property owner with no instances. `Width: Option<f32>`, `Height: Option<f32>`, `SizeToContent`, `Chrome`, all `inherits`, `target = any` |
+| `Desktop` | `artic-element` | An attached-property owner with no instances. `Width: Option<f32>`, `Height: Option<f32>`, `SizeToContent` (`affects = layout`, since it changes what the surface's root is laid out in), `Chrome`, all `inherits`, `target = any` |
 | `SizeToContent` | `artic-element` | `UiEnum`: `Manual` (default), `Width`, `Height`, `WidthAndHeight` |
 | `Chrome` | `artic-element` | `UiEnum`: `System` (default: the OS draws the title bar and borders), `None` (the app draws everything) |
 | `UserControl` | `artic-controls` | An `#[element]` with a single content. Accesskit role `GenericContainer`. `artic-controls` gains its `artic-element` dependency |
@@ -136,7 +136,7 @@ The `frames` example builds an `Application` with one `Surface` and runs unchang
 | --- | --- | --- |
 | A | this document; spec §6, §7 and §10, `architecture.md`, and pointers in the host and frame designs; #267 for `Desktop.State` and `Desktop.Display` | approved |
 | B | `MeasureCx` and `ArrangeCx`, and a scale change that arranges without measuring | the `artic-layout` tests in section 7 |
-| C | `Affects::SURFACE`; attached properties that inherit; `Application`, `Surface`, `Desktop`, `SizeToContent`, `Chrome`, `UserControl`; reconcile, `WindowDesc` in `artic-platform`, `SurfaceView`, `Windows::update`, the `artic-winit` mapping; both examples ported; the overlapping-root checks and their tests removed, since surfaces under `Application` are disjoint | the `artic-element`, `artic-controls` and `artic-platform` tests in section 7, and `smoke` and `frames` passing in CI |
+| C | `Affects::SURFACE`; attached properties that inherit; `Application`, `Surface`, `Desktop`, `SizeToContent`, `Chrome`, `UserControl`; reconcile, `WindowDesc` in `artic-platform`, `SurfaceView`, `Windows::update`, the `artic-winit` mapping; both examples ported; the overlapping-root checks and their tests removed, since surfaces under `Application` are disjoint. `Affects::SURFACE` was removed later, once reconcile rebuilt every surface's description at each settle and nothing read it | the `artic-element`, `artic-controls` and `artic-platform` tests in section 7, and `smoke` and `frames` passing in CI |
 
 ## 9. Later
 

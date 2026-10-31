@@ -61,7 +61,7 @@ impl ElementImpl for Surface {
 #[derive(Debug, UiType)]
 #[ui(attached(name = "Width", ty = Option<f32>, target = any, inherits))]
 #[ui(attached(name = "Height", ty = Option<f32>, target = any, inherits))]
-#[ui(attached(name = "SizeToContent", ty = SizeToContent, target = any, inherits))]
+#[ui(attached(name = "SizeToContent", ty = SizeToContent, affects = layout, target = any, inherits))]
 #[ui(attached(name = "Chrome", ty = Chrome, target = any, inherits))]
 pub struct Desktop;
 
