@@ -686,7 +686,8 @@ impl<'a> ArrangeCx<'a> {
   ///
   /// # Panics
   ///
-  /// In debug builds, panics if `rect` isn't finite; release builds treat such a field as zero.
+  /// In debug builds, panics if `rect` isn't finite; release builds treat such a field as zero. A
+  /// rectangle that reaches past the largest finite coordinate is cut to end there.
   pub fn arrange(&mut self, child: NodeId, rect: Rect) {
     if self.pass.collapsed(child) {
       return;
@@ -781,11 +782,12 @@ impl<'a> ArrangeCx<'a> {
       "{} arranged node {child:?} in a rectangle that isn't finite ({rect})",
       self.pass.describe_parent(),
     );
+    let (x, y) = (finite::or_zero(rect.x), finite::or_zero(rect.y));
     Rect::new(
-      finite::or_zero(rect.x),
-      finite::or_zero(rect.y),
-      finite::or_zero(rect.width),
-      finite::or_zero(rect.height),
+      x,
+      y,
+      finite::span(x, finite::or_zero(rect.width)),
+      finite::span(y, finite::or_zero(rect.height)),
     )
   }
 }

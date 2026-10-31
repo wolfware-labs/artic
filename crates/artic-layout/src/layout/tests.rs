@@ -240,6 +240,64 @@ fn infinite_desired_size_panics_in_debug() {
   run(&mut LayoutManager::default(), &mut tree, root, WINDOW);
 }
 
+/// Places its children at (1e38, 1e38) with the largest finite size, past the largest finite
+/// coordinate on both axes.
+#[derive(Debug)]
+struct Far;
+
+impl Object for Far {
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+}
+
+impl Layoutable for Far {
+  fn measure(&self, cx: &mut MeasureCx<'_>, available: Size) -> Size {
+    let children: Vec<NodeId> = cx.children().collect();
+    for child in children {
+      cx.measure(child, available);
+    }
+    Size::ZERO
+  }
+
+  fn arrange(&self, cx: &mut ArrangeCx<'_>, _rect: Rect) {
+    let children: Vec<NodeId> = cx.children().collect();
+    for child in children {
+      cx.arrange(child, Rect::new(1.0e38, 1.0e38, f32::MAX, f32::MAX));
+    }
+  }
+}
+
+/// Lays out `Far` and `Node` nodes.
+struct WithFar;
+
+impl LayoutNodes for WithFar {
+  fn layoutable<'a>(&self, tree: &'a UiTree, node: NodeId) -> Option<&'a dyn Layoutable> {
+    match tree.get_as::<Far>(node) {
+      Some(far) => Some(far),
+      None => Nodes.layoutable(tree, node),
+    }
+  }
+}
+
+// A child arranged to run past the largest finite coordinate is cut to end at a finite one on
+// each axis, also where no snapping would clamp it.
+#[test]
+fn arranged_rects_end_at_a_finite_coordinate() {
+  let mut tree = UiTree::new();
+  let child = leaf(&mut tree, 10.0, 10.0);
+  let root = tree.alloc(Box::new(Far));
+  tree.add_child(TreeKind::Visual, root, child);
+  let mut layout = LayoutManager::default();
+
+  layout.run(&mut tree, &WithFar, root, WINDOW, GRID, &mut Recorder::default());
+
+  let rect = layout.rect(child).expect("arranged");
+  assert!(
+    (rect.x + rect.width).is_finite() && (rect.y + rect.height).is_finite(),
+    "{rect:?}"
+  );
+  assert!(rect.width > 2.0e38 && rect.height > 2.0e38, "{rect:?}");
+}
+
 // The root offered an invalid size is reported as offered by the layout root, since no node did.
 #[test]
 #[cfg(debug_assertions)]
