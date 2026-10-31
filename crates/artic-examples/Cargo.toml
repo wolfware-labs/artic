@@ -18,9 +18,16 @@ artic-element.workspace = true
 artic-layout.workspace = true
 artic-platform.workspace = true
 artic-render.workspace = true
+artic-test.workspace = true
 artic-text.workspace = true
 artic-vello.workspace = true
 artic-winit.workspace = true
+raw-window-handle.workspace = true
+x11rb.workspace = true
+
+[[test]]
+name = "window"
+harness = false
 
 [lints]
 workspace = true

@@ -174,9 +174,12 @@ dependencies = [
  "artic-layout",
  "artic-platform",
  "artic-render",
+ "artic-test",
  "artic-text",
  "artic-vello",
  "artic-winit",
+ "raw-window-handle",
+ "x11rb",
 ]
 
 [[package]]
