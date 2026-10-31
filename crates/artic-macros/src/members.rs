@@ -330,10 +330,16 @@ fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttributes)
       "`default`, `key`, `affects` and `inherits` only apply to `Property` fields",
     ));
   }
-  Ok(match generic_argument(&field.ty, "Event") {
-    Some(args) => Member::Event(EventField { ident, ui_name, args }),
-    None => Member::Collection,
-  })
+  match generic_argument(&field.ty, "Event") {
+    Some(args) => Ok(Member::Event(EventField { ident, ui_name, args })),
+    None => match &attributes.name {
+      Some(name) => Err(Error::new_spanned(
+        name,
+        "`name` only applies to `Property` and `Event` fields",
+      )),
+      None => Ok(Member::Collection),
+    },
+  }
 }
 
 /// What a member marked `#[ui(content)]` would make the content: itself, or nothing, for an event.
@@ -546,6 +552,19 @@ mod tests {
     };
 
     assert!(error(&input, Kind::Type).contains("only apply to `Property` fields"));
+  }
+
+  // A content field has no name in a UI language, so `name` on one is rejected rather than dropped.
+  #[test]
+  fn a_name_on_content_is_an_error() {
+    let input: DeriveInput = parse_quote! {
+      struct Border { #[ui(content, name = "Inner")] child: Child }
+    };
+
+    assert_eq!(
+      error(&input, Kind::Type),
+      "`name` only applies to `Property` and `Event` fields"
+    );
   }
 
   // A `Child` or `Children` field without `#[ui]` is rejected too, rather than left as plain data
