@@ -546,6 +546,43 @@ fn accepts_handles_and_pixels() {
   });
 }
 
+/// Renders a red fill into `size` with a buffer of `rows` rows of `stride` bytes.
+fn render_into(renderer: &mut Renderer, size: PhysicalSize, stride: usize, rows: usize) -> Result<(), RenderError> {
+  let scene = Scene::record(|builder| builder.fill(full(), RED));
+  let mut data = vec![0; stride * rows];
+  let surface = SurfaceView {
+    id: SurfaceId::new(1),
+    size,
+    scale: 1.0,
+    target: Target::Pixels(PixelBuffer {
+      data: &mut data,
+      stride,
+      format: PixelFormat::Rgba8,
+    }),
+  };
+  renderer.render(&scene, surface)
+}
+
+// A buffer whose rows or whose height can't hold the surface is refused before drawing.
+#[test]
+fn a_buffer_smaller_than_the_surface_fails() {
+  with_renderer(|renderer| {
+    let size = PhysicalSize::new(8, 8);
+    let mut refused = |stride, rows| matches!(render_into(renderer, size, stride, rows), Err(RenderError::Backend(_)));
+    assert!(refused(28, 8), "short rows");
+    assert!(refused(32, 7), "too few rows");
+    render_into(renderer, size, 32, 8).expect("a buffer that fits");
+  });
+}
+
+// A surface with no width draws nothing and succeeds, with no buffer to draw into.
+#[test]
+fn a_surface_without_width_draws_nothing() {
+  with_renderer(|renderer| {
+    render_into(renderer, PhysicalSize::new(0, 8), 0, 0).expect("nothing to draw");
+  });
+}
+
 /// `text` shaped at 32 px with only the test font's regular face, in `weight` and `style`.
 fn shaped(text: &str, weight: FontWeight, style: FontStyle) -> Paragraph {
   let style = TextStyle {
