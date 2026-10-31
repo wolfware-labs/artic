@@ -271,10 +271,9 @@ struct WithFar;
 
 impl LayoutNodes for WithFar {
   fn layoutable<'a>(&self, tree: &'a UiTree, node: NodeId) -> Option<&'a dyn Layoutable> {
-    match tree.get_as::<Far>(node) {
-      Some(far) => Some(far),
-      None => Nodes.layoutable(tree, node),
-    }
+    Nodes
+      .layoutable(tree, node)
+      .or_else(|| tree.get_as::<Far>(node).map(|far| far as &dyn Layoutable))
   }
 }
 

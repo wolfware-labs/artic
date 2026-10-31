@@ -681,13 +681,13 @@ impl<'a> ArrangeCx<'a> {
   }
 
   /// Arranges `child` in `rect`, in the coordinates of the node being arranged, snapped to the
-  /// device-pixel grid. A child already offered that rectangle, with nothing changed, is skipped,
-  /// and a collapsed child isn't arranged.
+  /// device-pixel grid. A rectangle that reaches past the largest finite coordinate is cut to end
+  /// there. A child already offered that rectangle, with nothing changed, is skipped, and a
+  /// collapsed child isn't arranged.
   ///
   /// # Panics
   ///
-  /// In debug builds, panics if `rect` isn't finite; release builds treat such a field as zero. A
-  /// rectangle that reaches past the largest finite coordinate is cut to end there.
+  /// In debug builds, panics if `rect` isn't finite; release builds treat such a field as zero.
   pub fn arrange(&mut self, child: NodeId, rect: Rect) {
     if self.pass.collapsed(child) {
       return;
@@ -762,8 +762,9 @@ impl<'a> ArrangeCx<'a> {
 
   /// Sets the bounds of the node being arranged, in its parent's coordinates, when they aren't the
   /// rectangle its parent offered: after a margin and alignment, for instance. Its children are
-  /// placed relative to these bounds. They're snapped like [`arrange`](ArrangeCx::arrange)'s, and
-  /// returned as recorded, so the node arranges its children in the box layout reports.
+  /// placed relative to these bounds. They're snapped and cut to a finite far edge like
+  /// [`arrange`](ArrangeCx::arrange)'s, and returned as recorded, so the node arranges its children
+  /// in the box layout reports.
   ///
   /// # Panics
   ///
