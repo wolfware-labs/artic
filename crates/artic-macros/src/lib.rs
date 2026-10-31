@@ -37,7 +37,7 @@ use syn::{DeriveInput, parse_macro_input};
 /// - `Property<T>` is a property. `T`, or `X` in `Option<X>`, must implement `FromStr` (with a
 ///   `Display` error) and `ToRust`, or `UiType`, or be a `NodeId`, a property that names a node, such as a data context. Its
 ///   settings: `default = expr` for the `Default` level (otherwise `T::default()`),
-///   `affects = layout | render | surface` and `inherits` for its generated key, `key = KEY` to
+///   `affects = layout | render` and `inherits` for its generated key, `key = KEY` to
 ///   share a key with other types instead (inheritance across types needs it): a
 ///   `static PropertyKey`, or an attached property's key such as `TextElement::FONT_SIZE`, which
 ///   also gives the field its default, so `default` can't go beside it, and `name = "..."` to

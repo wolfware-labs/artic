@@ -41,12 +41,11 @@ The vocabulary splits by layer. App code says `Surface`, with platform settings 
 | Type | Crate | Shape |
 | --- | --- | --- |
 | `Application` | `artic-element` | An `#[element]`, the root of the tree. Its content is the collection of its `Surface`s. #122 adds `Resources` and `Styles` to it |
-| `Surface` | `artic-element` | An `#[element]` with `Title: String` (`affects = surface | render`, so a change also rebuilds the accesskit node) and `IsOpen: bool` (default `true`, `affects = surface`), and a single content. Allowed only as a child of `Application`: the runner checks it at the first settle or frame after any change to the tree's structure, and panics. Accesskit role `Window`, named by `Title` |
-| `Desktop` | `artic-element` | An attached-property owner with no instances. `Width: Option<f32>`, `Height: Option<f32>`, `SizeToContent`, `Chrome`, all `inherits`, `affects = surface`, `target = any` |
+| `Surface` | `artic-element` | An `#[element]` with `Title: String` (`affects = render`, so a change also rebuilds the accesskit node) and `IsOpen: bool` (default `true`), and a single content. Allowed only as a child of `Application`: the runner checks it at the first settle or frame after any change to the tree's structure, and panics. Accesskit role `Window`, named by `Title` |
+| `Desktop` | `artic-element` | An attached-property owner with no instances. `Width: Option<f32>`, `Height: Option<f32>`, `SizeToContent` (`affects = layout`, since it changes what the surface's root is laid out in), `Chrome`, all `inherits`, `target = any` |
 | `SizeToContent` | `artic-element` | `UiEnum`: `Manual` (default), `Width`, `Height`, `WidthAndHeight` |
 | `Chrome` | `artic-element` | `UiEnum`: `System` (default: the OS draws the title bar and borders), `None` (the app draws everything) |
 | `UserControl` | `artic-controls` | An `#[element]` with a single content. Accesskit role `GenericContainer`. `artic-controls` gains its `artic-element` dependency |
-| `Affects::SURFACE` | `artic-core` | The third dirty stage, beside `LAYOUT` and `RENDER` |
 | `MeasureCx`, `ArrangeCx` | `artic-layout` | Replace `LayoutCx`, one per pass (section 5) |
 | `WindowDesc` | `artic-platform`, moved from `artic-core` | `title: String`, `size: LogicalSize` with `Option<f32>` axes (`None`: the host picks), `chrome: Chrome`, `resizable: Axes`. The runner builds it; only a host check such as the `smoke` example builds one by hand |
 | `Windows` | `artic-platform` | `open(&WindowDesc) -> SurfaceId`, `update(SurfaceId, &WindowDesc)`, `close(SurfaceId)` |
@@ -78,11 +77,11 @@ Settle, which the runner runs after every callback ([frame design](frame.md) §3
 | --- | --- |
 | open (`IsOpen`), unbound and not lost, on a host with `Windows` | measures it (section 6), builds its `WindowDesc`, calls `Windows::open` and binds the returned `SurfaceId` to it |
 | open and unbound, on a host without `Windows` | binds it to the next host surface no `Surface` holds, in tree order; with none left it stays unbound (see windowless hosts below) |
-| bound and `SURFACE`-dirty, on a host with `Windows` | rebuilds its `WindowDesc`; when it differs from the last one applied, calls `Windows::update` |
-| bound and `SURFACE`-dirty, on a host without `Windows` | nothing reaches the host: such a host takes no title, size or chrome. `Title` still names the surface's accesskit node, and `Presenter` (mobile) defines what it takes when it arrives |
+| bound, on a host with `Windows` | rebuilds its `WindowDesc`, measuring it again where its content sizes it; when it differs from the last one applied, calls `Windows::update` |
+| bound, on a host without `Windows` | nothing reaches the host: such a host takes no title, size or chrome. `Title` still names the surface's accesskit node, and `Presenter` (mobile) defines what it takes when it arrives |
 | bound, and closed (`IsOpen` false) or no longer in the tree | calls `Windows::close` where the host has it, and unbinds it |
 
-`SURFACE` is cleared when reconcile reads the surface. A change to an inherited `Desktop` value on `Application` marks each surface whose effective value changed, through the same inheritance path as `LAYOUT` and `RENDER`.
+Reconcile rebuilds every bound surface's description at each settle instead of tracking which ones changed: the comparison with the last one applied decides whether the host hears of it, and the measure answers from the layout cache when nothing moved. A change to an inherited `Desktop` value on `Application` reaches every surface the same way. A host resize ends in a settle too, so a window whose content sizes one axis refits it to the new size of the other at once, before a frame draws at the old size.
 
 **Closing.** The user closes a surface through `event(CloseRequested)`: the runner writes `IsOpen = false` at `Local`, and reconcile takes it down. The node stays in the tree, so its state survives and setting `IsOpen` again reopens it. A `surface_lost(Gone)` that no close request preceded, such as a window that couldn't be created, one the OS destroyed, or the loop exiting, isn't the user's decision and writes nothing: the runner unbinds the surface and marks it **lost**, and reconcile doesn't open a lost surface again until its `IsOpen` goes false and then true, so a window that can't be created isn't retried in a loop. When every surface is closed or lost, the runner exits. A `Suspended` loss is unchanged: the surface stays bound and is drawn again when the host reports it.
 
@@ -114,7 +113,9 @@ This section is about surfaces the runner opens through `Windows`. A surface bou
 
 Before opening a surface, the runner measures it with a `MeasureCx`. Each axis gets `∞` when `SizeToContent` covers it, `Desktop.Width` or `Height` when set, and otherwise `∞` with the host picking the size. `WindowDesc.size` carries the measured size on the `SizeToContent` axes, the set value on the others, and `None` where the host picks. The window opens at that logical size, and the OS converts it to device pixels for whichever monitor it lands on, so there is no hidden first frame and no visible jump.
 
-While a surface is open, each frame lays it out with `∞` on its `SizeToContent` axes, so its root takes its desired size `D` there ([frame design](frame.md): a root's rectangle is its desired size on an infinite axis). After layout, when `D` differs from the last size the runner *requested*, it marks the surface `SURFACE` with `UiTree::mark_dirty`, which sets the pending flag, so the settle that ends the frame reconciles it and calls `Windows::update`. The OS resizes, `surface_changed` arrives, and the next layout measures at `∞` again and gets `D` again, so it settles in one round. The comparison is with the request, not with the window's actual size, so a window the OS clamps, such as one larger than the screen, settles too: `D` is requested once and never again.
+While a surface is open, each frame lays it out with `∞` on its `SizeToContent` axes, so its root takes its desired size `D` there ([frame design](frame.md): a root's rectangle is its desired size on an infinite axis). The settle that ends the frame reconciles the surface: it measures it again at the window's size, which answers from the frame's layout, and when `D` differs from the last size the runner *requested*, it calls `Windows::update`. The OS resizes, `surface_changed` arrives, and the next layout measures at `∞` again and gets `D` again, so it settles in one round. The comparison is with the request, not with the window's actual size, so a window the OS clamps, such as one larger than the screen, settles too: `D` is requested once and never again.
+
+On an axis `SizeToContent` doesn't cover, a set `Desktop.Width` or `Height` is what the runner measures at until it has sent it to the host. After that the window's own size wins, as it does for the frame, so a user resizing that axis refits the content to it and the measure keeps answering from the frame's layout. `Windows::update` asks for a size only on the axes whose requested value changed: in `artic-winit`, a new height keeps the width the user gave the window.
 
 The user can't resize a `SizeToContent` axis: `WindowDesc.resizable` leaves it out, and the host locks it. Content owns that axis, and nothing writes to app state behind the developer's back.
 
@@ -135,7 +136,7 @@ The `frames` example builds an `Application` with one `Surface` and runs unchang
 | --- | --- | --- |
 | A | this document; spec §6, §7 and §10, `architecture.md`, and pointers in the host and frame designs; #267 for `Desktop.State` and `Desktop.Display` | approved |
 | B | `MeasureCx` and `ArrangeCx`, and a scale change that arranges without measuring | the `artic-layout` tests in section 7 |
-| C | `Affects::SURFACE`; attached properties that inherit; `Application`, `Surface`, `Desktop`, `SizeToContent`, `Chrome`, `UserControl`; reconcile, `WindowDesc` in `artic-platform`, `SurfaceView`, `Windows::update`, the `artic-winit` mapping; both examples ported; the overlapping-root checks and their tests removed, since surfaces under `Application` are disjoint | the `artic-element`, `artic-controls` and `artic-platform` tests in section 7, and `smoke` and `frames` passing in CI |
+| C | `Affects::SURFACE`; attached properties that inherit; `Application`, `Surface`, `Desktop`, `SizeToContent`, `Chrome`, `UserControl`; reconcile, `WindowDesc` in `artic-platform`, `SurfaceView`, `Windows::update`, the `artic-winit` mapping; both examples ported; the overlapping-root checks and their tests removed, since surfaces under `Application` are disjoint. `Affects::SURFACE` was removed later, once reconcile rebuilt every surface's description at each settle and nothing read it | the `artic-element`, `artic-controls` and `artic-platform` tests in section 7, and `smoke` and `frames` passing in CI |
 
 ## 9. Later
 

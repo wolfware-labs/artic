@@ -92,7 +92,7 @@ fn values_go_with_their_node() {
   assert_eq!(tree.attached(next, &ROW), 0);
 }
 
-static CHROME: AttachedKey<u8> = AttachedKey::new("Chrome", Affects::SURFACE, Inheritance::Replace, || 0);
+static CHROME: AttachedKey<u8> = AttachedKey::new("Chrome", Affects::RENDER, Inheritance::Replace, || 0);
 
 /// Three buttons, each the logical child of the one before.
 fn chain(tree: &mut UiTree) -> [NodeId; 3] {
@@ -151,11 +151,11 @@ fn inherited_attached_change_marks_the_holder() {
   let [root, _, leaf] = chain(&mut tree);
   let source = tree.attached_property(root, &CHROME);
   let _held = tree.attached_property(leaf, &CHROME);
-  tree.clear_dirty(leaf, Affects::LAYOUT | Affects::RENDER | Affects::SURFACE);
+  tree.clear_dirty(leaf, Affects::LAYOUT | Affects::RENDER);
 
   source.set(5);
 
-  assert_eq!(tree.dirty(leaf), Affects::SURFACE);
+  assert_eq!(tree.dirty(leaf), Affects::RENDER);
 }
 
 // A holder moved under another ancestor follows the new one.

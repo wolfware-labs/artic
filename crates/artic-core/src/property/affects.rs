@@ -1,6 +1,6 @@
 use std::ops::{BitOr, BitOrAssign};
 
-/// Which frame stages a change has to redo: layout, rendering, the surface, or none.
+/// Which frame stages a change has to redo: layout, rendering, or none.
 ///
 /// A [`PropertyKey`](crate::property::PropertyKey) declares what a change to its property affects,
 /// and a node's dirty flags use the same type to record what it needs redone. Combine values with
@@ -26,9 +26,6 @@ impl Affects {
   pub const LAYOUT: Affects = Affects(1);
   /// Only the pixels change, so the node has to be drawn again.
   pub const RENDER: Affects = Affects(1 << 1);
-  /// The surface's presentation changes, such as a window's title or size, so the runner
-  /// reconciles it with the host.
-  pub const SURFACE: Affects = Affects(1 << 2);
 
   /// Returns `true` if every stage in `other` is also in `self`.
   #[must_use]
@@ -80,6 +77,5 @@ mod tests {
 
     assert!(merged.contains(Affects::LAYOUT));
     assert!(merged.contains(Affects::RENDER));
-    assert!(!merged.contains(Affects::SURFACE));
   }
 }

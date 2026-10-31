@@ -578,6 +578,13 @@ impl UiTree {
     self.tree(tree).ancestors(id)
   }
 
+  /// Returns whether `id` is `root` or one of its descendants in `tree`. A stale `id` has no
+  /// ancestors, so it's within only itself.
+  #[must_use]
+  pub fn is_within(&self, tree: TreeKind, id: NodeId, root: NodeId) -> bool {
+    self.tree(tree).is_within(id, root)
+  }
+
   /// Returns every descendant of `id` in `tree`, depth-first in pre-order: a node, then its first
   /// child's whole subtree, then its next child's.
   ///
@@ -842,7 +849,7 @@ impl UiTree {
         return Err(LinkError::NotInTree(node));
       }
     }
-    if self.tree(tree).would_cycle(parent, child) {
+    if self.tree(tree).is_within(parent, child) {
       return Err(LinkError::Cycle { tree, parent, child });
     }
     if let Some(index) = index {

@@ -14,10 +14,10 @@ const FALLBACK_HEIGHT: f64 = 600.0;
 /// value: this one is beyond any display, more than six times the width of a 16K screen.
 const UNLIMITED: f64 = 100_000.0;
 
-/// The size a window with `desc` gets, with `current` filling the axes `desc` leaves to the host,
-/// or `None` when it sets neither.
-fn logical_size(desc: &WindowDesc, current: LogicalSize<f64>) -> Option<LogicalSize<f64>> {
-  let (width, height) = (desc.size.width, desc.size.height);
+/// The size a window asked for `size` gets, with `current` filling the axes `size` leaves to the
+/// host, or `None` when it sets neither.
+fn logical_size(size: artic_platform::LogicalSize, current: LogicalSize<f64>) -> Option<LogicalSize<f64>> {
+  let (width, height) = (size.width, size.height);
   (width.is_some() || height.is_some()).then(|| {
     LogicalSize::new(
       width.map_or(current.width, f64::from),
@@ -54,9 +54,10 @@ pub(crate) enum Step {
 }
 
 /// The changes, in order, that take a window of `current` size from the description `before` to
-/// `after`: only what differs, and everything when nothing was applied before. A new size or
-/// resizable axes clear the old limits first, so they can't clamp the new size; a size that sets
-/// neither axis requests none.
+/// `after`: only what differs, and everything when nothing was applied before. A new size asks
+/// only for its axes that changed, keeping the others at `current`, where the user may have
+/// resized them. A new size or resizable axes clear the old limits first, so they can't clamp the
+/// new size; a size that sets neither axis requests none.
 pub(crate) fn steps(before: Option<&WindowDesc>, after: &WindowDesc, current: LogicalSize<f64>) -> Vec<Step> {
   let differs = |part: fn(&WindowDesc, &WindowDesc) -> bool| before.is_none_or(|before| part(before, after));
   let mut steps = Vec::new();
@@ -68,7 +69,12 @@ pub(crate) fn steps(before: Option<&WindowDesc>, after: &WindowDesc, current: Lo
   }
   let resized = differs(|before, after| before.size != after.size);
   if resized || differs(|before, after| before.resizable != after.resizable) {
-    let requested = if resized { logical_size(after, current) } else { None };
+    let changed = |axis: fn(&WindowDesc) -> Option<f32>| before.is_none_or(|before| axis(before) != axis(after));
+    let size = artic_platform::LogicalSize {
+      width: after.size.width.filter(|_| changed(|desc| desc.size.width)),
+      height: after.size.height.filter(|_| changed(|desc| desc.size.height)),
+    };
+    let requested = if resized { logical_size(size, current) } else { None };
     let size = requested.unwrap_or(current);
     steps.push(Step::Limits(None, None));
     if let Some(size) = requested {
@@ -87,7 +93,7 @@ pub(crate) fn attributes(desc: &WindowDesc) -> WindowAttributes {
     .with_title(desc.title.clone())
     .with_decorations(desc.chrome == Chrome::System)
     .with_resizable(desc.resizable != Axes::NONE);
-  if let Some(size) = logical_size(desc, LogicalSize::new(FALLBACK_WIDTH, FALLBACK_HEIGHT)) {
+  if let Some(size) = logical_size(desc.size, LogicalSize::new(FALLBACK_WIDTH, FALLBACK_HEIGHT)) {
     attributes = attributes.with_inner_size(size);
     if let (Some(min), Some(max)) = limits(desc.resizable, size) {
       attributes = attributes.with_min_inner_size(min).with_max_inner_size(max);
@@ -224,6 +230,34 @@ mod tests {
         Step::Resizable(false),
         Step::Limits(Some(size), Some(size)),
       ]
+    );
+  }
+
+  // A new height leaves alone the width the user resized the window to, though the description
+  // still carries the width it opened at.
+  #[test]
+  fn resize_requests_only_the_axes_that_changed() {
+    let opened = WindowDesc {
+      size: artic_platform::LogicalSize {
+        width: Some(300.0),
+        height: Some(200.0),
+      },
+      resizable: Axes {
+        width: true,
+        height: false,
+      },
+      ..locked()
+    };
+    let refitted = WindowDesc {
+      size: artic_platform::LogicalSize {
+        width: Some(300.0),
+        height: Some(100.0),
+      },
+      ..opened.clone()
+    };
+
+    assert!(
+      steps(Some(&opened), &refitted, LogicalSize::new(450.0, 200.0)).contains(&Step::Size(LogicalSize::new(450.0, 100.0)))
     );
   }
 

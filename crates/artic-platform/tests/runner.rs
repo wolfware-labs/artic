@@ -7,7 +7,7 @@ use artic_core::reactive::{Signal, effect};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{Desktop, SizeToContent};
 use artic_layout::geometry::Size;
-use artic_platform::{AppHandler, Axes, Chrome, FrameStats, LogicalSize, Runner, Waker, WindowDesc};
+use artic_platform::{AppHandler, Axes, Chrome, FrameStats, LogicalSize, Runner, SurfaceInfo, Waker, WindowDesc};
 use artic_render::SurfaceId;
 use common::{
   Context, Counter, Leaf, LeafHandles, Recorder, Wrap, application, column, engine, info, label, leaf, pixels, surface, target,
@@ -281,6 +281,19 @@ fn write_after_present_requests_one_frame() {
 #[test]
 fn wants_frame_requests_another() {
   let mut fixture = Fixture::new(|runner| runner.hooks().wants_frame(|| true));
+
+  fixture.frame();
+
+  assert_eq!(fixture.cx.frames, [FIRST]);
+}
+
+// Two hooks that want another frame ask for it once.
+#[test]
+fn two_hooks_wanting_frames_request_one() {
+  let mut fixture = Fixture::new(|runner| {
+    runner.hooks().wants_frame(|| true);
+    runner.hooks().wants_frame(|| true);
+  });
 
   fixture.frame();
 
@@ -668,8 +681,8 @@ impl Host for Scripted {
 }
 
 // `run`'s handler passes each host call to the runner: the window opens, frames are asked for and
-// drawn, a woken write and the close's IsOpen write each ask again, a close closes and exits, a loss
-// releases the renderer.
+// drawn, a woken write asks again, a close closes and exits without asking to draw the closing
+// window, a loss releases the renderer.
 #[test]
 fn run_passes_every_host_call_to_the_runner() {
   let mut tree = UiTree::new();
@@ -690,7 +703,7 @@ fn run_passes_every_host_call_to_the_runner() {
   assert!(result.is_ok(), "{result:?}");
   let cx = cx.borrow();
   assert_eq!(cx.opened.len(), 1);
-  assert_eq!(cx.frames, [FIRST, FIRST, FIRST]);
+  assert_eq!(cx.frames, [FIRST, FIRST]);
   assert_eq!(renderer.rendered.get(), 1);
   assert_eq!(cx.closed, [FIRST]);
   assert!(cx.exited);
@@ -889,7 +902,7 @@ fn title_change_updates_once() {
   assert_eq!(titles, [(FIRST, "renamed")]);
 }
 
-// A surface marked for reconciling whose window description didn't change isn't updated.
+// A surface whose window description didn't change isn't updated.
 #[test]
 fn unchanged_surface_is_not_updated() {
   let mut fixture = Fixture::new(|_| {});
@@ -1024,6 +1037,60 @@ fn lent_surface_reported_first_is_drawn_once_bound() {
   assert_eq!(cx.frames, [SurfaceId::new(9)]);
 }
 
+// A spare host surface, one no Surface holds, reported again keeps its newest size for the Surface
+// that takes it.
+#[test]
+fn spare_surface_reported_again_keeps_its_newest_size() {
+  let mut tree = UiTree::new();
+  let (first, second) = (leaf(&mut tree, 20.0), leaf(&mut tree, 20.0));
+  let (application, surfaces) = application(&mut tree, &[("first", first.id), ("second", second.id)]);
+  let opened = surface(&tree, surfaces[1]).is_open;
+  opened.set(false);
+  let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let seen = Rc::new(Cell::new(None));
+  let hook_seen = Rc::clone(&seen);
+  runner
+    .hooks()
+    .after_present(move |tree, _, _| hook_seen.set(tree.get_as::<Leaf>(second.id).and_then(|leaf| leaf.seen.get())));
+  let mut cx = Context {
+    windowless: true,
+    ..Context::default()
+  };
+  let mut buffer = pixels();
+  runner.started(&mut cx, Waker::new(|| {}));
+  for (id, size) in [(9, 64), (10, 64), (11, 64), (10, 32)] {
+    runner.surface_changed(&mut cx, SurfaceId::new(id), info(size, size, 1.0));
+  }
+
+  opened.set(true);
+  runner.woken(&mut cx);
+  runner.frame(&mut cx, SurfaceId::new(10), target(&mut buffer), Duration::ZERO);
+
+  assert_eq!(seen.get(), Some(Size::new(32.0, 32.0)));
+}
+
+// A spare host surface the host loses is forgotten: a Surface opened later doesn't take it.
+#[test]
+fn lost_spare_surface_is_forgotten() {
+  let (tree, application, surfaces) = titled(&["first", "second"]);
+  let opened = surface(&tree, surfaces[1]).is_open;
+  opened.set(false);
+  let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let mut cx = Context {
+    windowless: true,
+    ..Context::default()
+  };
+  runner.started(&mut cx, Waker::new(|| {}));
+  runner.surface_changed(&mut cx, SurfaceId::new(9), info(64, 64, 1.0));
+  runner.surface_changed(&mut cx, SurfaceId::new(10), info(64, 64, 1.0));
+  runner.surface_lost(&mut cx, SurfaceId::new(10), SurfaceLoss::Gone);
+
+  opened.set(true);
+  runner.woken(&mut cx);
+
+  assert_eq!(cx.frames, [SurfaceId::new(9)]);
+}
+
 // On a host without windows, a closed surface gives its host surface to the next open one.
 #[test]
 fn closed_surface_frees_its_host_surface() {
@@ -1093,6 +1160,49 @@ fn size_to_content_settles() {
     }
   );
   assert!(cx.updated.is_empty());
+}
+
+// A window the OS makes shorter than the content that sizes its height, such as one clamped to the
+// screen, still lays the content out at its full height, across the host's width.
+#[test]
+fn clamped_window_lays_content_out_at_its_desired_size() {
+  let mut tree = UiTree::new();
+  let content = leaf(&mut tree, 20.0);
+  let (application, surfaces) = application(&mut tree, &[("main", content.id)]);
+  Desktop::set_size_to_content(&mut tree, surfaces[0], SizeToContent::Height);
+  let (mut runner, mut cx) = started(tree, application);
+  let seen = Rc::new(Cell::new(None));
+  let hook_seen = Rc::clone(&seen);
+  runner
+    .hooks()
+    .after_present(move |tree, _, _| hook_seen.set(tree.get_as::<Leaf>(content.id).and_then(|leaf| leaf.seen.get())));
+  let mut buffer = pixels();
+
+  runner.surface_changed(&mut cx, FIRST, info(64, 10, 1.0));
+  runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+
+  assert_eq!(seen.get(), Some(Size::new(64.0, 20.0)));
+}
+
+// A window that stops sizing to its content at the same size draws again, laid out at the window's
+// height instead of the content's.
+#[test]
+fn size_to_content_change_requests_a_frame() {
+  let mut tree = UiTree::new();
+  let content = leaf(&mut tree, 20.0);
+  let (application, surfaces) = application(&mut tree, &[("main", content.id)]);
+  Desktop::set_size_to_content(&mut tree, surfaces[0], SizeToContent::Height);
+  let sizes = tree.attached_property(surfaces[0], Desktop::SIZE_TO_CONTENT);
+  let (mut runner, mut cx) = started(tree, application);
+  let mut buffer = pixels();
+  runner.surface_changed(&mut cx, FIRST, info(64, 20, 1.0));
+  runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+  cx.clear();
+
+  sizes.set(SizeToContent::Manual);
+  runner.woken(&mut cx);
+
+  assert_eq!(cx.frames, [FIRST]);
 }
 
 // Content that grows resizes a window sized to it, once.
@@ -1182,7 +1292,7 @@ fn windowless_surface_ignores_size_to_content() {
 #[test]
 fn width_change_measures_content_at_the_new_width() {
   let mut tree = UiTree::new();
-  let content = tree.alloc(Box::new(Wrap));
+  let content = tree.alloc(Box::new(Wrap::Down));
   let (application, surfaces) = application(&mut tree, &[("main", content)]);
   Desktop::set_size_to_content(&mut tree, surfaces[0], SizeToContent::Height);
   let width = tree.attached_property(surfaces[0], Desktop::WIDTH);
@@ -1207,6 +1317,74 @@ fn width_change_measures_content_at_the_new_width() {
       height: Some(10.0)
     }]
   );
+}
+
+// A user resizing a window whose content sizes its height, at scale 2, refits the height to the
+// new logical width at once, before a frame draws at the old height.
+#[test]
+fn host_width_refits_content_height_before_the_frame() {
+  assert_eq!(
+    refit(SizeToContent::Height, Wrap::Down, info(100, 40, 2.0)),
+    [LogicalSize {
+      width: None,
+      height: Some(20.0)
+    }]
+  );
+}
+
+// Turned, a window whose content sizes its width refits it to the new logical height.
+#[test]
+fn host_height_refits_content_width_before_the_frame() {
+  assert_eq!(
+    refit(SizeToContent::Width, Wrap::Across, info(40, 100, 2.0)),
+    [LogicalSize {
+      width: Some(20.0),
+      height: None
+    }]
+  );
+}
+
+// Once its Desktop.Width is applied, a window whose content sizes its height takes the width the
+// user resizes it to: the height refits to it, and the next frames measure nothing again.
+#[test]
+fn host_width_wins_over_an_applied_desktop_width() {
+  let mut tree = UiTree::new();
+  let content = tree.alloc(Box::new(Wrap::Down));
+  let (application, surfaces) = application(&mut tree, &[("main", content)]);
+  Desktop::set_size_to_content(&mut tree, surfaces[0], SizeToContent::Height);
+  tree.attached_property(surfaces[0], Desktop::WIDTH).set(Some(50.0));
+  let (mut runner, mut cx) = started(tree, application);
+  let stats = StatsLog::attach(&mut runner);
+  let mut buffer = pixels();
+
+  runner.surface_changed(&mut cx, FIRST, info(100, 20, 1.0));
+  runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+  runner.woken(&mut cx);
+  runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+
+  let sizes: Vec<LogicalSize> = cx.updated.iter().map(|(_, desc)| desc.size).collect();
+  assert_eq!(
+    sizes,
+    [LogicalSize {
+      width: Some(50.0),
+      height: Some(10.0)
+    }]
+  );
+  assert_eq!(stats.last(surfaces[0]).map(|frame| frame.measured), Some(0));
+}
+
+/// The sizes the runner sends after the host reports `info` for a window sized to `content` on
+/// `sizes`.
+fn refit(sizes: SizeToContent, content: Wrap, info: SurfaceInfo) -> Vec<LogicalSize> {
+  let mut tree = UiTree::new();
+  let content = tree.alloc(Box::new(content));
+  let (application, surfaces) = application(&mut tree, &[("main", content)]);
+  Desktop::set_size_to_content(&mut tree, surfaces[0], sizes);
+  let (mut runner, mut cx) = started(tree, application);
+
+  runner.surface_changed(&mut cx, FIRST, info);
+
+  cx.updated.iter().map(|(_, desc)| desc.size).collect()
 }
 
 // A surface must be a visual child of the Application too, so no surface draws inside another;

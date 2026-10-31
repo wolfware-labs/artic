@@ -31,11 +31,11 @@ pub struct Surface {
   #[ui(content)]
   pub child: Child,
   /// What the surface is called: its window's title, and its name to assistive technology.
-  #[ui(affects = surface | render)]
+  #[ui(affects = render)]
   pub title: Property<String>,
   /// Whether the host presents it. The user closing its window sets it to `false`; setting it
   /// to `true` again presents it again.
-  #[ui(default = true, affects = surface)]
+  #[ui(default = true)]
   pub is_open: Property<bool>,
 }
 
@@ -59,10 +59,10 @@ impl ElementImpl for Surface {
 /// Each inherits: set on the [`Application`], it reaches every surface; a style on `Surface` or a
 /// local value overrides it for some. A host that isn't a desktop never reads them.
 #[derive(Debug, UiType)]
-#[ui(attached(name = "Width", ty = Option<f32>, affects = surface, target = any, inherits))]
-#[ui(attached(name = "Height", ty = Option<f32>, affects = surface, target = any, inherits))]
-#[ui(attached(name = "SizeToContent", ty = SizeToContent, affects = surface, target = any, inherits))]
-#[ui(attached(name = "Chrome", ty = Chrome, affects = surface, target = any, inherits))]
+#[ui(attached(name = "Width", ty = Option<f32>, target = any, inherits))]
+#[ui(attached(name = "Height", ty = Option<f32>, target = any, inherits))]
+#[ui(attached(name = "SizeToContent", ty = SizeToContent, affects = layout, target = any, inherits))]
+#[ui(attached(name = "Chrome", ty = Chrome, target = any, inherits))]
 pub struct Desktop;
 
 /// Which axes of a window its content sizes. The user can't resize those axes.
