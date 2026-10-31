@@ -57,9 +57,9 @@ impl Tree {
     })
   }
 
-  /// Whether making `child` a child of `parent` would close a loop.
-  pub(super) fn would_cycle(&self, parent: NodeId, child: NodeId) -> bool {
-    child == parent || self.ancestors(parent).any(|ancestor| ancestor == child)
+  /// Whether `id` is `root` or one of its descendants.
+  pub(super) fn is_within(&self, id: NodeId, root: NodeId) -> bool {
+    id == root || self.ancestors(id).any(|ancestor| ancestor == root)
   }
 
   /// Makes `child`, which has no parent, the child of `parent` at `index`.

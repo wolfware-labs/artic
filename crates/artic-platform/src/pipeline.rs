@@ -119,9 +119,7 @@ impl Pipeline {
       .run(tree, services.types, root, available, grid, &mut *services.text);
     self.stale.extend(layout.resized);
     self.stale.extend(layout.results);
-    self
-      .stale
-      .retain(|node| tree.contains(*node) && (*node == root || tree.ancestors(TreeKind::Visual, *node).any(|a| a == root)));
+    self.stale.retain(|node| tree.is_within(TreeKind::Visual, *node, root));
     let mut nodes = PipelineNodes {
       elements: ElementNodes {
         types: services.types,

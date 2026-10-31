@@ -155,6 +155,24 @@ fn ancestors_walk_up_to_the_root() {
   assert_eq!(tree.ancestors(TreeKind::Visual, leaf).count(), 0);
 }
 
+// A node is within itself and its ancestors, and not within a sibling, a descendant, a tree it
+// isn't linked in, or anything once freed.
+#[test]
+fn a_node_is_within_its_ancestors() {
+  let mut tree = UiTree::new();
+  let [root, a, b] = nodes(&mut tree);
+  tree.add_child(TreeKind::Visual, root, a);
+  tree.add_child(TreeKind::Visual, root, b);
+
+  assert!(tree.is_within(TreeKind::Visual, a, root));
+  assert!(tree.is_within(TreeKind::Visual, root, root));
+  assert!(!tree.is_within(TreeKind::Visual, a, b));
+  assert!(!tree.is_within(TreeKind::Visual, root, a));
+  assert!(!tree.is_within(TreeKind::Logical, a, root));
+  tree.free(a);
+  assert!(!tree.is_within(TreeKind::Visual, a, root));
+}
+
 // Adding a node under itself or under one of its descendants is rejected, and the tree is left as
 // it was.
 #[test]
