@@ -28,4 +28,6 @@ exclude_re = [
     'artic-test/src/scenes\.rs:\d+:21: replace \+ with - in star',
     # These `|`s join disjoint wgpu usage flags, where `^` sets the same bits.
     'artic-vello/src/renderer\.rs:\d+:\d+: replace \| with \^ in (Renderer::render_to_pixels|storage_texture)$',
+    # These trait defaults already return what the mutant writes: zero, nothing or no layer.
+    'artic-element/src/element\.rs:\d+:\d+: replace (Element::layers -> Layers with Default::default\(\)|ElementImpl::measure_override -> Size with Default::default\(\)|ElementImpl::(arrange_override|render|accessibility) with \(\)|ElementImpl::clip -> Option<Shape> with None)$',
 ]
