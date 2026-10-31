@@ -1338,21 +1338,18 @@ fn marks_keep_their_offsets() {
   assert_close(mark.y, 12.24);
 }
 
-// A right-to-left line trimmed to its width draws inside it, from 0.
+// A right-to-left line clamped by the height and trimmed draws inside the paragraph, from 0.
 #[test]
 fn trimmed_right_to_left_line_stays_inside() {
   let cut = ParagraphStyle {
     trimming: TextTrimming::CharacterEllipsis,
     ..overflowing()
   };
-  let limits = TextLimits {
-    max_width: Some(60.0),
-    max_height: Some(LINE),
-  };
 
-  let paragraph = laid_out(&mut engine(), HEBREW, &cut, limits);
+  let paragraph = laid_out(&mut engine(), HEBREW, &cut, limits(Some(60.0), Some(LINE)));
 
   assert_eq!(left_edge(&paragraph, &paragraph.lines()[0]), 0.0);
+  assert!(right_glyph(&paragraph, &paragraph.lines()[0]) <= paragraph.size().width);
 }
 
 // A line exactly as wide as the limit fits: it keeps its text and gets no ellipsis.
@@ -1367,19 +1364,19 @@ fn line_exactly_as_wide_as_the_limit_is_not_trimmed() {
 
   let paragraph = laid_out(&mut engine, "Hello, world", &cut, TextLimits::width(width));
 
-  assert!(!ids(&paragraph).contains(&ellipsis(&mut engine)));
+  assert_eq!(ids(&paragraph), ids(&shape(&mut engine, "Hello, world", &style())));
 }
 
 // Justify leaves the last kept line at its own width, also when the height drops the lines after
 // it and nothing trims it.
 #[test]
 fn justify_leaves_the_last_kept_line() {
-  let limits = TextLimits {
-    max_width: Some(100.0),
-    max_height: Some(LINE * 2.0),
-  };
-
-  let paragraph = laid_out(&mut engine(), FOX, &aligned(TextAlignment::Justify), limits);
+  let paragraph = laid_out(
+    &mut engine(),
+    FOX,
+    &aligned(TextAlignment::Justify),
+    limits(Some(100.0), Some(LINE * 2.0)),
+  );
 
   assert!(paragraph.lines().last().unwrap().width < 100.0);
 }
