@@ -297,11 +297,11 @@ fn attached_key_carries_its_metadata() {
 
 /// An owner of one inheriting attached property, as a platform family owner is.
 #[derive(Debug, UiType)]
-#[ui(attached(name = "Accent", ty = u32, affects = render | surface, target = any, inherits))]
+#[ui(attached(name = "Accent", ty = u32, affects = layout | render, target = any, inherits))]
 struct Theme;
 
 // An inheriting attached property set on an element reaches its logical descendants, and its key
-// carries the surface stage.
+// carries both stages.
 #[test]
 fn attached_property_inherits_through_the_logical_tree() {
   let mut tree = UiTree::new();
@@ -312,7 +312,7 @@ fn attached_property_inherits_through_the_logical_tree() {
   Theme::set_accent(&mut tree, outer, 7);
 
   assert_eq!(Theme::accent(&tree, inner), 7);
-  assert_eq!(Theme::ACCENT.key().affects(), Affects::RENDER | Affects::SURFACE);
+  assert_eq!(Theme::ACCENT.key().affects(), Affects::LAYOUT | Affects::RENDER);
   assert!(Theme::ACCENT.key().inherits());
 }
 

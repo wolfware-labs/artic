@@ -41,12 +41,11 @@ The vocabulary splits by layer. App code says `Surface`, with platform settings 
 | Type | Crate | Shape |
 | --- | --- | --- |
 | `Application` | `artic-element` | An `#[element]`, the root of the tree. Its content is the collection of its `Surface`s. #122 adds `Resources` and `Styles` to it |
-| `Surface` | `artic-element` | An `#[element]` with `Title: String` (`affects = surface | render`, so a change also rebuilds the accesskit node) and `IsOpen: bool` (default `true`, `affects = surface`), and a single content. Allowed only as a child of `Application`: the runner checks it at the first settle or frame after any change to the tree's structure, and panics. Accesskit role `Window`, named by `Title` |
-| `Desktop` | `artic-element` | An attached-property owner with no instances. `Width: Option<f32>`, `Height: Option<f32>`, `SizeToContent`, `Chrome`, all `inherits`, `affects = surface`, `target = any` |
+| `Surface` | `artic-element` | An `#[element]` with `Title: String` (`affects = render`, so a change also rebuilds the accesskit node) and `IsOpen: bool` (default `true`), and a single content. Allowed only as a child of `Application`: the runner checks it at the first settle or frame after any change to the tree's structure, and panics. Accesskit role `Window`, named by `Title` |
+| `Desktop` | `artic-element` | An attached-property owner with no instances. `Width: Option<f32>`, `Height: Option<f32>`, `SizeToContent`, `Chrome`, all `inherits`, `target = any` |
 | `SizeToContent` | `artic-element` | `UiEnum`: `Manual` (default), `Width`, `Height`, `WidthAndHeight` |
 | `Chrome` | `artic-element` | `UiEnum`: `System` (default: the OS draws the title bar and borders), `None` (the app draws everything) |
 | `UserControl` | `artic-controls` | An `#[element]` with a single content. Accesskit role `GenericContainer`. `artic-controls` gains its `artic-element` dependency |
-| `Affects::SURFACE` | `artic-core` | The third dirty stage, beside `LAYOUT` and `RENDER` |
 | `MeasureCx`, `ArrangeCx` | `artic-layout` | Replace `LayoutCx`, one per pass (section 5) |
 | `WindowDesc` | `artic-platform`, moved from `artic-core` | `title: String`, `size: LogicalSize` with `Option<f32>` axes (`None`: the host picks), `chrome: Chrome`, `resizable: Axes`. The runner builds it; only a host check such as the `smoke` example builds one by hand |
 | `Windows` | `artic-platform` | `open(&WindowDesc) -> SurfaceId`, `update(SurfaceId, &WindowDesc)`, `close(SurfaceId)` |

@@ -43,9 +43,10 @@ fn surface_accesskit_node() {
   assert_eq!(renamed.label(), Some("Inspector"));
 }
 
-// A surface is open until something closes it, and Title and IsOpen mark it for reconciling.
+// A surface is open until something closes it, and a new Title draws it again, since it names the
+// surface's accesskit node.
 #[test]
-fn surface_is_open_by_default_and_marks_surface_work() {
+fn surface_is_open_by_default_and_title_redraws() {
   let mut tree = UiTree::new();
   let (_, surface) = application(&mut tree);
   let node = tree.get_as::<Surface>(surface).expect("a surface");
@@ -55,7 +56,6 @@ fn surface_is_open_by_default_and_marks_surface_work() {
 
   title.set("Notes".to_owned());
 
-  assert!(tree.dirty(surface).contains(Affects::SURFACE));
   assert!(tree.dirty(surface).contains(Affects::RENDER));
 }
 

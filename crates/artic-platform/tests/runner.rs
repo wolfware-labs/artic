@@ -668,8 +668,8 @@ impl Host for Scripted {
 }
 
 // `run`'s handler passes each host call to the runner: the window opens, frames are asked for and
-// drawn, a woken write and the close's IsOpen write each ask again, a close closes and exits, a loss
-// releases the renderer.
+// drawn, a woken write asks again, a close closes and exits without asking to draw the closing
+// window, a loss releases the renderer.
 #[test]
 fn run_passes_every_host_call_to_the_runner() {
   let mut tree = UiTree::new();
@@ -690,7 +690,7 @@ fn run_passes_every_host_call_to_the_runner() {
   assert!(result.is_ok(), "{result:?}");
   let cx = cx.borrow();
   assert_eq!(cx.opened.len(), 1);
-  assert_eq!(cx.frames, [FIRST, FIRST, FIRST]);
+  assert_eq!(cx.frames, [FIRST, FIRST]);
   assert_eq!(renderer.rendered.get(), 1);
   assert_eq!(cx.closed, [FIRST]);
   assert!(cx.exited);
