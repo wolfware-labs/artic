@@ -32,6 +32,20 @@ fn stack_vertical_measure() {
   layout.assert_desired(root, Size::new(200.0, 75.0));
 }
 
+// Spacing goes between each pair of children: three children get it twice.
+#[test]
+fn spacing_goes_between_each_pair() {
+  let mut layout = Headless::new();
+  let a = layout.add("a", Fixed::new(10.0, 10.0));
+  let b = layout.add("b", Fixed::new(10.0, 20.0));
+  let c = layout.add("c", Fixed::new(10.0, 30.0));
+  let root = layout.parent("stack", stack(Orientation::Vertical, 5.0), &[a, b, c]);
+
+  layout.run(root, WINDOW, 1.0);
+
+  layout.assert_desired(root, Size::new(10.0, 70.0));
+}
+
 // A horizontal stack swaps the axes.
 #[test]
 fn stack_horizontal_measure() {
@@ -158,6 +172,23 @@ fn huge_spacing_stays_finite() {
       .all(|value| value.is_finite()),
     "{rect:?}"
   );
+}
+
+// A child too tall to fit after the ones before it ends at the largest finite coordinate, also
+// where no snapping to the pixel grid would clamp it.
+#[test]
+fn a_child_too_tall_to_fit_ends_at_the_largest_coordinate() {
+  let mut layout = Headless::new();
+  layout.set_snap(false);
+  let a = layout.add("a", Fixed::new(10.0, 1.0e38));
+  let c = layout.add("c", Fixed::new(10.0, f32::MAX));
+  let root = layout.parent("stack", stack(Orientation::Vertical, 0.0), &[a, c]);
+
+  layout.run(root, WINDOW, 1.0);
+
+  let rect = layout.manager().rect(c).expect("arranged");
+  assert!((rect.y + rect.height).is_finite(), "{rect:?}");
+  assert!(rect.height > 2.0e38, "{rect:?}");
 }
 
 // The children field is the type's content, taken by the `children` method.

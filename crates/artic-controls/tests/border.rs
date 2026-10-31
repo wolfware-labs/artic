@@ -1,9 +1,10 @@
 // Border puts its one child inside its padding and outline, and draws its chrome around it.
 
-use artic_controls::{Border, StackPanel};
+use artic_controls::{Border, StackPanel, TextBlock};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{AccessCx, Child, ElementTypes, RenderCx, Visibility};
 use artic_layout::geometry::{CornerRadius, Point, Rect, RoundedRect, Size, Thickness};
+use artic_layout::text::TextWrapping;
 use artic_registry::{ContentInfo, ContentMethod, UiType, ValueError};
 use artic_render::{BoxShadow, Brush, Color, Command, Compositor, Layer, Layers, Nodes, SceneBuilder, SceneItem, Shape};
 use artic_test::layout::{Fixed, Headless, Invariants, strategy};
@@ -32,6 +33,28 @@ fn border_measure_includes_padding_and_thickness() {
   layout.run(root, WINDOW, 1.0);
 
   layout.assert_desired(root, Size::new(74.0, 46.0));
+}
+
+// Border offers its child the space inside its thickness and padding: wrapped text breaks as it
+// does alone in that width.
+#[test]
+fn border_offers_its_child_the_space_inside_its_chrome() {
+  let wrapped = || {
+    let text = TextBlock::default();
+    text.text.set("The quick brown fox jumps over the lazy dog".to_owned());
+    text.text_wrapping.set(TextWrapping::Wrap);
+    text
+  };
+  let mut layout = Headless::new();
+  let child = layout.add("text", wrapped());
+  let root = layout.parent("border", border(Thickness::uniform(10.0), Thickness::uniform(20.0)), &[child]);
+  let alone = layout.add("alone", wrapped());
+
+  layout.run(root, WINDOW, 1.0);
+  let inside = layout.manager().desired(child);
+  layout.run(alone, Size::new(140.0, 300.0), 1.0);
+
+  assert_eq!(inside, layout.manager().desired(alone));
 }
 
 // The child is arranged inside the outline and the padding.
