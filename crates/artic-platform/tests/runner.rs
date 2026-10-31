@@ -287,7 +287,7 @@ fn wants_frame_requests_another() {
   assert_eq!(fixture.cx.frames, [FIRST]);
 }
 
-// Two hooks that want another frame get one, as one would.
+// Two hooks that want another frame ask for it once.
 #[test]
 fn two_hooks_wanting_frames_request_one() {
   let mut fixture = Fixture::new(|runner| {
@@ -902,7 +902,7 @@ fn title_change_updates_once() {
   assert_eq!(titles, [(FIRST, "renamed")]);
 }
 
-// A surface marked for reconciling whose window description didn't change isn't updated.
+// A surface whose window description didn't change isn't updated.
 #[test]
 fn unchanged_surface_is_not_updated() {
   let mut fixture = Fixture::new(|_| {});
@@ -1162,6 +1162,28 @@ fn size_to_content_settles() {
   assert!(cx.updated.is_empty());
 }
 
+// A window the OS makes shorter than the content that sizes its height, such as one clamped to the
+// screen, still lays the content out at its full height, across the host's width.
+#[test]
+fn clamped_window_lays_content_out_at_its_desired_size() {
+  let mut tree = UiTree::new();
+  let content = leaf(&mut tree, 20.0);
+  let (application, surfaces) = application(&mut tree, &[("main", content.id)]);
+  Desktop::set_size_to_content(&mut tree, surfaces[0], SizeToContent::Height);
+  let (mut runner, mut cx) = started(tree, application);
+  let seen = Rc::new(Cell::new(None));
+  let hook_seen = Rc::clone(&seen);
+  runner
+    .hooks()
+    .after_present(move |tree, _, _| hook_seen.set(tree.get_as::<Leaf>(content.id).and_then(|leaf| leaf.seen.get())));
+  let mut buffer = pixels();
+
+  runner.surface_changed(&mut cx, FIRST, info(64, 10, 1.0));
+  runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+
+  assert_eq!(seen.get(), Some(Size::new(64.0, 20.0)));
+}
+
 // Content that grows resizes a window sized to it, once.
 #[test]
 fn content_growth_resizes_window() {
@@ -1299,6 +1321,35 @@ fn host_height_refits_content_width_before_the_frame() {
       height: None
     }]
   );
+}
+
+// Once its Desktop.Width is applied, a window whose content sizes its height takes the width the
+// user resizes it to: the height refits to it, and the next frames measure nothing again.
+#[test]
+fn host_width_wins_over_an_applied_desktop_width() {
+  let mut tree = UiTree::new();
+  let content = tree.alloc(Box::new(Wrap::Down));
+  let (application, surfaces) = application(&mut tree, &[("main", content)]);
+  Desktop::set_size_to_content(&mut tree, surfaces[0], SizeToContent::Height);
+  tree.attached_property(surfaces[0], Desktop::WIDTH).set(Some(50.0));
+  let (mut runner, mut cx) = started(tree, application);
+  let stats = StatsLog::attach(&mut runner);
+  let mut buffer = pixels();
+
+  runner.surface_changed(&mut cx, FIRST, info(100, 20, 1.0));
+  runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+  runner.woken(&mut cx);
+  runner.frame(&mut cx, FIRST, target(&mut buffer), Duration::ZERO);
+
+  let sizes: Vec<LogicalSize> = cx.updated.iter().map(|(_, desc)| desc.size).collect();
+  assert_eq!(
+    sizes,
+    [LogicalSize {
+      width: Some(50.0),
+      height: Some(10.0)
+    }]
+  );
+  assert_eq!(stats.last(surfaces[0]).map(|frame| frame.measured), Some(0));
 }
 
 /// The sizes the runner sends after the host reports `info` for a window sized to `content` on

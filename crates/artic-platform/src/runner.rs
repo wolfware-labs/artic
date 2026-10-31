@@ -95,32 +95,34 @@ struct Settings {
 }
 
 impl Settings {
-  /// Reads `node`'s settings, holding each property on it, so that a change to it, its own or
-  /// inherited, marks the surface.
-  fn of(tree: &mut UiTree, node: NodeId) -> Settings {
+  /// Reads `node`'s settings, its own or inherited.
+  fn of(tree: &UiTree, node: NodeId) -> Settings {
     Settings {
-      width: tree.attached_property(node, Desktop::WIDTH).get(),
-      height: tree.attached_property(node, Desktop::HEIGHT).get(),
-      content: Axes::from(tree.attached_property(node, Desktop::SIZE_TO_CONTENT).get()),
-      chrome: tree.attached_property(node, Desktop::CHROME).get(),
+      width: tree.attached(node, Desktop::WIDTH),
+      height: tree.attached(node, Desktop::HEIGHT),
+      content: Axes::from(tree.attached(node, Desktop::SIZE_TO_CONTENT)),
+      chrome: tree.attached(node, Desktop::CHROME),
     }
   }
 
   /// What the surface's content is measured in to size its window, or `None` when it sizes no
-  /// axis: `∞` on the axes it sizes, and on the others the set size, else `host`'s, the window's
-  /// current logical size if it has one.
-  fn available(&self, host: Option<Size>) -> Option<Size> {
-    let axis = |content: bool, set: Option<f32>, host: Option<f32>| {
+  /// axis: `∞` on the axes it sizes. On the others it's the set size while the host hasn't been
+  /// sent it in `applied`, and otherwise `host`'s, the window's current logical size, so a window
+  /// the user resized is measured as the frame lays it out; either falls back on the other.
+  fn available(&self, host: Option<Size>, applied: LogicalSize) -> Option<Size> {
+    let axis = |content: bool, set: Option<f32>, host: Option<f32>, applied: Option<f32>| {
       if content {
         f32::INFINITY
+      } else if set == applied {
+        host.or(set).unwrap_or(f32::INFINITY)
       } else {
         set.or(host).unwrap_or(f32::INFINITY)
       }
     };
     (self.content != Axes::NONE).then(|| {
       Size::new(
-        axis(self.content.width, self.width, host.map(|size| size.width)),
-        axis(self.content.height, self.height, host.map(|size| size.height)),
+        axis(self.content.width, self.width, host.map(|size| size.width), applied.width),
+        axis(self.content.height, self.height, host.map(|size| size.height), applied.height),
       )
     })
   }
@@ -237,7 +239,7 @@ impl<R: Renderer> Runner<R> {
     }
     for index in 0..self.surfaces.len() {
       let node = self.surfaces[index];
-      let settings = Settings::of(&mut self.tree, node);
+      let settings = Settings::of(&self.tree, node);
       if !shown.contains(&node) || self.lost.contains(&node) {
         continue;
       }
@@ -255,7 +257,7 @@ impl<R: Renderer> Runner<R> {
     if let Some(windows) = cx.windows() {
       let mut pipeline = Pipeline::new();
       let desired = settings
-        .available(None)
+        .available(None, LogicalSize::default())
         .map(|available| pipeline.measure(&mut self.tree, node, available, &mut self.services.borrow()));
       let desc = settings.desc(self.title(node), desired);
       let id = windows.open(&desc);
@@ -298,7 +300,7 @@ impl<R: Renderer> Runner<R> {
     let host = bound
       .info
       .map(|info| Size::new(info.size.width as f32 / info.scale, info.size.height as f32 / info.scale));
-    let desired = settings.available(host).map(|available| {
+    let desired = settings.available(host, applied.size).map(|available| {
       bound
         .pipeline
         .measure(&mut self.tree, node, available, &mut self.services.borrow())

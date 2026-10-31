@@ -578,8 +578,8 @@ impl UiTree {
     self.tree(tree).ancestors(id)
   }
 
-  /// Returns whether `id` is `root` or one of its descendants in `tree`. A stale `id` is within
-  /// nothing.
+  /// Returns whether `id` is `root` or one of its descendants in `tree`. A stale `id` has no
+  /// ancestors, so it's within only itself.
   #[must_use]
   pub fn is_within(&self, tree: TreeKind, id: NodeId, root: NodeId) -> bool {
     self.tree(tree).is_within(id, root)
