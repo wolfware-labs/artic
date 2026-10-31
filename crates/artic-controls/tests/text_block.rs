@@ -517,7 +517,7 @@ fn a_box_exactly_one_device_pixel_narrower_shapes_nothing() {
 }
 
 // A paragraph no limit shaped, narrower than a narrower box, shapes nothing: the box still holds
-// it as it is, at any scale.
+// it as it is, also where a device pixel is a third of a unit.
 #[test]
 fn short_paragraph_in_a_narrower_box_shapes_nothing() {
   let block = wrapping("Hello world", TextWrapping::Wrap);

@@ -51,10 +51,10 @@ fn border_offers_its_child_the_space_inside_its_chrome() {
   let alone = layout.add("alone", wrapped());
 
   layout.run(root, WINDOW, 1.0);
-  let inside = layout.manager().desired(child);
+  let inside = layout.manager().desired(child).expect("measured");
   layout.run(alone, Size::new(140.0, 300.0), 1.0);
 
-  assert_eq!(inside, layout.manager().desired(alone));
+  assert_eq!(inside, layout.manager().desired(alone).expect("measured"));
 }
 
 // The child is arranged inside the outline and the padding.

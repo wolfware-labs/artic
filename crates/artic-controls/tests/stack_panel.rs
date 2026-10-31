@@ -175,10 +175,10 @@ fn huge_spacing_stays_finite() {
   );
 }
 
-// A child too tall to fit after the ones before it ends at the largest finite coordinate, also
-// where no snapping to the pixel grid would clamp it.
+// A child too tall to fit after the ones before it is cut to end at a finite coordinate, keeping
+// nearly all the room left, also where no snapping to the pixel grid would clamp it.
 #[test]
-fn a_child_too_tall_to_fit_ends_at_the_largest_coordinate() {
+fn a_child_too_tall_to_fit_is_cut_to_a_finite_end() {
   let mut layout = Headless::new();
   layout.set_snap(false);
   let a = layout.add("a", Fixed::new(10.0, 1.0e38));
@@ -200,11 +200,14 @@ fn stack_panel_draws_its_background() {
   panel.panel.background.set(Some(Color::rgb(255, 0, 0).into()));
   let child = layout.add("child", Fixed::new(10.0, 10.0));
   let root = layout.parent("stack", panel, &[child]);
-  layout.run(root, WINDOW, 1.0);
 
+  layout.run(root, WINDOW, 1.0);
   let commands = layout.record(root);
 
-  assert!(matches!(commands.as_slice(), [Command::Fill { .. }]), "{commands:?}");
+  assert!(
+    matches!(commands.as_slice(), [Command::Fill { brush, .. }] if *brush == Color::rgb(255, 0, 0).into()),
+    "{commands:?}"
+  );
 }
 
 // The children field is the type's content, taken by the `children` method.

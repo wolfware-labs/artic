@@ -86,9 +86,10 @@ impl TextBlock {
     let trimming = self.text_trimming.get() != TextTrimming::None;
     let paragraph = &shaped.paragraph;
     let beyond = |a: f32, b: f32| a - b > device_pixel;
+    let apart = |a: f32, b: f32| beyond(a, b) || beyond(b, a);
     let differs = |limit: Option<f32>, side: f32, limited: bool, extent: f32| {
       let limit = limit.unwrap_or(f32::INFINITY);
-      (beyond(side, limit) || beyond(limit, side)) && (limited || beyond(extent, side))
+      apart(side, limit) && (limited || beyond(extent, side))
     };
     let width = (wrapping || trimming)
       && differs(
