@@ -1367,10 +1367,10 @@ fn line_exactly_as_wide_as_the_limit_is_not_trimmed() {
   assert_eq!(ids(&paragraph), ids(&shape(&mut engine, "Hello, world", &style())));
 }
 
-// Justify leaves the last kept line at its own width, also when the height drops the lines after
-// it and nothing trims it.
+// Justify stretches a line that ends at a wrap also when the height drops the lines after it, so
+// a height limit doesn't change how the lines it keeps look.
 #[test]
-fn justify_leaves_the_last_kept_line() {
+fn justify_stretches_the_last_kept_line_of_a_cut_paragraph() {
   let paragraph = laid_out(
     &mut engine(),
     FOX,
@@ -1378,7 +1378,7 @@ fn justify_leaves_the_last_kept_line() {
     limits(Some(100.0), Some(LINE * 2.0)),
   );
 
-  assert!(paragraph.lines().last().unwrap().width < 100.0);
+  assert_eq!(paragraph.lines().last().unwrap().width, 100.0);
 }
 
 // Justify spreads a line's spare width evenly over its gaps: the last glyph moves by all of it.
