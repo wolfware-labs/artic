@@ -214,4 +214,20 @@ mod tests {
 
     assert_eq!(cx.bounds_test(Point::new(0.0, 0.0)), HitTestResult::Miss);
   }
+
+  // Each context hands back the tree and the size it was built with.
+  #[test]
+  fn contexts_hand_back_what_they_were_built_with() {
+    let (tree, node) = one_node();
+    let size = Size::new(30.0, 20.0);
+    let hit = HitTestCx::new(&tree, node, size);
+
+    assert!(std::ptr::eq(RenderCx::new(&tree, node, size, None).tree(), &tree));
+    assert!(std::ptr::eq(hit.tree(), &tree));
+    assert_eq!(hit.size(), size);
+    assert!(std::ptr::eq(
+      AccessCx::new(&tree, node, Rect::new(0.0, 0.0, 30.0, 20.0)).tree(),
+      &tree
+    ));
+  }
 }
