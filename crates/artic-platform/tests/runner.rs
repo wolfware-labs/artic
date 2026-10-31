@@ -287,6 +287,19 @@ fn wants_frame_requests_another() {
   assert_eq!(fixture.cx.frames, [FIRST]);
 }
 
+// Two hooks that want another frame get one, as one would.
+#[test]
+fn two_hooks_wanting_frames_request_one() {
+  let mut fixture = Fixture::new(|runner| {
+    runner.hooks().wants_frame(|| true);
+    runner.hooks().wants_frame(|| true);
+  });
+
+  fixture.frame();
+
+  assert_eq!(fixture.cx.frames, [FIRST]);
+}
+
 // Two windows keep their own layout and drawings: a change in one doesn't make the other record
 // again.
 #[test]
@@ -1020,6 +1033,60 @@ fn lent_surface_reported_first_is_drawn_once_bound() {
 
   runner.surface_changed(&mut cx, SurfaceId::new(9), info(64, 64, 1.0));
   runner.started(&mut cx, Waker::new(|| {}));
+
+  assert_eq!(cx.frames, [SurfaceId::new(9)]);
+}
+
+// A spare host surface, one no Surface holds, reported again keeps its newest size for the Surface
+// that takes it.
+#[test]
+fn spare_surface_reported_again_keeps_its_newest_size() {
+  let mut tree = UiTree::new();
+  let (first, second) = (leaf(&mut tree, 20.0), leaf(&mut tree, 20.0));
+  let (application, surfaces) = application(&mut tree, &[("first", first.id), ("second", second.id)]);
+  let opened = surface(&tree, surfaces[1]).is_open;
+  opened.set(false);
+  let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let seen = Rc::new(Cell::new(None));
+  let hook_seen = Rc::clone(&seen);
+  runner
+    .hooks()
+    .after_present(move |tree, _, _| hook_seen.set(tree.get_as::<Leaf>(second.id).and_then(|leaf| leaf.seen.get())));
+  let mut cx = Context {
+    windowless: true,
+    ..Context::default()
+  };
+  let mut buffer = pixels();
+  runner.started(&mut cx, Waker::new(|| {}));
+  for (id, size) in [(9, 64), (10, 64), (11, 64), (10, 32)] {
+    runner.surface_changed(&mut cx, SurfaceId::new(id), info(size, size, 1.0));
+  }
+
+  opened.set(true);
+  runner.woken(&mut cx);
+  runner.frame(&mut cx, SurfaceId::new(10), target(&mut buffer), Duration::ZERO);
+
+  assert_eq!(seen.get(), Some(Size::new(32.0, 32.0)));
+}
+
+// A spare host surface the host loses is forgotten: a Surface opened later doesn't take it.
+#[test]
+fn lost_spare_surface_is_forgotten() {
+  let (tree, application, surfaces) = titled(&["first", "second"]);
+  let opened = surface(&tree, surfaces[1]).is_open;
+  opened.set(false);
+  let mut runner = Runner::new(tree, Counter::default(), Box::new(engine()), application);
+  let mut cx = Context {
+    windowless: true,
+    ..Context::default()
+  };
+  runner.started(&mut cx, Waker::new(|| {}));
+  runner.surface_changed(&mut cx, SurfaceId::new(9), info(64, 64, 1.0));
+  runner.surface_changed(&mut cx, SurfaceId::new(10), info(64, 64, 1.0));
+  runner.surface_lost(&mut cx, SurfaceId::new(10), SurfaceLoss::Gone);
+
+  opened.set(true);
+  runner.woken(&mut cx);
 
   assert_eq!(cx.frames, [SurfaceId::new(9)]);
 }
