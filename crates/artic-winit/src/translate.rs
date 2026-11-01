@@ -1,6 +1,7 @@
 //! winit's window events, translated into what the host reports.
 
 use artic_render::PhysicalSize;
+use winit::dpi::PhysicalSize as WinitSize;
 use winit::event::WindowEvent;
 
 /// What a window event means to the host.
@@ -17,7 +18,7 @@ pub(crate) enum Translated {
 /// What `event` means: new surface facts, a close request, a frame, a move, the window's
 /// destruction, or nothing. A scale change carries no size the host can read, so its new size is
 /// read with `inner_size`.
-pub(crate) fn translate(event: &WindowEvent, inner_size: impl FnOnce() -> winit::dpi::PhysicalSize<u32>) -> Translated {
+pub(crate) fn translate(event: &WindowEvent, inner_size: impl FnOnce() -> WinitSize<u32>) -> Translated {
   match event {
     WindowEvent::Resized(size) => Translated::Changed {
       size: physical(*size),
@@ -36,7 +37,7 @@ pub(crate) fn translate(event: &WindowEvent, inner_size: impl FnOnce() -> winit:
 }
 
 /// winit's `size` as artic's.
-fn physical(size: winit::dpi::PhysicalSize<u32>) -> PhysicalSize {
+fn physical(size: WinitSize<u32>) -> PhysicalSize {
   PhysicalSize {
     width: size.width,
     height: size.height,
@@ -47,7 +48,7 @@ fn physical(size: winit::dpi::PhysicalSize<u32>) -> PhysicalSize {
 mod tests {
   use super::*;
   use pretty_assertions::assert_eq;
-  use winit::dpi::{PhysicalPosition, PhysicalSize as WinitSize};
+  use winit::dpi::PhysicalPosition;
 
   /// A window size that fails the test when read.
   fn unread() -> WinitSize<u32> {
