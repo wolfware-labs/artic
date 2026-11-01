@@ -3,21 +3,20 @@
 use crate::displays::Displays;
 use crate::surfaces::Surfaces;
 use crate::translate::{Translated, translate};
-use crate::window::{Step, attributes, steps};
+use crate::window::{Step, steps};
 use artic_platform::{AppHandler, HostContext, HostEvent, SurfaceInfo, SurfaceLoss, Waker, WindowDesc, Windows};
 use artic_render::{PhysicalSize, RawHandles, SurfaceId, Target};
 use std::rc::Rc;
 use std::time::Instant;
 use winit::dpi::PhysicalSize as WinitSize;
 use winit::event::WindowEvent;
-use winit::window::WindowAttributes;
 
 /// The event loop, as the driver uses it.
 pub(crate) trait Loop {
   type Window: Window;
 
-  /// A new window with `attributes`, or `None` if the platform refused it.
-  fn create_window(&self, attributes: WindowAttributes) -> Option<Self::Window>;
+  /// A new window for `desc`, or `None` if the platform refused it.
+  fn create_window(&self, desc: &WindowDesc) -> Option<Self::Window>;
 
   fn exit(&self);
 }
@@ -50,11 +49,7 @@ pub(crate) trait Monitor: Ord {
 pub(crate) struct Driver<A, W: Window> {
   app: A,
   surfaces: Surfaces<W::Id, Rc<W>>,
-  /// Each monitor's display id, by winit's `MonitorHandle`, which compares by what each platform
-  /// identifies a monitor by: the display's UUID on macOS, the `HMONITOR` on Windows, the RandR
-  /// CRTC on X11 and the `wl_output` global on Wayland. Rearranging displays keeps an id, and
-  /// monitors connected together always differ; a monitor plugged in again may get a new id, and
-  /// on X11 one plugged in later may take the id of one unplugged from its CRTC.
+  /// Each monitor's display id.
   displays: Displays<W::Monitor>,
   opened: Vec<SurfaceId>,
   /// The waker the handler gets when the loop first resumes, and `None` once it has.
@@ -273,7 +268,7 @@ impl<L: Loop> Windows for Context<'_, L> {
     if *self.exiting {
       return self.surfaces.reserve();
     }
-    match self.event_loop.create_window(attributes(desc)) {
+    match self.event_loop.create_window(desc) {
       Some(window) => {
         let surface = self.surfaces.insert(window.id(), Rc::new(window));
         self.surfaces.apply(surface, desc.clone());
@@ -319,14 +314,23 @@ mod tests {
   /// A window's state, which the test changes and reads.
   struct State {
     size: Cell<(u32, u32)>,
+    scale: Cell<f64>,
     monitor: Cell<Option<u8>>,
     redraws: Cell<usize>,
     steps: RefCell<Vec<Step>>,
   }
 
+  /// A window that logs its drop.
   struct FakeWindow {
     id: u32,
     state: Rc<State>,
+    log: Log,
+  }
+
+  impl Drop for FakeWindow {
+    fn drop(&mut self) {
+      self.log.borrow_mut().push(format!("dropped {}", self.id));
+    }
   }
 
   impl HasWindowHandle for FakeWindow {
@@ -355,7 +359,7 @@ mod tests {
     }
 
     fn scale_factor(&self) -> f64 {
-      1.0
+      self.state.scale.get()
     }
 
     fn current_monitor(&self) -> Option<FakeMonitor> {
@@ -380,10 +384,11 @@ mod tests {
     }
   }
 
-  /// Hands out windows, keeping each one's state for the test, and refuses them while `refuse` is
-  /// set.
+  /// Hands out windows, numbered from 1 and logging to `log`, keeping each one's state for the
+  /// test, and refuses them while `refuse` is set.
   #[derive(Default)]
   struct FakeLoop {
+    log: Log,
     windows: RefCell<Vec<Rc<State>>>,
     refuse: Cell<bool>,
     exited: Cell<bool>,
@@ -398,12 +403,13 @@ mod tests {
   impl Loop for FakeLoop {
     type Window = FakeWindow;
 
-    fn create_window(&self, _attributes: WindowAttributes) -> Option<FakeWindow> {
+    fn create_window(&self, _desc: &WindowDesc) -> Option<FakeWindow> {
       if self.refuse.get() {
         return None;
       }
       let state = Rc::new(State {
         size: Cell::new((30, 20)),
+        scale: Cell::new(1.0),
         monitor: Cell::new(Some(0)),
         redraws: Cell::new(0),
         steps: RefCell::new(Vec::new()),
@@ -411,8 +417,9 @@ mod tests {
       let mut windows = self.windows.borrow_mut();
       windows.push(Rc::clone(&state));
       Some(FakeWindow {
-        id: windows.len() as u32 - 1,
+        id: windows.len() as u32,
         state,
+        log: Rc::clone(&self.log),
       })
     }
 
@@ -501,12 +508,17 @@ mod tests {
   ) -> Fixture<impl FnMut(&str, &mut dyn HostContext)> {
     let (mut driver, log) = driver(move |line, cx| {
       if line == "started" {
-        (0..windows).for_each(|_| _ = open(cx));
+        for _ in 0..windows {
+          open(cx);
+        }
       } else {
         react(line, cx);
       }
     });
-    let event_loop = FakeLoop::default();
+    let event_loop = FakeLoop {
+      log: Rc::clone(&log),
+      ..FakeLoop::default()
+    };
     driver.resume(&event_loop);
     log.borrow_mut().clear();
     Fixture { driver, event_loop, log }
@@ -563,9 +575,9 @@ mod tests {
     } = running(1, |_, _| {});
 
     event_loop.window(0).size.set((40, 20));
-    driver.handle(&event_loop, 0, &WindowEvent::RedrawRequested);
+    driver.handle(&event_loop, 1, &WindowEvent::RedrawRequested);
     assert_eq!(take(&log), [changed(1, "40x20", 0), "frame 1".into()]);
-    driver.handle(&event_loop, 0, &WindowEvent::RedrawRequested);
+    driver.handle(&event_loop, 1, &WindowEvent::RedrawRequested);
     assert_eq!(take(&log), ["frame 1"]);
   }
 
@@ -583,9 +595,9 @@ mod tests {
     });
 
     event_loop.window(0).size.set((40, 20));
-    driver.handle(&event_loop, 0, &WindowEvent::RedrawRequested);
+    driver.handle(&event_loop, 1, &WindowEvent::RedrawRequested);
 
-    assert_eq!(take(&log), [changed(1, "40x20", 0), "lost 1 Gone".into()]);
+    assert_eq!(take(&log), [changed(1, "40x20", 0), "lost 1 Gone".into(), "dropped 1".into()]);
   }
 
   // A move reads the window's monitor, and reports only when it changed.
@@ -599,10 +611,27 @@ mod tests {
     let moved = WindowEvent::Moved(PhysicalPosition::new(1, 2));
 
     event_loop.window(0).monitor.set(Some(1));
-    driver.handle(&event_loop, 0, &moved);
+    driver.handle(&event_loop, 1, &moved);
     assert_eq!(take(&log), [changed(1, "30x20", 1)]);
-    driver.handle(&event_loop, 0, &moved);
+    driver.handle(&event_loop, 1, &moved);
     assert_eq!(take(&log), Vec::<String>::new());
+  }
+
+  // A window on no monitor has a display id of its own and no refresh rate, and reports its
+  // window's scale.
+  #[test]
+  fn a_window_on_no_monitor_has_no_refresh_rate() {
+    let Fixture {
+      mut driver,
+      event_loop,
+      log,
+    } = running(1, |_, _| {});
+
+    event_loop.window(0).monitor.set(None);
+    event_loop.window(0).scale.set(2.0);
+    driver.handle(&event_loop, 1, &WindowEvent::Moved(PhysicalPosition::new(1, 2)));
+
+    assert_eq!(take(&log), ["changed 1 30x20 @2 on DisplayId(1) None"]);
   }
 
   // A resize reports the size it carries, not the one the window last had.
@@ -614,7 +643,7 @@ mod tests {
       log,
     } = running(1, |_, _| {});
 
-    driver.handle(&event_loop, 0, &WindowEvent::Resized(WinitSize::new(50, 10)));
+    driver.handle(&event_loop, 1, &WindowEvent::Resized(WinitSize::new(50, 10)));
 
     assert_eq!(take(&log), [changed(1, "50x10", 0)]);
   }
@@ -635,8 +664,8 @@ mod tests {
     driver.suspend(&event_loop);
     assert_eq!(take(&log), ["lost 1 Suspended", "lost 2 Suspended", "suspended"]);
     driver.suspend(&event_loop);
-    driver.handle(&event_loop, 0, &WindowEvent::RedrawRequested);
-    driver.handle(&event_loop, 0, &WindowEvent::Resized(WinitSize::new(50, 10)));
+    driver.handle(&event_loop, 1, &WindowEvent::RedrawRequested);
+    driver.handle(&event_loop, 1, &WindowEvent::Resized(WinitSize::new(50, 10)));
     driver.wake(&event_loop);
     assert_eq!(
       (take(&log), event_loop.window(0).redraws.get()),
@@ -660,7 +689,7 @@ mod tests {
 
     driver.suspend(&event_loop);
 
-    assert_eq!(take(&log), ["lost 1 Suspended", "lost 2 Gone", "suspended"]);
+    assert_eq!(take(&log), ["lost 1 Suspended", "lost 2 Gone", "dropped 2", "suspended"]);
   }
 
   // Resuming stops reporting surfaces once the app asks to exit.
@@ -690,11 +719,10 @@ mod tests {
       event_loop,
       log,
     } = running(1, |_, _| {});
-    let state = event_loop.window(0);
 
-    driver.handle(&event_loop, 0, &WindowEvent::Destroyed);
-    assert_eq!((take(&log), Rc::strong_count(&state)), (vec!["lost 1 Gone".to_string()], 2));
-    driver.handle(&event_loop, 0, &WindowEvent::RedrawRequested);
+    driver.handle(&event_loop, 1, &WindowEvent::Destroyed);
+    assert_eq!(take(&log), ["lost 1 Gone", "dropped 1"]);
+    driver.handle(&event_loop, 1, &WindowEvent::RedrawRequested);
     assert_eq!(take(&log), Vec::<String>::new());
   }
 
@@ -707,7 +735,7 @@ mod tests {
       log,
     } = running(1, |_, _| {});
 
-    driver.handle(&event_loop, 0, &WindowEvent::CloseRequested);
+    driver.handle(&event_loop, 1, &WindowEvent::CloseRequested);
 
     assert_eq!(take(&log), ["close 1"]);
   }
@@ -752,7 +780,9 @@ mod tests {
       [
         "woken".to_string(),
         "lost 1 Gone".into(),
+        "dropped 1".into(),
         "lost 2 Gone".into(),
+        "dropped 2".into(),
         changed(3, "30x20", 0)
       ]
     );
@@ -775,7 +805,15 @@ mod tests {
 
     assert_eq!(
       (take(&log), event_loop.windows.borrow().len()),
-      (vec!["lost 1 Gone".to_string(), "lost 2 Gone".into()], 2)
+      (
+        vec![
+          "lost 1 Gone".to_string(),
+          "dropped 1".into(),
+          "lost 2 Gone".into(),
+          "dropped 2".into()
+        ],
+        2
+      )
     );
   }
 

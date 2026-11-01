@@ -2,8 +2,8 @@
 
 use crate::driver::{self, Driver, Loop, Monitor};
 use crate::error::Error;
-use crate::window::Step;
-use artic_platform::{AppHandler, Waker};
+use crate::window::{Step, attributes};
+use artic_platform::{AppHandler, Waker, WindowDesc};
 use artic_render::TargetKind;
 use std::fmt::{Debug, Formatter};
 use winit::application::ApplicationHandler;
@@ -11,7 +11,7 @@ use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::monitor::MonitorHandle;
-use winit::window::{Window, WindowAttributes, WindowId};
+use winit::window::{Window, WindowId};
 
 /// The desktop host: windows, frames and the event loop on Windows, macOS and Linux (X11 and
 /// Wayland), through `winit`.
@@ -95,8 +95,8 @@ impl<A: AppHandler> ApplicationHandler for Driver<A, Window> {
 impl Loop for ActiveEventLoop {
   type Window = Window;
 
-  fn create_window(&self, attributes: WindowAttributes) -> Option<Window> {
-    ActiveEventLoop::create_window(self, attributes).ok()
+  fn create_window(&self, desc: &WindowDesc) -> Option<Window> {
+    ActiveEventLoop::create_window(self, attributes(desc)).ok()
   }
 
   fn exit(&self) {
@@ -144,6 +144,11 @@ impl driver::Window for Window {
   }
 }
 
+/// A `MonitorHandle` compares by what each platform identifies a monitor by: the display's UUID on
+/// macOS, the `HMONITOR` on Windows, the RandR CRTC on X11 and the `wl_output` global on Wayland.
+/// Rearranging displays keeps an id, and monitors connected together always differ; a monitor
+/// plugged in again may get a new id, and on X11 one plugged in later may take the id of one
+/// unplugged from its CRTC.
 impl Monitor for MonitorHandle {
   fn refresh_rate_millihertz(&self) -> Option<u32> {
     MonitorHandle::refresh_rate_millihertz(self)
