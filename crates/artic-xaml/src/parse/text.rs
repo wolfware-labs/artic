@@ -21,8 +21,8 @@ pub struct Decoded {
 pub struct OffsetMap {
   /// Where the raw text starts in the source.
   start: usize,
-  /// For each replacement that changed the length, the offsets just after it: in the decoded text,
-  /// then in the raw text. Sorted by both.
+  /// For each entity and each `\r\n`, the offsets just after it: in the decoded text, then in the
+  /// raw text. Sorted by both.
   shifts: Vec<(usize, usize)>,
 }
 
@@ -65,9 +65,7 @@ pub fn decode(raw: &str, offset: usize, kind: Kind) -> Result<Decoded, DecodeErr
         };
         let character = resolve(&raw[index..end], offset + index)?;
         decoded.push(character);
-        if end - index != character.len_utf8() {
-          shifts.push((decoded.len(), end));
-        }
+        shifts.push((decoded.len(), end));
         while rest.peek().is_some_and(|(next, _)| *next < end) {
           rest.next();
         }
@@ -133,9 +131,17 @@ mod tests {
   #[test]
   fn entities_and_references_are_resolved() {
     assert_eq!(
-      decode("a &lt; b &amp;&amp; &#65;&#x42;", 0, Kind::Text).map(|decoded| decoded.text),
-      Ok("a < b && AB".to_owned())
+      decode("a &lt; b &amp;&amp; &#65;&#x42; &quot;&apos;", 0, Kind::Text).map(|decoded| decoded.text),
+      Ok("a < b && AB \"'".to_owned())
     );
+  }
+
+  // A bare `&` is reported at the byte it stands on in the source.
+  #[test]
+  fn a_bare_ampersand_is_reported_where_it_stands() {
+    let error = decode("a & b", 10, Kind::Text).expect_err("a bare `&`");
+
+    assert_eq!((error.start, error.end), (12, 13));
   }
 
   // Line endings become `\n` in text; in attributes every whitespace character becomes a space,
