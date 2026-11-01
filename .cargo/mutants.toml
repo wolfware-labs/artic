@@ -33,7 +33,6 @@ exclude_re = [
     # winit builds `ScaleFactorChanged` only inside its loop (`InnerSizeWriter` has no public
     # constructor), so no test can send one.
     'artic-winit/src/translate\.rs:\d+:\d+: delete match arm WindowEvent::ScaleFactorChanged\{scale_factor, \.\.\} in translate$',
-    # These already return what the mutant writes: nothing for a lost surface, no layers for a
-    # recorded scene.
-    'artic-render/src/(renderer\.rs:\d+:\d+: replace Renderer::surface_lost with \(\)|compose\.rs:\d+:\d+: replace <impl Nodes for Drawing<F>>::layers -> Layers with Default::default\(\))$',
+    # This default already does what the mutant writes: nothing.
+    'artic-render/src/renderer\.rs:\d+:\d+: replace Renderer::surface_lost with \(\)$',
 ]

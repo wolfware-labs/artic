@@ -60,7 +60,11 @@ impl Scene {
   pub fn record(draw: impl FnOnce(&mut SceneBuilder)) -> Scene {
     let mut tree = UiTree::new();
     let root = tree.alloc(Box::new(Canvas));
-    Compositor::default().compose(&mut tree, root, &mut Drawing(Some(draw)))
+    let mut builder = SceneBuilder::default();
+    draw(&mut builder);
+    Scene {
+      items: vec![SceneItem::Fragment(Arc::new(SceneFragment::new(root, builder.take())))],
+    }
   }
 }
 
@@ -70,21 +74,6 @@ struct Canvas;
 
 impl Object for Canvas {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
-}
-
-/// Records its closure, once, as the canvas's drawing.
-struct Drawing<F>(Option<F>);
-
-impl<F: FnOnce(&mut SceneBuilder)> Nodes for Drawing<F> {
-  fn layers(&self, _tree: &UiTree, _node: NodeId) -> Layers {
-    Layers::default()
-  }
-
-  fn record(&mut self, _tree: &UiTree, _node: NodeId, builder: &mut SceneBuilder) {
-    if let Some(draw) = self.0.take() {
-      draw(builder);
-    }
-  }
 }
 
 /// Builds frames from the visual tree, keeping each node's fragment until the node is render-dirty
@@ -235,6 +224,19 @@ mod tests {
 
     fn stale(&self, node: NodeId) -> bool {
       self.stale.contains(&node)
+    }
+  }
+
+  /// Draws every node as the same fill, with no layers, and leaves staleness to the default.
+  struct Plain;
+
+  impl Nodes for Plain {
+    fn layers(&self, _tree: &UiTree, _node: NodeId) -> Layers {
+      Layers::default()
+    }
+
+    fn record(&mut self, _tree: &UiTree, _node: NodeId, builder: &mut SceneBuilder) {
+      builder.fill(Rect::new(0.0, 0.0, 1.0, 1.0), Color::rgb(0, 0, 0));
     }
   }
 
@@ -680,15 +682,21 @@ mod tests {
   #[test]
   fn an_unchanged_node_keeps_its_fragment() {
     let mut tree = UiTree::new();
-    let root = tree.alloc(Box::new(Canvas));
+    let [root, ..] = sample(&mut tree);
     let mut compositor = Compositor::default();
-    let mut drawing = Drawing(Some(|builder: &mut SceneBuilder| {
-      builder.fill(Rect::new(0.0, 0.0, 1.0, 1.0), Color::rgb(0, 0, 0))
-    }));
 
-    let first = compositor.compose(&mut tree, root, &mut drawing);
-    let second = compositor.compose(&mut tree, root, &mut drawing);
+    let first = compositor.compose(&mut tree, root, &mut Plain);
+    let second = compositor.compose(&mut tree, root, &mut Plain);
 
     assert_eq!((compositor.recorded(), second), (0, first));
+  }
+
+  // Two recorded scenes never share a fragment id, though each fragment is the first node of a tree
+  // of its own.
+  #[test]
+  fn recorded_scenes_have_separate_ids() {
+    let [first, second] = [(); 2].map(|()| Scene::record(|_| {}));
+
+    assert_ne!(fragment(&first, 0).id(), fragment(&second, 0).id());
   }
 }
