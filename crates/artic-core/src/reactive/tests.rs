@@ -1452,6 +1452,26 @@ fn a_signal_made_while_its_scope_is_freed_can_be_disposed_later() {
   assert!(!late.is_alive());
 }
 
+// A value freed with a child scope may dispose the parent being disposed: the parent's disposal
+// finishes without reaching for the scope already freed.
+#[test]
+fn a_scope_disposed_again_by_a_value_it_frees_is_freed_once() {
+  struct DisposesOnDrop(Scope);
+  impl Drop for DisposesOnDrop {
+    fn drop(&mut self) {
+      self.0.dispose();
+    }
+  }
+  let before = live_counts();
+  let parent = Scope::new_root();
+  let child = parent.child();
+  child.run(|| Signal::new(DisposesOnDrop(parent)));
+
+  parent.dispose();
+
+  assert_eq!(live_counts(), before);
+}
+
 // Pending effects
 
 // A write pends only the effect it reaches, not every effect.

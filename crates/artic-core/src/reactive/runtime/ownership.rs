@@ -32,12 +32,17 @@ impl Runtime {
     RUNTIME.with(|runtime| runtime.scopes.active())
   }
 
+  /// Frees `scope_id` after what it owns. A value dropped meanwhile may dispose the same scope, which
+  /// is then already gone when its own clearing returns.
   pub fn dispose_scope(scope_id: ScopeId) {
     if !RUNTIME.with(|runtime| runtime.scopes.contains(scope_id)) {
       return;
     }
     Self::clear_scope(scope_id);
     RUNTIME.with(|runtime| {
+      if !runtime.scopes.contains(scope_id) {
+        return;
+      }
       if let Some(parent) = runtime.scopes.parent(scope_id) {
         runtime.scopes.remove_child(parent, scope_id);
       }
