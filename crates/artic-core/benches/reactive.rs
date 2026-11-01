@@ -172,9 +172,10 @@ fn memo_chain(c: &mut Criterion) {
             last.get()
           });
         });
-        let changes = computes.get();
+        assert_eq!(last.get(), value + length);
+        let computed = computes.get();
         group.bench_function(BenchmarkId::new("unchanged", length), |b| b.iter(|| last.get()));
-        assert_eq!((last.get(), computes.get()), (value + length, changes));
+        assert_eq!(computes.get(), computed, "an unchanged chain recomputed");
       },
     );
   }
@@ -234,7 +235,8 @@ fn diamond(c: &mut Criterion) {
           join.get()
         });
       });
-      assert_eq!((join.get(), computes.get()), (3 * value + 1, value));
+      assert_eq!(computes.get(), value, "the join computed other than once per write");
+      assert_eq!(join.get(), 3 * value + 1);
     },
   );
 }
@@ -294,19 +296,25 @@ fn batched(c: &mut Criterion) {
 }
 
 // A child scope's whole life: 10 signals, a memo over them, and an effect that reads the memo and
-// makes a signal of its own on each run, made, written once, and disposed.
+// makes a signal of its own on each run, made, written once (so the effect runs twice), and
+// disposed.
 fn scope(c: &mut Criterion) {
   let before = live_counts();
   let parent = Scope::new_root();
+  let runs = counter();
+  let mut scopes = 0;
   c.bench_function("scope/create_dispose", |b| {
     b.iter(|| {
+      scopes += 1;
       let scope = parent.child();
       let first = scope.run(|| {
         let signals: Vec<Signal<u64>> = (0..10).map(Signal::new).collect();
         let first = signals[0];
         let sum = Memo::new(move || signals.iter().map(Signal::get).sum::<u64>());
+        let effect_runs = Rc::clone(&runs);
         effect(move || {
           black_box(Signal::new(sum.get()));
+          bump(&effect_runs);
         });
         first
       });
@@ -315,6 +323,7 @@ fn scope(c: &mut Criterion) {
     });
   });
   parent.dispose();
+  assert_eq!(runs.get(), 2 * scopes, "the effect didn't run again after the write");
   assert_no_leak(before);
 }
 
