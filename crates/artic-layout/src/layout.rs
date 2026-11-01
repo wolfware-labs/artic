@@ -687,7 +687,8 @@ impl<'a> ArrangeCx<'a> {
   ///
   /// # Panics
   ///
-  /// In debug builds, panics if `rect` isn't finite; release builds treat such a field as zero.
+  /// In debug builds, panics if `rect` isn't finite or has a negative size; release builds treat
+  /// such a field as zero.
   pub fn arrange(&mut self, child: NodeId, rect: Rect) {
     if self.pass.collapsed(child) {
       return;
@@ -779,16 +780,16 @@ impl<'a> ArrangeCx<'a> {
   fn checked_rect(&self, child: NodeId, rect: Rect) -> Rect {
     let fields = [rect.x, rect.y, rect.width, rect.height];
     debug_assert!(
-      fields.iter().all(|field| field.is_finite()),
-      "{} arranged node {child:?} in a rectangle that isn't finite ({rect})",
+      fields.iter().all(|field| field.is_finite()) && rect.width >= 0.0 && rect.height >= 0.0,
+      "{} arranged node {child:?} in a rectangle that isn't finite or has a negative size ({rect})",
       self.pass.describe_parent(),
     );
     let (x, y) = (finite::or_zero(rect.x), finite::or_zero(rect.y));
     Rect::new(
       x,
       y,
-      finite::span(x, finite::or_zero(rect.width)),
-      finite::span(y, finite::or_zero(rect.height)),
+      finite::span(x, finite::usable(rect.width)),
+      finite::span(y, finite::usable(rect.height)),
     )
   }
 }

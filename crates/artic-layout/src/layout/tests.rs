@@ -240,10 +240,9 @@ fn infinite_desired_size_panics_in_debug() {
   run(&mut LayoutManager::default(), &mut tree, root, WINDOW);
 }
 
-/// Places its children at (1e38, 1e38) with the largest finite size, past the largest finite
-/// coordinate on both axes.
+/// Arranges its children in its one rectangle, whatever the slot it got.
 #[derive(Debug)]
-struct Far;
+struct Far(Rect);
 
 impl Object for Far {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
@@ -261,7 +260,7 @@ impl Layoutable for Far {
   fn arrange(&self, cx: &mut ArrangeCx<'_>, _rect: Rect) {
     let children: Vec<NodeId> = cx.children().collect();
     for child in children {
-      cx.arrange(child, Rect::new(1.0e38, 1.0e38, f32::MAX, f32::MAX));
+      cx.arrange(child, self.0);
     }
   }
 }
@@ -283,7 +282,7 @@ impl LayoutNodes for WithFar {
 fn arranged_rects_end_at_a_finite_coordinate() {
   let mut tree = UiTree::new();
   let child = leaf(&mut tree, 10.0, 10.0);
-  let root = tree.alloc(Box::new(Far));
+  let root = tree.alloc(Box::new(Far(Rect::new(1.0e38, 1.0e38, f32::MAX, f32::MAX))));
   tree.add_child(TreeKind::Visual, root, child);
   let mut layout = LayoutManager::default();
 
@@ -295,6 +294,19 @@ fn arranged_rects_end_at_a_finite_coordinate() {
     "{rect:?}"
   );
   assert!(rect.width > 2.0e38 && rect.height > 2.0e38, "{rect:?}");
+}
+
+// A rectangle with a negative size is a bug in the panel that made it, reported in debug builds.
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "a negative size")]
+fn negative_arranged_size_panics_in_debug() {
+  let mut tree = UiTree::new();
+  let child = leaf(&mut tree, 10.0, 10.0);
+  let root = tree.alloc(Box::new(Far(Rect::new(-f32::MAX, 0.0, -f32::MAX, 10.0))));
+  tree.add_child(TreeKind::Visual, root, child);
+
+  LayoutManager::default().run(&mut tree, &WithFar, root, WINDOW, GRID, &mut Recorder::default());
 }
 
 // The root offered an invalid size is reported as offered by the layout root, since no node did.

@@ -24,8 +24,8 @@ pub fn or_zero(value: f32) -> f32 {
   if value.is_finite() { value } else { 0.0 }
 }
 
-/// `length`, cut so that `start + length` stays finite: the length from `start` to the largest
-/// finite coordinate when it would reach past it, a step shorter where that length rounds up.
+/// `length`, 0 or more, cut so that `start + length` stays finite: the length from `start` to the
+/// largest finite coordinate when it would reach past it, a step shorter where that rounds up.
 #[must_use]
 pub fn span(start: f32, length: f32) -> f32 {
   let cut = length.min(f32::MAX - start);
