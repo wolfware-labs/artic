@@ -554,11 +554,8 @@ mod tests {
 
     let scene = Compositor::default().compose(&mut tree, root, &mut Table::default());
 
-    let SceneItem::Fragment(fragment) = &scene.items()[0] else {
-      panic!("a fragment");
-    };
     assert_eq!(
-      fragment.commands(),
+      fragments(&scene)[0].commands(),
       [Command::Fill {
         shape: Rect::new(0.0, 0.0, 1.0, 1.0).into(),
         brush: Color::rgb(0, 0, 0).into()
