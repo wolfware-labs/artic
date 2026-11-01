@@ -1,5 +1,5 @@
 use crate::defer::defer;
-use crate::reactive::runtime::nodes::{Job, NodeKind};
+use crate::reactive::runtime::nodes::{Job, NodeKind, Owner};
 use crate::reactive::runtime::{Node, RUNTIME, Runtime, ScopeId, SignalId};
 
 impl Runtime {
@@ -15,6 +15,11 @@ impl Runtime {
     RUNTIME.with(|runtime| runtime.scopes.push_active(scope_id));
     let _active = defer(|| RUNTIME.with(|runtime| runtime.scopes.pop_active()));
     action()
+  }
+
+  #[cfg(test)]
+  pub fn owned_count(scope_id: ScopeId) -> usize {
+    RUNTIME.with(|runtime| runtime.owned(scope_id).len())
   }
 
   #[cfg(test)]
@@ -36,8 +41,7 @@ impl Runtime {
   }
 
   pub(super) fn clear_scope(scope_id: ScopeId) {
-    let (children, nodes) =
-      RUNTIME.with(|runtime| (runtime.scopes.take_children(scope_id), runtime.scopes.take_nodes(scope_id)));
+    let (children, nodes) = RUNTIME.with(|runtime| (runtime.scopes.take_children(scope_id), runtime.owned(scope_id)));
     for child in children {
       Self::dispose_scope(child);
     }
@@ -72,10 +76,59 @@ impl Runtime {
       Self::dispose_scope(scope);
     }
     RUNTIME.with(|runtime| {
+      runtime.disown(node);
       runtime.nodes.remove(node);
       if let Some((_, Some(seq))) = owned {
         runtime.scheduler.remove_pending(seq);
       }
     });
+  }
+}
+
+impl Runtime {
+  /// Makes the active scope, if there is one, the owner of `node`, at the head of its list.
+  pub(super) fn own(&self, node: Node) {
+    let Some(scope) = self.scopes.active() else {
+      return;
+    };
+    let next = self.scopes.first(scope);
+    self.nodes.with_owner(node, |owner| {
+      *owner = Owner {
+        scope: Some(scope),
+        previous: None,
+        next,
+      };
+    });
+    if let Some(next) = next {
+      self.nodes.with_owner(next, |owner| owner.previous = Some(node));
+    }
+    self.scopes.set_first(scope, Some(node));
+  }
+
+  /// Takes `node` out of its owner's list.
+  fn disown(&self, node: Node) {
+    let Some(Owner {
+      scope: Some(scope),
+      previous,
+      next,
+    }) = self.nodes.owner(node)
+    else {
+      return;
+    };
+    match previous {
+      Some(previous) => self.nodes.with_owner(previous, |owner| owner.next = next),
+      None => self.scopes.set_first(scope, next),
+    }
+    if let Some(next) = next {
+      self.nodes.with_owner(next, |owner| owner.previous = previous);
+    }
+  }
+
+  /// The nodes `scope_id` owns, oldest first.
+  fn owned(&self, scope_id: ScopeId) -> Vec<Node> {
+    let mut owned: Vec<Node> =
+      std::iter::successors(self.scopes.first(scope_id), |node| self.nodes.owner(*node)?.next).collect();
+    owned.reverse();
+    owned
   }
 }

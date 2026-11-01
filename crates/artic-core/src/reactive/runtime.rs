@@ -46,7 +46,7 @@ impl Runtime {
     TValue: Any,
   {
     let signal_id = Self::create_unowned_signal(value);
-    RUNTIME.with(|runtime| runtime.scopes.add_to_active(signal_id.into()));
+    RUNTIME.with(|runtime| runtime.own(signal_id.into()));
     signal_id
   }
 
@@ -151,7 +151,7 @@ impl Runtime {
       let memo_id = runtime
         .nodes
         .alloc_memo(initial_value, Rc::new(move |node| compute(MemoId::of(node))), scope);
-      runtime.scopes.add_to_active(memo_id.into());
+      runtime.own(memo_id.into());
       memo_id
     })
   }
@@ -198,7 +198,7 @@ impl Runtime {
     RUNTIME.with(|runtime| {
       let scope = runtime.scopes.alloc(runtime.scopes.active());
       let node = runtime.nodes.alloc_effect(Rc::new(move |_| (run.borrow_mut())()), scope);
-      runtime.scopes.add_to_active(node);
+      runtime.own(node);
       node
     })
   }

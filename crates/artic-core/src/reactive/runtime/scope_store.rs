@@ -9,7 +9,8 @@ pub struct ScopeId(SlotId);
 struct ScopeSlot {
   parent: Option<ScopeId>,
   children: Vec<ScopeId>,
-  nodes: Vec<Node>,
+  /// The newest node the scope owns, the head of a list through the nodes' slots.
+  first: Option<Node>,
 }
 
 pub struct ScopeStore {
@@ -29,7 +30,7 @@ impl ScopeStore {
     let scope_id = ScopeId(self.slots.borrow_mut().alloc(ScopeSlot {
       parent,
       children: Vec::new(),
-      nodes: Vec::new(),
+      first: None,
     }));
     if let Some(parent) = parent {
       self.with_slot(parent, |slot| slot.children.push(scope_id));
@@ -63,14 +64,12 @@ impl ScopeStore {
     self.with_slot(scope_id, |slot| take(&mut slot.children))
   }
 
-  pub fn add_to_active(&self, node: Node) {
-    if let Some(scope_id) = self.active() {
-      self.with_slot(scope_id, |slot| slot.nodes.push(node));
-    }
+  pub fn first(&self, scope_id: ScopeId) -> Option<Node> {
+    self.with_slot(scope_id, |slot| slot.first)
   }
 
-  pub fn take_nodes(&self, scope_id: ScopeId) -> Vec<Node> {
-    self.with_slot(scope_id, |slot| take(&mut slot.nodes))
+  pub fn set_first(&self, scope_id: ScopeId, first: Option<Node>) {
+    self.with_slot(scope_id, |slot| slot.first = first);
   }
 
   pub fn push_active(&self, scope_id: ScopeId) {

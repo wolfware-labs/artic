@@ -66,10 +66,19 @@ enum Kind {
   Observer(Observer),
 }
 
+/// The scope that owns a node, and the node's neighbors in that scope's list.
+#[derive(Clone, Copy, Default)]
+pub struct Owner {
+  pub scope: Option<ScopeId>,
+  pub previous: Option<Node>,
+  pub next: Option<Node>,
+}
+
 struct Slot {
   kind: Kind,
   sources: Vec<Node>,
   subscribers: Vec<Node>,
+  owner: Owner,
 }
 
 pub struct Nodes {
@@ -173,6 +182,16 @@ impl Nodes {
     }
   }
 
+  pub fn owner(&self, node: Node) -> Option<Owner> {
+    self.slots.borrow().get(node.0).map(|slot| slot.owner)
+  }
+
+  pub fn with_owner(&self, node: Node, action: impl FnOnce(&mut Owner)) {
+    if let Some(slot) = self.slots.borrow_mut().get_mut(node.0) {
+      action(&mut slot.owner);
+    }
+  }
+
   /// Whether `node` is an observer that has to run again. A signal reads nothing, so it never is.
   pub fn is_dirty(&self, node: Node) -> bool {
     match &self.slot(node, "node").kind {
@@ -269,6 +288,7 @@ impl Nodes {
       kind,
       sources: Vec::new(),
       subscribers: Vec::new(),
+      owner: Owner::default(),
     }))
   }
 

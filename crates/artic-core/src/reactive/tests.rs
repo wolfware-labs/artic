@@ -1094,6 +1094,22 @@ fn a_panicking_effect_runs_again_on_the_next_flush() {
   assert_eq!(seen.get(), 1);
 }
 
+// A signal disposed on its own leaves its scope's list at once, so a scope never keeps a dead
+// node until it is disposed.
+#[test]
+fn a_disposed_signal_leaves_its_scope() {
+  let scope = Scope::new_root();
+  let [first, second, third] = scope.run(|| [Signal::new(1), Signal::new(2), Signal::new(3)]);
+
+  second.dispose();
+  let middle_gone = Runtime::owned_count(scope.id());
+  third.dispose();
+  first.dispose();
+
+  assert_eq!((middle_gone, Runtime::owned_count(scope.id())), (2, 0));
+  scope.dispose();
+}
+
 // Pending effects
 
 // A write pends only the effect it reaches, not every effect.
