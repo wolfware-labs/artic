@@ -156,6 +156,23 @@ mod tests {
     );
   }
 
+  // A surface's window is found by its id, and every open window is listed in the order it opened.
+  #[test]
+  fn windows_are_found_by_surface() {
+    let mut surfaces = Surfaces::<u32, &str>::default();
+    let first = surfaces.insert(10, "first");
+    let second = surfaces.insert(20, "second");
+
+    assert_eq!(
+      (surfaces.window(first), surfaces.window(second)),
+      (Some(&"first"), Some(&"second"))
+    );
+    assert_eq!(
+      surfaces.windows().collect::<Vec<_>>(),
+      [(first, &"first"), (second, &"second")]
+    );
+  }
+
   // New facts are reported once: the same facts again are no change, and a move to another display
   // with nothing else different is one.
   #[test]

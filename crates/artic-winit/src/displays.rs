@@ -23,8 +23,8 @@ impl<M: Ord> Displays<M> {
   /// The display id of `monitor`, the same for the same monitor; `None`, a window on no monitor,
   /// has an id of its own.
   pub(crate) fn id(&mut self, monitor: Option<M>) -> DisplayId {
-    let next = self.ids.len() as u64 + 1;
-    *self.ids.entry(monitor).or_insert(DisplayId::new(next))
+    let next = DisplayId::new(self.ids.len() as u64);
+    *self.ids.entry(monitor).or_insert(next)
   }
 }
 
