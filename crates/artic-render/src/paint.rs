@@ -117,7 +117,7 @@ enum Geometry {
 
 /// `value` in `0..=1`, NaN counting as `0`.
 fn unit(value: f32) -> f32 {
-  if value > 0.0 { value.min(1.0) } else { 0.0 }
+  if value.is_nan() { 0.0 } else { value.clamp(0.0, 1.0) }
 }
 
 fn finite(point: Point) -> bool {
