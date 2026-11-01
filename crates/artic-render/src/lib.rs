@@ -26,7 +26,7 @@ pub use paint::Paint;
 pub use renderer::{
   PhysicalSize, PixelBuffer, PixelFormat, RawHandles, RenderError, Renderer, SurfaceId, SurfaceView, Target, TargetKind,
 };
-pub use scene::{Command, Layer, Scene, SceneFragment, SceneItem, drawable_opacity};
+pub use scene::{Command, FragmentId, Layer, Scene, SceneFragment, SceneItem, drawable_opacity};
 pub use shadow::{BoxShadow, ParseBoxShadowError, ShadowProblem};
 pub use shape::Shape;
 pub use stroke::{LineCap, LineJoin, Stroke};

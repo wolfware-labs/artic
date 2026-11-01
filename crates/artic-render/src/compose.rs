@@ -1,6 +1,5 @@
 use crate::{Layer, Scene, SceneBuilder, SceneFragment, SceneItem, Shape};
-use artic_core::Object;
-use artic_core::property::{Affects, PropertyVisitor};
+use artic_core::property::Affects;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_layout::geometry::Transform;
 use std::collections::HashMap;
@@ -54,45 +53,11 @@ pub trait Nodes {
   }
 }
 
-impl Scene {
-  /// A scene of one fragment holding what `draw` records, with no layers: for tests and tools that
-  /// draw without a tree.
-  pub fn record(draw: impl FnOnce(&mut SceneBuilder)) -> Scene {
-    let mut tree = UiTree::new();
-    let root = tree.alloc(Box::new(Canvas));
-    Compositor::default().compose(&mut tree, root, &mut Drawing(Some(draw)))
-  }
-}
-
-/// The one node of a recorded scene.
-#[derive(Debug)]
-struct Canvas;
-
-impl Object for Canvas {
-  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
-}
-
-/// Records its closure, once, as the canvas's drawing.
-struct Drawing<F>(Option<F>);
-
-impl<F: FnOnce(&mut SceneBuilder)> Nodes for Drawing<F> {
-  fn layers(&self, _tree: &UiTree, _node: NodeId) -> Layers {
-    Layers::default()
-  }
-
-  fn record(&mut self, _tree: &UiTree, _node: NodeId, builder: &mut SceneBuilder) {
-    if let Some(draw) = self.0.take() {
-      draw(builder);
-    }
-  }
-}
-
 /// Builds frames from the visual tree, keeping each node's fragment until the node is render-dirty
 /// again.
 #[derive(Debug, Default)]
 pub struct Compositor {
   fragments: HashMap<NodeId, Arc<SceneFragment>>,
-  generation: u64,
   recorded: u32,
 }
 
@@ -103,9 +68,10 @@ impl Compositor {
   /// its visual descendants. It draws before them, and they draw inside its clip layer, when it
   /// has one and at least one of them is drawn, in `z_index` order, ties in tree order. A node
   /// that isn't visible is skipped with its whole subtree, which keeps its fragments and its
-  /// render flags, so it comes back without recording what didn't change. A node is recorded again only if it's render-dirty, [stale](Nodes::stale) or has no
-  /// fragment yet. Its render flag is cleared before it's recorded, so a write made while recording
-  /// keeps it dirty for the next frame. Fragments of nodes no longer in the subtree are dropped.
+  /// render flags, so it comes back without recording what didn't change. A node is recorded again
+  /// only if it's render-dirty, [stale](Nodes::stale) or has no fragment yet. Its render flag is
+  /// cleared before it's recorded, so a write made while recording keeps it dirty for the next
+  /// frame. Fragments of nodes no longer in the subtree are dropped.
   pub fn compose(&mut self, tree: &mut UiTree, root: NodeId, nodes: &mut impl Nodes) -> Scene {
     self.recorded = 0;
     let mut previous = std::mem::take(&mut self.fragments);
@@ -190,15 +156,15 @@ impl<N: Nodes> Walk<'_, N> {
 
   fn record(&mut self, tree: &UiTree, node: NodeId) -> Arc<SceneFragment> {
     self.nodes.record(tree, node, &mut self.builder);
-    self.compositor.generation += 1;
     self.compositor.recorded += 1;
-    Arc::new(SceneFragment::new(node, self.compositor.generation, self.builder.take()))
+    Arc::new(SceneFragment::new(node, self.builder.take()))
   }
 }
 
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::scene::tests::fragments;
   use crate::{Color, Command};
   use artic_core::Object;
   use artic_core::property::{Inheritance, Property, PropertyKey, PropertyVisitor};
@@ -227,16 +193,30 @@ mod tests {
       self.layers.get(&node).cloned().unwrap_or_default()
     }
 
-    fn record(&mut self, _tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
+    fn record(&mut self, tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
       *self.recorded.entry(node).or_default() += 1;
       if let Some(property) = self.writes.get(&node) {
         property.set(property.get() + 1);
       }
-      builder.fill(Rect::new(0.0, 0.0, 1.0, 1.0), Color::rgb(0, 0, 0));
+      Plain.record(tree, node, builder);
     }
 
     fn stale(&self, node: NodeId) -> bool {
       self.stale.contains(&node)
+    }
+  }
+
+  /// Draws every node as the same fill, with no layers, and leaves staleness to `Nodes::stale`'s
+  /// default, which `Table` overrides.
+  struct Plain;
+
+  impl Nodes for Plain {
+    fn layers(&self, _tree: &UiTree, _node: NodeId) -> Layers {
+      Layers::default()
+    }
+
+    fn record(&mut self, _tree: &UiTree, _node: NodeId, builder: &mut SceneBuilder) {
+      builder.fill(Rect::new(0.0, 0.0, 1.0, 1.0), Color::rgb(0, 0, 0));
     }
   }
 
@@ -264,14 +244,7 @@ mod tests {
 
   /// The nodes whose fragments `scene` draws, in order.
   fn fragment_nodes(scene: &Scene) -> Vec<NodeId> {
-    scene
-      .items()
-      .iter()
-      .filter_map(|item| match item {
-        SceneItem::Fragment(fragment) => Some(fragment.node()),
-        _ => None,
-      })
-      .collect()
+    fragments(scene).iter().map(|fragment| fragment.node()).collect()
   }
 
   // A node that isn't visible is skipped together with its whole subtree, visible descendants
@@ -439,7 +412,7 @@ mod tests {
   }
 
   // A node that isn't render-dirty keeps its fragment, shared rather than recorded again; a
-  // render-dirty one is recorded again with a higher generation, and its flag is cleared.
+  // render-dirty one is recorded again with a new id, and its flag is cleared.
   #[test]
   fn clean_fragment_is_reused() {
     let mut tree = UiTree::new();
@@ -453,13 +426,22 @@ mod tests {
 
     let recorded: Vec<usize> = [root, a, b, c].iter().map(|node| nodes.recorded[node]).collect();
     assert_eq!(recorded, [1, 1, 2, 1]);
-    let fragment = |scene: &Scene, index: usize| match &scene.items()[index] {
-      SceneItem::Fragment(fragment) => Arc::clone(fragment),
-      other => panic!("expected a fragment, found {other:?}"),
-    };
-    assert!(Arc::ptr_eq(&fragment(&first, 0), &fragment(&second, 0)), "root is shared");
-    assert!(fragment(&second, 3).generation() > fragment(&first, 3).generation());
+    assert!(std::ptr::eq(fragments(&first)[0], fragments(&second)[0]), "root is shared");
+    assert_ne!(fragments(&second)[3].id(), fragments(&first)[3].id());
     assert!(!tree.dirty(b).contains(Affects::RENDER));
+  }
+
+  // Two compositors never give two fragments one id, so a renderer that caches by id keeps them
+  // apart.
+  #[test]
+  fn fragments_of_separate_compositors_have_separate_ids() {
+    let mut tree = UiTree::new();
+    let [root, ..] = sample(&mut tree);
+
+    let first = Compositor::default().compose(&mut tree, root, &mut Table::default());
+    let second = Compositor::default().compose(&mut tree, root, &mut Table::default());
+
+    assert_ne!(fragments(&first)[0].id(), fragments(&second)[0].id());
   }
 
   // A node's clip fences its children, not its own fragment; its transform and opacity cover both.
@@ -573,11 +555,8 @@ mod tests {
 
     let scene = Compositor::default().compose(&mut tree, root, &mut Table::default());
 
-    let SceneItem::Fragment(fragment) = &scene.items()[0] else {
-      panic!("a fragment");
-    };
     assert_eq!(
-      fragment.commands(),
+      fragments(&scene)[0].commands(),
       [Command::Fill {
         shape: Rect::new(0.0, 0.0, 1.0, 1.0).into(),
         brush: Color::rgb(0, 0, 0).into()
@@ -644,35 +623,16 @@ mod tests {
     assert!(tree.dirty(root).contains(Affects::RENDER));
   }
 
-  // A recorded scene is one fragment holding what the closure drew, with no layers around it.
-  #[test]
-  fn record_makes_one_fragment() {
-    let rect = Rect::new(0.0, 0.0, 2.0, 1.0);
-    let red = Color::rgb(255, 0, 0);
-
-    let scene = Scene::record(|builder| builder.fill(rect, red));
-
-    let mut expected = SceneBuilder::default();
-    expected.fill(rect, red);
-    let [SceneItem::Fragment(fragment)] = scene.items() else {
-      panic!("one fragment, got {:?}", scene.items());
-    };
-    assert_eq!(fragment.commands(), expected.take());
-  }
-
   // A node that isn't render-dirty keeps its fragment unless its `Nodes` calls it stale: composing
   // again records nothing and draws the same scene.
   #[test]
   fn an_unchanged_node_keeps_its_fragment() {
     let mut tree = UiTree::new();
-    let root = tree.alloc(Box::new(Canvas));
+    let [root, ..] = sample(&mut tree);
     let mut compositor = Compositor::default();
-    let mut drawing = Drawing(Some(|builder: &mut SceneBuilder| {
-      builder.fill(Rect::new(0.0, 0.0, 1.0, 1.0), Color::rgb(0, 0, 0))
-    }));
 
-    let first = compositor.compose(&mut tree, root, &mut drawing);
-    let second = compositor.compose(&mut tree, root, &mut drawing);
+    let first = compositor.compose(&mut tree, root, &mut Plain);
+    let second = compositor.compose(&mut tree, root, &mut Plain);
 
     assert_eq!((compositor.recorded(), second), (0, first));
   }
