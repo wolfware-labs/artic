@@ -73,8 +73,12 @@ impl ScopeStore {
     self.with_slot(scope_id, |slot| slot.first)
   }
 
+  /// Makes `first` the head of `scope_id`'s list. A scope already gone has no list to change: a node
+  /// made while its scope was being freed outlives it.
   pub fn set_first(&self, scope_id: ScopeId, first: Option<Node>) {
-    self.with_slot(scope_id, |slot| slot.first = first);
+    if let Some(slot) = self.slots.borrow_mut().get_mut(scope_id.0) {
+      slot.first = first;
+    }
   }
 
   pub fn push_active(&self, scope_id: ScopeId) {

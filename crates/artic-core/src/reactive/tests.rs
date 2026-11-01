@@ -1428,6 +1428,30 @@ fn a_memo_disposed_by_its_source_while_checked_panics_as_disposed() {
   assert!(message.starts_with("memo used after its scope was disposed"), "{message}");
 }
 
+// A signal made by a Drop while its scope is disposed from inside its own run outlives the scope,
+// and disposing it later frees it without reaching for the scope.
+#[test]
+fn a_signal_made_while_its_scope_is_freed_can_be_disposed_later() {
+  struct MakesOnDrop(Rc<Cell<Option<Signal<i32>>>>);
+  impl Drop for MakesOnDrop {
+    fn drop(&mut self) {
+      self.0.set(Some(Signal::new(0)));
+    }
+  }
+  let made = Rc::new(Cell::new(None));
+  let scope = Scope::new_root();
+  let held = MakesOnDrop(Rc::clone(&made));
+  scope.run(|| {
+    Signal::new(held);
+    scope.dispose();
+  });
+  let late = made.take().expect("the drop made a signal");
+
+  late.dispose();
+
+  assert!(!late.is_alive());
+}
+
 // Pending effects
 
 // A write pends only the effect it reaches, not every effect.
