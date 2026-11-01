@@ -659,4 +659,21 @@ mod tests {
     };
     assert_eq!(fragment.commands(), expected.take());
   }
+
+  // A node that isn't render-dirty keeps its fragment unless its `Nodes` calls it stale: composing
+  // again records nothing and draws the same scene.
+  #[test]
+  fn an_unchanged_node_keeps_its_fragment() {
+    let mut tree = UiTree::new();
+    let root = tree.alloc(Box::new(Canvas));
+    let mut compositor = Compositor::default();
+    let mut drawing = Drawing(Some(|builder: &mut SceneBuilder| {
+      builder.fill(Rect::new(0.0, 0.0, 1.0, 1.0), Color::rgb(0, 0, 0))
+    }));
+
+    let first = compositor.compose(&mut tree, root, &mut drawing);
+    let second = compositor.compose(&mut tree, root, &mut drawing);
+
+    assert_eq!((compositor.recorded(), second), (0, first));
+  }
 }
