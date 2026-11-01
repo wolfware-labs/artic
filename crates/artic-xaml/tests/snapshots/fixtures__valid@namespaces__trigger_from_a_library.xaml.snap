@@ -1,0 +1,12 @@
+---
+source: crates/artic-xaml/tests/fixtures.rs
+expression: "print(sources.get(file), &document)"
+input_file: crates/artic-xaml/tests/fixtures/valid/namespaces/trigger_from_a_library.xaml
+---
+Object Panel [https://artic.rs/ui] 2:2..2:7
+  xmlns "https://artic.rs/ui" 2:8..2:35
+  xmlns:charts "https://acme.dev/charts" 2:36..2:74
+  content 2:75..4:1
+    Value "" raw "\n  " 2:75..3:3
+    Object charts:Trigger [https://acme.dev/charts] 3:4..3:18
+    Value "" raw "\n" 3:20..4:1

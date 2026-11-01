@@ -1,0 +1,9 @@
+---
+source: crates/artic-xaml/tests/fixtures.rs
+expression: errors.render(&sources)
+input_file: crates/artic-xaml/tests/fixtures/invalid/namespaces/undeclared_member_prefix.xaml
+---
+invalid/namespaces/undeclared_member_prefix.xaml:2:37: error: prefix `ui` is not declared
+2 | <Button xmlns="https://artic.rs/ui" ui:Width="1"/>
+  |                                     ^^
+help: declare it here or on an ancestor, like `xmlns:ui="using:my_app::views"`

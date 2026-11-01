@@ -1,0 +1,8 @@
+---
+source: crates/artic-xaml/tests/fixtures.rs
+expression: errors.render(&sources)
+input_file: crates/artic-xaml/tests/fixtures/invalid/syntax/malformed_before_root.xaml
+---
+invalid/syntax/malformed_before_root.xaml:2:1: error: malformed XML: invalid element at 2:1 cause invalid name token
+2 | <1/>
+  | ^
