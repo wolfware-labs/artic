@@ -1,5 +1,5 @@
+use crate::defer::defer;
 use crate::reactive::runtime::{EffectId, MemoId, Node, RUNTIME, Runtime};
-use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::thread;
 
 impl Runtime {
@@ -15,19 +15,20 @@ impl Runtime {
       runtime.memos.set_computing(memo_id, true);
       (runtime.scopes.scope_of(node), runtime.memos.compute(memo_id))
     });
+    let _computed = defer(|| {
+      RUNTIME.with(|runtime| {
+        if !runtime.memos.contains(memo_id) {
+          runtime.graph.clear_sources(node);
+          return;
+        }
+        runtime.memos.set_computing(memo_id, false);
+        if thread::panicking() {
+          runtime.set_dirty(node, true);
+        }
+      });
+    });
     Self::clear_scope(scope_id);
-    let compute_result = Self::rerun(node, || Self::run_in_scope(scope_id, || compute(memo_id)));
-    if !RUNTIME.with(|runtime| runtime.memos.contains(memo_id)) {
-      Self::discard_run(node, compute_result);
-      return;
-    }
-    RUNTIME.with(|runtime| {
-      runtime.memos.set_computing(memo_id, false);
-      if let Err(payload) = compute_result {
-        runtime.set_dirty(node, true);
-        resume_unwind(payload);
-      }
-    })
+    Self::rerun(node, || Self::run_in_scope(scope_id, || compute(memo_id)));
   }
 
   pub fn refresh_effect(effect_id: EffectId) {
@@ -39,20 +40,21 @@ impl Runtime {
       runtime.effects.set_running(effect_id, true);
       (runtime.scopes.scope_of(node), runtime.effects.run(effect_id))
     });
+    let _ran = defer(|| {
+      RUNTIME.with(|runtime| {
+        if !runtime.effects.contains(effect_id) {
+          runtime.graph.clear_sources(node);
+          return;
+        }
+        runtime.effects.set_running(effect_id, false);
+        if thread::panicking() {
+          runtime.set_dirty(node, true);
+          runtime.scheduler.add_pending(runtime.effects.seq(effect_id), effect_id);
+        }
+      });
+    });
     Self::clear_scope(scope_id);
-    let run_result = Self::rerun(node, || Self::run_in_scope(scope_id, || (run.borrow_mut())()));
-    if !RUNTIME.with(|runtime| runtime.effects.contains(effect_id)) {
-      Self::discard_run(node, run_result);
-      return;
-    }
-    RUNTIME.with(|runtime| {
-      runtime.effects.set_running(effect_id, false);
-      if let Err(payload) = run_result {
-        runtime.set_dirty(node, true);
-        runtime.scheduler.add_pending(runtime.effects.seq(effect_id), effect_id);
-        resume_unwind(payload);
-      }
-    })
+    Self::rerun(node, || Self::run_in_scope(scope_id, || (run.borrow_mut())()));
   }
 
   fn refresh_sources(node: Node) -> bool {
@@ -67,15 +69,8 @@ impl Runtime {
     Self::is_dirty(node)
   }
 
-  fn discard_run(node: Node, run_result: thread::Result<()>) {
+  fn rerun(node: Node, action: impl FnOnce()) {
     RUNTIME.with(|runtime| runtime.graph.clear_sources(node));
-    if let Err(payload) = run_result {
-      resume_unwind(payload);
-    }
-  }
-
-  fn rerun(node: Node, action: impl FnOnce()) -> thread::Result<()> {
-    RUNTIME.with(|runtime| runtime.graph.clear_sources(node));
-    catch_unwind(AssertUnwindSafe(|| Self::run_tracked(node, action)))
+    Self::run_tracked(node, action);
   }
 }

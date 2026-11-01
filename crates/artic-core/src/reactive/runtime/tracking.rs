@@ -1,8 +1,9 @@
+use crate::defer::defer;
 use crate::reactive::runtime::{Node, RUNTIME, Runtime, SignalId};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::hash::{BuildHasherDefault, DefaultHasher};
-use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
+use std::thread;
 
 pub struct Tracker {
   running: RefCell<Vec<Node>>,
@@ -44,12 +45,15 @@ impl Runtime {
       runtime.set_dirty(node, false);
       runtime.tracker.push(node);
     });
-    let action_result = catch_unwind(AssertUnwindSafe(action));
-    RUNTIME.with(|runtime| runtime.tracker.pop());
-    if let Err(payload) = action_result {
-      RUNTIME.with(|runtime| runtime.graph.clear_sources(node));
-      resume_unwind(payload);
-    }
+    let _tracking = defer(|| {
+      RUNTIME.with(|runtime| {
+        runtime.tracker.pop();
+        if thread::panicking() {
+          runtime.graph.clear_sources(node);
+        }
+      });
+    });
+    action();
   }
 
   pub fn record_read(source: Node) {

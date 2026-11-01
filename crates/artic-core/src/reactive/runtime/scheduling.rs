@@ -1,8 +1,8 @@
+use crate::defer::defer;
 use crate::reactive::runtime::{EffectId, Node, RUNTIME, Runtime};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashSet};
 use std::ops::Bound::{Excluded, Unbounded};
-use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 
 const MAX_FLUSH_PASSES: usize = 100;
 
@@ -61,26 +61,20 @@ impl Scheduler {
 impl Runtime {
   pub fn batch<TResult>(action: impl FnOnce() -> TResult) -> TResult {
     RUNTIME.with(|runtime| runtime.scheduler.enter_batch());
-    let action_result = catch_unwind(AssertUnwindSafe(action));
-    RUNTIME.with(|runtime| runtime.scheduler.exit_batch());
-    match action_result {
-      Ok(result) => {
-        Self::flush_effects();
-        result
-      }
-      Err(payload) => resume_unwind(payload),
-    }
+    let result = {
+      let _batch = defer(|| RUNTIME.with(|runtime| runtime.scheduler.exit_batch()));
+      action()
+    };
+    Self::flush_effects();
+    result
   }
 
   pub fn flush_effects() {
     if !RUNTIME.with(|runtime| runtime.scheduler.start_flush()) {
       return;
     }
-    let flush_result = catch_unwind(AssertUnwindSafe(Self::run_passes));
-    RUNTIME.with(|runtime| runtime.scheduler.end_flush());
-    if let Err(payload) = flush_result {
-      resume_unwind(payload);
-    }
+    let _flushing = defer(|| RUNTIME.with(|runtime| runtime.scheduler.end_flush()));
+    Self::run_passes();
   }
 
   #[cfg(test)]

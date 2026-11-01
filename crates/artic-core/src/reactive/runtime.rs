@@ -10,6 +10,7 @@ mod signal_store;
 mod tracking;
 mod value_cell;
 
+use crate::defer::defer;
 use crate::reactive::{Change, LiveCounts};
 pub use effect_store::EffectId;
 use effect_store::EffectStore;
@@ -24,7 +25,6 @@ pub use signal_store::SignalId;
 use signal_store::SignalStore;
 use std::any::Any;
 use std::cell::RefCell;
-use std::panic::resume_unwind;
 use std::rc::Rc;
 use tracking::Tracker;
 
@@ -115,12 +115,8 @@ impl Runtime {
     TValue: Any,
   {
     RUNTIME.with(|runtime| {
-      runtime.tracker.record_write(signal_id);
-      let action_result = runtime.signals.with_signal_mut_value(signal_id, action);
-      runtime.mark_subscribers_dirty(Node::Signal(signal_id));
-      if let Err(payload) = action_result {
-        resume_unwind(payload);
-      }
+      let _written = defer(|| runtime.record_write(signal_id));
+      runtime.signals.with_signal_mut_value(signal_id, action);
     })
   }
 
@@ -128,16 +124,10 @@ impl Runtime {
   where
     TValue: Any,
   {
-    RUNTIME.with(|runtime| match runtime.signals.with_signal_mut_value(signal_id, action) {
-      Ok(Change::Hidden) => {}
-      Ok(Change::Visible) => {
-        runtime.tracker.record_write(signal_id);
-        runtime.mark_subscribers_dirty(Node::Signal(signal_id));
-      }
-      Err(payload) => {
-        runtime.tracker.record_write(signal_id);
-        runtime.mark_subscribers_dirty(Node::Signal(signal_id));
-        resume_unwind(payload);
+    RUNTIME.with(|runtime| {
+      let written = defer(|| runtime.record_write(signal_id));
+      if runtime.signals.with_signal_mut_value(signal_id, action) == Change::Hidden {
+        written.cancel();
       }
     })
   }
@@ -204,11 +194,8 @@ impl Runtime {
     TValue: Any,
   {
     let cell = RUNTIME.with(|runtime| runtime.memos.value(memo_id));
-    let write_result = cell.with_mut(|current: &mut TValue| *current = value);
-    RUNTIME.with(|runtime| runtime.mark_subscribers_dirty(Node::Memo(memo_id)));
-    if let Err(payload) = write_result {
-      resume_unwind(payload);
-    }
+    let _changed = defer(|| RUNTIME.with(|runtime| runtime.mark_subscribers_dirty(Node::Memo(memo_id))));
+    cell.with_mut(|current: &mut TValue| *current = value);
   }
 
   pub fn create_effect(run: Rc<RefCell<dyn FnMut()>>) {
@@ -229,6 +216,12 @@ impl Runtime {
       effects: runtime.effects.count(),
       scopes: runtime.scopes.count(),
     })
+  }
+
+  /// Records a write to `signal_id`, for the next flush, and marks its readers dirty.
+  fn record_write(&self, signal_id: SignalId) {
+    self.tracker.record_write(signal_id);
+    self.mark_subscribers_dirty(Node::Signal(signal_id));
   }
 
   fn mark_subscribers_dirty(&self, node: Node) {

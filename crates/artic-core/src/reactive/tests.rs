@@ -1057,6 +1057,46 @@ fn panicking_update_with_still_marks_dependents_dirty() {
   assert!(Runtime::is_dirty(observer));
 }
 
+// A memo whose computation panics computes again on the next read, as its docs promise.
+#[test]
+fn a_panicking_memo_computes_again_on_the_next_read() {
+  let fails = Rc::new(Cell::new(true));
+  let compute_fails = Rc::clone(&fails);
+  let memo = Memo::new(move || {
+    assert!(!compute_fails.get(), "compute failed");
+    7
+  });
+
+  let first = catch_unwind(AssertUnwindSafe(|| memo.get()));
+  fails.set(false);
+
+  assert!(first.is_err());
+  assert_eq!(memo.get(), 7);
+}
+
+// An effect that panics during a flush runs again on the next flush, with the value it missed.
+#[test]
+fn a_panicking_effect_runs_again_on_the_next_flush() {
+  let count = Signal::new(0);
+  let fails = Rc::new(Cell::new(false));
+  let seen = Rc::new(Cell::new(0));
+  let (run_fails, run_seen) = (Rc::clone(&fails), Rc::clone(&seen));
+  effect(move || {
+    let value = count.get();
+    assert!(!run_fails.get(), "effect failed");
+    run_seen.set(value);
+  });
+
+  fails.set(true);
+  count.set(1);
+  let first = catch_unwind(flush_effects);
+  fails.set(false);
+  flush_effects();
+
+  assert!(first.is_err());
+  assert_eq!(seen.get(), 1);
+}
+
 // Pending effects
 
 // A write pends only the effect it reaches, not every effect.

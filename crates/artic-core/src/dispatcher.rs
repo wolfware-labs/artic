@@ -31,11 +31,11 @@
 //! fills that thread's own queue, which the UI never runs; work from other threads will reach the
 //! UI through a separate, thread-safe `post`.
 
+use crate::defer::defer;
 use crate::reactive::flush_effects;
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::marker::PhantomData;
-use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 
 type Task = Box<dyn FnOnce()>;
 
@@ -114,15 +114,10 @@ impl Dispatcher {
     if QUEUE.with(|queue| queue.is_running.replace(true)) {
       return;
     }
-    let run_result = catch_unwind(AssertUnwindSafe(|| {
-      while let Some(task) = QUEUE.with(|queue| queue.tasks.borrow_mut().pop_front()) {
-        task();
-        flush_effects();
-      }
-    }));
-    QUEUE.with(|queue| queue.is_running.set(false));
-    if let Err(payload) = run_result {
-      resume_unwind(payload);
+    let _running = defer(|| QUEUE.with(|queue| queue.is_running.set(false)));
+    while let Some(task) = QUEUE.with(|queue| queue.tasks.borrow_mut().pop_front()) {
+      task();
+      flush_effects();
     }
   }
 
@@ -139,6 +134,7 @@ mod tests {
   use crate::reactive::{Signal, effect};
   use pretty_assertions::assert_eq;
   use static_assertions::assert_not_impl_any;
+  use std::panic::catch_unwind;
   use std::rc::Rc;
 
   assert_not_impl_any!(Dispatcher: Send, Sync);

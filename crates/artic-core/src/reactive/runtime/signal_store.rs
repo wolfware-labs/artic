@@ -48,7 +48,7 @@ impl SignalStore {
     &self,
     signal_id: SignalId,
     action: impl FnOnce(&mut TValue) -> TResult,
-  ) -> std::thread::Result<TResult>
+  ) -> TResult
   where
     TValue: Any,
   {
