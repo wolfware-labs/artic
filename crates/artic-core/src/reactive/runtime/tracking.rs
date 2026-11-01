@@ -42,14 +42,14 @@ impl Tracker {
 impl Runtime {
   pub fn run_tracked(node: Node, action: impl FnOnce()) {
     RUNTIME.with(|runtime| {
-      runtime.set_dirty(node, false);
+      runtime.nodes.with_observer(node, |observer| observer.dirty = false);
       runtime.tracker.push(node);
     });
     let _tracking = defer(|| {
       RUNTIME.with(|runtime| {
         runtime.tracker.pop();
         if thread::panicking() {
-          runtime.graph.clear_sources(node);
+          runtime.nodes.clear_sources(node);
         }
       });
     });
@@ -59,7 +59,7 @@ impl Runtime {
   pub fn record_read(source: Node) {
     RUNTIME.with(|runtime| {
       if let Some(reader) = runtime.tracker.current() {
-        runtime.graph.add_edge(source, reader);
+        runtime.nodes.add_edge(source, reader);
       }
     })
   }

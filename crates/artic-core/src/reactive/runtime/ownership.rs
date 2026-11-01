@@ -1,5 +1,6 @@
 use crate::defer::defer;
-use crate::reactive::runtime::{EffectId, MemoId, Node, RUNTIME, Runtime, ScopeId, SignalId};
+use crate::reactive::runtime::nodes::{Job, NodeKind};
+use crate::reactive::runtime::{Node, RUNTIME, Runtime, ScopeId, SignalId};
 
 impl Runtime {
   pub fn create_scope(parent: Option<ScopeId>) -> ScopeId {
@@ -40,51 +41,41 @@ impl Runtime {
     for child in children {
       Self::dispose_scope(child);
     }
-    for node in &nodes {
-      if let Node::Effect(effect_id) = node {
-        Self::dispose_effect(*effect_id);
+    let kinds: Vec<(Node, Option<NodeKind>)> =
+      RUNTIME.with(|runtime| nodes.iter().map(|node| (*node, runtime.nodes.kind(*node))).collect());
+    for kind in [NodeKind::Effect, NodeKind::Memo, NodeKind::Signal] {
+      for (node, _) in kinds.iter().filter(|(_, of)| *of == Some(kind)) {
+        Self::dispose_node(*node);
       }
-    }
-    for node in &nodes {
-      if let Node::Memo(memo_id) = node {
-        Self::dispose_memo(*memo_id);
-      }
-    }
-    for node in &nodes {
-      if let Node::Signal(signal_id) = node {
-        Self::dispose_signal(*signal_id);
-      }
-    }
-  }
-
-  fn dispose_effect(effect_id: EffectId) {
-    Self::dispose_scope_of(Node::Effect(effect_id));
-    RUNTIME.with(|runtime| {
-      runtime.graph.remove(Node::Effect(effect_id));
-      runtime.scheduler.remove_pending(runtime.effects.seq(effect_id));
-      runtime.effects.free(effect_id);
-    });
-  }
-
-  fn dispose_memo(memo_id: MemoId) {
-    Self::dispose_scope_of(Node::Memo(memo_id));
-    RUNTIME.with(|runtime| {
-      runtime.graph.remove(Node::Memo(memo_id));
-      runtime.memos.free(memo_id);
-    });
-  }
-
-  fn dispose_scope_of(node: Node) {
-    if let Some(scope_id) = RUNTIME.with(|runtime| runtime.scopes.take_scope_of(node)) {
-      Self::dispose_scope(scope_id);
     }
   }
 
   /// Frees one signal and cuts its edges, whatever scope owns it. A stale id frees nothing.
   pub fn dispose_signal(signal_id: SignalId) {
+    Self::dispose_node(signal_id.into());
+  }
+
+  /// Frees `node` and cuts its edges; a memo or an effect disposes the scope its runs own first,
+  /// and an effect leaves the pending list. A stale id frees nothing.
+  fn dispose_node(node: Node) {
+    let owned = RUNTIME.with(|runtime| match runtime.nodes.kind(node) {
+      Some(NodeKind::Memo | NodeKind::Effect) => Some(runtime.nodes.with_observer(node, |observer| {
+        let seq = match observer.job {
+          Job::Effect { seq } => Some(seq),
+          Job::Memo { .. } => None,
+        };
+        (observer.scope, seq)
+      })),
+      Some(NodeKind::Signal) | None => None,
+    });
+    if let Some((scope, _)) = owned {
+      Self::dispose_scope(scope);
+    }
     RUNTIME.with(|runtime| {
-      runtime.graph.remove(Node::Signal(signal_id));
-      runtime.signals.free(signal_id);
+      runtime.nodes.remove(node);
+      if let Some((_, Some(seq))) = owned {
+        runtime.scheduler.remove_pending(seq);
+      }
     });
   }
 }

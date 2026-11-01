@@ -180,10 +180,7 @@ fn run_tracked_records_each_signal_read_once() {
     first.get();
   });
 
-  assert_eq!(
-    Runtime::sources(observer),
-    [Node::Signal(first.id()), Node::Signal(second.id())]
-  );
+  assert_eq!(Runtime::sources(observer), [Node::from(first.id()), Node::from(second.id())]);
 }
 
 // Clearing a node's sources stops writes to them from marking it dirty.
@@ -467,7 +464,7 @@ fn run_tracked_records_a_memo_read_as_the_memo() {
 
   let sources = Runtime::sources(observer);
   assert_eq!(sources.len(), 1);
-  assert!(matches!(sources[0], Node::Memo(_)));
+  assert!(Runtime::is_memo(sources[0]));
 }
 
 // Effect

@@ -1,0 +1,361 @@
+//! Every reactive node in one arena, each slot holding the node's kind, its edges and, for a memo
+//! or an effect, its observer state.
+
+use crate::arena::{Arena, SlotId};
+use crate::reactive::runtime::ScopeId;
+use crate::reactive::runtime::value_cell::ValueCell;
+use std::any::Any;
+use std::cell::{Cell, RefCell};
+use std::collections::HashSet;
+use std::rc::Rc;
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct Node(SlotId);
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct SignalId(Node);
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct MemoId(Node);
+
+impl From<SignalId> for Node {
+  fn from(signal_id: SignalId) -> Node {
+    signal_id.0
+  }
+}
+
+impl From<MemoId> for Node {
+  fn from(memo_id: MemoId) -> Node {
+    memo_id.0
+  }
+}
+
+impl MemoId {
+  /// The memo `node` names; only the runtime, which knows it's a memo, makes one this way.
+  pub(super) fn of(node: Node) -> MemoId {
+    MemoId(node)
+  }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum NodeKind {
+  Signal,
+  Memo,
+  Effect,
+}
+
+/// What an observer is for: a memo keeps a value its run computes, an effect runs in the order it
+/// was created.
+pub enum Job {
+  Memo { value: Rc<ValueCell> },
+  Effect { seq: u64 },
+}
+
+/// A memo or an effect: what it runs, and where it is in running it.
+pub struct Observer {
+  pub job: Job,
+  pub run: Rc<dyn Fn(Node)>,
+  pub dirty: bool,
+  pub running: bool,
+  /// The scope that owns what the observer's runs create, cleared before each run.
+  pub scope: ScopeId,
+}
+
+enum Kind {
+  Signal { value: Rc<ValueCell> },
+  Observer(Observer),
+}
+
+struct Slot {
+  kind: Kind,
+  sources: Vec<Node>,
+  subscribers: Vec<Node>,
+}
+
+pub struct Nodes {
+  slots: RefCell<Arena<Slot>>,
+  next_seq: Cell<u64>,
+}
+
+impl Nodes {
+  pub const fn new() -> Self {
+    Self {
+      slots: RefCell::new(Arena::new()),
+      next_seq: Cell::new(0),
+    }
+  }
+
+  pub fn alloc_signal(&self, value: Box<dyn Any>) -> SignalId {
+    SignalId(self.alloc(Kind::Signal {
+      value: Rc::new(ValueCell::new(value, "signal")),
+    }))
+  }
+
+  pub fn alloc_memo(&self, value: Box<dyn Any>, run: Rc<dyn Fn(Node)>, scope: ScopeId) -> MemoId {
+    let value = Rc::new(ValueCell::new(value, "memo"));
+    MemoId(self.alloc_observer(Job::Memo { value }, run, scope))
+  }
+
+  pub fn alloc_effect(&self, run: Rc<dyn Fn(Node)>, scope: ScopeId) -> Node {
+    let seq = self.next_seq.replace(self.next_seq.get() + 1);
+    self.alloc_observer(Job::Effect { seq }, run, scope)
+  }
+
+  /// Frees `node` and cuts its edges in both directions. A stale id frees nothing.
+  pub fn remove(&self, node: Node) {
+    self.clear_sources(node);
+    let mut slots = self.slots.borrow_mut();
+    let Some(slot) = slots.free(node.0) else {
+      return;
+    };
+    for subscriber in slot.subscribers {
+      if let Some(subscriber) = slots.get_mut(subscriber.0) {
+        subscriber.sources.retain(|source| *source != node);
+      }
+    }
+  }
+
+  pub fn contains(&self, node: Node) -> bool {
+    self.slots.borrow().contains(node.0)
+  }
+
+  pub fn kind(&self, node: Node) -> Option<NodeKind> {
+    self.slots.borrow().get(node.0).map(|slot| match &slot.kind {
+      Kind::Signal { .. } => NodeKind::Signal,
+      Kind::Observer(Observer {
+        job: Job::Memo { .. }, ..
+      }) => NodeKind::Memo,
+      Kind::Observer(Observer {
+        job: Job::Effect { .. }, ..
+      }) => NodeKind::Effect,
+    })
+  }
+
+  /// How many signals, memos and effects are alive.
+  pub fn counts(&self) -> [usize; 3] {
+    let slots = self.slots.borrow();
+    let mut counts = [0; 3];
+    for slot in slots.ids().filter_map(|id| slots.get(id)) {
+      let index = match &slot.kind {
+        Kind::Signal { .. } => 0,
+        Kind::Observer(Observer {
+          job: Job::Memo { .. }, ..
+        }) => 1,
+        Kind::Observer(Observer {
+          job: Job::Effect { .. }, ..
+        }) => 2,
+      };
+      counts[index] += 1;
+    }
+    counts
+  }
+
+  pub fn signal_value(&self, signal_id: SignalId) -> Rc<ValueCell> {
+    match &self.slot(signal_id.0, "signal").kind {
+      Kind::Signal { value } => Rc::clone(value),
+      Kind::Observer(_) => unreachable!("a signal id names a signal"),
+    }
+  }
+
+  pub fn memo_value(&self, memo_id: MemoId) -> Rc<ValueCell> {
+    self.with_observer(memo_id.0, |observer| match &observer.job {
+      Job::Memo { value } => Rc::clone(value),
+      Job::Effect { .. } => unreachable!("a memo id names a memo"),
+    })
+  }
+
+  /// Calls `action` with `node`'s observer state. Panics if `node` is not a live observer.
+  pub fn with_observer<TResult>(&self, node: Node, action: impl FnOnce(&mut Observer) -> TResult) -> TResult {
+    let mut slots = self.slots.borrow_mut();
+    match slots.get_mut(node.0).map(|slot| &mut slot.kind) {
+      Some(Kind::Observer(observer)) => action(observer),
+      _ => panic!("observer slot not found for the specified id"),
+    }
+  }
+
+  /// Whether `node` is an observer that has to run again. A signal reads nothing, so it never is.
+  pub fn is_dirty(&self, node: Node) -> bool {
+    match &self.slot(node, "node").kind {
+      Kind::Signal { .. } => false,
+      Kind::Observer(observer) => observer.dirty,
+    }
+  }
+
+  pub fn mark_subscribers_dirty(&self, node: Node) {
+    let mut slots = self.slots.borrow_mut();
+    let Some(subscribers) = slots.get(node.0).map(|slot| slot.subscribers.clone()) else {
+      return;
+    };
+    for subscriber in subscribers {
+      if let Some(Kind::Observer(observer)) = slots.get_mut(subscriber.0).map(|slot| &mut slot.kind) {
+        observer.dirty = true;
+      }
+    }
+  }
+
+  /// Records that `subscriber` read `source`. A node disposed during its own run records nothing,
+  /// so no live node lists a dead one.
+  pub fn add_edge(&self, source: Node, subscriber: Node) {
+    let mut slots = self.slots.borrow_mut();
+    if !slots.contains(subscriber.0) {
+      return;
+    }
+    let Some(source_slot) = slots.get_mut(source.0) else {
+      return;
+    };
+    if source_slot.subscribers.contains(&subscriber) {
+      return;
+    }
+    source_slot.subscribers.push(subscriber);
+    if let Some(subscriber_slot) = slots.get_mut(subscriber.0) {
+      subscriber_slot.sources.push(source);
+    }
+  }
+
+  pub fn source_at(&self, node: Node, index: usize) -> Option<Node> {
+    self.slots.borrow().get(node.0)?.sources.get(index).copied()
+  }
+
+  pub fn clear_sources(&self, node: Node) {
+    let mut slots = self.slots.borrow_mut();
+    let Some(sources) = slots.get_mut(node.0).map(|slot| std::mem::take(&mut slot.sources)) else {
+      return;
+    };
+    for source in sources {
+      if let Some(source) = slots.get_mut(source.0) {
+        source.subscribers.retain(|subscriber| *subscriber != node);
+      }
+    }
+  }
+
+  /// The effects that `written` reaches, directly or through memos, each with its creation order.
+  pub fn reached_effects(&self, written: impl IntoIterator<Item = Node>) -> Vec<(u64, Node)> {
+    let slots = self.slots.borrow();
+    let mut to_visit: Vec<Node> = written.into_iter().collect();
+    let mut visited: HashSet<Node> = to_visit.iter().copied().collect();
+    let mut reached = Vec::new();
+    while let Some(node) = to_visit.pop() {
+      let Some(slot) = slots.get(node.0) else {
+        continue;
+      };
+      for subscriber in &slot.subscribers {
+        match slots.get(subscriber.0).map(|slot| &slot.kind) {
+          Some(Kind::Observer(Observer {
+            job: Job::Effect { seq },
+            ..
+          })) => reached.push((*seq, *subscriber)),
+          Some(Kind::Observer(Observer {
+            job: Job::Memo { .. }, ..
+          })) => {
+            if visited.insert(*subscriber) {
+              to_visit.push(*subscriber);
+            }
+          }
+          Some(Kind::Signal { .. }) => unreachable!("a signal reads nothing"),
+          None => {}
+        }
+      }
+    }
+    reached
+  }
+
+  #[cfg(test)]
+  pub fn subscriber_count(&self, node: Node) -> usize {
+    self.slots.borrow().get(node.0).map_or(0, |slot| slot.subscribers.len())
+  }
+
+  fn alloc(&self, kind: Kind) -> Node {
+    Node(self.slots.borrow_mut().alloc(Slot {
+      kind,
+      sources: Vec::new(),
+      subscribers: Vec::new(),
+    }))
+  }
+
+  fn alloc_observer(&self, job: Job, run: Rc<dyn Fn(Node)>, scope: ScopeId) -> Node {
+    self.alloc(Kind::Observer(Observer {
+      job,
+      run,
+      dirty: true,
+      running: false,
+      scope,
+    }))
+  }
+
+  fn slot(&self, node: Node, kind: &str) -> std::cell::Ref<'_, Slot> {
+    std::cell::Ref::map(self.slots.borrow(), |slots| {
+      slots
+        .get(node.0)
+        .unwrap_or_else(|| panic!("{kind} slot not found for the specified id"))
+    })
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::reactive::runtime::scope_store::ScopeStore;
+  use pretty_assertions::assert_eq;
+
+  /// A signal and two observers to wire together, in their own arena.
+  fn nodes() -> (Nodes, Node, Node, Node) {
+    let nodes = Nodes::new();
+    let scope = ScopeStore::new().alloc(None);
+    let signal = nodes.alloc_signal(Box::new(0)).into();
+    let observer = || nodes.alloc_effect(Rc::new(|_| {}), scope);
+    let (first, second) = (observer(), observer());
+    (nodes, signal, first, second)
+  }
+
+  fn sources(nodes: &Nodes, node: Node) -> Vec<Node> {
+    (0..).map_while(|index| nodes.source_at(node, index)).collect()
+  }
+
+  // Adding the same edge twice keeps a single entry on each side.
+  #[test]
+  fn add_edge_ignores_duplicates() {
+    let (nodes, signal, reader, _) = nodes();
+
+    nodes.add_edge(signal, reader);
+    nodes.add_edge(signal, reader);
+
+    assert_eq!((nodes.subscriber_count(signal), sources(&nodes, reader)), (1, vec![signal]));
+  }
+
+  // Clearing a node's sources removes it from each source's subscribers.
+  #[test]
+  fn clear_sources_cuts_both_directions() {
+    let (nodes, signal, first, second) = nodes();
+    nodes.add_edge(signal, first);
+    nodes.add_edge(signal, second);
+
+    nodes.clear_sources(first);
+
+    assert_eq!((nodes.subscriber_count(signal), sources(&nodes, first)), (1, vec![]));
+    assert_eq!(sources(&nodes, second), [signal]);
+  }
+
+  // Removing a node cuts its edges on both sides: its sources forget it, and so do its subscribers.
+  #[test]
+  fn remove_cuts_every_edge_of_the_node() {
+    let (nodes, signal, middle, reader) = nodes();
+    nodes.add_edge(signal, middle);
+    nodes.add_edge(middle, reader);
+
+    nodes.remove(middle);
+
+    assert_eq!((nodes.subscriber_count(signal), sources(&nodes, reader)), (0, vec![]));
+    assert!(!nodes.contains(middle));
+  }
+
+  // A reader removed while it runs records no more reads, so no live node lists a dead one.
+  #[test]
+  fn a_removed_reader_records_nothing() {
+    let (nodes, signal, reader, _) = nodes();
+
+    nodes.remove(reader);
+    nodes.add_edge(signal, reader);
+
+    assert_eq!(nodes.subscriber_count(signal), 0);
+  }
+}
