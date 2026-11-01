@@ -5,6 +5,7 @@
 //! type appears in its public items. The design is `docs/design/host.md`.
 
 mod displays;
+mod driver;
 mod error;
 mod host;
 mod surfaces;
