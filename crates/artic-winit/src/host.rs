@@ -17,7 +17,7 @@ use winit::window::{Window, WindowId};
 /// Wayland), through `winit`.
 ///
 /// It lends each window to the renderer as native handles
-/// ([`TargetKind::Handles`]) and has the [`Windows`] capability.
+/// ([`TargetKind::Handles`]) and has the [`Windows`](artic_platform::Windows) capability.
 pub struct Host {
   event_loop: EventLoop<()>,
 }
