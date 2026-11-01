@@ -92,7 +92,6 @@ impl<F: FnOnce(&mut SceneBuilder)> Nodes for Drawing<F> {
 #[derive(Debug, Default)]
 pub struct Compositor {
   fragments: HashMap<NodeId, Arc<SceneFragment>>,
-  generation: u64,
   recorded: u32,
 }
 
@@ -190,9 +189,8 @@ impl<N: Nodes> Walk<'_, N> {
 
   fn record(&mut self, tree: &UiTree, node: NodeId) -> Arc<SceneFragment> {
     self.nodes.record(tree, node, &mut self.builder);
-    self.compositor.generation += 1;
     self.compositor.recorded += 1;
-    Arc::new(SceneFragment::new(node, self.compositor.generation, self.builder.take()))
+    Arc::new(SceneFragment::new(node, self.builder.take()))
   }
 }
 
@@ -260,6 +258,14 @@ mod tests {
         SceneItem::Fragment(fragment) => format!("fragment {}", names[&fragment.node()]),
       })
       .collect()
+  }
+
+  /// The fragment at `index` in `scene`'s items.
+  fn fragment(scene: &Scene, index: usize) -> Arc<SceneFragment> {
+    match &scene.items()[index] {
+      SceneItem::Fragment(fragment) => Arc::clone(fragment),
+      other => panic!("expected a fragment, found {other:?}"),
+    }
   }
 
   /// The nodes whose fragments `scene` draws, in order.
@@ -439,7 +445,7 @@ mod tests {
   }
 
   // A node that isn't render-dirty keeps its fragment, shared rather than recorded again; a
-  // render-dirty one is recorded again with a higher generation, and its flag is cleared.
+  // render-dirty one is recorded again with a new id, and its flag is cleared.
   #[test]
   fn clean_fragment_is_reused() {
     let mut tree = UiTree::new();
@@ -453,13 +459,22 @@ mod tests {
 
     let recorded: Vec<usize> = [root, a, b, c].iter().map(|node| nodes.recorded[node]).collect();
     assert_eq!(recorded, [1, 1, 2, 1]);
-    let fragment = |scene: &Scene, index: usize| match &scene.items()[index] {
-      SceneItem::Fragment(fragment) => Arc::clone(fragment),
-      other => panic!("expected a fragment, found {other:?}"),
-    };
     assert!(Arc::ptr_eq(&fragment(&first, 0), &fragment(&second, 0)), "root is shared");
-    assert!(fragment(&second, 3).generation() > fragment(&first, 3).generation());
+    assert_ne!(fragment(&second, 3).id(), fragment(&first, 3).id());
     assert!(!tree.dirty(b).contains(Affects::RENDER));
+  }
+
+  // Two compositors never give two fragments one id, so a renderer that caches by id keeps them
+  // apart.
+  #[test]
+  fn fragments_of_separate_compositors_have_separate_ids() {
+    let mut tree = UiTree::new();
+    let [root, ..] = sample(&mut tree);
+
+    let first = Compositor::default().compose(&mut tree, root, &mut Table::default());
+    let second = Compositor::default().compose(&mut tree, root, &mut Table::default());
+
+    assert_ne!(fragment(&first, 0).id(), fragment(&second, 0).id());
   }
 
   // A node's clip fences its children, not its own fragment; its transform and opacity cover both.

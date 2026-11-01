@@ -3,6 +3,7 @@ use artic_core::tree::NodeId;
 use artic_layout::geometry::{Point, RoundedRect, Transform};
 use artic_layout::text::Paragraph;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Something that changes how what's drawn inside it appears, until the matching pop.
 ///
@@ -79,22 +80,28 @@ pub enum Command {
 /// One node's recorded drawing, in the node's own coordinates.
 ///
 /// Its layers are balanced: every [`Command::Push`] has its [`Command::Pop`]. A renderer may cache
-/// its own encoding of a fragment under its node and generation, since a fragment never changes;
-/// recording the node again makes a new fragment with a higher generation.
+/// its own encoding of a fragment under its [id](SceneFragment::id), since a fragment never
+/// changes; recording the node again makes a new fragment with a new id.
 #[derive(Debug, PartialEq)]
 pub struct SceneFragment {
+  id: FragmentId,
   node: NodeId,
-  generation: u64,
   commands: Vec<Command>,
 }
 
 impl SceneFragment {
-  pub(crate) fn new(node: NodeId, generation: u64, commands: Vec<Command>) -> SceneFragment {
+  pub(crate) fn new(node: NodeId, commands: Vec<Command>) -> SceneFragment {
     SceneFragment {
+      id: FragmentId::next(),
       node,
-      generation,
       commands,
     }
+  }
+
+  /// Which recording this is, unique in the process.
+  #[must_use]
+  pub fn id(&self) -> FragmentId {
+    self.id
   }
 
   /// The node that recorded it.
@@ -103,17 +110,22 @@ impl SceneFragment {
     self.node
   }
 
-  /// Increases each time any node is recorded again, so `(node, generation)` identifies this
-  /// recording.
-  #[must_use]
-  pub fn generation(&self) -> u64 {
-    self.generation
-  }
-
   /// The recorded commands, in order.
   #[must_use]
   pub fn commands(&self) -> &[Command] {
     &self.commands
+  }
+}
+
+/// A [`SceneFragment`]'s identity, unique in the process, whichever compositor or
+/// [`Scene::record`] made it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FragmentId(u64);
+
+impl FragmentId {
+  fn next() -> FragmentId {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    FragmentId(NEXT.fetch_add(1, Ordering::Relaxed))
   }
 }
 
