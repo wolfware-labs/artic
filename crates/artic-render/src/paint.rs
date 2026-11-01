@@ -115,7 +115,7 @@ enum Geometry {
   Radial { center: Point, radius_x: f32, radius_y: f32 },
 }
 
-/// `value` in `0..=1`, NaN counting as `0`.
+/// `value` in `0..=1`, NaN and `-0` counting as `0`.
 fn unit(value: f32) -> f32 {
   if value > 0.0 { value.min(1.0) } else { 0.0 }
 }
@@ -195,8 +195,8 @@ mod tests {
     );
   }
 
-  // Offsets and opacity are clamped into 0..=1 and radii to 0 or more, NaN counting as 0, and
-  // stops are sorted by offset, keeping their written order among equal offsets.
+  // Offsets and opacity are clamped into 0..=1 and radii to 0 or more, NaN and -0 counting as 0,
+  // and stops are sorted by offset, keeping their written order among equal offsets.
   #[test]
   fn gradient_values_are_clamped_and_sorted() {
     let rect = Rect::new(0.0, 0.0, 10.0, 10.0);
@@ -204,6 +204,7 @@ mod tests {
       GradientStop::new(2.0, BLUE),
       GradientStop::new(f32::NAN, RED),
       GradientStop::new(-1.0, GREEN),
+      GradientStop::new(-0.0, BLUE),
     ];
     let linear = |opacity| {
       Brush::from(LinearGradientBrush {
@@ -222,6 +223,7 @@ mod tests {
         stops: vec![
           GradientStop::new(0.0, RED),
           GradientStop::new(0.0, GREEN),
+          GradientStop::new(0.0, BLUE),
           GradientStop::new(1.0, BLUE),
         ],
         opacity,

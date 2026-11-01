@@ -209,16 +209,21 @@ mod tests {
     text.parse::<BoxShadow>().map_err(|error| error.problem)
   }
 
-  // A shadow that draws nothing gives no shape, without the caller checking first; a NaN spread
-  // counts as 0, as it does when drawn.
+  // A shadow that draws nothing, broken or with a spread that shrinks one side to zero, gives no
+  // shape, without the caller checking first; a NaN spread counts as 0, as it does when drawn.
   #[test]
   fn shape_makes_the_shadow_drawable() {
     let rect = RoundedRect::new(Rect::new(0.0, 0.0, 10.0, 10.0), CornerRadius::ZERO);
     let broken = BoxShadow::new(Point::new(f32::NAN, 0.0), 0.0, BLACK);
     let nan_spread = BoxShadow::new(Point::ZERO, 0.0, BLACK).with_spread(f32::NAN);
+    let shrunk = BoxShadow::new(Point::ZERO, 0.0, BLACK).with_spread(-5.0);
 
     assert_eq!(broken.shape(rect), None);
     assert_eq!(nan_spread.shape(rect), Some(rect));
+    for (width, height) in [(10.0, 20.0), (20.0, 10.0)] {
+      let narrow = RoundedRect::new(Rect::new(0.0, 0.0, width, height), CornerRadius::ZERO);
+      assert_eq!(shrunk.shape(narrow), None);
+    }
   }
 
   // Two numbers and a color: an offset, no blur, no spread.

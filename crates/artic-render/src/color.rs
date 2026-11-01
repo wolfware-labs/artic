@@ -78,10 +78,10 @@ fn hex(digits: &str) -> Result<Color, ColorProblem> {
     let value = digit.to_digit(16).ok_or(ColorProblem::NotHex(digit))?;
     nibbles.push(u8::try_from(value).expect("a hex digit fits in a byte"));
   }
-  let pair = |high: u8, low: u8| (high << 4) | low;
+  let pair = |high: u8, low: u8| 16 * high + low;
   match *nibbles {
-    [r, g, b] => Ok(Color::rgb(r * 17, g * 17, b * 17)),
-    [a, r, g, b] => Ok(Color::rgba(r * 17, g * 17, b * 17, a * 17)),
+    [r, g, b] => Ok(Color::rgb(pair(r, r), pair(g, g), pair(b, b))),
+    [a, r, g, b] => Ok(Color::rgba(pair(r, r), pair(g, g), pair(b, b), pair(a, a))),
     [r1, r2, g1, g2, b1, b2] => Ok(Color::rgb(pair(r1, r2), pair(g1, g2), pair(b1, b2))),
     [a1, a2, r1, r2, g1, g2, b1, b2] => Ok(Color::rgba(pair(r1, r2), pair(g1, g2), pair(b1, b2), pair(a1, a2))),
     _ => Err(ColorProblem::Length(nibbles.len())),
