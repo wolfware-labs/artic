@@ -84,6 +84,11 @@ struct Slot {
   owner: Owner,
 }
 
+/// A freed node's slot, its value and closures still in it.
+pub struct Freed {
+  _slot: Slot,
+}
+
 pub struct Nodes {
   slots: RefCell<Arena<Slot>>,
   next_seq: Cell<u64>,
@@ -113,16 +118,33 @@ impl Nodes {
     self.alloc_observer(Job::Effect { seq }, run, scope)
   }
 
-  /// Frees `node` and cuts its edges in both directions. A stale id frees nothing.
-  pub fn remove(&self, node: Node) {
+  /// Frees `node` and cuts its edges in both directions, returning what the slot held: the caller
+  /// drops it once nothing in the runtime is borrowed, since a value or a closure in it may use the
+  /// runtime when dropped. A stale id frees nothing.
+  #[must_use]
+  pub fn remove(&self, node: Node) -> Option<Freed> {
     self.clear_sources(node);
     let mut slots = self.slots.borrow_mut();
-    let Some(slot) = slots.free(node.0) else {
-      return;
-    };
-    for subscriber in slot.subscribers {
+    let mut slot = slots.free(node.0)?;
+    for subscriber in std::mem::take(&mut slot.subscribers) {
       if let Some(subscriber) = slots.get_mut(subscriber.0) {
         subscriber.sources.retain(|source| *source != node);
+      }
+    }
+    Some(Freed { _slot: slot })
+  }
+
+  /// The scope a memo's or an effect's runs own, and an effect's place in the run order. `None`
+  /// for a signal or a stale id.
+  pub fn observer_parts(&self, node: Node) -> Option<(ScopeId, Option<u64>)> {
+    match &self.slots.borrow().get(node.0)?.kind {
+      Kind::Signal { .. } => None,
+      Kind::Observer(observer) => {
+        let seq = match observer.job {
+          Job::Effect { seq } => Some(seq),
+          Job::Memo { .. } => None,
+        };
+        Some((observer.scope, seq))
       }
     }
   }
@@ -366,7 +388,7 @@ mod tests {
     nodes.add_edge(signal, middle);
     nodes.add_edge(middle, reader);
 
-    nodes.remove(middle);
+    drop(nodes.remove(middle));
 
     assert_eq!((nodes.subscriber_count(signal), sources(&nodes, reader)), (0, vec![]));
     assert!(!nodes.contains(middle));
@@ -377,7 +399,7 @@ mod tests {
   fn a_removed_reader_records_nothing() {
     let (nodes, signal, reader, _) = nodes();
 
-    nodes.remove(reader);
+    drop(nodes.remove(reader));
     nodes.add_edge(signal, reader);
 
     assert_eq!(nodes.subscriber_count(signal), 0);

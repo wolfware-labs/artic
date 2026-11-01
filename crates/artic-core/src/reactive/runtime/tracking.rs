@@ -1,9 +1,8 @@
-use crate::defer::defer;
+use crate::defer::defer_unwind;
 use crate::reactive::runtime::{Node, RUNTIME, Runtime, SignalId};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::hash::{BuildHasherDefault, DefaultHasher};
-use std::thread;
 
 pub struct Tracker {
   running: RefCell<Vec<Node>>,
@@ -45,10 +44,10 @@ impl Runtime {
       runtime.nodes.with_observer(node, |observer| observer.dirty = false);
       runtime.tracker.push(node);
     });
-    let _tracking = defer(|| {
+    let _tracking = defer_unwind(|panicked| {
       RUNTIME.with(|runtime| {
         runtime.tracker.pop();
-        if thread::panicking() {
+        if panicked {
           runtime.nodes.clear_sources(node);
         }
       });

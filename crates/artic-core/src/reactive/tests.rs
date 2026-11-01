@@ -1210,6 +1210,74 @@ fn a_disposed_child_scope_leaves_its_parent() {
   parent.dispose();
 }
 
+/// Reads its signal when dropped, as a value whose owner tears something reactive down might.
+#[derive(PartialEq)]
+struct ReadsOnDrop(Signal<i32>);
+
+impl Drop for ReadsOnDrop {
+  fn drop(&mut self) {
+    self.0.get();
+  }
+}
+
+// Values freed with a scope's nodes, an effect's captures, a memo's value and a signal's value, may
+// use the runtime when they're dropped.
+#[test]
+fn values_freed_with_a_scope_may_use_the_runtime() {
+  let outside = Signal::new(1);
+  let scope = Scope::new_root();
+  scope.run(|| {
+    let reads = ReadsOnDrop(outside);
+    effect(move || {
+      let reads = &reads;
+      reads.0.get();
+    });
+    let memo = Memo::new(move || Rc::new(ReadsOnDrop(outside)));
+    memo.with(|_| {});
+    Signal::new(ReadsOnDrop(outside));
+  });
+
+  scope.dispose();
+
+  assert_eq!(live_counts().effects, 0);
+}
+
+// An effect pending when an earlier effect disposes its scope leaves the pending list even if a
+// value freed with it panics, so the next flush runs the effects after it.
+#[test]
+fn a_disposed_effect_leaves_the_pending_list_even_if_a_drop_panics() {
+  struct PanicsOnDrop;
+  impl Drop for PanicsOnDrop {
+    fn drop(&mut self) {
+      panic!("drop failed");
+    }
+  }
+  let count = Signal::new(0);
+  let inner = Scope::new_root();
+  effect(move || {
+    if count.get() == 1 {
+      inner.dispose();
+    }
+  });
+  inner.run(|| {
+    let held = PanicsOnDrop;
+    effect(move || {
+      let held = &held;
+      let _ = (held, count.get());
+    });
+  });
+  let seen = Rc::new(Cell::new(0));
+  let seen_after = Rc::clone(&seen);
+  effect(move || seen_after.set(count.get()));
+  count.set(1);
+
+  let first = catch_unwind(flush_effects);
+  flush_effects();
+
+  assert!(first.is_err());
+  assert_eq!(seen.get(), 1);
+}
+
 // Pending effects
 
 // A write pends only the effect it reaches, not every effect.

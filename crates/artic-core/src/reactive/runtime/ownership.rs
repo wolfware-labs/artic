@@ -1,5 +1,5 @@
 use crate::defer::defer;
-use crate::reactive::runtime::nodes::{Job, NodeKind, Owner};
+use crate::reactive::runtime::nodes::{NodeKind, Owner};
 use crate::reactive::runtime::{Node, RUNTIME, Runtime, ScopeId, SignalId};
 
 impl Runtime {
@@ -67,26 +67,18 @@ impl Runtime {
   /// Frees `node` and cuts its edges; a memo or an effect disposes the scope its runs own first,
   /// and an effect leaves the pending list. A stale id frees nothing.
   fn dispose_node(node: Node) {
-    let owned = RUNTIME.with(|runtime| match runtime.nodes.kind(node) {
-      Some(NodeKind::Memo | NodeKind::Effect) => Some(runtime.nodes.with_observer(node, |observer| {
-        let seq = match observer.job {
-          Job::Effect { seq } => Some(seq),
-          Job::Memo { .. } => None,
-        };
-        (observer.scope, seq)
-      })),
-      Some(NodeKind::Signal) | None => None,
-    });
-    if let Some((scope, _)) = owned {
+    let parts = RUNTIME.with(|runtime| runtime.nodes.observer_parts(node));
+    if let Some((scope, _)) = parts {
       Self::dispose_scope(scope);
     }
-    RUNTIME.with(|runtime| {
-      runtime.disown(node);
-      runtime.nodes.remove(node);
-      if let Some((_, Some(seq))) = owned {
+    let freed = RUNTIME.with(|runtime| {
+      if let Some((_, Some(seq))) = parts {
         runtime.scheduler.remove_pending(seq);
       }
+      runtime.disown(node);
+      runtime.nodes.remove(node)
     });
+    drop(freed);
   }
 }
 
