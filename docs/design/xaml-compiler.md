@@ -135,13 +135,13 @@ The block above is a view without a code type. With #52, the builder design's sa
 | An event, such as `Click="on_click"` | "event handlers come with #82" |
 | An attached property | "attached properties come with #50" |
 | A markup extension | "`{StaticResource}` comes with #112" (`{Binding}` #94, `{DynamicResource}` #113, `{TemplateBinding}` #85, `{x:Static}`, `{x:Null}`, `{x:Type}` #62); any other: unknown value provider |
-| `<x:String>` and the other `x:` primitives | "XAML primitives come with #62" |
+| `<x:String>` and the other `x:` primitives, also written as a markup extension (`{x:String a}`) | "XAML primitives come with #62" |
 | An object value for a property, such as `<Border.Background><SolidColorBrush/></Border.Background>` | "value objects come with #57" |
 | `x:Key` outside a resource dictionary | "resources come with #111" |
 | Text inside a type with no content, or text in a collection of elements | the type takes no text content |
 | A second child for a `Child` content | the type takes one child |
 | A collection content of values, such as gradient stops | "value collections come with #57" |
-| A value provider written as an element, the root included | the type is a value provider, not an element |
+| A value provider written as an element, the root included, `<x:Null/>` too | the type is a value provider, not an element |
 | An element inside a type with no content | the type takes no child elements |
 | A property given both as an attribute and as content | the property is set twice |
 | A namespace URI the map doesn't declare | no namespace, once per URI, with help to declare it |
