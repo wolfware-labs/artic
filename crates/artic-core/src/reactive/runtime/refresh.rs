@@ -55,6 +55,9 @@ impl Runtime {
     });
     let _ran = defer_unwind(|panicked| RUNTIME.with(|runtime| runtime.end_run(node, epoch, panicked)));
     Self::clear_scope(scope);
+    if !RUNTIME.with(|runtime| runtime.nodes.contains(node)) {
+      return;
+    }
     RUNTIME.with(|runtime| runtime.nodes.clear_sources(node));
     Self::run_tracked(node, || Self::run_in_scope(scope, || run(node)));
   }

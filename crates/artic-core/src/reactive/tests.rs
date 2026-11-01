@@ -1452,16 +1452,19 @@ fn a_signal_made_while_its_scope_is_freed_can_be_disposed_later() {
   assert!(!late.is_alive());
 }
 
+/// Disposes its scope when dropped, as a value whose owner tears its view down might.
+struct DisposesOnDrop(Scope);
+
+impl Drop for DisposesOnDrop {
+  fn drop(&mut self) {
+    self.0.dispose();
+  }
+}
+
 // A value freed with a child scope may dispose the parent being disposed: the parent's disposal
 // finishes without reaching for the scope already freed.
 #[test]
 fn a_scope_disposed_again_by_a_value_it_frees_is_freed_once() {
-  struct DisposesOnDrop(Scope);
-  impl Drop for DisposesOnDrop {
-    fn drop(&mut self) {
-      self.0.dispose();
-    }
-  }
   let before = live_counts();
   let parent = Scope::new_root();
   let child = parent.child();
@@ -1470,6 +1473,25 @@ fn a_scope_disposed_again_by_a_value_it_frees_is_freed_once() {
   parent.dispose();
 
   assert_eq!(live_counts(), before);
+}
+
+// An effect disposed by a value its last run made, freed as it runs again, stops there.
+#[test]
+fn an_effect_disposed_while_its_last_run_is_cleared_stops() {
+  let before = live_counts();
+  let count = Signal::new(0);
+  let owner = Scope::new_root();
+  owner.run(|| {
+    effect(move || {
+      count.get();
+      Signal::new(DisposesOnDrop(owner));
+    });
+  });
+
+  count.set(1);
+  flush_effects();
+
+  assert_eq!(live_counts().effects, before.effects);
 }
 
 // Pending effects
