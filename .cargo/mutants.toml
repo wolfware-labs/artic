@@ -14,8 +14,9 @@ exclude_globs = [
     "crates/artic-examples/**",
     "crates/docs-check/**",
     "crates/*/fixtures/**",
-    # winit's loop needs a display server, which tests don't have; the `smoke` and `frames`
-    # examples run it in CI.
+    # winit's loop and the impls that forward to it need a display server, which tests don't
+    # have; the driver they call is tested, and the `smoke` and `frames` examples run the loop
+    # in CI.
     "crates/artic-winit/src/host.rs",
 ]
 

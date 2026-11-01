@@ -87,7 +87,7 @@ pub trait Windows {
 
 ## 5. `artic-winit`
 
-The desktop adapter, at layer 6, depending on `artic-platform`, `artic-render` and `winit`. It exports `Host` and `Error`: `Host::new() -> Result<Host, Error>` fails if the event loop can't be created, such as with no display, and `Error` boxes winit's error as its `source()`, so no `winit` type appears in a public item. Inside, `Host` implements winit's `ApplicationHandler` and keeps a map from winit's `WindowId` to artic's `SurfaceId`.
+The desktop adapter, at layer 6, depending on `artic-platform`, `artic-render` and `winit`. It exports `Host` and `Error`: `Host::new() -> Result<Host, Error>` fails if the event loop can't be created, such as with no display, and `Error` boxes winit's error as its `source()`, so no `winit` type appears in a public item. Inside, a driver, generic over the event loop and window types, does what the table says, and keeps a map from winit's `WindowId` to artic's `SurfaceId`; `host.rs` forwards winit's `ApplicationHandler` callbacks to it and implements its traits for winit's types.
 
 | winit | `artic-winit` | `AppHandler` |
 | --- | --- | --- |
@@ -116,6 +116,7 @@ The desktop adapter, at layer 6, depending on `artic-platform`, `artic-render` a
 ## 6. Testing
 
 - The `WindowId` → `SurfaceId` map gives distinct ids and maps each back; displays get stable ids, distinct monitors distinct ones, and a window on no monitor one of its own.
+- The driver, with a fake loop and windows and a handler that records its calls: each row of the table in §5, the reports a call makes after it returns, and the windows opened while the loop exits.
 - `artic-platform`: `Waker` is `Clone + Send + Sync` and `wake()` runs the host's hook; a minimal fake host drives a recording `AppHandler`, showing a host can be written against the seam alone, as `TestHost` (#101) will be.
 - `cargo deny` bans `winit` everywhere but `artic-winit`, and no `winit` type appears in `artic-winit`'s public items.
 - A smoke example, `artic-examples/examples/smoke.rs`: an `AppHandler` that opens one window in `started`, through `HostContext::windows()` with a `WindowDesc` it builds itself, and asks for a frame after each frame; with `ARTIC_SMOKE_FRAMES=N` it exits after N frames, otherwise it runs until the window closes. It calls only `Host::new()` and `run`, with no target-specific code, and draws nothing: it checks the host alone, without the runner, and the `frames` example draws through the runner. #53 runs it in CI; the PR records manual runs on Windows, macOS and Linux.
