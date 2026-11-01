@@ -1293,6 +1293,28 @@ fn a_refused_write_marks_no_reader_dirty() {
   assert!(!Runtime::is_dirty(observer));
 }
 
+// A memo first computed from a Drop while another panic unwinds is a normal run: it keeps the
+// signal it read as a source, so it isn't left to compute again on every read.
+#[test]
+fn a_memo_computed_during_another_panic_keeps_its_sources() {
+  struct ReadsOnDrop(Memo<i32>);
+  impl Drop for ReadsOnDrop {
+    fn drop(&mut self) {
+      self.0.get();
+    }
+  }
+  let count = Signal::new(1);
+  let doubled = Memo::new(move || count.get() * 2);
+
+  let unwound = catch_unwind(AssertUnwindSafe(|| {
+    let _reader = ReadsOnDrop(doubled);
+    panic!("unrelated");
+  }));
+
+  assert!(unwound.is_err());
+  assert_eq!(Runtime::subscriber_count(count.id()), 1);
+}
+
 // Pending effects
 
 // A write pends only the effect it reaches, not every effect.
