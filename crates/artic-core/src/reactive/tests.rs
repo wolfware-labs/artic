@@ -1322,8 +1322,8 @@ fn a_memo_computed_during_another_panic_keeps_its_sources() {
   assert_eq!((Runtime::subscriber_count(count.id()), computes.get()), (1, 1));
 }
 
-// An effect checked through a memo that panics runs again on the next flush, though the panic left
-// it no write to be found by.
+// An effect checked through a memo that panics runs again on the next flush, though the flush that
+// panicked already used up the write that reached it.
 #[test]
 fn an_effect_whose_memo_panics_while_checked_runs_on_the_next_flush() {
   let count = Signal::new(0);
