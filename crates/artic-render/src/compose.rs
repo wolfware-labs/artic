@@ -1,6 +1,5 @@
 use crate::{Layer, Scene, SceneBuilder, SceneFragment, SceneItem, Shape};
-use artic_core::Object;
-use artic_core::property::{Affects, PropertyVisitor};
+use artic_core::property::Affects;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_layout::geometry::Transform;
 use std::collections::HashMap;
@@ -54,28 +53,6 @@ pub trait Nodes {
   }
 }
 
-impl Scene {
-  /// A scene of one fragment holding what `draw` records, with no layers: for tests and tools that
-  /// draw without a tree.
-  pub fn record(draw: impl FnOnce(&mut SceneBuilder)) -> Scene {
-    let mut tree = UiTree::new();
-    let root = tree.alloc(Box::new(Canvas));
-    let mut builder = SceneBuilder::default();
-    draw(&mut builder);
-    Scene {
-      items: vec![SceneItem::Fragment(Arc::new(SceneFragment::new(root, builder.take())))],
-    }
-  }
-}
-
-/// The one node of a recorded scene.
-#[derive(Debug)]
-struct Canvas;
-
-impl Object for Canvas {
-  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
-}
-
 /// Builds frames from the visual tree, keeping each node's fragment until the node is render-dirty
 /// again.
 #[derive(Debug, Default)]
@@ -91,9 +68,10 @@ impl Compositor {
   /// its visual descendants. It draws before them, and they draw inside its clip layer, when it
   /// has one and at least one of them is drawn, in `z_index` order, ties in tree order. A node
   /// that isn't visible is skipped with its whole subtree, which keeps its fragments and its
-  /// render flags, so it comes back without recording what didn't change. A node is recorded again only if it's render-dirty, [stale](Nodes::stale) or has no
-  /// fragment yet. Its render flag is cleared before it's recorded, so a write made while recording
-  /// keeps it dirty for the next frame. Fragments of nodes no longer in the subtree are dropped.
+  /// render flags, so it comes back without recording what didn't change. A node is recorded again
+  /// only if it's render-dirty, [stale](Nodes::stale) or has no fragment yet. Its render flag is
+  /// cleared before it's recorded, so a write made while recording keeps it dirty for the next
+  /// frame. Fragments of nodes no longer in the subtree are dropped.
   pub fn compose(&mut self, tree: &mut UiTree, root: NodeId, nodes: &mut impl Nodes) -> Scene {
     self.recorded = 0;
     let mut previous = std::mem::take(&mut self.fragments);
@@ -661,22 +639,6 @@ mod tests {
     assert!(tree.dirty(root).contains(Affects::RENDER));
   }
 
-  // A recorded scene is one fragment holding what the closure drew, with no layers around it.
-  #[test]
-  fn record_makes_one_fragment() {
-    let rect = Rect::new(0.0, 0.0, 2.0, 1.0);
-    let red = Color::rgb(255, 0, 0);
-
-    let scene = Scene::record(|builder| builder.fill(rect, red));
-
-    let mut expected = SceneBuilder::default();
-    expected.fill(rect, red);
-    let [SceneItem::Fragment(fragment)] = scene.items() else {
-      panic!("one fragment, got {:?}", scene.items());
-    };
-    assert_eq!(fragment.commands(), expected.take());
-  }
-
   // A node that isn't render-dirty keeps its fragment unless its `Nodes` calls it stale: composing
   // again records nothing and draws the same scene.
   #[test]
@@ -689,14 +651,5 @@ mod tests {
     let second = compositor.compose(&mut tree, root, &mut Plain);
 
     assert_eq!((compositor.recorded(), second), (0, first));
-  }
-
-  // Two recorded scenes never share a fragment id, though each fragment is the first node of a tree
-  // of its own.
-  #[test]
-  fn recorded_scenes_have_separate_ids() {
-    let [first, second] = [(); 2].map(|()| Scene::record(|_| {}));
-
-    assert_ne!(fragment(&first, 0).id(), fragment(&second, 0).id());
   }
 }

@@ -1,5 +1,7 @@
-use crate::{BoxShadow, Brush, Shape, Stroke};
-use artic_core::tree::NodeId;
+use crate::{BoxShadow, Brush, SceneBuilder, Shape, Stroke};
+use artic_core::Object;
+use artic_core::property::PropertyVisitor;
+use artic_core::tree::{NodeId, UiTree};
 use artic_layout::geometry::{Point, RoundedRect, Transform};
 use artic_layout::text::Paragraph;
 use std::sync::Arc;
@@ -150,6 +152,18 @@ pub struct Scene {
 }
 
 impl Scene {
+  /// A scene of one fragment holding what `draw` records, with no layers: for tests and tools that
+  /// draw without a tree.
+  pub fn record(draw: impl FnOnce(&mut SceneBuilder)) -> Scene {
+    let mut tree = UiTree::new();
+    let root = tree.alloc(Box::new(Canvas));
+    let mut builder = SceneBuilder::default();
+    draw(&mut builder);
+    Scene {
+      items: vec![SceneItem::Fragment(Arc::new(SceneFragment::new(root, builder.take())))],
+    }
+  }
+
   /// The items in drawing order. Layers are balanced.
   #[must_use]
   pub fn items(&self) -> &[SceneItem] {
@@ -157,11 +171,52 @@ impl Scene {
   }
 }
 
+/// The one node of a recorded scene.
+#[derive(Debug)]
+struct Canvas;
+
+impl Object for Canvas {
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::Color;
+  use artic_layout::geometry::Rect;
+  use pretty_assertions::assert_eq;
   use static_assertions::assert_impl_all;
 
   assert_impl_all!(Scene: Send);
   assert_impl_all!(SceneFragment: Send, Sync);
+
+  /// The one fragment of `scene`.
+  fn only_fragment(scene: &Scene) -> &SceneFragment {
+    let [SceneItem::Fragment(fragment)] = scene.items() else {
+      panic!("one fragment, got {:?}", scene.items());
+    };
+    fragment
+  }
+
+  // A recorded scene is one fragment holding what the closure drew, with no layers around it.
+  #[test]
+  fn record_makes_one_fragment() {
+    let rect = Rect::new(0.0, 0.0, 2.0, 1.0);
+    let red = Color::rgb(255, 0, 0);
+
+    let scene = Scene::record(|builder| builder.fill(rect, red));
+
+    let mut expected = SceneBuilder::default();
+    expected.fill(rect, red);
+    assert_eq!(only_fragment(&scene).commands(), expected.take());
+  }
+
+  // Two recorded scenes never share a fragment id, though each fragment is the first node of a tree
+  // of its own.
+  #[test]
+  fn recorded_scenes_have_separate_ids() {
+    let [first, second] = [(); 2].map(|()| Scene::record(|_| {}));
+
+    assert_ne!(only_fragment(&first).id(), only_fragment(&second).id());
+  }
 }
