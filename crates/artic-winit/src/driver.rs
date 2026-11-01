@@ -228,19 +228,13 @@ impl<A: AppHandler, W: Window> Driver<A, W> {
     self.call(event_loop, |app, cx| app.woken(cx));
   }
 
-  /// The loop is exiting: every window still open is lost, including any the handler opens
-  /// meanwhile.
+  /// The loop is exiting: every window still open is lost. A window the handler opens meanwhile
+  /// is never created.
   pub(crate) fn drain<L: Loop<Window = W>>(&mut self, event_loop: &L) {
     self.exiting = true;
-    loop {
-      let open = self.surfaces.drain();
-      if open.is_empty() {
-        return;
-      }
-      for (surface, window) in open {
-        self.call(event_loop, |app, cx| app.surface_lost(cx, surface, SurfaceLoss::Gone));
-        drop(window);
-      }
+    for (surface, window) in self.surfaces.drain() {
+      self.call(event_loop, |app, cx| app.surface_lost(cx, surface, SurfaceLoss::Gone));
+      drop(window);
     }
   }
 }
