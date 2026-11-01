@@ -140,6 +140,7 @@ fn markup_extensions_report_their_issue() {
     ("{x:Static a::B}", "`{x:Static}` comes with #62"),
     ("{x:Type Border}", "`{x:Type}` comes with #62"),
     ("{Localize Hello}", "unknown value provider `Localize`"),
+    ("{x:String a}", "unknown value provider `x:String`"),
   ] {
     let xaml = format!(r#"<Border xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup" Padding="{value}"/>"#);
     let errors = compile(&xaml).expect_err(value);

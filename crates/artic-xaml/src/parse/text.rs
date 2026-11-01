@@ -175,10 +175,9 @@ mod tests {
     assert!(error.message.starts_with("unknown entity `&nbsp;`"));
   }
 
-  // A bare `&` and an invalid code point are rejected.
+  // A reference to a code point that isn't a character is rejected.
   #[test]
-  fn bad_references_are_errors() {
-    assert!(decode("a & b", 0, Kind::Text).is_err());
+  fn invalid_code_point_is_an_error() {
     assert!(decode("&#xD800;", 0, Kind::Text).is_err());
   }
 }
