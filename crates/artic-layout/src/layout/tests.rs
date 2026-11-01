@@ -240,6 +240,75 @@ fn infinite_desired_size_panics_in_debug() {
   run(&mut LayoutManager::default(), &mut tree, root, WINDOW);
 }
 
+/// Arranges its children in its one rectangle, whatever the slot it got.
+#[derive(Debug)]
+struct Far(Rect);
+
+impl Object for Far {
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+}
+
+impl Layoutable for Far {
+  fn measure(&self, cx: &mut MeasureCx<'_>, available: Size) -> Size {
+    let children: Vec<NodeId> = cx.children().collect();
+    for child in children {
+      cx.measure(child, available);
+    }
+    Size::ZERO
+  }
+
+  fn arrange(&self, cx: &mut ArrangeCx<'_>, _rect: Rect) {
+    let children: Vec<NodeId> = cx.children().collect();
+    for child in children {
+      cx.arrange(child, self.0);
+    }
+  }
+}
+
+/// Lays out `Far` and `Node` nodes.
+struct WithFar;
+
+impl LayoutNodes for WithFar {
+  fn layoutable<'a>(&self, tree: &'a UiTree, node: NodeId) -> Option<&'a dyn Layoutable> {
+    Nodes
+      .layoutable(tree, node)
+      .or_else(|| tree.get_as::<Far>(node).map(|far| far as &dyn Layoutable))
+  }
+}
+
+// A child arranged to run past the largest finite coordinate is cut to end at a finite one on
+// each axis, also where no snapping would clamp it.
+#[test]
+fn arranged_rects_end_at_a_finite_coordinate() {
+  let mut tree = UiTree::new();
+  let child = leaf(&mut tree, 10.0, 10.0);
+  let root = tree.alloc(Box::new(Far(Rect::new(1.0e38, 1.0e38, f32::MAX, f32::MAX))));
+  tree.add_child(TreeKind::Visual, root, child);
+  let mut layout = LayoutManager::default();
+
+  layout.run(&mut tree, &WithFar, root, WINDOW, GRID, &mut Recorder::default());
+
+  let rect = layout.rect(child).expect("arranged");
+  assert!(
+    (rect.x + rect.width).is_finite() && (rect.y + rect.height).is_finite(),
+    "{rect:?}"
+  );
+  assert!(rect.width > 2.0e38 && rect.height > 2.0e38, "{rect:?}");
+}
+
+// A rectangle with a negative size is a bug in the panel that made it, reported in debug builds.
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "a negative size")]
+fn negative_arranged_size_panics_in_debug() {
+  let mut tree = UiTree::new();
+  let child = leaf(&mut tree, 10.0, 10.0);
+  let root = tree.alloc(Box::new(Far(Rect::new(-f32::MAX, 0.0, -f32::MAX, 10.0))));
+  tree.add_child(TreeKind::Visual, root, child);
+
+  LayoutManager::default().run(&mut tree, &WithFar, root, WINDOW, GRID, &mut Recorder::default());
+}
+
 // The root offered an invalid size is reported as offered by the layout root, since no node did.
 #[test]
 #[cfg(debug_assertions)]

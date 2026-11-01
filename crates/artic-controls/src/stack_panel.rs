@@ -82,7 +82,6 @@ impl ElementImpl for StackPanel {
         start = finite::add(start, finite::usable(self.spacing.get()));
       }
       let (along, _) = axis.split(cx.desired(child));
-      let along = along.min(f32::MAX - start);
       cx.arrange(child, axis.slot(start, along, across));
       start = finite::add(start, along);
     }

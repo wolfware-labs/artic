@@ -681,12 +681,14 @@ impl<'a> ArrangeCx<'a> {
   }
 
   /// Arranges `child` in `rect`, in the coordinates of the node being arranged, snapped to the
-  /// device-pixel grid. A child already offered that rectangle, with nothing changed, is skipped,
-  /// and a collapsed child isn't arranged.
+  /// device-pixel grid. A rectangle that reaches past the largest finite coordinate is cut to end
+  /// there. A child already offered that rectangle, with nothing changed, is skipped, and a
+  /// collapsed child isn't arranged.
   ///
   /// # Panics
   ///
-  /// In debug builds, panics if `rect` isn't finite; release builds treat such a field as zero.
+  /// In debug builds, panics if `rect` isn't finite or has a negative size; release builds treat
+  /// such a field as zero.
   pub fn arrange(&mut self, child: NodeId, rect: Rect) {
     if self.pass.collapsed(child) {
       return;
@@ -761,8 +763,9 @@ impl<'a> ArrangeCx<'a> {
 
   /// Sets the bounds of the node being arranged, in its parent's coordinates, when they aren't the
   /// rectangle its parent offered: after a margin and alignment, for instance. Its children are
-  /// placed relative to these bounds. They're snapped like [`arrange`](ArrangeCx::arrange)'s, and
-  /// returned as recorded, so the node arranges its children in the box layout reports.
+  /// placed relative to these bounds. They're snapped and cut to a finite far edge like
+  /// [`arrange`](ArrangeCx::arrange)'s, and returned as recorded, so the node arranges its children
+  /// in the box layout reports.
   ///
   /// # Panics
   ///
@@ -777,15 +780,16 @@ impl<'a> ArrangeCx<'a> {
   fn checked_rect(&self, child: NodeId, rect: Rect) -> Rect {
     let fields = [rect.x, rect.y, rect.width, rect.height];
     debug_assert!(
-      fields.iter().all(|field| field.is_finite()),
-      "{} arranged node {child:?} in a rectangle that isn't finite ({rect})",
+      fields.iter().all(|field| field.is_finite()) && rect.width >= 0.0 && rect.height >= 0.0,
+      "{} arranged node {child:?} in a rectangle that isn't finite or has a negative size ({rect})",
       self.pass.describe_parent(),
     );
+    let (x, y) = (finite::or_zero(rect.x), finite::or_zero(rect.y));
     Rect::new(
-      finite::or_zero(rect.x),
-      finite::or_zero(rect.y),
-      finite::or_zero(rect.width),
-      finite::or_zero(rect.height),
+      x,
+      y,
+      finite::span(x, finite::usable(rect.width)),
+      finite::span(y, finite::usable(rect.height)),
     )
   }
 }

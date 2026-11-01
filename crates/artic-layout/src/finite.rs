@@ -24,6 +24,14 @@ pub fn or_zero(value: f32) -> f32 {
   if value.is_finite() { value } else { 0.0 }
 }
 
+/// `length`, 0 or more, cut so that `start + length` stays finite: the length from `start` to the
+/// largest finite coordinate when it would reach past it, a step shorter where that rounds up.
+#[must_use]
+pub fn span(start: f32, length: f32) -> f32 {
+  let cut = length.min(f32::MAX - start);
+  if (start + cut).is_finite() { cut } else { cut.next_down() }
+}
+
 /// `value` if it's finite and above 0, else `None`: a length that only draws or shapes when it's
 /// there, such as a stroke's width or a font size.
 #[must_use]
@@ -139,5 +147,24 @@ mod tests {
   #[test]
   fn ordinary_values_are_unchanged() {
     assert_eq!(add(1.5, 2.0), 3.5);
+  }
+
+  // A span that would end past the largest finite coordinate is cut to end there; one that ends
+  // before it, or starts below zero, keeps its length.
+  #[test]
+  fn span_ends_at_a_finite_coordinate() {
+    assert_eq!(span(1.0e38, f32::MAX), 2.402_823_4e38);
+    assert_eq!(span(10.0, 20.0), 20.0);
+    assert_eq!(span(-f32::MAX, f32::MAX), f32::MAX);
+    assert_eq!(span(f32::MAX, 10.0), 0.0);
+  }
+
+  // Where the room left rounds up, so that the cut length would end a half step past the largest
+  // finite coordinate and round to infinity, the cut is a step shorter.
+  #[test]
+  fn span_never_rounds_past_the_largest_coordinate() {
+    let start = 3.0 * 2f32.powi(103);
+
+    assert!((start + span(start, f32::MAX)).is_finite());
   }
 }
