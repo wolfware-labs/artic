@@ -846,7 +846,7 @@ mod tests {
   // edges are rounded on their own and its size rebuilt from them.
   #[test]
   fn snapped_far_edge_stays_finite() {
-    let rect = Rect::new(1.465_164_6e38, 1.465_164_6e38, 1.937_658_9e38, 1.937_658_9e38).snap(0.1);
+    let rect = Rect::new(1.465_164_6e38, 1.465_164_6e38, 1.937_659e38, 1.937_659e38).snap(0.1);
 
     assert!(
       (rect.x + rect.width).is_finite() && (rect.y + rect.height).is_finite(),
