@@ -111,7 +111,7 @@ The desktop adapter, at layer 6, depending on `artic-platform`, `artic-render` a
 - A window opened during a handler call reports its first `surface_changed` right after that call returns, since the context can't call the handler while it's in a call. A window that couldn't be created reports `surface_lost(…, Gone)` the same way.
 - `run` returns `Error::Loop` if winit's loop ends with an error, such as a lost connection to the display server, after the surfaces have been reported lost.
 
-`translate` reads a winit `WindowEvent` and its window and says what the event means: new surface facts, a close request, a frame, a move or the window's destruction. A scale change reads its new size from the window, since winit's `ScaleFactorChanged` carries a size writer rather than a size; so translation needs a real window, and the smoke example covers it.
+`translate` reads a winit `WindowEvent` and says what the event means: new surface facts, a close request, a frame, a move or the window's destruction. A scale change reads its new size through a callback the host passes, `|| window.inner_size()`, since winit's `ScaleFactorChanged` carries a size writer rather than a size. Unit tests build the other events and call `translate` with no window; winit builds `ScaleFactorChanged` only inside its loop, so the smoke example covers that one.
 
 ## 6. Testing
 
