@@ -110,7 +110,7 @@ impl Rect {
   ///
   /// Each edge is rounded on its own and the size is what lies between them, so rectangles that
   /// share an edge keep sharing it: three columns of `33.33` become `33`, `34` and `33` wide,
-  /// without a gap.
+  /// without a gap. The far edges stay finite, as [`finite::span`] keeps them.
   #[must_use]
   pub fn snap(self, scale: f32) -> Rect {
     let edge = |value: f32| {
@@ -119,7 +119,12 @@ impl Rect {
     };
     let (left, top) = (edge(self.x), edge(self.y));
     let (right, bottom) = (edge(finite::add(self.x, self.width)), edge(finite::add(self.y, self.height)));
-    Rect::new(left, top, finite::add(right, -left), finite::add(bottom, -top))
+    Rect::new(
+      left,
+      top,
+      finite::span(left, finite::add(right, -left)),
+      finite::span(top, finite::add(bottom, -top)),
+    )
   }
 }
 
@@ -835,6 +840,18 @@ mod tests {
       .map(|index| Rect::new(index as f32 * 100.0 / 3.0, 0.0, 100.0 / 3.0, 1.0).snap(1.0).width)
       .collect();
     assert_eq!(widths, [33.0, 34.0, 33.0]);
+  }
+
+  // A snapped rectangle near the largest finite coordinate still ends at a finite one, though its
+  // edges are rounded on their own and its size rebuilt from them.
+  #[test]
+  fn snapped_far_edge_stays_finite() {
+    let rect = Rect::new(1.465_164_6e38, 1.465_164_6e38, 1.937_658_9e38, 1.937_658_9e38).snap(0.1);
+
+    assert!(
+      (rect.x + rect.width).is_finite() && (rect.y + rect.height).is_finite(),
+      "{rect:?}"
+    );
   }
 
   // Each type's zero constant is its default.
