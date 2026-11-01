@@ -224,7 +224,7 @@ impl<A: AppHandler> ApplicationHandler for Driver<A> {
     let Some(window) = self.surfaces.window(surface).map(Rc::clone) else {
       return;
     };
-    match translate(&event, &window) {
+    match translate(&event, || window.inner_size()) {
       Translated::Changed { size, scale } => self.refresh(event_loop, surface, Some((size, scale))),
       Translated::Moved => self.refresh(event_loop, surface, None),
       Translated::Close => self.call(event_loop, |app, cx| app.event(cx, HostEvent::CloseRequested { surface })),
