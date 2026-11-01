@@ -164,6 +164,7 @@ impl<N: Nodes> Walk<'_, N> {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::scene::tests::fragments;
   use crate::{Color, Command};
   use artic_core::Object;
   use artic_core::property::{Inheritance, Property, PropertyKey, PropertyVisitor};
@@ -240,24 +241,9 @@ mod tests {
       .collect()
   }
 
-  /// The fragment at `index` in `scene`'s items.
-  fn fragment(scene: &Scene, index: usize) -> Arc<SceneFragment> {
-    match &scene.items()[index] {
-      SceneItem::Fragment(fragment) => Arc::clone(fragment),
-      other => panic!("expected a fragment, found {other:?}"),
-    }
-  }
-
   /// The nodes whose fragments `scene` draws, in order.
   fn fragment_nodes(scene: &Scene) -> Vec<NodeId> {
-    scene
-      .items()
-      .iter()
-      .filter_map(|item| match item {
-        SceneItem::Fragment(fragment) => Some(fragment.node()),
-        _ => None,
-      })
-      .collect()
+    fragments(scene).iter().map(|fragment| fragment.node()).collect()
   }
 
   // A node that isn't visible is skipped together with its whole subtree, visible descendants
@@ -439,8 +425,8 @@ mod tests {
 
     let recorded: Vec<usize> = [root, a, b, c].iter().map(|node| nodes.recorded[node]).collect();
     assert_eq!(recorded, [1, 1, 2, 1]);
-    assert!(Arc::ptr_eq(&fragment(&first, 0), &fragment(&second, 0)), "root is shared");
-    assert_ne!(fragment(&second, 3).id(), fragment(&first, 3).id());
+    assert!(std::ptr::eq(fragments(&first)[0], fragments(&second)[0]), "root is shared");
+    assert_ne!(fragments(&second)[3].id(), fragments(&first)[3].id());
     assert!(!tree.dirty(b).contains(Affects::RENDER));
   }
 
@@ -454,7 +440,7 @@ mod tests {
     let first = Compositor::default().compose(&mut tree, root, &mut Table::default());
     let second = Compositor::default().compose(&mut tree, root, &mut Table::default());
 
-    assert_ne!(fragment(&first, 0).id(), fragment(&second, 0).id());
+    assert_ne!(fragments(&first)[0].id(), fragments(&second)[0].id());
   }
 
   // A node's clip fences its children, not its own fragment; its transform and opacity cover both.

@@ -180,7 +180,7 @@ impl Object for Canvas {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use super::*;
   use crate::Color;
   use artic_layout::geometry::Rect;
@@ -190,12 +190,16 @@ mod tests {
   assert_impl_all!(Scene: Send);
   assert_impl_all!(SceneFragment: Send, Sync);
 
-  /// The one fragment of `scene`.
-  fn only_fragment(scene: &Scene) -> &SceneFragment {
-    let [SceneItem::Fragment(fragment)] = scene.items() else {
-      panic!("one fragment, got {:?}", scene.items());
-    };
-    fragment
+  /// The fragments `scene` draws, in order, without its layers.
+  pub(crate) fn fragments(scene: &Scene) -> Vec<&SceneFragment> {
+    scene
+      .items()
+      .iter()
+      .filter_map(|item| match item {
+        SceneItem::Fragment(fragment) => Some(&**fragment),
+        _ => None,
+      })
+      .collect()
   }
 
   // A recorded scene is one fragment holding what the closure drew, with no layers around it.
@@ -208,7 +212,10 @@ mod tests {
 
     let mut expected = SceneBuilder::default();
     expected.fill(rect, red);
-    assert_eq!(only_fragment(&scene).commands(), expected.take());
+    assert_eq!(
+      (scene.items().len(), fragments(&scene)[0].commands()),
+      (1, expected.take().as_slice())
+    );
   }
 
   // Two recorded scenes never share a fragment id, though each fragment is the first node of a tree
@@ -217,6 +224,6 @@ mod tests {
   fn recorded_scenes_have_separate_ids() {
     let [first, second] = [(); 2].map(|()| Scene::record(|_| {}));
 
-    assert_ne!(only_fragment(&first).id(), only_fragment(&second).id());
+    assert_ne!(fragments(&first)[0].id(), fragments(&second)[0].id());
   }
 }
