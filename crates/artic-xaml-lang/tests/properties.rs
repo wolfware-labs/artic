@@ -140,11 +140,19 @@ fn markup_extensions_report_their_issue() {
     ("{x:Static a::B}", "`{x:Static}` comes with #62"),
     ("{x:Type Border}", "`{x:Type}` comes with #62"),
     ("{Localize Hello}", "unknown value provider `Localize`"),
+    ("{x:String a}", "XAML primitives come with #62"),
   ] {
     let xaml = format!(r#"<Border xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup" Padding="{value}"/>"#);
     let errors = compile(&xaml).expect_err(value);
     assert!(errors.contains(message), "{value}: {errors}");
   }
+}
+
+// A value that isn't valid for its property is reported at the value, not at the attribute's name.
+#[test]
+fn a_bad_value_is_reported_at_the_value() {
+  let errors = compile(r#"<Border xmlns="https://artic.rs/ui" Padding="wide"/>"#).expect_err("a bad value");
+  assert!(errors.contains(":1:46:"), "{errors}");
 }
 
 // An object as a property's value comes with #57.

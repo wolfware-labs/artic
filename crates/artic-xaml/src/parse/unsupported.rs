@@ -1,6 +1,6 @@
 //! The MS-XAML and WPF constructs artic rejects, each with why and what to write instead.
 
-use crate::infoset::{Directive, TypeRef, Written, XamlNamespace};
+use crate::infoset::{Directive, MarkupType, TypeRef, Written, XamlNamespace};
 use crate::namespaces::ARTIC_UI;
 use artic_diagnostics::{Diagnostic, Span};
 
@@ -58,10 +58,6 @@ pub(crate) const UNSUPPORTED: &[Unsupported] = &[
   trigger("EventTrigger"),
 ];
 
-/// The types of the markup namespace artic supports: `x:Type`, `x:Static`, `x:Null` and the XAML
-/// 2009 primitives.
-const MARKUP_TYPES: &[&str] = &["Type", "Static", "Null", "String", "Int32", "Double", "Boolean"];
-
 /// A WPF trigger, which artic's styles replace with selectors.
 const fn trigger(construct: &'static str) -> Unsupported {
   Unsupported {
@@ -77,7 +73,7 @@ fn markup_names() -> String {
   format!(
     "directives {}; types {}",
     listed(Directive::ALL.map(Directive::name)),
-    listed(MARKUP_TYPES.iter().copied())
+    listed(MarkupType::ALL.map(MarkupType::name))
   )
 }
 
@@ -106,9 +102,7 @@ pub(super) fn not_supported(construct: &str, reason: &str, span: Span) -> Diagno
 /// or a WPF trigger in the artic UI vocabulary.
 pub(super) fn type_problem(ty: &TypeRef) -> Option<Diagnostic> {
   match &ty.namespace {
-    XamlNamespace::Markup if !MARKUP_TYPES.contains(&ty.name.as_str()) => {
-      Some(markup_problem(ty.prefix.as_deref(), &ty.name, ty.span))
-    }
+    XamlNamespace::Markup if ty.markup_type().is_none() => Some(markup_problem(ty.prefix.as_deref(), &ty.name, ty.span)),
     XamlNamespace::Uri(uri) if uri == ARTIC_UI => rejection(&ty.name, ty.span),
     _ => None,
   }

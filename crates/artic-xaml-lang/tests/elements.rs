@@ -138,6 +138,14 @@ fn primitive_element_reports_error() {
   assert!(errors.contains("XAML primitives come with #62"), "{errors}");
 }
 
+// An `x:` value provider can't be an element either.
+#[test]
+fn markup_value_provider_element_reports_error() {
+  let errors = compile(r#"<x:Null xmlns:x="https://artic.rs/markup"/>"#).expect_err("a value provider");
+  assert!(errors.contains("`x:Null` is a value provider, not an element"), "{errors}");
+  assert!(errors.contains("`{x:Null …}`"), "{errors}");
+}
+
 // A value provider can't be an element, the root included.
 #[test]
 fn value_provider_element_reports_error() {

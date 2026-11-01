@@ -1,0 +1,4 @@
+<!-- Only the artic UI vocabulary rejects WPF triggers: a library may declare its own `Trigger`. -->
+<Panel xmlns="https://artic.rs/ui" xmlns:charts="https://acme.dev/charts">
+  <charts:Trigger/>
+</Panel>

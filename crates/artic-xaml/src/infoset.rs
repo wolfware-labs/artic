@@ -165,6 +165,65 @@ impl Directive {
   }
 }
 
+/// A type of the markup namespace: a markup extension, or an XAML 2009 primitive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MarkupType {
+  /// `x:Type`
+  Type,
+  /// `x:Static`
+  Static,
+  /// `x:Null`
+  Null,
+  /// `x:String`
+  String,
+  /// `x:Int32`
+  Int32,
+  /// `x:Double`
+  Double,
+  /// `x:Boolean`
+  Boolean,
+}
+
+impl MarkupType {
+  /// Every markup type, in the order the spec lists them.
+  pub const ALL: [MarkupType; 7] = [
+    MarkupType::Type,
+    MarkupType::Static,
+    MarkupType::Null,
+    MarkupType::String,
+    MarkupType::Int32,
+    MarkupType::Double,
+    MarkupType::Boolean,
+  ];
+
+  /// The name it's written with after the markup prefix, such as `Null` for `x:Null`.
+  #[must_use]
+  pub fn name(self) -> &'static str {
+    match self {
+      MarkupType::Type => "Type",
+      MarkupType::Static => "Static",
+      MarkupType::Null => "Null",
+      MarkupType::String => "String",
+      MarkupType::Int32 => "Int32",
+      MarkupType::Double => "Double",
+      MarkupType::Boolean => "Boolean",
+    }
+  }
+
+  /// The markup type written as `name` after the markup prefix, if `name` is one.
+  #[must_use]
+  pub fn from_name(name: &str) -> Option<MarkupType> {
+    MarkupType::ALL.into_iter().find(|markup| markup.name() == name)
+  }
+
+  /// Whether it's written as a markup extension, like `{x:Null}`, rather than as an element, like
+  /// `<x:String>`.
+  #[must_use]
+  pub fn is_markup_extension(self) -> bool {
+    matches!(self, MarkupType::Type | MarkupType::Static | MarkupType::Null)
+  }
+}
+
 /// A type named in markup, with its namespace resolved but not yet resolved to a Rust type.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeRef {
@@ -177,6 +236,18 @@ pub struct TypeRef {
   pub namespace: XamlNamespace,
   /// Where the name was written.
   pub span: Span,
+}
+
+impl TypeRef {
+  /// The markup type it names, if it names one in the markup namespace.
+  #[must_use]
+  pub fn markup_type(&self) -> Option<MarkupType> {
+    if self.namespace == XamlNamespace::Markup {
+      MarkupType::from_name(&self.name)
+    } else {
+      None
+    }
+  }
 }
 
 impl fmt::Display for TypeRef {
@@ -250,6 +321,36 @@ mod tests {
       assert_eq!(Directive::from_name(directive.name()), Some(directive));
     }
     assert_eq!(Directive::from_name("Shared"), None);
+  }
+
+  // Each markup type is found by the name it's written with after `x:`, and only `x:Type`,
+  // `x:Static` and `x:Null` are markup extensions.
+  #[test]
+  fn markup_type_names_round_trip() {
+    assert_eq!(MarkupType::ALL.len(), 7);
+    for markup in MarkupType::ALL {
+      assert_eq!(MarkupType::from_name(markup.name()), Some(markup));
+    }
+    assert_eq!(MarkupType::from_name("Name"), None);
+    let providers: Vec<_> = MarkupType::ALL
+      .into_iter()
+      .filter(|markup| markup.is_markup_extension())
+      .collect();
+    assert_eq!(providers, [MarkupType::Type, MarkupType::Static, MarkupType::Null]);
+  }
+
+  // A type names a markup type only in the markup namespace.
+  #[test]
+  fn markup_type_is_named_in_the_markup_namespace() {
+    let span = artic_diagnostics::SourceMap::new().add("view.xaml", "");
+    let ty = |namespace: XamlNamespace| TypeRef {
+      prefix: None,
+      name: "Null".to_owned(),
+      namespace,
+      span: Span::new(span, 0, 0),
+    };
+    assert_eq!(ty(XamlNamespace::Markup).markup_type(), Some(MarkupType::Null));
+    assert_eq!(ty(XamlNamespace::Using("app".to_owned())).markup_type(), None);
   }
 
   // A type is shown as written, with its prefix when it has one.

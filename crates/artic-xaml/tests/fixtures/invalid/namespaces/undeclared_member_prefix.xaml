@@ -1,0 +1,2 @@
+<!-- An undeclared prefix on an attribute is reported at the prefix. -->
+<Button xmlns="https://artic.rs/ui" ui:Width="1"/>

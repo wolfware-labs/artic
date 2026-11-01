@@ -17,7 +17,7 @@ pub(crate) fn resolve(
   app_crate: Option<&str>,
 ) -> Result<TypeUse, Problem> {
   let (info, module) = match &ty.namespace {
-    XamlNamespace::Markup => return Err(unsupported::primitive(ty).into()),
+    XamlNamespace::Markup => return Err(unsupported::markup_element(ty).into()),
     XamlNamespace::Uri(uri) => (by_uri(ty, uri, registry, namespaces, app_crate)?, None),
     XamlNamespace::Using(module) => (by_module(ty, module, registry, app_crate)?, Some(module.clone())),
   };
