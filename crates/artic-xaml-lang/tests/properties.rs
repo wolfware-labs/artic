@@ -147,6 +147,13 @@ fn markup_extensions_report_their_issue() {
   }
 }
 
+// A value that isn't valid for its property is reported at the value, not at the attribute's name.
+#[test]
+fn a_bad_value_is_reported_at_the_value() {
+  let errors = compile(r#"<Border xmlns="https://artic.rs/ui" Padding="wide"/>"#).expect_err("a bad value");
+  assert!(errors.contains(":1:46:"), "{errors}");
+}
+
 // An object as a property's value comes with #57.
 #[test]
 fn object_value_reports_error() {

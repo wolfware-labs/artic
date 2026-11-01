@@ -27,8 +27,7 @@ pub(crate) fn resource_key(span: Span) -> Diagnostic {
 /// A markup extension as a value: the issue that adds it, or an unknown value provider.
 pub(crate) fn markup_extension(ty: &TypeRef, span: Span) -> Diagnostic {
   let issue = match (&ty.namespace, ty.name.as_str()) {
-    (XamlNamespace::Markup, "Static" | "Null" | "Type") => Some("#62"),
-    (XamlNamespace::Markup, _) => None,
+    (XamlNamespace::Markup, name) => matches!(name, "Static" | "Null" | "Type").then_some("#62"),
     (_, "StaticResource") => Some("#112"),
     (_, "Binding") => Some("#94"),
     (_, "DynamicResource") => Some("#113"),
