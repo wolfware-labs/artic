@@ -1294,7 +1294,7 @@ fn a_refused_write_marks_no_reader_dirty() {
 }
 
 // A memo first computed from a Drop while another panic unwinds is a normal run: it keeps the
-// signal it read as a source, so it isn't left to compute again on every read.
+// signal it read as a source and stays clean, so it isn't left to compute again on every read.
 #[test]
 fn a_memo_computed_during_another_panic_keeps_its_sources() {
   struct ReadsOnDrop(Memo<i32>);
@@ -1304,15 +1304,48 @@ fn a_memo_computed_during_another_panic_keeps_its_sources() {
     }
   }
   let count = Signal::new(1);
-  let doubled = Memo::new(move || count.get() * 2);
+  let computes = Rc::new(Cell::new(0));
+  let memo_computes = Rc::clone(&computes);
+  let doubled = Memo::new(move || {
+    memo_computes.set(memo_computes.get() + 1);
+    count.get() * 2
+  });
 
   let unwound = catch_unwind(AssertUnwindSafe(|| {
     let _reader = ReadsOnDrop(doubled);
     panic!("unrelated");
   }));
 
+  doubled.get();
+
   assert!(unwound.is_err());
-  assert_eq!(Runtime::subscriber_count(count.id()), 1);
+  assert_eq!((Runtime::subscriber_count(count.id()), computes.get()), (1, 1));
+}
+
+// An effect checked through a memo that panics runs again on the next flush, though the panic left
+// it no write to be found by.
+#[test]
+fn an_effect_whose_memo_panics_while_checked_runs_on_the_next_flush() {
+  let count = Signal::new(0);
+  let fails = Rc::new(Cell::new(false));
+  let compute_fails = Rc::clone(&fails);
+  let checked = Memo::new(move || {
+    let value = count.get();
+    assert!(!compute_fails.get(), "compute failed");
+    value
+  });
+  let seen = Rc::new(Cell::new(0));
+  let effect_seen = Rc::clone(&seen);
+  effect(move || effect_seen.set(checked.get()));
+
+  fails.set(true);
+  count.set(1);
+  let first = catch_unwind(flush_effects);
+  fails.set(false);
+  flush_effects();
+
+  assert!(first.is_err());
+  assert_eq!(seen.get(), 1);
 }
 
 // A source that disposes itself while it is checked doesn't hide the source after it: the reader

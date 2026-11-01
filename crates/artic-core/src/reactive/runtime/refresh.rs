@@ -1,8 +1,7 @@
-use crate::defer::defer;
+use crate::defer::defer_unwind;
 use crate::reactive::runtime::nodes::{Job, NodeKind};
 use crate::reactive::runtime::{Node, RUNTIME, Runtime};
 use std::rc::Rc;
-use std::thread;
 
 #[cfg(test)]
 thread_local! {
@@ -13,7 +12,8 @@ thread_local! {
 impl Runtime {
   /// Brings `node`, a memo or an effect, up to date: checks its sources, and runs it again if one
   /// of them changed. A memo read while it computes panics; an effect that a write reaches while it
-  /// runs is left for the next flush. A run that panics leaves the node dirty, and an effect pending.
+  /// runs is left for the next flush. A refresh that panics, checking the sources or running, leaves
+  /// the node dirty, and an effect pending.
   pub fn refresh(node: Node) {
     let epoch = RUNTIME.with(|runtime| runtime.epoch.get());
     let (running, is_memo, verified) = RUNTIME.with(|runtime| {
@@ -32,7 +32,14 @@ impl Runtime {
     if verified {
       return;
     }
-    let changed = Self::sources_changed(node);
+    let changed = {
+      let _checking = defer_unwind(|panicked| {
+        if panicked {
+          RUNTIME.with(|runtime| runtime.left_by_panic(node));
+        }
+      });
+      Self::sources_changed(node)
+    };
     if !RUNTIME.with(|runtime| runtime.nodes.contains(node)) {
       return;
     }
@@ -46,30 +53,42 @@ impl Runtime {
         (observer.scope, Rc::clone(&observer.run))
       })
     });
-    let _ran = defer(|| RUNTIME.with(|runtime| runtime.end_run(node, epoch)));
+    let _ran = defer_unwind(|panicked| RUNTIME.with(|runtime| runtime.end_run(node, epoch, panicked)));
     Self::clear_scope(scope);
     RUNTIME.with(|runtime| runtime.nodes.clear_sources(node));
     Self::run_tracked(node, || Self::run_in_scope(scope, || run(node)));
   }
 
   /// Ends a run of `node` that started in `epoch`: it stops running and is verified in that epoch,
-  /// or after a panic it's dirty and, for an effect, pending again. A node disposed during its own
-  /// run is already gone, edges and all.
-  fn end_run(&self, node: Node, epoch: u64) {
+  /// and after a panic it's left as [`left_by_panic`](Runtime::left_by_panic) says. A node disposed
+  /// during its own run is already gone, edges and all.
+  fn end_run(&self, node: Node, epoch: u64, panicked: bool) {
     if !self.nodes.contains(node) {
       return;
     }
-    let panicked = thread::panicking();
-    let pending = self.nodes.with_observer(node, |observer| {
+    self.nodes.with_observer(node, |observer| {
       observer.running = false;
-      observer.dirty |= panicked;
       observer.verified = epoch;
+    });
+    if panicked {
+      self.left_by_panic(node);
+    }
+  }
+
+  /// Leaves `node`, whose refresh panicked, dirty, and an effect pending, so the next read or flush
+  /// tries again.
+  fn left_by_panic(&self, node: Node) {
+    if !self.nodes.contains(node) {
+      return;
+    }
+    let seq = self.nodes.with_observer(node, |observer| {
+      observer.dirty = true;
       match observer.job {
-        Job::Effect { seq } if panicked => Some(seq),
-        _ => None,
+        Job::Effect { seq } => Some(seq),
+        Job::Memo { .. } => None,
       }
     });
-    if let Some(seq) = pending {
+    if let Some(seq) = seq {
       self.scheduler.add_pending(seq, node);
     }
   }
