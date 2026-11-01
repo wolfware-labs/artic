@@ -1494,6 +1494,22 @@ fn an_effect_disposed_while_its_last_run_is_cleared_stops() {
   assert_eq!(live_counts().effects, before.effects);
 }
 
+// A node made in a scope already disposed from inside its own run has no owner to join: it lives
+// until disposed on its own.
+#[test]
+fn a_node_made_in_a_scope_disposed_during_its_run_has_no_owner() {
+  let scope = Scope::new_root();
+
+  let (late, memo) = scope.run(|| {
+    scope.dispose();
+    let late = Signal::new(1);
+    (late, Memo::new(move || late.get() + 1))
+  });
+
+  assert_eq!(memo.get(), 2);
+  late.dispose();
+}
+
 // Pending effects
 
 // A write pends only the effect it reaches, not every effect.

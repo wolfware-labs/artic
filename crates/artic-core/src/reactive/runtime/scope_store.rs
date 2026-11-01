@@ -26,7 +26,9 @@ impl ScopeStore {
     }
   }
 
+  /// A new scope under `parent`, or a root when `parent` is `None` or already gone.
   pub fn alloc(&self, parent: Option<ScopeId>) -> ScopeId {
+    let parent = parent.filter(|parent| self.contains(*parent));
     let scope_id = ScopeId(self.slots.borrow_mut().alloc(ScopeSlot {
       parent,
       children: Vec::new(),

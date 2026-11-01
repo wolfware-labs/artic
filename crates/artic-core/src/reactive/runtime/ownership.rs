@@ -95,9 +95,11 @@ impl Runtime {
 }
 
 impl Runtime {
-  /// Makes the active scope, if there is one, the owner of `node`, at the head of its list.
+  /// Makes the active scope, if there is one, the owner of `node`, at the head of its list. A scope
+  /// disposed during its own run owns nothing more: what is made in it lives until disposed on its
+  /// own.
   pub(super) fn own(&self, node: Node) {
-    if let Some(scope) = self.scopes.active() {
+    if let Some(scope) = self.scopes.active().filter(|scope| self.scopes.contains(*scope)) {
       self.nodes.link(node, scope, self.scopes.first(scope));
       self.scopes.set_first(scope, Some(node));
     }
