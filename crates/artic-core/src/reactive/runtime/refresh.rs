@@ -32,7 +32,11 @@ impl Runtime {
     if verified {
       return;
     }
-    if !Self::sources_changed(node) {
+    let changed = Self::sources_changed(node);
+    if !RUNTIME.with(|runtime| runtime.nodes.contains(node)) {
+      return;
+    }
+    if !changed {
       RUNTIME.with(|runtime| runtime.nodes.with_observer(node, |observer| observer.verified = epoch));
       return;
     }

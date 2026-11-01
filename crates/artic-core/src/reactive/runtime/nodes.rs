@@ -237,11 +237,12 @@ impl Nodes {
     self.slots.borrow().get(node.0)?.owner?.next
   }
 
-  /// Whether `node` is an observer that has to run again. A signal reads nothing, so it never is.
+  /// Whether `node` is an observer that has to run again. A signal reads nothing, and a node that
+  /// is gone runs nothing, so neither ever is.
   pub fn is_dirty(&self, node: Node) -> bool {
-    match &self.slot(node, "node").kind {
-      Kind::Signal { .. } => false,
-      Kind::Observer(observer) => observer.dirty,
+    match self.slots.borrow().get(node.0).map(|slot| &slot.kind) {
+      Some(Kind::Observer(observer)) => observer.dirty,
+      Some(Kind::Signal { .. }) | None => false,
     }
   }
 

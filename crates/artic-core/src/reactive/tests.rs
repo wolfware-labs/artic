@@ -1345,6 +1345,56 @@ fn a_source_disposed_while_checked_hides_no_other_source() {
   assert_eq!(reader.get(), 10);
 }
 
+// An effect whose source disposes it while the effect is checked stops there, and the flush goes on.
+#[test]
+fn an_effect_disposed_by_its_source_while_checked_stops() {
+  let count = Signal::new(0);
+  let owner = Scope::new_root();
+  let disposing = Memo::new(move || {
+    let value = count.get();
+    if value == 1 {
+      owner.dispose();
+    }
+    value
+  });
+  let runs = Rc::new(Cell::new(0));
+  let effect_runs = Rc::clone(&runs);
+  owner.run(|| {
+    effect(move || {
+      disposing.get();
+      effect_runs.set(effect_runs.get() + 1);
+    });
+  });
+
+  count.set(1);
+  flush_effects();
+
+  assert_eq!((runs.get(), live_counts().effects), (1, 0));
+}
+
+// A memo whose source disposes it while it is checked panics as any read of a disposed memo does.
+#[test]
+fn a_memo_disposed_by_its_source_while_checked_panics_as_disposed() {
+  let count = Signal::new(0);
+  let owner = Scope::new_root();
+  let disposing = Memo::new(move || {
+    let value = count.get();
+    if value == 1 {
+      owner.dispose();
+    }
+    value
+  });
+  let reader = owner.run(|| Memo::new(move || disposing.get()));
+  reader.get();
+  count.set(1);
+
+  let message = panic_message(|| {
+    reader.get();
+  });
+
+  assert!(message.starts_with("memo used after its scope was disposed"), "{message}");
+}
+
 // Pending effects
 
 // A write pends only the effect it reaches, not every effect.
