@@ -16,9 +16,14 @@ testing = []
 
 [dev-dependencies]
 artic-core = { workspace = true, features = ["testing"] }
+criterion.workspace = true
 pretty_assertions.workspace = true
 proptest.workspace = true
 static_assertions.workspace = true
+
+[[bench]]
+name = "reactive"
+harness = false
 
 [lints]
 workspace = true
