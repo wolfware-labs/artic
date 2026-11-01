@@ -206,7 +206,8 @@ mod tests {
     }
   }
 
-  /// Draws every node as the same fill, with no layers, and leaves staleness to the default.
+  /// Draws every node as the same fill, with no layers, and leaves staleness to `Nodes::stale`'s
+  /// default, which `Table` overrides.
   struct Plain;
 
   impl Nodes for Plain {
