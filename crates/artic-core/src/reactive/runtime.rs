@@ -103,8 +103,9 @@ impl Runtime {
     TValue: Any,
   {
     let cell = RUNTIME.with(|runtime| runtime.nodes.signal_value(signal_id));
+    let taken = cell.take();
     let _written = defer(|| RUNTIME.with(|runtime| runtime.record_write(signal_id)));
-    cell.with_mut(action);
+    taken.write(action);
   }
 
   pub fn update_signal_value_with<TValue>(signal_id: SignalId, action: impl FnOnce(&mut TValue) -> Change)
@@ -112,8 +113,9 @@ impl Runtime {
     TValue: Any,
   {
     let cell = RUNTIME.with(|runtime| runtime.nodes.signal_value(signal_id));
+    let taken = cell.take();
     let written = defer(|| RUNTIME.with(|runtime| runtime.record_write(signal_id)));
-    if cell.with_mut(action) == Change::Hidden {
+    if taken.write(action) == Change::Hidden {
       written.cancel();
     }
   }
@@ -174,8 +176,9 @@ impl Runtime {
     TValue: Any,
   {
     let cell = RUNTIME.with(|runtime| runtime.nodes.memo_value(memo_id));
+    let taken = cell.take();
     let _changed = defer(|| RUNTIME.with(|runtime| runtime.nodes.mark_subscribers_dirty(memo_id.into())));
-    cell.with_mut(|current: &mut TValue| *current = value);
+    taken.write(|current: &mut TValue| *current = value);
   }
 
   pub fn create_effect(run: impl FnMut() + 'static) {

@@ -1278,6 +1278,21 @@ fn a_disposed_effect_leaves_the_pending_list_even_if_a_drop_panics() {
   assert_eq!(seen.get(), 1);
 }
 
+// A write refused because the signal is being read changes nothing, so its readers stay clean.
+#[test]
+fn a_refused_write_marks_no_reader_dirty() {
+  let count = Signal::new(0);
+  let observer = observe(|| {
+    count.get();
+  });
+
+  let refused = count.with(|_| catch_unwind(AssertUnwindSafe(|| count.set(1))));
+  let refused_update = count.with(|_| catch_unwind(AssertUnwindSafe(|| count.update_with(|_| Change::Visible))));
+
+  assert!(refused.is_err() && refused_update.is_err());
+  assert!(!Runtime::is_dirty(observer));
+}
+
 // Pending effects
 
 // A write pends only the effect it reaches, not every effect.
