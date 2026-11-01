@@ -8,13 +8,13 @@ mod value_cell;
 
 use crate::defer::defer;
 use crate::reactive::{Change, LiveCounts};
-use nodes::Nodes;
 pub use nodes::{MemoId, Node, SignalId};
+use nodes::{NodeKind, Nodes};
 use scheduling::Scheduler;
 pub use scope_store::ScopeId;
 use scope_store::ScopeStore;
 use std::any::Any;
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::rc::Rc;
 use tracking::Tracker;
 
@@ -142,7 +142,7 @@ impl Runtime {
 
   #[cfg(test)]
   pub fn is_memo(node: Node) -> bool {
-    RUNTIME.with(|runtime| runtime.nodes.kind(node) == Some(nodes::NodeKind::Memo))
+    RUNTIME.with(|runtime| runtime.nodes.kind(node) == Some(NodeKind::Memo))
   }
 
   pub fn is_dirty(node: Node) -> bool {
@@ -152,9 +152,7 @@ impl Runtime {
   pub fn create_memo(initial_value: Box<dyn Any>, compute: Rc<dyn Fn(MemoId)>) -> MemoId {
     RUNTIME.with(|runtime| {
       let scope = runtime.scopes.alloc(runtime.scopes.active());
-      let memo_id = runtime
-        .nodes
-        .alloc_memo(initial_value, Rc::new(move |node| compute(MemoId::of(node))), scope);
+      let memo_id = runtime.nodes.alloc_memo(initial_value, compute, scope);
       runtime.own(memo_id.into());
       memo_id
     })
@@ -186,22 +184,18 @@ impl Runtime {
   }
 
   pub fn live_counts() -> LiveCounts {
-    RUNTIME.with(|runtime| {
-      let [signals, memos, effects] = runtime.nodes.counts();
-      LiveCounts {
-        signals,
-        memos,
-        effects,
-        scopes: runtime.scopes.count(),
-      }
+    RUNTIME.with(|runtime| LiveCounts {
+      signals: runtime.nodes.count(NodeKind::Signal),
+      memos: runtime.nodes.count(NodeKind::Memo),
+      effects: runtime.nodes.count(NodeKind::Effect),
+      scopes: runtime.scopes.count(),
     })
   }
 
   fn create_effect_node(run: impl FnMut() + 'static) -> Node {
-    let run = RefCell::new(run);
     RUNTIME.with(|runtime| {
       let scope = runtime.scopes.alloc(runtime.scopes.active());
-      let node = runtime.nodes.alloc_effect(Rc::new(move |_| (run.borrow_mut())()), scope);
+      let node = runtime.nodes.alloc_effect(run, scope);
       runtime.own(node);
       node
     })

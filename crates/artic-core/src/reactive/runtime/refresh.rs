@@ -6,7 +6,7 @@ use std::thread;
 
 #[cfg(test)]
 thread_local! {
-  /// How many sources `refresh_sources` has checked on this thread.
+  /// How many sources `sources_changed` has checked on this thread.
   static SOURCE_CHECKS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
@@ -32,7 +32,7 @@ impl Runtime {
     if verified {
       return;
     }
-    if !Self::refresh_sources(node) {
+    if !Self::sources_changed(node) {
       RUNTIME.with(|runtime| runtime.nodes.with_observer(node, |observer| observer.verified = epoch));
       return;
     }
@@ -75,7 +75,7 @@ impl Runtime {
     SOURCE_CHECKS.get()
   }
 
-  fn refresh_sources(node: Node) -> bool {
+  fn sources_changed(node: Node) -> bool {
     let mut index = 0;
     while !Self::is_dirty(node) {
       let Some(source) = RUNTIME.with(|runtime| runtime.nodes.source_at(node, index)) else {

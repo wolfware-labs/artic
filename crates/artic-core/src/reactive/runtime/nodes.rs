@@ -30,13 +30,6 @@ impl From<MemoId> for Node {
   }
 }
 
-impl MemoId {
-  /// The memo `node` names; only the runtime, which knows it's a memo, makes one this way.
-  pub(super) fn of(node: Node) -> MemoId {
-    MemoId(node)
-  }
-}
-
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum NodeKind {
   Signal,
@@ -56,12 +49,21 @@ pub struct Observer {
   pub job: Job,
   pub run: Rc<dyn Fn(Node)>,
   pub dirty: bool,
-  /// The last epoch the observer was found up to date in: until a signal is written again, it
-  /// needn't check its sources.
+  /// The epoch the observer was last found up to date in, which counts only while it isn't dirty:
+  /// until a signal is written again, it needn't check its sources.
   pub verified: u64,
   pub running: bool,
   /// The scope that owns what the observer's runs create, cleared before each run.
   pub scope: ScopeId,
+}
+
+impl Observer {
+  fn seq(&self) -> Option<u64> {
+    match self.job {
+      Job::Effect { seq } => Some(seq),
+      Job::Memo { .. } => None,
+    }
+  }
 }
 
 enum Kind {
@@ -70,18 +72,32 @@ enum Kind {
 }
 
 /// The scope that owns a node, and the node's neighbors in that scope's list.
-#[derive(Clone, Copy, Default)]
-pub struct Owner {
-  pub scope: Option<ScopeId>,
-  pub previous: Option<Node>,
-  pub next: Option<Node>,
+#[derive(Clone, Copy)]
+struct Owner {
+  scope: ScopeId,
+  previous: Option<Node>,
+  next: Option<Node>,
 }
 
 struct Slot {
   kind: Kind,
   sources: Vec<Node>,
   subscribers: Vec<Node>,
-  owner: Owner,
+  owner: Option<Owner>,
+}
+
+impl Slot {
+  fn node_kind(&self) -> NodeKind {
+    match &self.kind {
+      Kind::Signal { .. } => NodeKind::Signal,
+      Kind::Observer(Observer {
+        job: Job::Memo { .. }, ..
+      }) => NodeKind::Memo,
+      Kind::Observer(Observer {
+        job: Job::Effect { .. }, ..
+      }) => NodeKind::Effect,
+    }
+  }
 }
 
 /// A freed node's slot, its value and closures still in it.
@@ -108,14 +124,15 @@ impl Nodes {
     }))
   }
 
-  pub fn alloc_memo(&self, value: Box<dyn Any>, run: Rc<dyn Fn(Node)>, scope: ScopeId) -> MemoId {
+  pub fn alloc_memo(&self, value: Box<dyn Any>, compute: Rc<dyn Fn(MemoId)>, scope: ScopeId) -> MemoId {
     let value = Rc::new(ValueCell::new(value, "memo"));
-    MemoId(self.alloc_observer(Job::Memo { value }, run, scope))
+    MemoId(self.alloc_observer(Job::Memo { value }, Rc::new(move |node| compute(MemoId(node))), scope))
   }
 
-  pub fn alloc_effect(&self, run: Rc<dyn Fn(Node)>, scope: ScopeId) -> Node {
+  pub fn alloc_effect(&self, run: impl FnMut() + 'static, scope: ScopeId) -> Node {
     let seq = self.next_seq.replace(self.next_seq.get() + 1);
-    self.alloc_observer(Job::Effect { seq }, run, scope)
+    let run = RefCell::new(run);
+    self.alloc_observer(Job::Effect { seq }, Rc::new(move |_| (run.borrow_mut())()), scope)
   }
 
   /// Frees `node` and cuts its edges in both directions, returning what the slot held: the caller
@@ -139,13 +156,7 @@ impl Nodes {
   pub fn observer_parts(&self, node: Node) -> Option<(ScopeId, Option<u64>)> {
     match &self.slots.borrow().get(node.0)?.kind {
       Kind::Signal { .. } => None,
-      Kind::Observer(observer) => {
-        let seq = match observer.job {
-          Job::Effect { seq } => Some(seq),
-          Job::Memo { .. } => None,
-        };
-        Some((observer.scope, seq))
-      }
+      Kind::Observer(observer) => Some((observer.scope, observer.seq())),
     }
   }
 
@@ -154,34 +165,16 @@ impl Nodes {
   }
 
   pub fn kind(&self, node: Node) -> Option<NodeKind> {
-    self.slots.borrow().get(node.0).map(|slot| match &slot.kind {
-      Kind::Signal { .. } => NodeKind::Signal,
-      Kind::Observer(Observer {
-        job: Job::Memo { .. }, ..
-      }) => NodeKind::Memo,
-      Kind::Observer(Observer {
-        job: Job::Effect { .. }, ..
-      }) => NodeKind::Effect,
-    })
+    self.slots.borrow().get(node.0).map(Slot::node_kind)
   }
 
-  /// How many signals, memos and effects are alive.
-  pub fn counts(&self) -> [usize; 3] {
+  /// How many nodes of `kind` are alive.
+  pub fn count(&self, kind: NodeKind) -> usize {
     let slots = self.slots.borrow();
-    let mut counts = [0; 3];
-    for slot in slots.ids().filter_map(|id| slots.get(id)) {
-      let index = match &slot.kind {
-        Kind::Signal { .. } => 0,
-        Kind::Observer(Observer {
-          job: Job::Memo { .. }, ..
-        }) => 1,
-        Kind::Observer(Observer {
-          job: Job::Effect { .. }, ..
-        }) => 2,
-      };
-      counts[index] += 1;
-    }
-    counts
+    slots
+      .ids()
+      .filter(|id| slots.get(*id).is_some_and(|slot| slot.node_kind() == kind))
+      .count()
   }
 
   pub fn signal_value(&self, signal_id: SignalId) -> Rc<ValueCell> {
@@ -207,14 +200,41 @@ impl Nodes {
     }
   }
 
-  pub fn owner(&self, node: Node) -> Option<Owner> {
-    self.slots.borrow().get(node.0).map(|slot| slot.owner)
+  /// Puts `node` at the head of `scope`'s list, before `first`, which headed it until now.
+  pub fn link(&self, node: Node, scope: ScopeId, first: Option<Node>) {
+    let mut slots = self.slots.borrow_mut();
+    if let Some(slot) = slots.get_mut(node.0) {
+      slot.owner = Some(Owner {
+        scope,
+        previous: None,
+        next: first,
+      });
+    }
+    if let Some(owner) = first.and_then(|first| slots.get_mut(first.0)?.owner.as_mut()) {
+      owner.previous = Some(node);
+    }
   }
 
-  pub fn with_owner(&self, node: Node, action: impl FnOnce(&mut Owner)) {
-    if let Some(slot) = self.slots.borrow_mut().get_mut(node.0) {
-      action(&mut slot.owner);
+  /// Takes `node` out of its owner's list. When `node` headed it, returns the scope and the node
+  /// that heads it now.
+  pub fn unlink(&self, node: Node) -> Option<(ScopeId, Option<Node>)> {
+    let mut slots = self.slots.borrow_mut();
+    let Owner { scope, previous, next } = slots.get_mut(node.0)?.owner.take()?;
+    if let Some(owner) = next.and_then(|next| slots.get_mut(next.0)?.owner.as_mut()) {
+      owner.previous = previous;
     }
+    match previous.and_then(|previous| slots.get_mut(previous.0)?.owner.as_mut()) {
+      Some(owner) => {
+        owner.next = next;
+        None
+      }
+      None => Some((scope, next)),
+    }
+  }
+
+  /// The node after `node` in its owner's list.
+  pub fn next_owned(&self, node: Node) -> Option<Node> {
+    self.slots.borrow().get(node.0)?.owner?.next
   }
 
   /// Whether `node` is an observer that has to run again. A signal reads nothing, so it never is.
@@ -284,17 +304,14 @@ impl Nodes {
       };
       for subscriber in &slot.subscribers {
         match slots.get(subscriber.0).map(|slot| &slot.kind) {
-          Some(Kind::Observer(Observer {
-            job: Job::Effect { seq },
-            ..
-          })) => reached.push((*seq, *subscriber)),
-          Some(Kind::Observer(Observer {
-            job: Job::Memo { .. }, ..
-          })) => {
-            if visited.insert(*subscriber) {
-              to_visit.push(*subscriber);
+          Some(Kind::Observer(observer)) => match observer.seq() {
+            Some(seq) => reached.push((seq, *subscriber)),
+            None => {
+              if visited.insert(*subscriber) {
+                to_visit.push(*subscriber);
+              }
             }
-          }
+          },
           Some(Kind::Signal { .. }) => unreachable!("a signal reads nothing"),
           None => {}
         }
@@ -313,7 +330,7 @@ impl Nodes {
       kind,
       sources: Vec::new(),
       subscribers: Vec::new(),
-      owner: Owner::default(),
+      owner: None,
     }))
   }
 
@@ -328,11 +345,11 @@ impl Nodes {
     }))
   }
 
-  fn slot(&self, node: Node, kind: &str) -> std::cell::Ref<'_, Slot> {
+  fn slot(&self, node: Node, label: &str) -> std::cell::Ref<'_, Slot> {
     std::cell::Ref::map(self.slots.borrow(), |slots| {
       slots
         .get(node.0)
-        .unwrap_or_else(|| panic!("{kind} slot not found for the specified id"))
+        .unwrap_or_else(|| panic!("{label} slot not found for the specified id"))
     })
   }
 }
@@ -348,7 +365,7 @@ mod tests {
     let nodes = Nodes::new();
     let scope = ScopeStore::new().alloc(None);
     let signal = nodes.alloc_signal(Box::new(0)).into();
-    let observer = || nodes.alloc_effect(Rc::new(|_| {}), scope);
+    let observer = || nodes.alloc_effect(|| {}, scope);
     let (first, second) = (observer(), observer());
     (nodes, signal, first, second)
   }
