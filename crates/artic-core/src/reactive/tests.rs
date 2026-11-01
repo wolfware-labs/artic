@@ -1315,6 +1315,36 @@ fn a_memo_computed_during_another_panic_keeps_its_sources() {
   assert_eq!(Runtime::subscriber_count(count.id()), 1);
 }
 
+// A source that disposes itself while it is checked doesn't hide the source after it: the reader
+// still sees that one change.
+#[test]
+fn a_source_disposed_while_checked_hides_no_other_source() {
+  let count = Signal::new(0);
+  let owner = Scope::new_root();
+  let leaving = owner.run(|| {
+    Memo::new(move || {
+      let value = count.get();
+      if value == 1 {
+        owner.dispose();
+      }
+      value
+    })
+  });
+  let tenfold = Memo::new(move || count.get() * 10);
+  let read_leaving = Cell::new(false);
+  let reader = Memo::new(move || {
+    if !read_leaving.replace(true) {
+      leaving.get();
+    }
+    tenfold.get()
+  });
+  reader.get();
+
+  count.set(1);
+
+  assert_eq!(reader.get(), 10);
+}
+
 // Pending effects
 
 // A write pends only the effect it reaches, not every effect.

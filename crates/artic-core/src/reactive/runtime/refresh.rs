@@ -75,6 +75,9 @@ impl Runtime {
     SOURCE_CHECKS.get()
   }
 
+  /// Checks `node`'s sources in order, refreshing each memo among them, until one of them marks it
+  /// dirty, and says whether it is. A source disposed while it's checked leaves the list, so the
+  /// next one takes its place and is checked next.
   fn sources_changed(node: Node) -> bool {
     let mut index = 0;
     while !Self::is_dirty(node) {
@@ -86,7 +89,9 @@ impl Runtime {
       if RUNTIME.with(|runtime| runtime.nodes.kind(source)) == Some(NodeKind::Memo) {
         Self::refresh(source);
       }
-      index += 1;
+      if RUNTIME.with(|runtime| runtime.nodes.source_at(node, index)) == Some(source) {
+        index += 1;
+      }
     }
     Self::is_dirty(node)
   }
