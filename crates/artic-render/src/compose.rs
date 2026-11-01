@@ -193,12 +193,12 @@ mod tests {
       self.layers.get(&node).cloned().unwrap_or_default()
     }
 
-    fn record(&mut self, _tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
+    fn record(&mut self, tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
       *self.recorded.entry(node).or_default() += 1;
       if let Some(property) = self.writes.get(&node) {
         property.set(property.get() + 1);
       }
-      builder.fill(Rect::new(0.0, 0.0, 1.0, 1.0), Color::rgb(0, 0, 0));
+      Plain.record(tree, node, builder);
     }
 
     fn stale(&self, node: NodeId) -> bool {
