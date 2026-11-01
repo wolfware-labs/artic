@@ -1163,6 +1163,53 @@ fn a_write_during_a_computation_is_seen_on_the_next_read() {
   assert_eq!((seen.get(), seen.get()), (0, 10));
 }
 
+/// Logs its name when dropped, to show the order a scope frees what it owns.
+struct Dropped(&'static str, Rc<RefCell<Vec<&'static str>>>);
+
+impl Drop for Dropped {
+  fn drop(&mut self) {
+    self.1.borrow_mut().push(self.0);
+  }
+}
+
+// A disposed scope frees its effects, then its memos, then its signals, whatever order they were
+// made in, as `Scope::dispose` says.
+#[test]
+fn a_scope_frees_effects_then_memos_then_signals() {
+  let log = Rc::new(RefCell::new(Vec::new()));
+  let scope = Scope::new_root();
+  scope.run(|| {
+    Signal::new(Dropped("signal", Rc::clone(&log)));
+    let held = Dropped("memo", Rc::clone(&log));
+    Memo::new(move || {
+      let held = &held;
+      held.0.len()
+    });
+    let held = Dropped("effect", Rc::clone(&log));
+    effect(move || {
+      let held = &held;
+      assert!(!held.0.is_empty());
+    });
+  });
+  let before = log.borrow().len();
+
+  scope.dispose();
+
+  assert_eq!((before, log.borrow().clone()), (0, vec!["effect", "memo", "signal"]));
+}
+
+// A child scope disposed on its own leaves its parent's list at once.
+#[test]
+fn a_disposed_child_scope_leaves_its_parent() {
+  let parent = Scope::new_root();
+  let [first, _second] = [parent.child(), parent.child()];
+
+  first.dispose();
+
+  assert_eq!(Runtime::child_count(parent.id()), 1);
+  parent.dispose();
+}
+
 // Pending effects
 
 // A write pends only the effect it reaches, not every effect.

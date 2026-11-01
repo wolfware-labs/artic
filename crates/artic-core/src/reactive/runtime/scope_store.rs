@@ -60,6 +60,11 @@ impl ScopeStore {
     }
   }
 
+  #[cfg(test)]
+  pub fn child_count(&self, scope_id: ScopeId) -> usize {
+    self.with_slot(scope_id, |slot| slot.children.len())
+  }
+
   pub fn take_children(&self, scope_id: ScopeId) -> Vec<ScopeId> {
     self.with_slot(scope_id, |slot| take(&mut slot.children))
   }

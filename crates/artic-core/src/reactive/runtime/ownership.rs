@@ -18,6 +18,11 @@ impl Runtime {
   }
 
   #[cfg(test)]
+  pub fn child_count(scope_id: ScopeId) -> usize {
+    RUNTIME.with(|runtime| runtime.scopes.child_count(scope_id))
+  }
+
+  #[cfg(test)]
   pub fn owned_count(scope_id: ScopeId) -> usize {
     RUNTIME.with(|runtime| runtime.owned(scope_id).len())
   }
