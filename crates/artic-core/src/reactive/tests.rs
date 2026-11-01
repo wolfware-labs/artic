@@ -1110,6 +1110,59 @@ fn a_disposed_signal_leaves_its_scope() {
   scope.dispose();
 }
 
+// Reading a memo chain again when nothing changed checks nothing below it, and after a write each
+// memo checks its one source once, nine checks for ten memos, however the reads nest.
+#[test]
+fn an_unchanged_chain_is_not_walked_again() {
+  let source = Signal::new(0);
+  let first = Memo::new(move || source.get() + 1);
+  let last = (1..10).fold(first, |previous, _| Memo::new(move || previous.get() + 1));
+  last.get();
+
+  let before = Runtime::source_checks();
+  last.get();
+  let unchanged = Runtime::source_checks() - before;
+  source.set(1);
+  let before = Runtime::source_checks();
+  let value = last.get();
+
+  assert_eq!((unchanged, Runtime::source_checks() - before, value), (0, 9, 11));
+}
+
+// A chain checked after a write its first memo absorbed, so nothing recomputed, isn't checked
+// again on the next read.
+#[test]
+fn a_checked_chain_is_not_checked_again() {
+  let source = Signal::new(0);
+  let parity = Memo::new(move || source.get() % 2);
+  let last = (0..10).fold(parity, |previous, _| Memo::new(move || previous.get() + 1));
+  last.get();
+
+  source.set(2);
+  last.get();
+  let before = Runtime::source_checks();
+  let value = last.get();
+
+  assert_eq!((Runtime::source_checks() - before, value), (0, 10));
+}
+
+// A memo whose computation writes a signal one of its sources reads is checked again on the next
+// read, so it never keeps a value computed from the source's old value.
+#[test]
+fn a_write_during_a_computation_is_seen_on_the_next_read() {
+  let count = Signal::new(0);
+  let tenfold = Memo::new(move || count.get() * 10);
+  let seen = Memo::new(move || {
+    let value = tenfold.get();
+    if value == 0 {
+      count.set(1);
+    }
+    value
+  });
+
+  assert_eq!((seen.get(), seen.get()), (0, 10));
+}
+
 // Pending effects
 
 // A write pends only the effect it reaches, not every effect.

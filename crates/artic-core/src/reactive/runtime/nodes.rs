@@ -56,6 +56,9 @@ pub struct Observer {
   pub job: Job,
   pub run: Rc<dyn Fn(Node)>,
   pub dirty: bool,
+  /// The last epoch the observer was found up to date in: until a signal is written again, it
+  /// needn't check its sources.
+  pub verified: u64,
   pub running: bool,
   /// The scope that owns what the observer's runs create, cleared before each run.
   pub scope: ScopeId,
@@ -297,6 +300,7 @@ impl Nodes {
       job,
       run,
       dirty: true,
+      verified: 0,
       running: false,
       scope,
     }))

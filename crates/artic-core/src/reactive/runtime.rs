@@ -14,7 +14,7 @@ use scheduling::Scheduler;
 pub use scope_store::ScopeId;
 use scope_store::ScopeStore;
 use std::any::Any;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use tracking::Tracker;
 
@@ -29,6 +29,9 @@ pub struct Runtime {
   scopes: ScopeStore,
   tracker: Tracker,
   scheduler: Scheduler,
+  /// Bumped by every visible signal write, so an observer verified in the current epoch is up to
+  /// date without checking its sources.
+  epoch: Cell<u64>,
 }
 
 impl Runtime {
@@ -38,6 +41,7 @@ impl Runtime {
       scopes: ScopeStore::new(),
       tracker: Tracker::new(),
       scheduler: Scheduler::new(),
+      epoch: Cell::new(1),
     }
   }
 
@@ -206,6 +210,7 @@ impl Runtime {
   /// Records a write to `signal_id`, for the next flush, and marks its readers dirty.
   fn record_write(&self, signal_id: SignalId) {
     self.tracker.record_write(signal_id);
+    self.epoch.set(self.epoch.get() + 1);
     self.nodes.mark_subscribers_dirty(signal_id.into());
   }
 }
