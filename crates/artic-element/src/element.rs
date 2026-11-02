@@ -149,7 +149,7 @@ mod tests {
   // ElementImpl's defaults: no input handled, no clip. measure_override's default needs a
   // MeasureCx, which only a layout pass makes, so the integration test covers it.
   #[test]
-  fn element_impl_defaults_do_nothing() {
+  fn element_impl_defaults_handle_nothing_and_add_no_clip() {
     let node = UiTree::new().alloc(Box::new(Leaf));
     let mut spacer = Spacer;
 

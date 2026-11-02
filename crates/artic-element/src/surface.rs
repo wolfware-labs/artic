@@ -6,7 +6,8 @@ use artic_core::property::Property;
 use artic_macros::{UiEnum, UiType, element};
 
 /// The root of an app's tree. Its logical children are the [`Surface`]s the host presents, and a
-/// [`Desktop`] setting on it reaches every one of them.
+/// [`Desktop`] setting on it reaches every one of them. The host lays out each surface on its own,
+/// so the application itself is never laid out.
 #[element]
 #[derive(Debug)]
 pub struct Application {

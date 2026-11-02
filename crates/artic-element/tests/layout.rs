@@ -86,7 +86,7 @@ impl artic_element::Element for Block {
 
 artic_element::element_type!(Block);
 
-/// A control with nothing special: its layout is ElementImpl's default, so with no children it takes no space.
+/// A control with nothing special: its layout is ElementImpl's default.
 #[derive(Debug)]
 struct Spacer;
 
