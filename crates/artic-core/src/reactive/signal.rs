@@ -223,7 +223,7 @@ impl<TValue> Signal<TValue> {
     Runtime::with_untracked_signal_value(self.0, function)
   }
 
-  fn ensure_alive(&self) {
+  pub(crate) fn ensure_alive(&self) {
     if !Runtime::contains_signal(self.0) {
       self.1.panic("signal used after it was disposed");
     }

@@ -223,8 +223,8 @@ impl Runtime {
     RUNTIME.with(|runtime| runtime.nodes.set_sink(of, mark));
   }
 
-  pub fn link_sink(of: SignalId, source: Option<SignalId>) {
-    RUNTIME.with(|runtime| runtime.nodes.link_sink(of, source));
+  pub fn link_signal(of: SignalId, source: Option<SignalId>) {
+    RUNTIME.with(|runtime| runtime.nodes.link_signal(of, source));
   }
 
   pub fn has_sink(signal_id: SignalId) -> bool {

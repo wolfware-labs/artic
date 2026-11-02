@@ -2,7 +2,7 @@ use crate::reactive::runtime::{Node, Runtime};
 use crate::reactive::{
   Change, LiveCounts, Memo, Scope, Signal, assert_no_reactive_leaks, batch, effect, flush_effects, live_counts,
 };
-use crate::reactive::{has_sink, link_sink, sink};
+use crate::reactive::{has_sink, link_signal, sink};
 use pretty_assertions::assert_eq;
 use std::cell::{Cell, RefCell};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -1639,7 +1639,7 @@ fn a_sink_marks_on_a_visible_write() {
 fn a_linked_sink_hears_its_source() {
   let (source, follower) = (Signal::new(0), Signal::new(0));
   let (source_marks, follower_marks) = (counting_sink(source), counting_sink(follower));
-  link_sink(follower.id(), Some(source.id()));
+  link_signal(follower.id(), Some(source.id()));
 
   source.set(1);
 
@@ -1652,7 +1652,7 @@ fn a_change_passes_down_a_chain_of_sinks() {
   let signals: Vec<Signal<i32>> = (0..4).map(Signal::new).collect();
   let marks: Vec<Rc<Cell<u32>>> = signals.iter().map(|signal| counting_sink(*signal)).collect();
   for pair in signals.windows(2) {
-    link_sink(pair[1].id(), Some(pair[0].id()));
+    link_signal(pair[1].id(), Some(pair[0].id()));
   }
 
   signals[1].set(10);
@@ -1666,15 +1666,15 @@ fn linking_replaces_the_edge() {
   let (first, second, follower) = (Signal::new(0), Signal::new(0), Signal::new(0));
   let _sources = (counting_sink(first), counting_sink(second));
   let marks = counting_sink(follower);
-  link_sink(follower.id(), Some(first.id()));
-  link_sink(follower.id(), Some(second.id()));
+  link_signal(follower.id(), Some(first.id()));
+  link_signal(follower.id(), Some(second.id()));
 
   let mut seen = Vec::new();
   first.set(1);
   seen.push(marks.get());
   second.set(1);
   seen.push(marks.get());
-  link_sink(follower.id(), None);
+  link_signal(follower.id(), None);
   second.set(2);
   seen.push(marks.get());
   follower.set(1);
@@ -1688,7 +1688,7 @@ fn linking_replaces_the_edge() {
 fn a_linked_source_flushes_as_usual() {
   let (source, follower) = (Signal::new(0), Signal::new(0));
   let _marks = (counting_sink(source), counting_sink(follower));
-  link_sink(follower.id(), Some(source.id()));
+  link_signal(follower.id(), Some(source.id()));
   let seen = Rc::new(Cell::new(-1));
   let seen_in_effect = Rc::clone(&seen);
   effect(move || seen_in_effect.set(source.get()));
@@ -1704,7 +1704,7 @@ fn a_linked_source_flushes_as_usual() {
 fn a_source_without_a_sink_is_linked_directly() {
   let (source, follower) = (Signal::new(0), Signal::new(0));
   let marks = counting_sink(follower);
-  link_sink(follower.id(), Some(source.id()));
+  link_signal(follower.id(), Some(source.id()));
 
   source.set(1);
 
@@ -1716,22 +1716,42 @@ fn a_source_without_a_sink_is_linked_directly() {
 fn a_chain_below_a_source_without_a_sink_hears_it() {
   let (source, middle, leaf) = (Signal::new(0), Signal::new(0), Signal::new(0));
   let (middle_marks, leaf_marks) = (counting_sink(middle), counting_sink(leaf));
-  link_sink(middle.id(), Some(source.id()));
-  link_sink(leaf.id(), Some(middle.id()));
+  link_signal(middle.id(), Some(source.id()));
+  link_signal(leaf.id(), Some(middle.id()));
 
   source.set(1);
 
   assert_eq!((middle_marks.get(), leaf_marks.get()), (1, 1));
 }
 
-// Linking a signal with no sink does nothing.
+// A signal with no sink still passes a change on to the signals linked below it.
 #[test]
-fn linking_without_a_sink_does_nothing() {
-  let (source, follower) = (Signal::new(0), Signal::new(0));
+fn a_signal_without_a_sink_passes_a_change_on() {
+  let (source, middle, leaf) = (Signal::new(0), Signal::new(0), Signal::new(0));
+  let marks = counting_sink(leaf);
+  link_signal(middle.id(), Some(source.id()));
+  link_signal(leaf.id(), Some(middle.id()));
 
-  link_sink(follower.id(), Some(source.id()));
+  source.set(1);
 
-  assert_eq!((has_sink(follower.id()), Runtime::subscriber_count(source.id())), (false, 0));
+  assert_eq!(marks.get(), 1);
+}
+
+// Linking a signal to itself, or to a signal linked below it, panics instead of making a cycle.
+#[test]
+fn a_link_cannot_make_a_cycle() {
+  let (first, second) = (Signal::new(0), Signal::new(0));
+  link_signal(second.id(), Some(first.id()));
+
+  let messages = [
+    panic_message(|| link_signal(first.id(), Some(first.id()))),
+    panic_message(|| link_signal(first.id(), Some(second.id()))),
+  ];
+
+  assert!(
+    messages.iter().all(|message| message.contains("a link can't make a cycle")),
+    "{messages:?}"
+  );
 }
 
 // A hidden update marks no sink.
@@ -1793,7 +1813,7 @@ fn a_sink_goes_with_its_signal() {
   let (source, follower) = (Signal::new_unowned(0), Signal::new(0));
   let _source_marks = counting_sink(source);
   let marks = counting_sink(follower);
-  link_sink(follower.id(), Some(source.id()));
+  link_signal(follower.id(), Some(source.id()));
 
   source.dispose();
   follower.set(1);

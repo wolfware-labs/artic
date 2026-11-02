@@ -93,8 +93,8 @@ impl<'a> AnyProperty<'a> {
     self.0.affects()
   }
 
-  /// Gives the property a sink, linked to the source it inherits from, that calls `mark` when its
-  /// effective value changes. The sink lives as long as the property.
+  /// Gives the property a sink that calls `mark` when its effective value changes, by a write to it
+  /// or to a source it inherits from. The sink lives as long as the property.
   pub(crate) fn sink(self, mark: impl Fn() + 'static) {
     self.0.sink(Rc::new(mark));
   }
@@ -162,7 +162,7 @@ where
   }
 
   fn is_listed(&self) -> bool {
-    self.0.with_untracked(|_| ());
+    self.0.ensure_alive();
     has_sink(self.0.id())
   }
 
@@ -172,7 +172,6 @@ where
 
   fn sink(&self, mark: Rc<dyn Fn()>) {
     sink(self.0.id(), mark);
-    self.link();
   }
 
   fn inherit_from(&self, source: Option<AnyProperty<'_>>) {

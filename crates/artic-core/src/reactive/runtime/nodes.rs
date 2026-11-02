@@ -66,12 +66,15 @@ impl Observer {
   }
 }
 
+/// A signal's sink: the mark a change that reaches the signal calls.
+pub type Sink = Rc<dyn Fn()>;
+
 enum Kind {
   /// A signal's value, and its sink if it has one: a `mark` called when a visible write reaches the
   /// signal or the source it is linked to.
   Signal {
     value: Rc<ValueCell>,
-    sink: Option<Rc<dyn Fn()>>,
+    sink: Option<Sink>,
   },
   Observer(Observer),
 }
@@ -93,7 +96,7 @@ struct Slot {
 
 impl Slot {
   /// The sink of the signal in this slot, if it is a signal with one.
-  fn sink(&self) -> Option<&Rc<dyn Fn()>> {
+  fn sink(&self) -> Option<&Sink> {
     match &self.kind {
       Kind::Signal { sink, .. } => sink.as_ref(),
       Kind::Observer(_) => None,
@@ -118,14 +121,18 @@ pub struct Freed {
   _slot: Slot,
 }
 
-/// The sink of each signal a change reached, with the signal, to call once nothing in the runtime is
-/// borrowed.
+/// The sinks a change reached, to call once nothing in the runtime is borrowed: the changed signal's
+/// own, then those of the signals linked below it, each listed with the signal.
 #[must_use]
-pub struct Marks(Vec<(Node, Rc<dyn Fn()>)>);
+pub struct Marks {
+  own: Option<Sink>,
+  linked: Vec<(Node, Option<Sink>)>,
+}
 
 impl Marks {
   pub fn call(self) {
-    for (_, mark) in self.0 {
+    let linked = self.linked.into_iter().filter_map(|(_, sink)| sink);
+    for mark in self.own.into_iter().chain(linked) {
       mark();
     }
   }
@@ -156,7 +163,7 @@ impl Nodes {
   }
 
   /// Gives `of` a sink. Panics if `of` already has one, or is gone.
-  pub fn set_sink(&self, of: SignalId, mark: Rc<dyn Fn()>) {
+  pub fn set_sink(&self, of: SignalId, mark: Sink) {
     match self.slots.borrow_mut().get_mut(of.0.0).map(|slot| &mut slot.kind) {
       Some(Kind::Signal { sink: sink @ None, .. }) => *sink = Some(mark),
       Some(Kind::Signal { .. }) => panic!("a signal has one sink"),
@@ -165,16 +172,17 @@ impl Nodes {
   }
 
   /// Makes `of` read `source`, in place of the source it read before, or nothing when `source` is
-  /// `None`, so that a change reaching `source` passes on to `of`'s sink. A signal with no sink is
-  /// left alone.
-  pub fn link_sink(&self, of: SignalId, source: Option<SignalId>) {
+  /// `None`, so that a change reaching `source` passes on to `of` and the signals linked below it.
+  /// Panics if `source` is `of` or linked below it.
+  pub fn link_signal(&self, of: SignalId, source: Option<SignalId>) {
     let (of, source) = (of.0, source.map(|source| source.0));
     let mut slots = self.slots.borrow_mut();
-    let Some(mut sources) = slots
-      .get_mut(of.0)
-      .filter(|slot| slot.sink().is_some())
-      .map(|slot| std::mem::take(&mut slot.sources))
-    else {
+    let mut above = source;
+    while let Some(signal) = above {
+      assert!(signal != of, "a link can't make a cycle");
+      above = slots.get(signal.0).and_then(|slot| slot.sources.first().copied());
+    }
+    let Some(mut sources) = slots.get_mut(of.0).map(|slot| std::mem::take(&mut slot.sources)) else {
       return;
     };
     for read in sources.drain(..) {
@@ -211,7 +219,6 @@ impl Nodes {
   /// Frees `node` and cuts its edges in both directions, returning what the slot held: the caller
   /// drops it once nothing in the runtime is borrowed, since a value or a closure in it may use the
   /// runtime when dropped. A stale id frees nothing.
-  ///
   #[must_use]
   pub fn remove(&self, node: Node) -> Option<Freed> {
     self.clear_sources(node);
@@ -311,8 +318,8 @@ impl Nodes {
     self.slots.borrow().get(node.0)?.owner?.next
   }
 
-  /// Whether `node` is an observer that has to run again. A signal reads nothing, and a node that
-  /// is gone runs nothing, so neither ever is.
+  /// Whether `node` is an observer that has to run again. A signal never runs, and a node that is
+  /// gone runs nothing, so neither ever is.
   pub fn is_dirty(&self, node: Node) -> bool {
     match self.slots.borrow().get(node.0).map(|slot| &slot.kind) {
       Some(Kind::Observer(observer)) => observer.dirty,
@@ -322,32 +329,35 @@ impl Nodes {
 
   /// Marks the observers that read `node` dirty, and returns the sinks a change to it reaches, for
   /// the runtime to call once nothing is borrowed: its own if it is a signal with one, and those of
-  /// the signals linked to it, and to those.
+  /// the signals linked below it.
   pub fn mark_subscribers_dirty(&self, node: Node) -> Marks {
     let mut slots = self.slots.borrow_mut();
-    let sink_of = |slots: &Arena<Slot>, signal: Node| Some((signal, Rc::clone(slots.get(signal.0)?.sink()?)));
-    let mut reached = Vec::new();
-    reached.extend(sink_of(&slots, node));
+    let own = slots.get(node.0).and_then(Slot::sink).cloned();
+    let mut linked = Vec::new();
     let mut index = 0;
     while let Some(subscriber) = slots.get(node.0).and_then(|slot| slot.subscribers.get(index).copied()) {
       index += 1;
       match slots.get_mut(subscriber.0).map(|slot| &mut slot.kind) {
         Some(Kind::Observer(observer)) => observer.dirty = true,
-        Some(Kind::Signal { sink: Some(mark), .. }) => reached.push((subscriber, Rc::clone(mark))),
-        Some(Kind::Signal { sink: None, .. }) | None => {}
+        Some(Kind::Signal { sink, .. }) => linked.push((subscriber, sink.clone())),
+        None => {}
       }
     }
-    let mut index = usize::from(reached.first().is_some_and(|(first, _)| *first == node));
-    while let Some(signal) = reached.get(index).map(|(signal, _)| *signal) {
+    let mut index = 0;
+    while let Some(signal) = linked.get(index).map(|(signal, _)| *signal) {
       index += 1;
       let Some(slot) = slots.get(signal.0) else {
         continue;
       };
       for reader in &slot.subscribers {
-        reached.extend(sink_of(&slots, *reader));
+        if let Some(reader_slot) = slots.get(reader.0)
+          && let Kind::Signal { sink, .. } = &reader_slot.kind
+        {
+          linked.push((*reader, sink.clone()));
+        }
       }
     }
-    Marks(reached)
+    Marks { own, linked }
   }
 
   /// Records that `subscriber` read `source`. A node disposed during its own run records nothing,

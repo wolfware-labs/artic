@@ -71,15 +71,6 @@ impl ScopeStore {
     self.with_slot(scope_id, |slot| take(&mut slot.children))
   }
 
-  /// Whether `scope_id` owns no node and has no child scope, which a scope already gone doesn't.
-  pub fn is_clear(&self, scope_id: ScopeId) -> bool {
-    self
-      .slots
-      .borrow()
-      .get(scope_id.0)
-      .is_none_or(|slot| slot.children.is_empty() && slot.first.is_none())
-  }
-
   pub fn first(&self, scope_id: ScopeId) -> Option<Node> {
     self.with_slot(scope_id, |slot| slot.first)
   }

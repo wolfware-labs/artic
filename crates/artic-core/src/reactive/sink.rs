@@ -1,11 +1,11 @@
-//! A signal's sink: a mark the runtime calls when a write reaches the signal, or the source it is
-//! linked to. It is how a node's dirty flags follow its properties.
+//! A signal's sink: a mark the runtime calls in the write that reaches the signal, directly or
+//! through the signals it is linked below.
 
 use crate::reactive::runtime::{Runtime, SignalId};
 use std::rc::Rc;
 
 /// Gives the signal `of` a sink, which calls `mark` at once, in the write, when a visible write
-/// reaches `of` or the source [`link_sink`] gave it. It isn't an effect, so no flush runs it. It
+/// reaches `of` or a signal [`link_signal`] linked it below. It isn't an effect, so no flush runs it. It
 /// lives as long as `of`.
 ///
 /// # Panics
@@ -15,11 +15,15 @@ pub(crate) fn sink(of: SignalId, mark: Rc<dyn Fn()>) {
   Runtime::set_sink(of, mark);
 }
 
-/// Links `of` to `source`, in place of the source it had: `of`'s sink is then marked by every visible
-/// write to `source` and every change that reaches `source` through its own link. `None` unlinks
-/// it. A signal with no sink is left alone.
-pub(crate) fn link_sink(of: SignalId, source: Option<SignalId>) {
-  Runtime::link_sink(of, source);
+/// Links `of` below `source`, in place of the source it had: a visible write to `source`, or a change
+/// that reaches it through its own link, then reaches `of` and the signals linked below `of`, and
+/// calls each one's sink. `None` unlinks it.
+///
+/// # Panics
+///
+/// Panics if `source` is `of` or linked below it.
+pub(crate) fn link_signal(of: SignalId, source: Option<SignalId>) {
+  Runtime::link_signal(of, source);
 }
 
 /// Whether `signal` has a sink.

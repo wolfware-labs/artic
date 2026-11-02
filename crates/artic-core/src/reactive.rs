@@ -148,7 +148,7 @@ pub use memo::Memo;
 pub(crate) use runtime::SignalId;
 pub use scope::Scope;
 pub use signal::{Change, Signal};
-pub(crate) use sink::{has_sink, link_sink, sink};
+pub(crate) use sink::{has_sink, link_signal, sink};
 
 /// How many readers `signal` has, for tests that check the shape of the graph.
 #[cfg(test)]

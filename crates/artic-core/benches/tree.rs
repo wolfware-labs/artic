@@ -6,7 +6,7 @@
 //   cargo bench -p artic-core --bench tree -- --save-baseline main
 //   cargo bench -p artic-core --bench tree -- --baseline main
 //
-// Each bench checks that the measured work reached every node.
+// The write bench checks that its writes reached every node.
 
 use artic_core::Object;
 use artic_core::property::{Affects, Inheritance, Property, PropertyKey, PropertyVisitor, inherit};
@@ -49,6 +49,9 @@ fn root_write(c: &mut Criterion) {
   for count in [100, 1000] {
     let mut tree = UiTree::new();
     let (enabled, nodes) = build(&mut tree, count);
+    for node in &nodes {
+      tree.clear_dirty(*node, Affects::LAYOUT | Affects::RENDER);
+    }
     let mut value = true;
     group.bench_function(BenchmarkId::from_parameter(count), |b| {
       b.iter(|| {

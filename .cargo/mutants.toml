@@ -21,9 +21,6 @@ exclude_globs = [
 ]
 
 exclude_re = [
-    # A shortcut that ends clearing a scope one empty pass sooner: without it the pass that finds
-    # nothing new ends it, so no test can tell.
-    'artic-core/src/reactive/runtime/scope_store\.rs:\d+:\d+: replace ScopeStore::is_clear -> bool with false$',
     # Which list a new read is checked against, the reader's few sources or the source's readers,
     # only changes how long the check takes.
     'artic-core/src/reactive/runtime/nodes\.rs:\d+:\d+: replace <= with > in Nodes::add_edge$',

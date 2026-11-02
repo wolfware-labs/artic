@@ -1,8 +1,8 @@
 //! Which frame stages each node needs redone.
 //!
 //! A node's dirty flags are an [`Affects`]: layout, render, or both. A new node starts with both. A
-//! property change adds the stages its key affects, through flags the node shares with its
-//! properties; an edit to a node's visual children adds layout. The frame stages clear what they
+//! property change adds the stages its key affects, through the sink the tree gives each of the
+//! node's properties; an edit to a node's visual children adds layout. The frame stages clear what they
 //! redo: layout clears [`Affects::LAYOUT`], rendering clears [`Affects::RENDER`]. Every mark also sets
 //! the tree's pending flag, which [`UiTree::take_pending`](super::UiTree::take_pending) reads and
 //! clears.
@@ -13,11 +13,12 @@ use crate::tree::NodeId;
 use std::cell::{Cell, OnceCell};
 use std::rc::Rc;
 
-/// A node's dirty flags as its properties hold them, together with its tree's pending flag.
+/// A node's dirty flags as its properties' sinks hold them, together with its tree's pending flag.
 ///
 /// Marking the node dirty through it also sets the pending flag, so the frame pipeline learns that
-/// a frame is needed without walking the tree. It's private to artic-core: the tree hands one to
-/// each property when the node joins it, and disposes the properties when it frees the node.
+/// a frame is needed without walking the tree. It's private to artic-core: the tree gives each
+/// property a sink holding one when the node joins it, and disposes the properties when it frees
+/// the node.
 #[derive(Debug, Clone, Default)]
 pub struct DirtyHandle {
   stages: Rc<Cell<Affects>>,
@@ -25,8 +26,8 @@ pub struct DirtyHandle {
 }
 
 impl DirtyHandle {
-  /// Adds `stages` to the node's dirty flags and sets the tree's pending flag, as a property does
-  /// when its effective value changes. Marking no stage does nothing.
+  /// Adds `stages` to the node's dirty flags and sets the tree's pending flag, as a property's sink
+  /// does when its effective value changes. Marking no stage does nothing.
   pub(crate) fn mark(&self, stages: Affects) {
     if stages.is_empty() {
       return;
@@ -44,7 +45,7 @@ impl DirtyHandle {
   }
 }
 
-/// Each node's dirty flags, shared with its properties, and the tree's pending flag.
+/// Each node's dirty flags, shared with its properties' sinks, and the tree's pending flag.
 #[derive(Debug, Default)]
 pub(super) struct DirtyFlags {
   flags: SlotMap<DirtyHandle>,

@@ -51,10 +51,8 @@ impl Runtime {
   }
 
   /// Disposes what `scope_id` owns, child scopes first, then effects, memos and signals, until it
-  /// owns nothing new: a Drop run meanwhile may make new nodes in it, and those go too. A pass that
-  /// finds the nodes the last one disposed freed nothing, so it ends the clearing.
+  /// owns nothing: a Drop run meanwhile may make new nodes in it, and those go too.
   pub(super) fn clear_scope(scope_id: ScopeId) {
-    let mut previous = Vec::new();
     loop {
       let (children, nodes) = RUNTIME.with(|runtime| {
         if !runtime.scopes.contains(scope_id) {
@@ -62,29 +60,25 @@ impl Runtime {
         }
         (runtime.scopes.take_children(scope_id), runtime.owned(scope_id))
       });
-      if children.is_empty() && nodes == previous {
+      if children.is_empty() && nodes.is_empty() {
         return;
       }
       for child in children {
         Self::dispose_scope(child);
       }
-      let mut kinds: Vec<(NodeKind, Node)> = RUNTIME.with(|runtime| {
+      let mut nodes: Vec<(NodeKind, Node)> = RUNTIME.with(|runtime| {
         nodes
-          .iter()
-          .filter_map(|node| Some((runtime.nodes.kind(*node)?, *node)))
+          .into_iter()
+          .filter_map(|node| Some((runtime.nodes.kind(node)?, node)))
           .collect()
       });
-      previous = nodes;
-      kinds.sort_by_key(|(kind, _)| match kind {
+      nodes.sort_by_key(|(kind, _)| match kind {
         NodeKind::Effect => 0,
         NodeKind::Memo => 1,
         NodeKind::Signal => 2,
       });
-      for (_, node) in kinds {
+      for (_, node) in nodes {
         Self::dispose_node(node);
-      }
-      if RUNTIME.with(|runtime| runtime.scopes.is_clear(scope_id)) {
-        return;
       }
     }
   }

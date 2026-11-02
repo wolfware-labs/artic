@@ -66,7 +66,7 @@ mod parse_enum_error;
 mod shared;
 mod state;
 
-use crate::reactive::{Change, Signal, link_sink};
+use crate::reactive::{Change, Signal, link_signal};
 pub use affects::Affects;
 pub use any::PropertyVisitor;
 pub(crate) use any::{AnyProperty, Erased, KeyId};
@@ -274,24 +274,19 @@ where
     }
   }
 
-  /// Makes the `Inherited` level follow `source`, or no property. The property's own sink, reading
-  /// its effective value again, then reads `source` instead.
+  /// Makes the `Inherited` level follow `source`, or no property. While `source` supplies the
+  /// effective value, the property's signal is linked to it, so a change further up reaches the
+  /// property's sink.
   fn follow(&self, source: Option<Property<T>>) {
     if self.0.with_untracked(|state| state.levels.inherited()) != source {
       self.edit(|levels| levels.set_inherited(source));
     }
   }
 
-  /// Links the property's sink to the source its effective value comes from, if it has one, so that
-  /// a change further up passes through to it.
-  fn link(&self) {
-    if let Some(source) = self.0.with_untracked(|state| state.levels.read_source()) {
-      link_sink(self.0.id(), Some(source.0.id()));
-    }
-  }
-
-  /// Applies `edit` to the levels, which says whether readers can see the change, and links the
-  /// property's sink again if the source its effective value comes from changed.
+  /// Applies `edit` to the levels, which says whether readers can see the change, then links the
+  /// property's signal again if the source its effective value comes from changed. The write's sinks
+  /// are called before the link changes: they are this property's and those linked below it, which
+  /// the new link doesn't change.
   fn edit(&self, edit: impl FnOnce(&mut Levels<T>) -> Change) {
     let mut relink = None;
     self.0.update_with(|state| {
@@ -304,7 +299,7 @@ where
       change
     });
     if let Some(source) = relink {
-      link_sink(self.0.id(), source.map(|source| source.0.id()));
+      link_signal(self.0.id(), source.map(|source| source.0.id()));
     }
   }
 }
@@ -365,7 +360,7 @@ mod tests {
 
   /// Gives `property` a sink, as the tree gives each property it lists, and returns how often
   /// it's marked.
-  fn watch(property: Property<i32>) -> Rc<Cell<u32>> {
+  fn watch<T: PartialEq + 'static>(property: Property<T>) -> Rc<Cell<u32>> {
     let marks = Rc::new(Cell::new(0));
     let counted = Rc::clone(&marks);
     AnyProperty::new(&property).sink(move || counted.set(counted.get() + 1));
@@ -755,9 +750,7 @@ mod tests {
   #[test]
   fn a_combining_follower_always_hears_its_source() {
     let [source, child] = [(); 2].map(|_| Property::new(&ENABLED, true));
-    let marks = Rc::new(Cell::new(0));
-    let counted = Rc::clone(&marks);
-    AnyProperty::new(&child).sink(move || counted.set(counted.get() + 1));
+    let marks = watch(child);
     child.follow(Some(source));
     child.set(true);
     let before = marks.get();
