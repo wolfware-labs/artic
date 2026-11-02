@@ -62,7 +62,7 @@ impl Runtime {
         }
         (runtime.scopes.take_children(scope_id), runtime.owned(scope_id))
       });
-      if children.is_empty() && (nodes.is_empty() || nodes == previous) {
+      if children.is_empty() && nodes == previous {
         return;
       }
       for child in children {
