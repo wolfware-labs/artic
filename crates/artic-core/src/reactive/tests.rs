@@ -1595,6 +1595,25 @@ fn effect_chain_in_creation_order_settles_in_one_pass() {
   assert_eq!(signals[149].get(), 7);
 }
 
+// A reader of many signals records each once and is reached by a write to any of them, however
+// many it reads.
+#[test]
+fn a_reader_of_many_signals_records_each_once() {
+  let signals: Vec<Signal<i32>> = (0..12).map(Signal::new).collect();
+  let read = signals.clone();
+  let observer = observe(move || {
+    for signal in &read {
+      signal.get();
+    }
+    read[0].get();
+  });
+
+  signals[11].set(0);
+
+  assert!(Runtime::is_dirty(observer));
+  assert_eq!(Runtime::subscriber_count(signals[0].id()), 1);
+}
+
 // Sinks
 
 /// Gives `of` a sink that reads what `track` reads, and returns how often it's marked.

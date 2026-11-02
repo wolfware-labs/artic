@@ -264,21 +264,9 @@ impl Nodes {
     self.clear_sources(node);
     let mut slots = self.slots.borrow_mut();
     let mut slot = slots.free(node.0)?;
-    let stale = match &mut slot.kind {
-      Kind::Sink(sink) => std::mem::take(&mut sink.stale),
-      Kind::Signal { .. } | Kind::Observer(_) => Vec::new(),
-    };
-    for source in stale {
-      if let Some(source) = slots.get_mut(source.0) {
-        source.subscribers.retain(|subscriber| *subscriber != node);
-      }
-    }
     for subscriber in std::mem::take(&mut slot.subscribers) {
       if let Some(subscriber) = slots.get_mut(subscriber.0) {
         subscriber.sources.retain(|source| *source != node);
-        if let Kind::Sink(sink) = &mut subscriber.kind {
-          sink.stale.retain(|source| *source != node);
-        }
       }
     }
     Some(slot)
