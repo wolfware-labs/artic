@@ -317,7 +317,7 @@ Planned (M2): the loader and the facade's `xaml-runtime` and `xaml-hot-reload` f
 
 ## 6. Reactivity: signals, properties, bindings, MVVM
 
-Signals are the only change-propagation mechanism; `Property<T>`, bindings, styles, and view-models are built on them, so there is one invalidation path. Bindings are typed end to end: `x:DataType` is required wherever `{Binding}` appears, and there is no string-path reflection in any build (D1).
+Signals are the only change-propagation mechanism; `Property<T>`, bindings, styles, and view-models are built on them, so there is one invalidation path. A node's dirty flags are one of its readers: each property the tree lists has a sink, a reader the runtime calls back synchronously in the write that reaches it, which marks the node. Bindings are typed end to end: `x:DataType` is required wherever `{Binding}` appears, and there is no string-path reflection in any build (D1).
 
 ### `x:DataType` scope (D2)
 
@@ -347,7 +347,7 @@ A `Property<T>` is a signal plus a value-precedence stack, so several sources ca
 | 5 | Inherited value (`inherits` properties only; an `inherits = f` property instead combines it with its own highest level, or its default) |
 | 6 | Default |
 
-The stack lives in one signal, and each write decides whether readers can see it: only a change of the effective value or of the level supplying it marks readers dirty, so a write below the winning level wakes nobody. `affects` metadata marks the node layout- or render-dirty when the effective value changes. Each property kind has a `static PropertyKey<T>` (name, `affects`, `Inheritance`: none, replace or combine) shared by every node type that has it. For `inherits` properties the Inherited level holds a link to the same kind of property on the nearest logical ancestor rather than a copy, so inherited values are never stale; the tree re-points the link when a node moves in the logical tree.
+The stack lives in one signal, and each write decides whether readers can see it: only a change of the effective value or of the level supplying it marks readers dirty, so a write below the winning level wakes nobody. `affects` metadata marks the node layout- or render-dirty when the effective value changes, through the property's sink, which reads the effective value and so the inherited sources it comes from. Each property kind has a `static PropertyKey<T>` (name, `affects`, `Inheritance`: none, replace or combine) shared by every node type that has it. For `inherits` properties the Inherited level holds a link to the same kind of property on the nearest logical ancestor rather than a copy, so inherited values are never stale; the tree re-points the link when a node moves in the logical tree.
 
 ### Bindings
 

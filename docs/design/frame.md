@@ -53,7 +53,7 @@ Surface roots are disjoint: each `Surface` is a child of the `Application` and a
 
 A property write records that work exists and calls nothing: the `HostContext` that can ask for a frame exists only during an `AppHandler` call, and running code in the middle of a write invites re-entrancy.
 
-`artic-core` keeps one **pending** flag per `UiTree`. Each node's properties receive a dirty handle holding the node's dirty cell and that flag, and every path that marks a node dirty sets both: a property write, `UiTree::mark_dirty`, and a child added to or removed from the visual tree. `UiTree::take_pending()` returns the flag and clears it.
+`artic-core` keeps one **pending** flag per `UiTree`. Each property a node lists has a sink: a reader the runtime calls back in the write that changes the property's effective value, or the value of a source it inherits from, which marks the node's dirty cell and that flag through a dirty handle. Every path that marks a node dirty sets both: a property write, `UiTree::mark_dirty`, and a child added to or removed from the visual tree. `UiTree::take_pending()` returns the flag and clears it.
 
 The runner ends every `AppHandler` call by **settling**:
 
