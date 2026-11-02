@@ -2,6 +2,7 @@ use crate::reactive::runtime::{Node, Runtime};
 use crate::reactive::{
   Change, LiveCounts, Memo, Scope, Signal, assert_no_reactive_leaks, batch, effect, flush_effects, live_counts,
 };
+use crate::reactive::{Sink, has_sink};
 use pretty_assertions::assert_eq;
 use std::cell::{Cell, RefCell};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -586,6 +587,7 @@ fn live_counts_track_created_nodes() {
       signals: before.signals + 1,
       memos: before.memos + 1,
       effects: before.effects + 1,
+      sinks: before.sinks,
       scopes: before.scopes + 2,
     }
   );
@@ -1591,4 +1593,137 @@ fn effect_chain_in_creation_order_settles_in_one_pass() {
   flush_effects();
 
   assert_eq!(signals[149].get(), 7);
+}
+
+// Sinks
+
+/// A sink for `of` that reads what `track` reads and counts its marks.
+fn counting_sink(of: Signal<i32>, track: impl Fn() + 'static) -> (Sink, Rc<Cell<u32>>) {
+  let marks = Rc::new(Cell::new(0));
+  let counted = Rc::clone(&marks);
+  (Sink::new(of.id(), track, move || counted.set(counted.get() + 1)), marks)
+}
+
+// A sink is marked by a visible write to what it read, and reads again at once, so it follows what
+// its reads depend on now.
+#[test]
+fn a_sink_marks_on_a_visible_write_and_tracks_again() {
+  let (first, second) = (Signal::new(0), Signal::new(0));
+  let reads_first = Signal::new(true);
+  let (sink, marks) = counting_sink(first, move || {
+    if reads_first.get() {
+      first.get();
+    } else {
+      second.get();
+    }
+  });
+
+  let mut seen = Vec::new();
+  first.set(1);
+  seen.push(marks.get());
+  reads_first.set(false);
+  seen.push(marks.get());
+  first.set(2);
+  seen.push(marks.get());
+  second.set(1);
+  seen.push(marks.get());
+
+  assert_eq!(seen, [1, 2, 2, 3]);
+  sink.dispose();
+}
+
+// A hidden update marks no sink.
+#[test]
+fn a_hidden_update_fires_no_sink() {
+  let count = Signal::new(0);
+  let (sink, marks) = counting_sink(count, move || {
+    count.get();
+  });
+
+  count.update_with(|value| {
+    *value = 1;
+    Change::Hidden
+  });
+
+  assert_eq!(marks.get(), 0);
+  sink.dispose();
+}
+
+// A sink is marked in the write itself, also inside a batch, with no flush.
+#[test]
+fn a_sink_fires_inside_a_batch_before_it_ends() {
+  let count = Signal::new(0);
+  let (sink, marks) = counting_sink(count, move || {
+    count.get();
+  });
+
+  let inside = batch(|| {
+    count.set(1);
+    marks.get()
+  });
+
+  assert_eq!(inside, 1);
+  sink.dispose();
+}
+
+// A flush doesn't run a sink: it isn't an effect.
+#[test]
+fn a_sink_is_not_an_effect() {
+  let count = Signal::new(0);
+  let reads = Rc::new(Cell::new(0));
+  let counted = Rc::clone(&reads);
+  let sink = Sink::new(count.id(), move || counted.set(counted.get() + 1), || {});
+
+  flush_effects();
+
+  assert_eq!(reads.get(), 1);
+  sink.dispose();
+}
+
+// A signal has at most one sink, and says whether it has one.
+#[test]
+fn a_signal_has_one_sink() {
+  let count = Signal::new(0);
+  let sink = Sink::new(count.id(), || {}, || {});
+
+  let second = catch_unwind(AssertUnwindSafe(|| Sink::new(count.id(), || {}, || {})));
+
+  assert!(second.is_err() && has_sink(count.id()));
+  sink.dispose();
+  assert!(!has_sink(count.id()));
+}
+
+// Disposing a sink cuts its edges and frees it.
+#[test]
+fn disposing_a_sink_cuts_its_edges() {
+  let before = live_counts();
+  let count = Signal::new_unowned(0);
+  let (sink, _) = counting_sink(count, move || {
+    count.get();
+  });
+  let tracked = (Runtime::subscriber_count(count.id()), live_counts().sinks);
+
+  sink.dispose();
+  count.dispose();
+
+  assert_eq!((tracked, live_counts()), ((1, before.sinks + 1), before));
+}
+
+// A sink's mark may use the runtime.
+#[test]
+fn a_sink_may_use_the_runtime_in_mark() {
+  let count = Signal::new(0);
+  let seen = Signal::new(0);
+  let sink = Sink::new(
+    count.id(),
+    move || {
+      count.get();
+    },
+    move || seen.set(count.get()),
+  );
+
+  count.set(3);
+
+  assert_eq!(seen.get(), 3);
+  sink.dispose();
 }

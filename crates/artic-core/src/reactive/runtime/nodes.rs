@@ -35,6 +35,7 @@ pub enum NodeKind {
   Signal,
   Memo,
   Effect,
+  Sink,
 }
 
 /// What an observer is for: a memo keeps a value its run computes, an effect runs in the order it
@@ -66,9 +67,23 @@ impl Observer {
   }
 }
 
+/// A reader the runtime calls back: `mark` when a visible write reaches what `track` read, then
+/// `track` again, so that it reads what it depends on now. `of` is the signal it is for.
+#[derive(Clone)]
+pub struct Sink {
+  pub of: Node,
+  pub track: Rc<dyn Fn()>,
+  pub mark: Rc<dyn Fn()>,
+}
+
 enum Kind {
-  Signal { value: Rc<ValueCell> },
+  /// A signal's value, and the sink for it if it has one.
+  Signal {
+    value: Rc<ValueCell>,
+    sink: Option<Node>,
+  },
   Observer(Observer),
+  Sink(Sink),
 }
 
 /// The scope that owns a node, and the node's neighbors in that scope's list.
@@ -90,6 +105,7 @@ impl Slot {
   fn node_kind(&self) -> NodeKind {
     match &self.kind {
       Kind::Signal { .. } => NodeKind::Signal,
+      Kind::Sink(_) => NodeKind::Sink,
       Kind::Observer(Observer {
         job: Job::Memo { .. }, ..
       }) => NodeKind::Memo,
@@ -121,7 +137,33 @@ impl Nodes {
   pub fn alloc_signal(&self, value: Box<dyn Any>) -> SignalId {
     SignalId(self.alloc(Kind::Signal {
       value: Rc::new(ValueCell::new(value, "signal")),
+      sink: None,
     }))
+  }
+
+  /// A sink for `of`, which is then its signal's sink. Panics if `of` already has one, or is gone.
+  pub fn alloc_sink(&self, of: SignalId, track: Rc<dyn Fn()>, mark: Rc<dyn Fn()>) -> Node {
+    let node = self.alloc(Kind::Sink(Sink { of: of.0, track, mark }));
+    match self.slots.borrow_mut().get_mut(of.0.0).map(|slot| &mut slot.kind) {
+      Some(Kind::Signal { sink: sink @ None, .. }) => *sink = Some(node),
+      Some(Kind::Signal { .. }) => panic!("a signal has one sink"),
+      _ => panic!("signal slot not found for the specified id"),
+    }
+    node
+  }
+
+  pub fn has_sink(&self, signal_id: SignalId) -> bool {
+    matches!(
+      self.slots.borrow().get(signal_id.0.0).map(|slot| &slot.kind),
+      Some(Kind::Signal { sink: Some(_), .. })
+    )
+  }
+
+  pub fn sink(&self, node: Node) -> Option<Sink> {
+    match &self.slots.borrow().get(node.0)?.kind {
+      Kind::Sink(sink) => Some(sink.clone()),
+      _ => None,
+    }
   }
 
   pub fn alloc_memo(&self, value: Box<dyn Any>, compute: Rc<dyn Fn(MemoId)>, scope: ScopeId) -> MemoId {
@@ -148,6 +190,12 @@ impl Nodes {
         subscriber.sources.retain(|source| *source != node);
       }
     }
+    if let Kind::Sink(Sink { of, .. }) = &slot.kind
+      && let Some(Kind::Signal { sink, .. }) = slots.get_mut(of.0).map(|slot| &mut slot.kind)
+      && *sink == Some(node)
+    {
+      *sink = None;
+    }
     Some(Freed { _slot: slot })
   }
 
@@ -155,7 +203,7 @@ impl Nodes {
   /// for a signal or a stale id.
   pub fn observer_parts(&self, node: Node) -> Option<(ScopeId, Option<u64>)> {
     match &self.slots.borrow().get(node.0)?.kind {
-      Kind::Signal { .. } => None,
+      Kind::Signal { .. } | Kind::Sink(_) => None,
       Kind::Observer(observer) => Some((observer.scope, observer.seq())),
     }
   }
@@ -179,8 +227,8 @@ impl Nodes {
 
   pub fn signal_value(&self, signal_id: SignalId) -> Rc<ValueCell> {
     match &self.slot(signal_id.0, "signal").kind {
-      Kind::Signal { value } => Rc::clone(value),
-      Kind::Observer(_) => unreachable!("a signal id names a signal"),
+      Kind::Signal { value, .. } => Rc::clone(value),
+      Kind::Observer(_) | Kind::Sink(_) => unreachable!("a signal id names a signal"),
     }
   }
 
@@ -242,20 +290,27 @@ impl Nodes {
   pub fn is_dirty(&self, node: Node) -> bool {
     match self.slots.borrow().get(node.0).map(|slot| &slot.kind) {
       Some(Kind::Observer(observer)) => observer.dirty,
-      Some(Kind::Signal { .. }) | None => false,
+      Some(Kind::Signal { .. } | Kind::Sink(_)) | None => false,
     }
   }
 
-  pub fn mark_subscribers_dirty(&self, node: Node) {
+  /// Marks the observers that read `node` dirty, and returns the sinks that read it, for the
+  /// runtime to call once nothing is borrowed.
+  #[must_use]
+  pub fn mark_subscribers_dirty(&self, node: Node) -> Vec<Node> {
     let mut slots = self.slots.borrow_mut();
     let Some(subscribers) = slots.get(node.0).map(|slot| slot.subscribers.clone()) else {
-      return;
+      return Vec::new();
     };
+    let mut sinks = Vec::new();
     for subscriber in subscribers {
-      if let Some(Kind::Observer(observer)) = slots.get_mut(subscriber.0).map(|slot| &mut slot.kind) {
-        observer.dirty = true;
+      match slots.get_mut(subscriber.0).map(|slot| &mut slot.kind) {
+        Some(Kind::Observer(observer)) => observer.dirty = true,
+        Some(Kind::Sink(_)) => sinks.push(subscriber),
+        Some(Kind::Signal { .. }) | None => {}
       }
     }
+    sinks
   }
 
   /// Records that `subscriber` read `source`. A node disposed during its own run records nothing,
@@ -314,7 +369,7 @@ impl Nodes {
             }
           },
           Some(Kind::Signal { .. }) => unreachable!("a signal reads nothing"),
-          None => {}
+          Some(Kind::Sink(_)) | None => {}
         }
       }
     }

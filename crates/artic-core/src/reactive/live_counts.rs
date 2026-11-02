@@ -23,6 +23,9 @@ pub struct LiveCounts {
   pub memos: usize,
   /// Live effects.
   pub effects: usize,
+  /// Live sinks: the readers through which the tree marks a node dirty when one of its properties
+  /// changes.
+  pub sinks: usize,
   /// Live scopes.
   pub scopes: usize,
 }
@@ -59,6 +62,7 @@ pub fn assert_no_reactive_leaks(baseline: LiveCounts) {
     ("signals", baseline.signals, now.signals),
     ("memos", baseline.memos, now.memos),
     ("effects", baseline.effects, now.effects),
+    ("sinks", baseline.sinks, now.sinks),
     ("scopes", baseline.scopes, now.scopes),
   ]
   .into_iter()

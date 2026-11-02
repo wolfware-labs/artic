@@ -104,7 +104,7 @@ impl Runtime {
   {
     let cell = RUNTIME.with(|runtime| runtime.nodes.signal_value(signal_id));
     let taken = cell.take();
-    let _written = defer(|| RUNTIME.with(|runtime| runtime.record_write(signal_id)));
+    let _written = defer(|| Self::record_write(signal_id));
     taken.write(action);
   }
 
@@ -114,7 +114,7 @@ impl Runtime {
   {
     let cell = RUNTIME.with(|runtime| runtime.nodes.signal_value(signal_id));
     let taken = cell.take();
-    let written = defer(|| RUNTIME.with(|runtime| runtime.record_write(signal_id)));
+    let written = defer(|| Self::record_write(signal_id));
     if taken.write(action) == Change::Hidden {
       written.cancel();
     }
@@ -177,7 +177,10 @@ impl Runtime {
   {
     let cell = RUNTIME.with(|runtime| runtime.nodes.memo_value(memo_id));
     let taken = cell.take();
-    let _changed = defer(|| RUNTIME.with(|runtime| runtime.nodes.mark_subscribers_dirty(memo_id.into())));
+    let _changed = defer(|| {
+      let sinks = RUNTIME.with(|runtime| runtime.nodes.mark_subscribers_dirty(memo_id.into()));
+      Self::fire(sinks);
+    });
     taken.write(|current: &mut TValue| *current = value);
   }
 
@@ -191,6 +194,7 @@ impl Runtime {
       signals: runtime.nodes.count(NodeKind::Signal),
       memos: runtime.nodes.count(NodeKind::Memo),
       effects: runtime.nodes.count(NodeKind::Effect),
+      sinks: runtime.nodes.count(NodeKind::Sink),
       scopes: runtime.scopes.count(),
     })
   }
@@ -204,10 +208,41 @@ impl Runtime {
     })
   }
 
-  /// Records a write to `signal_id`, for the next flush, and marks its readers dirty.
-  fn record_write(&self, signal_id: SignalId) {
-    self.tracker.record_write(signal_id);
-    self.epoch.set(self.epoch.get() + 1);
-    self.nodes.mark_subscribers_dirty(signal_id.into());
+  /// Records a write to `signal_id`, for the next flush, marks its readers dirty and calls back
+  /// the sinks that read it.
+  fn record_write(signal_id: SignalId) {
+    let sinks = RUNTIME.with(|runtime| {
+      runtime.tracker.record_write(signal_id);
+      runtime.epoch.set(runtime.epoch.get() + 1);
+      runtime.nodes.mark_subscribers_dirty(signal_id.into())
+    });
+    Self::fire(sinks);
+  }
+
+  pub fn create_sink(of: SignalId, track: Rc<dyn Fn()>, mark: Rc<dyn Fn()>) -> Node {
+    let node = RUNTIME.with(|runtime| runtime.nodes.alloc_sink(of, track, mark));
+    Self::track_sink(node);
+    node
+  }
+
+  pub fn dispose_sink(node: Node) {
+    let freed = RUNTIME.with(|runtime| runtime.nodes.remove(node));
+    drop(freed);
+  }
+
+  pub fn has_sink(signal_id: SignalId) -> bool {
+    RUNTIME.with(|runtime| runtime.nodes.has_sink(signal_id))
+  }
+
+  /// Calls each of `sinks` back: its `mark`, then its `track` again. A sink disposed meanwhile is
+  /// skipped.
+  fn fire(sinks: Vec<Node>) {
+    for node in sinks {
+      let Some(sink) = RUNTIME.with(|runtime| runtime.nodes.sink(node)) else {
+        continue;
+      };
+      (sink.mark)();
+      Self::track_sink(node);
+    }
   }
 }
