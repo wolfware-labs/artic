@@ -21,6 +21,9 @@ exclude_globs = [
 ]
 
 exclude_re = [
+    # A shortcut that ends clearing a scope one empty pass sooner: without it the pass that finds
+    # nothing new ends it, so no test can tell.
+    'artic-core/src/reactive/runtime/scope_store\.rs:\d+:\d+: replace ScopeStore::is_clear -> bool with false$',
     # Hand-written Debug output is for a person reading a panic; no behavior depends on its text.
     '<impl (std::)?(fmt::)?Debug for ',
     # It returns `T::default()`, the expression the mutant writes.
