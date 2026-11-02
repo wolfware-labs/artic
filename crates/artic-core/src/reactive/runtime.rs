@@ -249,15 +249,11 @@ impl Runtime {
     }
   }
 
-  /// Calls back the sinks that read `node`, a sink just called back: each marks and passes the
-  /// change on. What they read hasn't changed, so they don't track again.
+  /// Calls back the sinks that read `node`, a sink just called back, and the sinks that read
+  /// them: each marks. What they read hasn't changed, so they don't track again.
   fn pass_on(node: Node) {
-    for reader in RUNTIME.with(|runtime| runtime.nodes.sink_readers(node)) {
-      let Some(sink) = RUNTIME.with(|runtime| runtime.nodes.sink(reader)) else {
-        continue;
-      };
-      (sink.mark)();
-      Self::pass_on(reader);
+    for mark in RUNTIME.with(|runtime| runtime.nodes.reached_marks(node)) {
+      mark();
     }
   }
 }

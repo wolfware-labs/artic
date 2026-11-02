@@ -83,7 +83,14 @@ enum Kind {
     sink: Option<Node>,
   },
   Observer(Observer),
-  Sink(Sink),
+  Sink(Box<SinkSlot>),
+}
+
+/// A sink, and its sources from before the track running now, kept with their edges until it
+/// reads them again or the track ends.
+struct SinkSlot {
+  sink: Sink,
+  stale: Vec<Node>,
 }
 
 /// The scope that owns a node, and the node's neighbors in that scope's list.
@@ -97,9 +104,6 @@ struct Owner {
 struct Slot {
   kind: Kind,
   sources: Vec<Node>,
-  /// A sink's sources from before the track running now, kept with their edges until it reads
-  /// them again or ends.
-  stale: Vec<Node>,
   subscribers: Vec<Node>,
   owner: Option<Owner>,
 }
@@ -122,8 +126,12 @@ impl Slot {
 /// A freed node's slot, its value and closures still in it.
 pub struct Freed {
   _slot: Slot,
-  _sink: Option<Slot>,
+  _sink: Option<Box<Slot>>,
 }
+
+/// The most sources a reader checks a new read against itself; past that, the source's readers are
+/// checked, which a source read by few is quicker to scan.
+const FEW_SOURCES: usize = 8;
 
 pub struct Nodes {
   slots: RefCell<Arena<Slot>>,
@@ -149,7 +157,7 @@ impl Nodes {
   pub fn alloc_sink(&self, of: SignalId, sink: Sink) -> Node {
     assert!(self.contains(of.0), "signal slot not found for the specified id");
     assert!(!self.has_sink(of), "a signal has one sink");
-    let node = self.alloc(Kind::Sink(sink));
+    let node = self.alloc(Kind::Sink(Box::new(SinkSlot { sink, stale: Vec::new() })));
     if let Some(Kind::Signal { sink, .. }) = self.slots.borrow_mut().get_mut(of.0.0).map(|slot| &mut slot.kind) {
       *sink = Some(node);
     }
@@ -164,35 +172,43 @@ impl Nodes {
     }
   }
 
-  /// The sinks that read `node`.
-  pub fn sink_readers(&self, node: Node) -> Vec<Node> {
+  /// The `mark` of every sink that reads `node`, directly or through other sinks, in the order a
+  /// change passes down to them.
+  pub fn reached_marks(&self, node: Node) -> Vec<Rc<dyn Fn()>> {
     let slots = self.slots.borrow();
-    let Some(slot) = slots.get(node.0) else {
-      return Vec::new();
-    };
-    slot
-      .subscribers
-      .iter()
-      .copied()
-      .filter(|subscriber| matches!(slots.get(subscriber.0).map(|slot| &slot.kind), Some(Kind::Sink(_))))
-      .collect()
+    let mut marks = Vec::new();
+    let mut to_visit = vec![node];
+    while let Some(node) = to_visit.pop() {
+      let Some(slot) = slots.get(node.0) else {
+        continue;
+      };
+      for reader in slot.subscribers.iter().rev() {
+        if let Some(Kind::Sink(sink)) = slots.get(reader.0).map(|slot| &slot.kind) {
+          marks.push(Rc::clone(&sink.sink.mark));
+          to_visit.push(*reader);
+        }
+      }
+    }
+    marks
   }
 
   /// Starts a track of `node`: its sources become stale, keeping their edges, so that one it reads
   /// again keeps its place in the source's readers.
   pub fn begin_track(&self, node: Node) {
-    if let Some(slot) = self.slots.borrow_mut().get_mut(node.0) {
-      let sources = std::mem::take(&mut slot.sources);
-      slot.stale = sources;
+    if let Some(slot) = self.slots.borrow_mut().get_mut(node.0)
+      && let Kind::Sink(sink) = &mut slot.kind
+    {
+      sink.stale = std::mem::take(&mut slot.sources);
     }
   }
 
   /// Ends a track of `node`: the sources it didn't read again lose it as a reader.
   pub fn end_track(&self, node: Node) {
     let mut slots = self.slots.borrow_mut();
-    let Some(stale) = slots.get_mut(node.0).map(|slot| std::mem::take(&mut slot.stale)) else {
+    let Some(Kind::Sink(sink)) = slots.get_mut(node.0).map(|slot| &mut slot.kind) else {
       return;
     };
+    let stale = std::mem::take(&mut sink.stale);
     for source in stale {
       if let Some(source) = slots.get_mut(source.0) {
         source.subscribers.retain(|subscriber| *subscriber != node);
@@ -209,7 +225,7 @@ impl Nodes {
 
   pub fn sink(&self, node: Node) -> Option<Sink> {
     match &self.slots.borrow().get(node.0)?.kind {
-      Kind::Sink(sink) => Some(sink.clone()),
+      Kind::Sink(slot) => Some(slot.sink.clone()),
       _ => None,
     }
   }
@@ -239,7 +255,7 @@ impl Nodes {
     };
     Some(Freed {
       _slot: slot,
-      _sink: sink.and_then(|sink| self.free(sink)),
+      _sink: sink.and_then(|sink| self.free(sink)).map(Box::new),
     })
   }
 
@@ -248,7 +264,11 @@ impl Nodes {
     self.clear_sources(node);
     let mut slots = self.slots.borrow_mut();
     let mut slot = slots.free(node.0)?;
-    for source in std::mem::take(&mut slot.stale) {
+    let stale = match &mut slot.kind {
+      Kind::Sink(sink) => std::mem::take(&mut sink.stale),
+      Kind::Signal { .. } | Kind::Observer(_) => Vec::new(),
+    };
+    for source in stale {
       if let Some(source) = slots.get_mut(source.0) {
         source.subscribers.retain(|subscriber| *subscriber != node);
       }
@@ -256,6 +276,9 @@ impl Nodes {
     for subscriber in std::mem::take(&mut slot.subscribers) {
       if let Some(subscriber) = slots.get_mut(subscriber.0) {
         subscriber.sources.retain(|source| *source != node);
+        if let Kind::Sink(sink) = &mut subscriber.kind {
+          sink.stale.retain(|source| *source != node);
+        }
       }
     }
     Some(slot)
@@ -379,28 +402,30 @@ impl Nodes {
   /// so no live node lists a dead one.
   pub fn add_edge(&self, source: Node, subscriber: Node) {
     let mut slots = self.slots.borrow_mut();
-    if !slots.contains(subscriber.0) {
-      return;
-    }
-    let Some(source_len) = slots.get(source.0).map(|slot| slot.subscribers.len()) else {
+    let Some(subscriber_slot) = slots.get_mut(subscriber.0) else {
       return;
     };
-    let subscriber_slot = slots.get_mut(subscriber.0).expect("checked above");
-    if let Some(index) = subscriber_slot.stale.iter().position(|stale| *stale == source) {
-      subscriber_slot.stale.swap_remove(index);
+    if let Kind::Sink(sink) = &mut subscriber_slot.kind
+      && let Some(index) = sink.stale.iter().position(|stale| *stale == source)
+    {
+      sink.stale.swap_remove(index);
       subscriber_slot.sources.push(source);
       return;
     }
-    let known = if subscriber_slot.sources.len() <= source_len {
-      subscriber_slot.sources.contains(&source)
-    } else {
-      slots.get(source.0).is_some_and(|slot| slot.subscribers.contains(&subscriber))
-    };
-    if known {
+    let reads_few = subscriber_slot.sources.len() <= FEW_SOURCES;
+    if reads_few && subscriber_slot.sources.contains(&source) {
       return;
     }
-    slots.get_mut(subscriber.0).expect("checked above").sources.push(source);
-    slots.get_mut(source.0).expect("checked above").subscribers.push(subscriber);
+    let Some(source_slot) = slots.get_mut(source.0) else {
+      return;
+    };
+    if !reads_few && source_slot.subscribers.contains(&subscriber) {
+      return;
+    }
+    source_slot.subscribers.push(subscriber);
+    if let Some(subscriber_slot) = slots.get_mut(subscriber.0) {
+      subscriber_slot.sources.push(source);
+    }
   }
 
   pub fn source_at(&self, node: Node, index: usize) -> Option<Node> {
@@ -456,7 +481,6 @@ impl Nodes {
     Node(self.slots.borrow_mut().alloc(Slot {
       kind,
       sources: Vec::new(),
-      stale: Vec::new(),
       subscribers: Vec::new(),
       owner: None,
     }))
