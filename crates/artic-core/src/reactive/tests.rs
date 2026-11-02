@@ -1428,16 +1428,17 @@ fn a_memo_disposed_by_its_source_while_checked_panics_as_disposed() {
   assert!(message.starts_with("memo used after its scope was disposed"), "{message}");
 }
 
-// A signal made by a Drop while its scope is disposed from inside its own run outlives the scope,
-// and disposing it later frees it without reaching for the scope.
+// A signal a Drop makes while its scope is disposed from inside its own run is freed by the same
+// disposal, so nothing made during it outlives the scope.
 #[test]
-fn a_signal_made_while_its_scope_is_freed_can_be_disposed_later() {
+fn a_node_made_while_its_scope_is_cleared_is_freed_with_it() {
   struct MakesOnDrop(Rc<Cell<Option<Signal<i32>>>>);
   impl Drop for MakesOnDrop {
     fn drop(&mut self) {
       self.0.set(Some(Signal::new(0)));
     }
   }
+  let before = live_counts();
   let made = Rc::new(Cell::new(None));
   let scope = Scope::new_root();
   let held = MakesOnDrop(Rc::clone(&made));
@@ -1447,9 +1448,7 @@ fn a_signal_made_while_its_scope_is_freed_can_be_disposed_later() {
   });
   let late = made.take().expect("the drop made a signal");
 
-  late.dispose();
-
-  assert!(!late.is_alive());
+  assert_eq!((late.is_alive(), live_counts()), (false, before));
 }
 
 /// Disposes its scope when dropped, as a value whose owner tears its view down might.

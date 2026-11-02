@@ -50,24 +50,36 @@ impl Runtime {
     });
   }
 
+  /// Disposes what `scope_id` owns, child scopes first, then effects, memos and signals, until it
+  /// owns nothing: a Drop run meanwhile may make new nodes in it, and those go too.
   pub(super) fn clear_scope(scope_id: ScopeId) {
-    let (children, nodes) = RUNTIME.with(|runtime| (runtime.scopes.take_children(scope_id), runtime.owned(scope_id)));
-    for child in children {
-      Self::dispose_scope(child);
-    }
-    let mut nodes: Vec<(NodeKind, Node)> = RUNTIME.with(|runtime| {
-      nodes
-        .into_iter()
-        .filter_map(|node| Some((runtime.nodes.kind(node)?, node)))
-        .collect()
-    });
-    nodes.sort_by_key(|(kind, _)| match kind {
-      NodeKind::Effect => 0,
-      NodeKind::Memo => 1,
-      NodeKind::Signal => 2,
-    });
-    for (_, node) in nodes {
-      Self::dispose_node(node);
+    loop {
+      let (children, nodes) = RUNTIME.with(|runtime| {
+        if !runtime.scopes.contains(scope_id) {
+          return (Vec::new(), Vec::new());
+        }
+        (runtime.scopes.take_children(scope_id), runtime.owned(scope_id))
+      });
+      if children.is_empty() && nodes.is_empty() {
+        return;
+      }
+      for child in children {
+        Self::dispose_scope(child);
+      }
+      let mut nodes: Vec<(NodeKind, Node)> = RUNTIME.with(|runtime| {
+        nodes
+          .into_iter()
+          .filter_map(|node| Some((runtime.nodes.kind(node)?, node)))
+          .collect()
+      });
+      nodes.sort_by_key(|(kind, _)| match kind {
+        NodeKind::Effect => 0,
+        NodeKind::Memo => 1,
+        NodeKind::Signal => 2,
+      });
+      for (_, node) in nodes {
+        Self::dispose_node(node);
+      }
     }
   }
 

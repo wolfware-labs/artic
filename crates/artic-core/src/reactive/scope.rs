@@ -59,7 +59,7 @@ impl Scope {
   }
 
   /// Frees this scope, its child scopes and every signal, memo and effect created while it was
-  /// active.
+  /// active, including any that a value dropped meanwhile creates in it.
   ///
   /// Child scopes go first, then effects, memos and signals. A disposed effect never runs again,
   /// and signals and memos that outlive it stop listing it as a reader. Disposing a scope that was
