@@ -66,7 +66,7 @@ mod parse_enum_error;
 mod shared;
 mod state;
 
-use crate::reactive::{Change, Signal};
+use crate::reactive::{Change, Signal, read_sink};
 pub use affects::Affects;
 pub use any::PropertyVisitor;
 pub(crate) use any::{AnyProperty, Erased, KeyId};
@@ -279,6 +279,14 @@ where
   fn follow(&self, source: Option<Property<T>>) {
     if self.0.with_untracked(|state| state.levels.inherited()) != source {
       self.edit(|levels| levels.set_inherited(source));
+    }
+  }
+
+  /// Reads, tracked, what a change to the effective value can come from: the property's own
+  /// levels and, when it inherits, its source's sink, which a change further up passes through.
+  fn track(&self) {
+    if let Some(source) = self.0.with(|state| state.levels.read_source()) {
+      read_sink(source.0.id());
     }
   }
 

@@ -27,9 +27,17 @@ where
     }
   }
 
+  /// The source the effective value comes from, in part or whole: the one to inherit from when
+  /// the key combines or no own level holds a value.
+  pub fn read_source(&self) -> Option<Property<T>> {
+    self
+      .inherited
+      .filter(|_| self.combines() || self.values.iter().all(Option::is_none))
+  }
+
   pub fn with_effective<TResult>(&self, function: impl FnOnce(&T) -> TResult) -> TResult {
     let own = self.values.iter().rev().find_map(Option::as_ref);
-    let Some(source) = self.inherited.filter(|_| own.is_none() || self.combines()) else {
+    let Some(source) = self.read_source() else {
       return self.inheritance.resolve(own, || &self.default, None, function);
     };
     let (mut function, mut result) = (Some(function), None);

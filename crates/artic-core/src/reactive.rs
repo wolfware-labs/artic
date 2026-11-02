@@ -148,7 +148,13 @@ pub use memo::Memo;
 pub(crate) use runtime::SignalId;
 pub use scope::Scope;
 pub use signal::{Change, Signal};
-pub(crate) use sink::{has_sink, sink};
+pub(crate) use sink::{has_sink, read_sink, sink};
+
+/// How many readers `signal` has, for tests that check the shape of the graph.
+#[cfg(test)]
+pub(crate) fn subscriber_count(signal: SignalId) -> usize {
+  runtime::Runtime::subscriber_count(signal)
+}
 
 /// Runs every effect whose dependencies changed since it last ran.
 ///

@@ -15,6 +15,13 @@ pub(crate) fn sink(of: SignalId, track: impl Fn() + 'static, mark: impl Fn() + '
   Runtime::create_sink(of, Rc::new(track), Rc::new(mark));
 }
 
+/// Records, for the reader running now, a read of `of`'s sink, or of `of` itself when it has none:
+/// the reader then hears of every change the sink is called back for, without reading what the sink
+/// reads.
+pub(crate) fn read_sink(of: SignalId) {
+  Runtime::read_sink(of);
+}
+
 /// Whether `signal` has a sink.
 pub(crate) fn has_sink(signal: SignalId) -> bool {
   Runtime::has_sink(signal)

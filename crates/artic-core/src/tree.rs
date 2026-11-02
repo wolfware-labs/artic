@@ -46,7 +46,7 @@ use crate::Object;
 use crate::arena::SlotId;
 use crate::arena::SlotMap;
 use crate::object::for_each_property;
-use crate::property::{Affects, AnyProperty, AttachedKey, Erased, KeyId, Property};
+use crate::property::{Affects, AnyProperty, AttachedKey, KeyId, Property};
 use crate::reactive::SignalId;
 use attached::AttachedValues;
 use dirty::DirtyFlags;
@@ -102,8 +102,9 @@ pub struct UiTree {
   visual: Tree,
   dirty_flags: DirtyFlags,
   attached_values: AttachedValues,
-  /// The properties each node lists, fields and attached values. Each has a sink that marks the
-  /// node dirty when its effective value changes, and that goes when the property is disposed.
+  /// The properties each node's fields hold, which `free` disposes; its attached values are kept
+  /// in `attached_values`. Each property has a sink that marks the node dirty when its effective
+  /// value changes, and that goes when the property is disposed.
   listed: SlotMap<Vec<SignalId>>,
   structure_generation: u64,
   #[cfg(debug_assertions)]
@@ -817,11 +818,6 @@ impl UiTree {
     }
     let property = Property::new_unowned(key.key(), key.default_value());
     marking(AnyProperty::new(&property), &self.dirty_flags.shared(node));
-    self
-      .listed
-      .get_mut(node.0)
-      .expect("a live node has a list")
-      .push(property.id());
     self.attached_values.insert(node, Box::new(property));
     if key.key().inherits() {
       inheritance::relink(&self.objects, &self.attached_values, &self.logical, node);

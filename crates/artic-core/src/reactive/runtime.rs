@@ -219,24 +219,45 @@ impl Runtime {
     Self::fire(sinks);
   }
 
+  pub fn read_sink(signal_id: SignalId) {
+    let node = RUNTIME
+      .with(|runtime| runtime.nodes.sink_of(signal_id))
+      .unwrap_or(signal_id.into());
+    Self::record_read(node);
+  }
+
   pub fn create_sink(of: SignalId, track: Rc<dyn Fn()>, mark: Rc<dyn Fn()>) {
-    let node = RUNTIME.with(|runtime| runtime.nodes.alloc_sink(of, track, mark));
-    Self::track_sink(node);
+    let sink = nodes::Sink { track, mark };
+    let node = RUNTIME.with(|runtime| runtime.nodes.alloc_sink(of, sink.clone()));
+    Self::track_sink(node, &sink);
   }
 
   pub fn has_sink(signal_id: SignalId) -> bool {
     RUNTIME.with(|runtime| runtime.nodes.has_sink(signal_id))
   }
 
-  /// Calls each of `sinks` back: its `mark`, then its `track` again. A sink disposed meanwhile is
-  /// skipped.
+  /// Calls back `sinks`, whose reads a write just changed: each marks and tracks again, since
+  /// what it reads may now be different, then passes the change on to the sinks that read it.
   fn fire(sinks: Vec<Node>) {
     for node in sinks {
       let Some(sink) = RUNTIME.with(|runtime| runtime.nodes.sink(node)) else {
         continue;
       };
       (sink.mark)();
-      Self::track_sink(node);
+      Self::track_sink(node, &sink);
+      Self::pass_on(node);
+    }
+  }
+
+  /// Calls back the sinks that read `node`, a sink just called back: each marks and passes the
+  /// change on. What they read hasn't changed, so they don't track again.
+  fn pass_on(node: Node) {
+    for reader in RUNTIME.with(|runtime| runtime.nodes.sink_readers(node)) {
+      let Some(sink) = RUNTIME.with(|runtime| runtime.nodes.sink(reader)) else {
+        continue;
+      };
+      (sink.mark)();
+      Self::pass_on(reader);
     }
   }
 }

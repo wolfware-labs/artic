@@ -1,4 +1,5 @@
 use crate::defer::{defer, defer_unwind};
+use crate::reactive::runtime::nodes::Sink;
 use crate::reactive::runtime::{Node, RUNTIME, Runtime, SignalId};
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -55,17 +56,19 @@ impl Runtime {
     action();
   }
 
-  /// Runs `node`'s sink tracked, after cutting the edges its last run made, so it reads what it
-  /// depends on now. A sink disposed meanwhile is left alone.
-  pub fn track_sink(node: Node) {
-    let Some(sink) = RUNTIME.with(|runtime| {
-      runtime.nodes.clear_sources(node);
-      runtime.nodes.sink(node)
-    }) else {
-      return;
-    };
-    RUNTIME.with(|runtime| runtime.tracker.push(node));
-    let _tracking = defer(|| RUNTIME.with(|runtime| runtime.tracker.pop()));
+  /// Runs `node`'s sink tracked, so it reads what it depends on now: a source it reads again keeps
+  /// its edge, and one it no longer reads loses it.
+  pub fn track_sink(node: Node, sink: &Sink) {
+    RUNTIME.with(|runtime| {
+      runtime.nodes.begin_track(node);
+      runtime.tracker.push(node);
+    });
+    let _tracking = defer(|| {
+      RUNTIME.with(|runtime| {
+        runtime.tracker.pop();
+        runtime.nodes.end_track(node);
+      });
+    });
     (sink.track)();
   }
 

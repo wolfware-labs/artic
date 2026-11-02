@@ -159,16 +159,19 @@ where
   fn id(&self) -> SignalId {
     self.0.id()
   }
+
   fn is_listed(&self) -> bool {
     self.0.with_untracked(|_| ());
     has_sink(self.0.id())
   }
+
   fn affects(&self) -> Affects {
     self.key().affects()
   }
+
   fn sink(&self, mark: Box<dyn Fn()>) {
     let property = *self;
-    sink(self.0.id(), move || property.with(|_| ()), mark);
+    sink(self.0.id(), move || property.track(), mark);
   }
 
   fn inherit_from(&self, source: Option<AnyProperty<'_>>) {

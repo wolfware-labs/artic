@@ -1,5 +1,6 @@
 use crate::Object;
-use crate::property::{Affects, Inheritance, Precedence, Property, PropertyKey, PropertyVisitor, inherit};
+use crate::property::{Affects, AnyProperty, Inheritance, Precedence, Property, PropertyKey, PropertyVisitor, inherit};
+use crate::reactive::{Scope, subscriber_count};
 use crate::tree::{NodeId, TreeKind, UiTree};
 use pretty_assertions::assert_eq;
 
@@ -246,6 +247,39 @@ fn combining_follower_is_marked_dirty_despite_own_value() {
   parent_enabled.set(false);
 
   assert_eq!(tree.dirty(child), Affects::RENDER);
+}
+
+// A root's change reaches its followers through the sinks, not by each follower reading the root:
+// the root's signal has one reader, its own sink, however many nodes follow it.
+#[test]
+fn followers_read_their_source_through_its_sink() {
+  let mut tree = UiTree::new();
+  let (root, root_enabled) = new_toggle(&mut tree, true);
+  for _ in 0..3 {
+    let (child, _) = new_toggle(&mut tree, true);
+    tree.add_child(TreeKind::Logical, root, child);
+  }
+
+  assert_eq!(subscriber_count(AnyProperty::new(&root_enabled).id()), 1);
+}
+
+// A node in the middle of a chain disposed by its scope cuts the chain: a change above it no longer
+// reaches the node below, and doesn't panic reading the disposed one.
+#[test]
+fn a_disposed_middle_node_cuts_the_chain() {
+  let mut tree = UiTree::new();
+  let (root, root_enabled) = new_toggle(&mut tree, true);
+  let scope = Scope::new_root();
+  let middle = scope.run(|| new_toggle(&mut tree, true).0);
+  let (leaf, _) = new_toggle(&mut tree, true);
+  tree.add_child(TreeKind::Logical, root, middle);
+  tree.add_child(TreeKind::Logical, middle, leaf);
+  tree.clear_dirty(leaf, Affects::LAYOUT | Affects::RENDER);
+
+  scope.dispose();
+  root_enabled.set(false);
+
+  assert_eq!(tree.dirty(leaf), Affects::NONE);
 }
 
 // A change reaches a combining grandchild through a parent with its own value, marking both dirty.
