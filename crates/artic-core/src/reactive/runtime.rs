@@ -195,7 +195,6 @@ impl Runtime {
       signals: runtime.nodes.count(NodeKind::Signal),
       memos: runtime.nodes.count(NodeKind::Memo),
       effects: runtime.nodes.count(NodeKind::Effect),
-      sinks: runtime.nodes.count(NodeKind::Sink),
       scopes: runtime.scopes.count(),
     })
   }
@@ -220,8 +219,8 @@ impl Runtime {
     marks.call();
   }
 
-  pub fn create_sink(of: SignalId, mark: Rc<dyn Fn()>) {
-    RUNTIME.with(|runtime| runtime.nodes.alloc_sink(of, mark));
+  pub fn set_sink(of: SignalId, mark: Rc<dyn Fn()>) {
+    RUNTIME.with(|runtime| runtime.nodes.set_sink(of, mark));
   }
 
   pub fn link_sink(of: SignalId, source: Option<SignalId>) {

@@ -249,18 +249,20 @@ fn combining_follower_is_marked_dirty_despite_own_value() {
   assert_eq!(tree.dirty(child), Affects::RENDER);
 }
 
-// A root's change reaches its followers through its sink, not by each follower reading the root:
-// the root's signal has no reader, however many nodes follow it.
+// A root's change reaches deeper followers through the ones between, not by each follower reading
+// the root: the root's signal has one reader, its child, however deep the chain.
 #[test]
-fn followers_hear_their_source_through_its_sink() {
+fn followers_hear_their_source_through_the_ones_between() {
   let mut tree = UiTree::new();
   let (root, root_enabled) = new_toggle(&mut tree, true);
+  let mut parent = root;
   for _ in 0..3 {
     let (child, _) = new_toggle(&mut tree, true);
-    tree.add_child(TreeKind::Logical, root, child);
+    tree.add_child(TreeKind::Logical, parent, child);
+    parent = child;
   }
 
-  assert_eq!(subscriber_count(AnyProperty::new(&root_enabled).id()), 0);
+  assert_eq!(subscriber_count(AnyProperty::new(&root_enabled).id()), 1);
 }
 
 // A node in the middle of a chain disposed by its scope cuts the chain: a change above it no longer

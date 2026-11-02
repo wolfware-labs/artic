@@ -282,11 +282,12 @@ where
     }
   }
 
-  /// Links the property's sink to the source its effective value comes from, if any, so that a
-  /// change further up passes through to it.
+  /// Links the property's sink to the source its effective value comes from, if it has one, so that
+  /// a change further up passes through to it.
   fn link(&self) {
-    let source = self.0.with_untracked(|state| state.levels.read_source());
-    link_sink(self.0.id(), source.map(|source| source.0.id()));
+    if let Some(source) = self.0.with_untracked(|state| state.levels.read_source()) {
+      link_sink(self.0.id(), Some(source.0.id()));
+    }
   }
 
   /// Applies `edit` to the levels, which says whether readers can see the change, and links the
@@ -331,7 +332,7 @@ where
 mod tests {
   use super::*;
   use crate::property::AnyProperty;
-  use crate::reactive::{Scope, effect, flush_effects, live_counts};
+  use crate::reactive::{Scope, effect, flush_effects, has_sink};
   use pretty_assertions::assert_eq;
   use static_assertions::{assert_impl_all, assert_not_impl_any};
   use std::cell::Cell;
@@ -688,7 +689,6 @@ mod tests {
   // A follower its scope disposed takes its sink with it: a change to the source marks nothing.
   #[test]
   fn a_follower_its_scope_disposed_is_not_marked() {
-    let before = live_counts();
     let parent = Property::new_unowned(&TEST, 0);
     let scope = Scope::new_root();
     let child = scope.run(|| Property::new(&TEST, 0));
@@ -698,7 +698,7 @@ mod tests {
     scope.dispose();
     parent.set(1);
 
-    assert_eq!((marks.get(), live_counts().sinks), (0, before.sinks));
+    assert_eq!((marks.get(), has_sink(AnyProperty::new(&child).id())), (0, false));
     parent.dispose();
   }
 

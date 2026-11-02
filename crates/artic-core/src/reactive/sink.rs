@@ -1,5 +1,5 @@
-//! A reader the runtime calls back when a write reaches its signal, or the source it is linked to:
-//! how a node's dirty flags follow its properties.
+//! A signal's sink: a mark the runtime calls when a write reaches the signal, or the source it is
+//! linked to. It is how a node's dirty flags follow its properties.
 
 use crate::reactive::runtime::{Runtime, SignalId};
 use std::rc::Rc;
@@ -12,12 +12,12 @@ use std::rc::Rc;
 ///
 /// Panics if `of` already has a sink.
 pub(crate) fn sink(of: SignalId, mark: Rc<dyn Fn()>) {
-  Runtime::create_sink(of, mark);
+  Runtime::set_sink(of, mark);
 }
 
-/// Links `of`'s sink to `source`, in place of the source it had: it is then marked by every change
-/// `source`'s sink is marked by, or by every visible write to `source` when that has no sink. `None`
-/// leaves it reading only `of`. A signal with no sink is left alone.
+/// Links `of` to `source`, in place of the source it had: `of`'s sink is then marked by every visible
+/// write to `source` and every change that reaches `source` through its own link. `None` unlinks
+/// it. A signal with no sink is left alone.
 pub(crate) fn link_sink(of: SignalId, source: Option<SignalId>) {
   Runtime::link_sink(of, source);
 }

@@ -78,7 +78,7 @@ impl Runtime {
       kinds.sort_by_key(|(kind, _)| match kind {
         NodeKind::Effect => 0,
         NodeKind::Memo => 1,
-        NodeKind::Signal | NodeKind::Sink => 2,
+        NodeKind::Signal => 2,
       });
       for (_, node) in kinds {
         Self::dispose_node(node);
