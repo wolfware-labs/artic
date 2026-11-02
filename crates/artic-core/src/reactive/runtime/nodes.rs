@@ -334,28 +334,34 @@ impl Nodes {
     let mut slots = self.slots.borrow_mut();
     let own = slots.get(node.0).and_then(Slot::sink).cloned();
     let mut linked = Vec::new();
-    let mut index = 0;
-    while let Some(subscriber) = slots.get(node.0).and_then(|slot| slot.subscribers.get(index).copied()) {
-      index += 1;
+    let subscribers = slots
+      .get_mut(node.0)
+      .map(|slot| std::mem::take(&mut slot.subscribers))
+      .unwrap_or_default();
+    for subscriber in &subscribers {
       match slots.get_mut(subscriber.0).map(|slot| &mut slot.kind) {
         Some(Kind::Observer(observer)) => observer.dirty = true,
-        Some(Kind::Signal { sink, .. }) => linked.push((subscriber, sink.clone())),
+        Some(Kind::Signal { sink, .. }) => linked.push((*subscriber, sink.clone())),
         None => {}
       }
     }
-    let mut index = 0;
-    while let Some(signal) = linked.get(index).map(|(signal, _)| *signal) {
-      index += 1;
-      let Some(slot) = slots.get(signal.0) else {
-        continue;
-      };
-      for reader in &slot.subscribers {
-        if let Some(reader_slot) = slots.get(reader.0)
-          && let Kind::Signal { sink, .. } = &reader_slot.kind
-        {
-          linked.push((*reader, sink.clone()));
+    if let Some(slot) = slots.get_mut(node.0) {
+      slot.subscribers = subscribers;
+    }
+    let mut level = 0..linked.len();
+    while !level.is_empty() {
+      let end = linked.len();
+      for index in level {
+        let Some(slot) = slots.get(linked[index].0.0) else {
+          continue;
+        };
+        for reader in &slot.subscribers {
+          if let Some(Kind::Signal { sink, .. }) = slots.get(reader.0).map(|slot| &slot.kind) {
+            linked.push((*reader, sink.clone()));
+          }
         }
       }
+      level = end..linked.len();
     }
     Marks { own, linked }
   }
