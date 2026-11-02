@@ -250,7 +250,7 @@ fn combining_follower_is_marked_dirty_despite_own_value() {
 }
 
 // A root's change reaches its followers through its sink, not by each follower reading the root:
-// the root's signal has one reader, its own sink, however many nodes follow it.
+// the root's signal has no reader, however many nodes follow it.
 #[test]
 fn followers_hear_their_source_through_its_sink() {
   let mut tree = UiTree::new();
@@ -260,7 +260,7 @@ fn followers_hear_their_source_through_its_sink() {
     tree.add_child(TreeKind::Logical, root, child);
   }
 
-  assert_eq!(subscriber_count(AnyProperty::new(&root_enabled).id()), 1);
+  assert_eq!(subscriber_count(AnyProperty::new(&root_enabled).id()), 0);
 }
 
 // A node in the middle of a chain disposed by its scope cuts the chain: a change above it no longer

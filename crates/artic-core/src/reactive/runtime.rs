@@ -178,8 +178,9 @@ impl Runtime {
     let cell = RUNTIME.with(|runtime| runtime.nodes.memo_value(memo_id));
     let taken = cell.take();
     let _changed = defer(|| {
-      let sinks = RUNTIME.with(|runtime| runtime.nodes.mark_subscribers_dirty(memo_id.into()));
-      Self::fire(sinks);
+      RUNTIME
+        .with(|runtime| runtime.nodes.mark_subscribers_dirty(memo_id.into()))
+        .call();
     });
     taken.write(|current: &mut TValue| *current = value);
   }
@@ -211,36 +212,23 @@ impl Runtime {
   /// Records a write to `signal_id`, for the next flush, marks its readers dirty and calls back
   /// the sinks that read it.
   fn record_write(signal_id: SignalId) {
-    let sinks = RUNTIME.with(|runtime| {
+    let marks = RUNTIME.with(|runtime| {
       runtime.tracker.record_write(signal_id);
       runtime.epoch.set(runtime.epoch.get() + 1);
       runtime.nodes.mark_subscribers_dirty(signal_id.into())
     });
-    Self::fire(sinks);
+    marks.call();
   }
 
   pub fn create_sink(of: SignalId, mark: Rc<dyn Fn()>) {
     RUNTIME.with(|runtime| runtime.nodes.alloc_sink(of, mark));
   }
 
-  /// Links `of`'s sink to `source`'s sink, or to `source` itself when it has none.
   pub fn link_sink(of: SignalId, source: Option<SignalId>) {
-    RUNTIME.with(|runtime| {
-      let source = source.map(|source| runtime.nodes.sink_of(source).unwrap_or(source.into()));
-      runtime.nodes.link_sink(of, source);
-    });
+    RUNTIME.with(|runtime| runtime.nodes.link_sink(of, source));
   }
 
   pub fn has_sink(signal_id: SignalId) -> bool {
     RUNTIME.with(|runtime| runtime.nodes.has_sink(signal_id))
-  }
-
-  /// Calls back `sinks`, which read what a write just changed, and the sinks that read them.
-  fn fire(sinks: Vec<Node>) {
-    for node in sinks {
-      for mark in RUNTIME.with(|runtime| runtime.nodes.reached_marks(node)) {
-        mark();
-      }
-    }
   }
 }

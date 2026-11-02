@@ -292,10 +292,18 @@ where
   /// Applies `edit` to the levels, which says whether readers can see the change, and links the
   /// property's sink again if the source its effective value comes from changed.
   fn edit(&self, edit: impl FnOnce(&mut Levels<T>) -> Change) {
-    let source = self.0.with_untracked(|state| state.levels.read_source());
-    self.0.update_with(|state| edit(&mut state.levels));
-    if self.0.with_untracked(|state| state.levels.read_source()) != source {
-      self.link();
+    let mut relink = None;
+    self.0.update_with(|state| {
+      let source = state.levels.read_source();
+      let change = edit(&mut state.levels);
+      let now = state.levels.read_source();
+      if now != source {
+        relink = Some(now);
+      }
+      change
+    });
+    if let Some(source) = relink {
+      link_sink(self.0.id(), source.map(|source| source.0.id()));
     }
   }
 }
