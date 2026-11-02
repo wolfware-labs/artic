@@ -4,7 +4,7 @@
 use crate::context::{AccessCx, EventCx, Handled, HitTestCx, HitTestResult, RenderCx};
 use artic_core::Object;
 use artic_core::input::InputEvent;
-use artic_layout::geometry::{Point, Size};
+use artic_layout::geometry::{Point, Rect, Size};
 use artic_layout::{ArrangeCx, Layoutable, MeasureCx};
 use artic_render::{Layers, SceneBuilder, Shape};
 
@@ -50,15 +50,16 @@ pub trait Element: Object + Layoutable {
 /// `impl ElementImpl for Spacer {}`.
 pub trait ElementImpl {
   /// The content's size within `available`, which already excludes the margin and is held within
-  /// the element's limits. By default, nothing.
+  /// the element's limits. By default, the largest size the children want, as children sharing
+  /// one box; nothing for an element with no children.
   fn measure_override(&self, cx: &mut MeasureCx<'_>, available: Size) -> Size {
-    let _ = (cx, available);
-    Size::ZERO
+    cx.measure_children(available)
   }
 
-  /// Places the children within `size`, in the element's own coordinates. By default, nothing.
+  /// Places the children within `size`, in the element's own coordinates. By default, each child
+  /// fills it.
   fn arrange_override(&self, cx: &mut ArrangeCx<'_>, size: Size) {
-    let _ = (cx, size);
+    cx.arrange_children(Rect::new(0.0, 0.0, size.width, size.height));
   }
 
   /// Records the control's own drawing. By default, nothing.
