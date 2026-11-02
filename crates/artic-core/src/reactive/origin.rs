@@ -1,4 +1,3 @@
-use std::fmt::{Display, Formatter, Result};
 #[cfg(debug_assertions)]
 use std::panic::Location;
 
@@ -17,20 +16,12 @@ impl Origin {
     }
   }
 
+  /// Panics with `message`, followed in debug builds by where the value was created.
   pub fn panic(self, message: &str) -> ! {
-    panic!("{message}{self}")
-  }
-}
-
-impl Display for Origin {
-  #[cfg(debug_assertions)]
-  fn fmt(&self, formatter: &mut Formatter<'_>) -> Result {
-    write!(formatter, " (created at {})", self.location)
-  }
-
-  #[cfg(not(debug_assertions))]
-  fn fmt(&self, _formatter: &mut Formatter<'_>) -> Result {
-    Ok(())
+    #[cfg(debug_assertions)]
+    panic!("{message} (created at {})", self.location);
+    #[cfg(not(debug_assertions))]
+    panic!("{message}");
   }
 }
 

@@ -1,6 +1,4 @@
 use crate::reactive::runtime::Runtime;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 /// Runs `run` now and again whenever a signal or memo it read changes.
 ///
@@ -40,5 +38,5 @@ use std::rc::Rc;
 /// assert_eq!(seen.get(), 2);
 /// ```
 pub fn effect(run: impl FnMut() + 'static) {
-  Runtime::create_effect(Rc::new(RefCell::new(run)));
+  Runtime::create_effect(run);
 }

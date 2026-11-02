@@ -18,6 +18,7 @@
 //! tests.
 
 pub(crate) mod arena;
+mod defer;
 pub mod dispatcher;
 pub mod error;
 pub mod event;

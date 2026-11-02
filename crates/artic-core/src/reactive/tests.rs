@@ -180,10 +180,7 @@ fn run_tracked_records_each_signal_read_once() {
     first.get();
   });
 
-  assert_eq!(
-    Runtime::sources(observer),
-    [Node::Signal(first.id()), Node::Signal(second.id())]
-  );
+  assert_eq!(Runtime::sources(observer), [Node::from(first.id()), Node::from(second.id())]);
 }
 
 // Clearing a node's sources stops writes to them from marking it dirty.
@@ -467,7 +464,7 @@ fn run_tracked_records_a_memo_read_as_the_memo() {
 
   let sources = Runtime::sources(observer);
   assert_eq!(sources.len(), 1);
-  assert!(matches!(sources[0], Node::Memo(_)));
+  assert!(Runtime::is_memo(sources[0]));
 }
 
 // Effect
@@ -1055,6 +1052,461 @@ fn panicking_update_with_still_marks_dependents_dirty() {
 
   assert!(result.is_err());
   assert!(Runtime::is_dirty(observer));
+}
+
+// A memo whose computation panics computes again on the next read, as its docs promise.
+#[test]
+fn a_panicking_memo_computes_again_on_the_next_read() {
+  let fails = Rc::new(Cell::new(true));
+  let compute_fails = Rc::clone(&fails);
+  let memo = Memo::new(move || {
+    assert!(!compute_fails.get(), "compute failed");
+    7
+  });
+
+  let first = catch_unwind(AssertUnwindSafe(|| memo.get()));
+  fails.set(false);
+
+  assert!(first.is_err());
+  assert_eq!(memo.get(), 7);
+}
+
+// An effect that panics during a flush runs again on the next flush, with the value it missed.
+#[test]
+fn a_panicking_effect_runs_again_on_the_next_flush() {
+  let count = Signal::new(0);
+  let fails = Rc::new(Cell::new(false));
+  let seen = Rc::new(Cell::new(0));
+  let (run_fails, run_seen) = (Rc::clone(&fails), Rc::clone(&seen));
+  effect(move || {
+    let value = count.get();
+    assert!(!run_fails.get(), "effect failed");
+    run_seen.set(value);
+  });
+
+  fails.set(true);
+  count.set(1);
+  let first = catch_unwind(flush_effects);
+  fails.set(false);
+  flush_effects();
+
+  assert!(first.is_err());
+  assert_eq!(seen.get(), 1);
+}
+
+// A signal disposed on its own leaves its scope's list at once, so a scope never keeps a dead
+// node until it is disposed.
+#[test]
+fn a_disposed_signal_leaves_its_scope() {
+  let scope = Scope::new_root();
+  let [first, second, third] = scope.run(|| [Signal::new(1), Signal::new(2), Signal::new(3)]);
+
+  second.dispose();
+  let middle_gone = Runtime::owned_count(scope.id());
+  third.dispose();
+  first.dispose();
+
+  assert_eq!((middle_gone, Runtime::owned_count(scope.id())), (2, 0));
+  scope.dispose();
+}
+
+// Reading a memo chain again when nothing changed checks nothing below it, and after a write each
+// memo checks its one source once, nine checks for ten memos, however the reads nest.
+#[test]
+fn an_unchanged_chain_is_not_walked_again() {
+  let source = Signal::new(0);
+  let first = Memo::new(move || source.get() + 1);
+  let last = (1..10).fold(first, |previous, _| Memo::new(move || previous.get() + 1));
+  last.get();
+
+  let before = Runtime::source_checks();
+  last.get();
+  let unchanged = Runtime::source_checks() - before;
+  source.set(1);
+  let before = Runtime::source_checks();
+  let value = last.get();
+
+  assert_eq!((unchanged, Runtime::source_checks() - before, value), (0, 9, 11));
+}
+
+// A chain checked after a write its first memo absorbed, so nothing recomputed, isn't checked
+// again on the next read.
+#[test]
+fn a_checked_chain_is_not_checked_again() {
+  let source = Signal::new(0);
+  let parity = Memo::new(move || source.get() % 2);
+  let last = (0..10).fold(parity, |previous, _| Memo::new(move || previous.get() + 1));
+  last.get();
+
+  source.set(2);
+  last.get();
+  let before = Runtime::source_checks();
+  let value = last.get();
+
+  assert_eq!((Runtime::source_checks() - before, value), (0, 10));
+}
+
+// A memo whose computation writes a signal one of its sources reads is checked again on the next
+// read, so it never keeps a value computed from the source's old value.
+#[test]
+fn a_write_during_a_computation_is_seen_on_the_next_read() {
+  let count = Signal::new(0);
+  let tenfold = Memo::new(move || count.get() * 10);
+  let seen = Memo::new(move || {
+    let value = tenfold.get();
+    if value == 0 {
+      count.set(1);
+    }
+    value
+  });
+
+  assert_eq!((seen.get(), seen.get()), (0, 10));
+}
+
+/// Logs its name when dropped, to show the order a scope frees what it owns.
+struct Dropped(&'static str, Rc<RefCell<Vec<&'static str>>>);
+
+impl Drop for Dropped {
+  fn drop(&mut self) {
+    self.1.borrow_mut().push(self.0);
+  }
+}
+
+// A disposed scope frees its effects, then its memos, then its signals, whatever order they were
+// made in, as `Scope::dispose` says.
+#[test]
+fn a_scope_frees_effects_then_memos_then_signals() {
+  let log = Rc::new(RefCell::new(Vec::new()));
+  let scope = Scope::new_root();
+  scope.run(|| {
+    Signal::new(Dropped("signal", Rc::clone(&log)));
+    let held = Dropped("memo", Rc::clone(&log));
+    Memo::new(move || {
+      let held = &held;
+      held.0.len()
+    });
+    let held = Dropped("effect", Rc::clone(&log));
+    effect(move || {
+      let held = &held;
+      assert!(!held.0.is_empty());
+    });
+  });
+  let before = log.borrow().len();
+
+  scope.dispose();
+
+  assert_eq!((before, log.borrow().clone()), (0, vec!["effect", "memo", "signal"]));
+}
+
+// A child scope disposed on its own leaves its parent's list at once.
+#[test]
+fn a_disposed_child_scope_leaves_its_parent() {
+  let parent = Scope::new_root();
+  let [first, _second] = [parent.child(), parent.child()];
+
+  first.dispose();
+
+  assert_eq!(Runtime::child_count(parent.id()), 1);
+  parent.dispose();
+}
+
+/// Reads its signal when dropped, as a value whose owner tears something reactive down might.
+#[derive(PartialEq)]
+struct ReadsOnDrop(Signal<i32>);
+
+impl Drop for ReadsOnDrop {
+  fn drop(&mut self) {
+    self.0.get();
+  }
+}
+
+// Values freed with a scope's nodes, an effect's captures, a memo's value and a signal's value, may
+// use the runtime when they're dropped.
+#[test]
+fn values_freed_with_a_scope_may_use_the_runtime() {
+  let outside = Signal::new(1);
+  let scope = Scope::new_root();
+  scope.run(|| {
+    let reads = ReadsOnDrop(outside);
+    effect(move || {
+      let reads = &reads;
+      reads.0.get();
+    });
+    let memo = Memo::new(move || Rc::new(ReadsOnDrop(outside)));
+    memo.with(|_| {});
+    Signal::new(ReadsOnDrop(outside));
+  });
+
+  scope.dispose();
+
+  assert_eq!(live_counts().effects, 0);
+}
+
+// An effect pending when an earlier effect disposes its scope leaves the pending list even if a
+// value freed with it panics, so the next flush runs the effects after it.
+#[test]
+fn a_disposed_effect_leaves_the_pending_list_even_if_a_drop_panics() {
+  struct PanicsOnDrop;
+  impl Drop for PanicsOnDrop {
+    fn drop(&mut self) {
+      panic!("drop failed");
+    }
+  }
+  let count = Signal::new(0);
+  let inner = Scope::new_root();
+  effect(move || {
+    if count.get() == 1 {
+      inner.dispose();
+    }
+  });
+  inner.run(|| {
+    let held = PanicsOnDrop;
+    effect(move || {
+      let held = &held;
+      let _ = (held, count.get());
+    });
+  });
+  let seen = Rc::new(Cell::new(0));
+  let seen_after = Rc::clone(&seen);
+  effect(move || seen_after.set(count.get()));
+  count.set(1);
+
+  let first = catch_unwind(flush_effects);
+  flush_effects();
+
+  assert!(first.is_err());
+  assert_eq!(seen.get(), 1);
+}
+
+// A write refused because the signal is being read changes nothing, so its readers stay clean.
+#[test]
+fn a_refused_write_marks_no_reader_dirty() {
+  let count = Signal::new(0);
+  let observer = observe(|| {
+    count.get();
+  });
+
+  let refused = count.with(|_| catch_unwind(AssertUnwindSafe(|| count.set(1))));
+  let refused_update = count.with(|_| catch_unwind(AssertUnwindSafe(|| count.update_with(|_| Change::Visible))));
+
+  assert!(refused.is_err() && refused_update.is_err());
+  assert!(!Runtime::is_dirty(observer));
+}
+
+// A memo first computed from a Drop while another panic unwinds is a normal run: it keeps the
+// signal it read as a source and stays clean, so it isn't left to compute again on every read.
+#[test]
+fn a_memo_computed_during_another_panic_keeps_its_sources() {
+  struct ReadsOnDrop(Memo<i32>);
+  impl Drop for ReadsOnDrop {
+    fn drop(&mut self) {
+      self.0.get();
+    }
+  }
+  let count = Signal::new(1);
+  let computes = Rc::new(Cell::new(0));
+  let memo_computes = Rc::clone(&computes);
+  let doubled = Memo::new(move || {
+    memo_computes.set(memo_computes.get() + 1);
+    count.get() * 2
+  });
+
+  let unwound = catch_unwind(AssertUnwindSafe(|| {
+    let _reader = ReadsOnDrop(doubled);
+    panic!("unrelated");
+  }));
+
+  doubled.get();
+
+  assert!(unwound.is_err());
+  assert_eq!((Runtime::subscriber_count(count.id()), computes.get()), (1, 1));
+}
+
+// An effect checked through a memo that panics runs again on the next flush, though the flush that
+// panicked already used up the write that reached it.
+#[test]
+fn an_effect_whose_memo_panics_while_checked_runs_on_the_next_flush() {
+  let count = Signal::new(0);
+  let fails = Rc::new(Cell::new(false));
+  let compute_fails = Rc::clone(&fails);
+  let checked = Memo::new(move || {
+    let value = count.get();
+    assert!(!compute_fails.get(), "compute failed");
+    value
+  });
+  let seen = Rc::new(Cell::new(0));
+  let effect_seen = Rc::clone(&seen);
+  effect(move || effect_seen.set(checked.get()));
+
+  fails.set(true);
+  count.set(1);
+  let first = catch_unwind(flush_effects);
+  fails.set(false);
+  flush_effects();
+
+  assert!(first.is_err());
+  assert_eq!(seen.get(), 1);
+}
+
+// A source that disposes itself while it is checked doesn't hide the source after it: the reader
+// still sees that one change.
+#[test]
+fn a_source_disposed_while_checked_hides_no_other_source() {
+  let count = Signal::new(0);
+  let owner = Scope::new_root();
+  let leaving = owner.run(|| {
+    Memo::new(move || {
+      let value = count.get();
+      if value == 1 {
+        owner.dispose();
+      }
+      value
+    })
+  });
+  let tenfold = Memo::new(move || count.get() * 10);
+  let read_leaving = Cell::new(false);
+  let reader = Memo::new(move || {
+    if !read_leaving.replace(true) {
+      leaving.get();
+    }
+    tenfold.get()
+  });
+  reader.get();
+
+  count.set(1);
+
+  assert_eq!(reader.get(), 10);
+}
+
+// An effect whose source disposes it while the effect is checked stops there, and the flush goes on.
+#[test]
+fn an_effect_disposed_by_its_source_while_checked_stops() {
+  let count = Signal::new(0);
+  let owner = Scope::new_root();
+  let disposing = Memo::new(move || {
+    let value = count.get();
+    if value == 1 {
+      owner.dispose();
+    }
+    value
+  });
+  let runs = Rc::new(Cell::new(0));
+  let effect_runs = Rc::clone(&runs);
+  owner.run(|| {
+    effect(move || {
+      disposing.get();
+      effect_runs.set(effect_runs.get() + 1);
+    });
+  });
+
+  count.set(1);
+  flush_effects();
+
+  assert_eq!((runs.get(), live_counts().effects), (1, 0));
+}
+
+// A memo whose source disposes it while it is checked panics as any read of a disposed memo does.
+#[test]
+fn a_memo_disposed_by_its_source_while_checked_panics_as_disposed() {
+  let count = Signal::new(0);
+  let owner = Scope::new_root();
+  let disposing = Memo::new(move || {
+    let value = count.get();
+    if value == 1 {
+      owner.dispose();
+    }
+    value
+  });
+  let reader = owner.run(|| Memo::new(move || disposing.get()));
+  reader.get();
+  count.set(1);
+
+  let message = panic_message(|| {
+    reader.get();
+  });
+
+  assert!(message.starts_with("memo used after its scope was disposed"), "{message}");
+}
+
+// A signal a Drop makes while its scope is disposed from inside its own run is freed by the same
+// disposal, so nothing made during it outlives the scope.
+#[test]
+fn a_node_made_while_its_scope_is_cleared_is_freed_with_it() {
+  struct MakesOnDrop(Rc<Cell<Option<Signal<i32>>>>);
+  impl Drop for MakesOnDrop {
+    fn drop(&mut self) {
+      self.0.set(Some(Signal::new(0)));
+    }
+  }
+  let before = live_counts();
+  let made = Rc::new(Cell::new(None));
+  let scope = Scope::new_root();
+  let held = MakesOnDrop(Rc::clone(&made));
+  scope.run(|| {
+    Signal::new(held);
+    scope.dispose();
+  });
+  let late = made.take().expect("the drop made a signal");
+
+  assert_eq!((late.is_alive(), live_counts()), (false, before));
+}
+
+/// Disposes its scope when dropped, as a value whose owner tears its view down might.
+struct DisposesOnDrop(Scope);
+
+impl Drop for DisposesOnDrop {
+  fn drop(&mut self) {
+    self.0.dispose();
+  }
+}
+
+// A value freed with a child scope may dispose the parent being disposed: the parent's disposal
+// finishes without reaching for the scope already freed.
+#[test]
+fn a_scope_disposed_again_by_a_value_it_frees_is_freed_once() {
+  let before = live_counts();
+  let parent = Scope::new_root();
+  let child = parent.child();
+  child.run(|| Signal::new(DisposesOnDrop(parent)));
+
+  parent.dispose();
+
+  assert_eq!(live_counts(), before);
+}
+
+// An effect disposed by a value its last run made, freed as it runs again, stops there.
+#[test]
+fn an_effect_disposed_while_its_last_run_is_cleared_stops() {
+  let before = live_counts();
+  let count = Signal::new(0);
+  let owner = Scope::new_root();
+  owner.run(|| {
+    effect(move || {
+      count.get();
+      Signal::new(DisposesOnDrop(owner));
+    });
+  });
+
+  count.set(1);
+  flush_effects();
+
+  assert_eq!(live_counts().effects, before.effects);
+}
+
+// A node made in a scope already disposed from inside its own run has no owner to join: it lives
+// until disposed on its own.
+#[test]
+fn a_node_made_in_a_scope_disposed_during_its_run_has_no_owner() {
+  let scope = Scope::new_root();
+
+  let (late, memo) = scope.run(|| {
+    scope.dispose();
+    let late = Signal::new(1);
+    (late, Memo::new(move || late.get() + 1))
+  });
+
+  assert_eq!(memo.get(), 2);
+  late.dispose();
 }
 
 // Pending effects

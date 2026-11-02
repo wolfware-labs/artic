@@ -1,5 +1,5 @@
 use crate::reactive::origin::Origin;
-use crate::reactive::runtime::{MemoId, Node, Runtime};
+use crate::reactive::runtime::{MemoId, Runtime};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
@@ -109,9 +109,9 @@ impl<TValue> Memo<TValue> {
   /// ```
   pub fn with<TResult>(&self, function: impl FnOnce(&TValue) -> TResult) -> TResult {
     self.ensure_alive();
-    Runtime::refresh_memo(self.0);
+    Runtime::refresh(self.0.into());
     self.ensure_alive();
-    Runtime::record_read(Node::Memo(self.0));
+    Runtime::record_read(self.0.into());
     Runtime::with_memo_value(self.0, |value: &Option<TValue>| {
       function(value.as_ref().expect("a refreshed memo has a value"))
     })

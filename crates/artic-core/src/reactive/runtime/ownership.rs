@@ -1,5 +1,6 @@
-use crate::reactive::runtime::{EffectId, MemoId, Node, RUNTIME, Runtime, ScopeId, SignalId};
-use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
+use crate::defer::defer;
+use crate::reactive::runtime::nodes::NodeKind;
+use crate::reactive::runtime::{Node, RUNTIME, Runtime, ScopeId, SignalId};
 
 impl Runtime {
   pub fn create_scope(parent: Option<ScopeId>) -> ScopeId {
@@ -12,12 +13,18 @@ impl Runtime {
 
   pub fn run_in_scope<TResult>(scope_id: ScopeId, action: impl FnOnce() -> TResult) -> TResult {
     RUNTIME.with(|runtime| runtime.scopes.push_active(scope_id));
-    let action_result = catch_unwind(AssertUnwindSafe(action));
-    RUNTIME.with(|runtime| runtime.scopes.pop_active());
-    match action_result {
-      Ok(result) => result,
-      Err(payload) => resume_unwind(payload),
-    }
+    let _active = defer(|| RUNTIME.with(|runtime| runtime.scopes.pop_active()));
+    action()
+  }
+
+  #[cfg(test)]
+  pub fn child_count(scope_id: ScopeId) -> usize {
+    RUNTIME.with(|runtime| runtime.scopes.child_count(scope_id))
+  }
+
+  #[cfg(test)]
+  pub fn owned_count(scope_id: ScopeId) -> usize {
+    RUNTIME.with(|runtime| runtime.owned(scope_id).len())
   }
 
   #[cfg(test)]
@@ -25,12 +32,17 @@ impl Runtime {
     RUNTIME.with(|runtime| runtime.scopes.active())
   }
 
+  /// Frees `scope_id` after what it owns. A value dropped meanwhile may dispose the same scope, which
+  /// is then already gone when its own clearing returns.
   pub fn dispose_scope(scope_id: ScopeId) {
     if !RUNTIME.with(|runtime| runtime.scopes.contains(scope_id)) {
       return;
     }
     Self::clear_scope(scope_id);
     RUNTIME.with(|runtime| {
+      if !runtime.scopes.contains(scope_id) {
+        return;
+      }
       if let Some(parent) = runtime.scopes.parent(scope_id) {
         runtime.scopes.remove_child(parent, scope_id);
       }
@@ -38,57 +50,85 @@ impl Runtime {
     });
   }
 
+  /// Disposes what `scope_id` owns, child scopes first, then effects, memos and signals, until it
+  /// owns nothing: a Drop run meanwhile may make new nodes in it, and those go too.
   pub(super) fn clear_scope(scope_id: ScopeId) {
-    let (children, nodes) =
-      RUNTIME.with(|runtime| (runtime.scopes.take_children(scope_id), runtime.scopes.take_nodes(scope_id)));
-    for child in children {
-      Self::dispose_scope(child);
-    }
-    for node in &nodes {
-      if let Node::Effect(effect_id) = node {
-        Self::dispose_effect(*effect_id);
+    loop {
+      let (children, nodes) = RUNTIME.with(|runtime| {
+        if !runtime.scopes.contains(scope_id) {
+          return (Vec::new(), Vec::new());
+        }
+        (runtime.scopes.take_children(scope_id), runtime.owned(scope_id))
+      });
+      if children.is_empty() && nodes.is_empty() {
+        return;
       }
-    }
-    for node in &nodes {
-      if let Node::Memo(memo_id) = node {
-        Self::dispose_memo(*memo_id);
+      for child in children {
+        Self::dispose_scope(child);
       }
-    }
-    for node in &nodes {
-      if let Node::Signal(signal_id) = node {
-        Self::dispose_signal(*signal_id);
+      let mut nodes: Vec<(NodeKind, Node)> = RUNTIME.with(|runtime| {
+        nodes
+          .into_iter()
+          .filter_map(|node| Some((runtime.nodes.kind(node)?, node)))
+          .collect()
+      });
+      nodes.sort_by_key(|(kind, _)| match kind {
+        NodeKind::Effect => 0,
+        NodeKind::Memo => 1,
+        NodeKind::Signal => 2,
+      });
+      for (_, node) in nodes {
+        Self::dispose_node(node);
       }
-    }
-  }
-
-  fn dispose_effect(effect_id: EffectId) {
-    Self::dispose_scope_of(Node::Effect(effect_id));
-    RUNTIME.with(|runtime| {
-      runtime.graph.remove(Node::Effect(effect_id));
-      runtime.scheduler.remove_pending(runtime.effects.seq(effect_id));
-      runtime.effects.free(effect_id);
-    });
-  }
-
-  fn dispose_memo(memo_id: MemoId) {
-    Self::dispose_scope_of(Node::Memo(memo_id));
-    RUNTIME.with(|runtime| {
-      runtime.graph.remove(Node::Memo(memo_id));
-      runtime.memos.free(memo_id);
-    });
-  }
-
-  fn dispose_scope_of(node: Node) {
-    if let Some(scope_id) = RUNTIME.with(|runtime| runtime.scopes.take_scope_of(node)) {
-      Self::dispose_scope(scope_id);
     }
   }
 
   /// Frees one signal and cuts its edges, whatever scope owns it. A stale id frees nothing.
   pub fn dispose_signal(signal_id: SignalId) {
-    RUNTIME.with(|runtime| {
-      runtime.graph.remove(Node::Signal(signal_id));
-      runtime.signals.free(signal_id);
+    Self::dispose_node(signal_id.into());
+  }
+
+  /// Frees `node` and cuts its edges; a memo or an effect disposes the scope its runs own first,
+  /// and an effect leaves the pending list. A stale id frees nothing.
+  fn dispose_node(node: Node) {
+    let parts = RUNTIME.with(|runtime| runtime.nodes.observer_parts(node));
+    if let Some((scope, _)) = parts {
+      Self::dispose_scope(scope);
+    }
+    let freed = RUNTIME.with(|runtime| {
+      if let Some((_, Some(seq))) = parts {
+        runtime.scheduler.remove_pending(seq);
+      }
+      runtime.disown(node);
+      runtime.nodes.remove(node)
     });
+    drop(freed);
+  }
+}
+
+impl Runtime {
+  /// Makes the active scope, if there is one, the owner of `node`, at the head of its list. A scope
+  /// disposed during its own run owns nothing more: what is made in it lives until disposed on its
+  /// own.
+  pub(super) fn own(&self, node: Node) {
+    if let Some(scope) = self.scopes.active().filter(|scope| self.scopes.contains(*scope)) {
+      self.nodes.link(node, scope, self.scopes.first(scope));
+      self.scopes.set_first(scope, Some(node));
+    }
+  }
+
+  /// Takes `node` out of its owner's list.
+  fn disown(&self, node: Node) {
+    if let Some((scope, first)) = self.nodes.unlink(node) {
+      self.scopes.set_first(scope, first);
+    }
+  }
+
+  /// The nodes `scope_id` owns, oldest first.
+  fn owned(&self, scope_id: ScopeId) -> Vec<Node> {
+    let mut owned: Vec<Node> =
+      std::iter::successors(self.scopes.first(scope_id), |node| self.nodes.next_owned(*node)).collect();
+    owned.reverse();
+    owned
   }
 }
