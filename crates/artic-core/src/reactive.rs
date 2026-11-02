@@ -136,6 +136,7 @@ mod origin;
 mod runtime;
 mod scope;
 mod signal;
+mod sink;
 #[cfg(test)]
 mod tests;
 
@@ -144,10 +145,16 @@ pub use effect::effect;
 pub use live_counts::assert_no_reactive_leaks;
 pub use live_counts::{LiveCounts, live_counts};
 pub use memo::Memo;
-#[cfg(debug_assertions)]
 pub(crate) use runtime::SignalId;
 pub use scope::Scope;
 pub use signal::{Change, Signal};
+pub(crate) use sink::{has_sink, link_signal, sink};
+
+/// How many readers `signal` has, for tests that check the shape of the graph.
+#[cfg(test)]
+pub(crate) fn subscriber_count(signal: SignalId) -> usize {
+  runtime::Runtime::subscriber_count(signal)
+}
 
 /// Runs every effect whose dependencies changed since it last ran.
 ///

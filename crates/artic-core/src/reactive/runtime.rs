@@ -104,7 +104,7 @@ impl Runtime {
   {
     let cell = RUNTIME.with(|runtime| runtime.nodes.signal_value(signal_id));
     let taken = cell.take();
-    let _written = defer(|| RUNTIME.with(|runtime| runtime.record_write(signal_id)));
+    let _written = defer(|| Self::record_write(signal_id));
     taken.write(action);
   }
 
@@ -114,7 +114,7 @@ impl Runtime {
   {
     let cell = RUNTIME.with(|runtime| runtime.nodes.signal_value(signal_id));
     let taken = cell.take();
-    let written = defer(|| RUNTIME.with(|runtime| runtime.record_write(signal_id)));
+    let written = defer(|| Self::record_write(signal_id));
     if taken.write(action) == Change::Hidden {
       written.cancel();
     }
@@ -177,7 +177,11 @@ impl Runtime {
   {
     let cell = RUNTIME.with(|runtime| runtime.nodes.memo_value(memo_id));
     let taken = cell.take();
-    let _changed = defer(|| RUNTIME.with(|runtime| runtime.nodes.mark_subscribers_dirty(memo_id.into())));
+    let _changed = defer(|| {
+      RUNTIME
+        .with(|runtime| runtime.nodes.mark_subscribers_dirty(memo_id.into()))
+        .call();
+    });
     taken.write(|current: &mut TValue| *current = value);
   }
 
@@ -204,10 +208,26 @@ impl Runtime {
     })
   }
 
-  /// Records a write to `signal_id`, for the next flush, and marks its readers dirty.
-  fn record_write(&self, signal_id: SignalId) {
-    self.tracker.record_write(signal_id);
-    self.epoch.set(self.epoch.get() + 1);
-    self.nodes.mark_subscribers_dirty(signal_id.into());
+  /// Records a write to `signal_id`, for the next flush, marks its readers dirty and calls back
+  /// the sinks that read it.
+  fn record_write(signal_id: SignalId) {
+    let marks = RUNTIME.with(|runtime| {
+      runtime.tracker.record_write(signal_id);
+      runtime.epoch.set(runtime.epoch.get() + 1);
+      runtime.nodes.mark_subscribers_dirty(signal_id.into())
+    });
+    marks.call();
+  }
+
+  pub fn set_sink(of: SignalId, mark: Rc<dyn Fn()>) {
+    RUNTIME.with(|runtime| runtime.nodes.set_sink(of, mark));
+  }
+
+  pub fn link_signal(of: SignalId, source: Option<SignalId>) {
+    RUNTIME.with(|runtime| runtime.nodes.link_signal(of, source));
+  }
+
+  pub fn has_sink(signal_id: SignalId) -> bool {
+    RUNTIME.with(|runtime| runtime.nodes.has_sink(signal_id))
   }
 }

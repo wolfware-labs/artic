@@ -25,5 +25,9 @@ static_assertions.workspace = true
 name = "reactive"
 harness = false
 
+[[bench]]
+name = "tree"
+harness = false
+
 [lints]
 workspace = true

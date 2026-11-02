@@ -1,11 +1,8 @@
-use crate::property::state::PropertyState;
-use crate::property::{Property, PropertyKey};
-use crate::reactive::Change;
-#[cfg(debug_assertions)]
-use crate::reactive::SignalId;
-use crate::tree::DirtyHandle;
+use crate::property::{Affects, Property, PropertyKey};
+use crate::reactive::{SignalId, has_sink, sink};
 use std::any::Any;
 use std::fmt::{self, Debug, Formatter};
+use std::rc::Rc;
 
 /// The identity of a property kind: the address of its [`PropertyKey`] static.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -78,7 +75,6 @@ impl<'a> AnyProperty<'a> {
   }
 
   /// The id of the property's signal: two handles to one property share it.
-  #[cfg(debug_assertions)]
   pub(crate) fn id(self) -> SignalId {
     self.0.id()
   }
@@ -92,16 +88,15 @@ impl<'a> AnyProperty<'a> {
     self.0.is_listed()
   }
 
-  /// Whether the node whose flags `dirty` holds lists the property. A disposed property is listed
-  /// by none.
-  pub(crate) fn is_listed_by(self, dirty: &DirtyHandle) -> bool {
-    self.0.is_listed_by(dirty)
+  /// The stages a change to the property's effective value affects.
+  pub(crate) fn affects(self) -> Affects {
+    self.0.affects()
   }
 
-  /// Connects the property to its node's dirty flags. After this, a change to the effective value
-  /// adds the key's [`Affects`](super::Affects) to them and sets the tree's pending flag.
-  pub(crate) fn attach(self, dirty: DirtyHandle) {
-    self.0.attach(dirty);
+  /// Gives the property a sink that calls `mark` when its effective value changes, by a write to it
+  /// or to a source it inherits from. The sink lives as long as the property.
+  pub(crate) fn sink(self, mark: impl Fn() + 'static) {
+    self.0.sink(Rc::new(mark));
   }
 
   /// Makes the property's `Inherited` level follow `source`, a property of the same kind on a
@@ -138,11 +133,10 @@ pub(crate) trait Erased {
   fn key_id(&self) -> KeyId;
   fn as_any(&self) -> &dyn Any;
   fn inherits(&self) -> bool;
-  #[cfg(debug_assertions)]
   fn id(&self) -> SignalId;
   fn is_listed(&self) -> bool;
-  fn is_listed_by(&self, dirty: &DirtyHandle) -> bool;
-  fn attach(&self, dirty: DirtyHandle);
+  fn affects(&self) -> Affects;
+  fn sink(&self, mark: Rc<dyn Fn()>);
   fn inherit_from(&self, source: Option<AnyProperty<'_>>);
   fn dispose(&self);
 }
@@ -163,24 +157,21 @@ where
     self.key().inherits()
   }
 
-  #[cfg(debug_assertions)]
   fn id(&self) -> SignalId {
     self.0.id()
   }
 
   fn is_listed(&self) -> bool {
-    self.0.with_untracked(PropertyState::is_listed)
+    self.0.ensure_alive();
+    has_sink(self.0.id())
   }
 
-  fn is_listed_by(&self, dirty: &DirtyHandle) -> bool {
-    self.0.is_alive() && self.0.with_untracked(|state| state.is_listed_by(dirty))
+  fn affects(&self) -> Affects {
+    self.key().affects()
   }
 
-  fn attach(&self, dirty: DirtyHandle) {
-    self.0.update_with(|state| {
-      state.attach(dirty);
-      Change::Hidden
-    });
+  fn sink(&self, mark: Rc<dyn Fn()>) {
+    sink(self.0.id(), mark);
   }
 
   fn inherit_from(&self, source: Option<AnyProperty<'_>>) {

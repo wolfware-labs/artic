@@ -44,9 +44,9 @@ mod objects;
 
 use crate::Object;
 use crate::arena::SlotId;
+use crate::arena::SlotMap;
 use crate::object::for_each_property;
-use crate::property::{Affects, AttachedKey, Erased, KeyId, Property};
-#[cfg(debug_assertions)]
+use crate::property::{Affects, AnyProperty, AttachedKey, KeyId, Property};
 use crate::reactive::SignalId;
 use attached::AttachedValues;
 use dirty::DirtyFlags;
@@ -102,6 +102,10 @@ pub struct UiTree {
   visual: Tree,
   dirty_flags: DirtyFlags,
   attached_values: AttachedValues,
+  /// The properties each node's fields hold, which `free` disposes; its attached values are kept
+  /// in `attached_values`. Each property has a sink that marks the node dirty when its effective
+  /// value changes, and that goes when the property is disposed.
+  listed: SlotMap<Vec<SignalId>>,
   structure_generation: u64,
   #[cfg(debug_assertions)]
   touched: RefCell<HashMap<NodeId, Vec<SignalId>, BuildHasherDefault<DefaultHasher>>>,
@@ -199,6 +203,7 @@ impl UiTree {
       visual: Tree::new(),
       dirty_flags: DirtyFlags::new(),
       attached_values: AttachedValues::new(),
+      listed: SlotMap::new(),
       structure_generation: 0,
       #[cfg(debug_assertions)]
       touched: RefCell::new(HashMap::with_hasher(BuildHasherDefault::new())),
@@ -249,7 +254,14 @@ impl UiTree {
     self.logical.insert(id);
     self.visual.insert(id);
     let dirty = self.dirty_flags.insert(id);
-    for_each_property(self.objects.object(id), |property| property.attach(dirty.clone()));
+    let mut listed: Vec<SignalId> = Vec::new();
+    for_each_property(self.objects.object(id), |property| {
+      if !listed.contains(&property.id()) {
+        marking(property, &dirty);
+        listed.push(property.id());
+      }
+    });
+    self.listed.insert(id.0, listed);
     id
   }
 
@@ -267,9 +279,9 @@ impl UiTree {
   /// tree is dropped, one swapped in from another node stays that node's, and a new one is left.
   fn free_node(&mut self, node_id: NodeId) {
     let object = self.objects.free(node_id).expect("free passes only live nodes");
-    let flags = self.dirty_flags.shared(node_id);
+    let listed = self.listed.remove(node_id.0).unwrap_or_default();
     for_each_property(object.as_ref(), |property| {
-      if property.is_listed_by(&flags) {
+      if listed.contains(&property.id()) {
         property.dispose();
       }
     });
@@ -805,7 +817,7 @@ impl UiTree {
       return property;
     }
     let property = Property::new_unowned(key.key(), key.default_value());
-    Erased::attach(&property, self.dirty_flags.shared(node));
+    marking(AnyProperty::new(&property), &self.dirty_flags.shared(node));
     self.attached_values.insert(node, Box::new(property));
     if key.key().inherits() {
       inheritance::relink(&self.objects, &self.attached_values, &self.logical, node);
@@ -926,6 +938,13 @@ impl UiTree {
       *property.downcast::<T>().expect("a key's property has the key's value type")
     })
   }
+}
+
+/// Gives `property` a sink that adds its stages to the node's flags in `dirty` when its effective
+/// value changes.
+fn marking(property: AnyProperty<'_>, dirty: &DirtyHandle) {
+  let (dirty, affects) = (dirty.clone(), property.affects());
+  property.sink(move || dirty.mark(affects));
 }
 
 #[cfg(debug_assertions)]

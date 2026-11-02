@@ -66,8 +66,16 @@ impl Observer {
   }
 }
 
+/// A signal's sink: the mark a change that reaches the signal calls.
+pub type Sink = Rc<dyn Fn()>;
+
 enum Kind {
-  Signal { value: Rc<ValueCell> },
+  /// A signal's value, and its sink if it has one: a `mark` called when a visible write reaches the
+  /// signal or the source it is linked to.
+  Signal {
+    value: Rc<ValueCell>,
+    sink: Option<Sink>,
+  },
   Observer(Observer),
 }
 
@@ -87,6 +95,14 @@ struct Slot {
 }
 
 impl Slot {
+  /// The sink of the signal in this slot, if it is a signal with one.
+  fn sink(&self) -> Option<&Sink> {
+    match &self.kind {
+      Kind::Signal { sink, .. } => sink.as_ref(),
+      Kind::Observer(_) => None,
+    }
+  }
+
   fn node_kind(&self) -> NodeKind {
     match &self.kind {
       Kind::Signal { .. } => NodeKind::Signal,
@@ -105,6 +121,27 @@ pub struct Freed {
   _slot: Slot,
 }
 
+/// The sinks a change reached, to call once nothing in the runtime is borrowed: the changed signal's
+/// own, then those of the signals linked below it, each listed with the signal.
+#[must_use]
+pub struct Marks {
+  own: Option<Sink>,
+  linked: Vec<(Node, Option<Sink>)>,
+}
+
+impl Marks {
+  pub fn call(self) {
+    let linked = self.linked.into_iter().filter_map(|(_, sink)| sink);
+    for mark in self.own.into_iter().chain(linked) {
+      mark();
+    }
+  }
+}
+
+/// The most sources a reader checks a new read against itself; past that, the source's readers are
+/// checked, which a source read by few is quicker to scan.
+const FEW_SOURCES: usize = 8;
+
 pub struct Nodes {
   slots: RefCell<Arena<Slot>>,
   next_seq: Cell<u64>,
@@ -121,7 +158,51 @@ impl Nodes {
   pub fn alloc_signal(&self, value: Box<dyn Any>) -> SignalId {
     SignalId(self.alloc(Kind::Signal {
       value: Rc::new(ValueCell::new(value, "signal")),
+      sink: None,
     }))
+  }
+
+  /// Gives `of` a sink. Panics if `of` already has one, or is gone.
+  pub fn set_sink(&self, of: SignalId, mark: Sink) {
+    match self.slots.borrow_mut().get_mut(of.0.0).map(|slot| &mut slot.kind) {
+      Some(Kind::Signal { sink: sink @ None, .. }) => *sink = Some(mark),
+      Some(Kind::Signal { .. }) => panic!("a signal has one sink"),
+      Some(Kind::Observer(_)) | None => panic!("signal slot not found for the specified id"),
+    }
+  }
+
+  /// Makes `of` read `source`, in place of the source it read before, or nothing when `source` is
+  /// `None`, so that a change reaching `source` passes on to `of` and the signals linked below it.
+  /// Panics if `source` is `of` or linked below it.
+  pub fn link_signal(&self, of: SignalId, source: Option<SignalId>) {
+    let (of, source) = (of.0, source.map(|source| source.0));
+    let mut slots = self.slots.borrow_mut();
+    let mut above = source;
+    while let Some(signal) = above {
+      assert!(signal != of, "a link can't make a cycle");
+      above = slots.get(signal.0).and_then(|slot| slot.sources.first().copied());
+    }
+    let Some(mut sources) = slots.get_mut(of.0).map(|slot| std::mem::take(&mut slot.sources)) else {
+      return;
+    };
+    for read in sources.drain(..) {
+      if let Some(read) = slots.get_mut(read.0) {
+        read.subscribers.retain(|subscriber| *subscriber != of);
+      }
+    }
+    if let Some(source) = source
+      && let Some(slot) = slots.get_mut(source.0)
+    {
+      slot.subscribers.push(of);
+      sources.push(source);
+    }
+    if let Some(slot) = slots.get_mut(of.0) {
+      slot.sources = sources;
+    }
+  }
+
+  pub fn has_sink(&self, signal_id: SignalId) -> bool {
+    self.slots.borrow().get(signal_id.0.0).and_then(Slot::sink).is_some()
   }
 
   pub fn alloc_memo(&self, value: Box<dyn Any>, compute: Rc<dyn Fn(MemoId)>, scope: ScopeId) -> MemoId {
@@ -179,7 +260,7 @@ impl Nodes {
 
   pub fn signal_value(&self, signal_id: SignalId) -> Rc<ValueCell> {
     match &self.slot(signal_id.0, "signal").kind {
-      Kind::Signal { value } => Rc::clone(value),
+      Kind::Signal { value, .. } => Rc::clone(value),
       Kind::Observer(_) => unreachable!("a signal id names a signal"),
     }
   }
@@ -237,8 +318,8 @@ impl Nodes {
     self.slots.borrow().get(node.0)?.owner?.next
   }
 
-  /// Whether `node` is an observer that has to run again. A signal reads nothing, and a node that
-  /// is gone runs nothing, so neither ever is.
+  /// Whether `node` is an observer that has to run again. A signal never runs, and a node that is
+  /// gone runs nothing, so neither ever is.
   pub fn is_dirty(&self, node: Node) -> bool {
     match self.slots.borrow().get(node.0).map(|slot| &slot.kind) {
       Some(Kind::Observer(observer)) => observer.dirty,
@@ -246,29 +327,60 @@ impl Nodes {
     }
   }
 
-  pub fn mark_subscribers_dirty(&self, node: Node) {
+  /// Marks the observers that read `node` dirty, and returns the sinks a change to it reaches, for
+  /// the runtime to call once nothing is borrowed: its own if it is a signal with one, and those of
+  /// the signals linked below it.
+  pub fn mark_subscribers_dirty(&self, node: Node) -> Marks {
     let mut slots = self.slots.borrow_mut();
-    let Some(subscribers) = slots.get(node.0).map(|slot| slot.subscribers.clone()) else {
-      return;
-    };
-    for subscriber in subscribers {
-      if let Some(Kind::Observer(observer)) = slots.get_mut(subscriber.0).map(|slot| &mut slot.kind) {
-        observer.dirty = true;
+    let own = slots.get(node.0).and_then(Slot::sink).cloned();
+    let mut linked = Vec::new();
+    let subscribers = slots
+      .get_mut(node.0)
+      .map(|slot| std::mem::take(&mut slot.subscribers))
+      .unwrap_or_default();
+    for subscriber in &subscribers {
+      match slots.get_mut(subscriber.0).map(|slot| &mut slot.kind) {
+        Some(Kind::Observer(observer)) => observer.dirty = true,
+        Some(Kind::Signal { sink, .. }) => linked.push((*subscriber, sink.clone())),
+        None => {}
       }
     }
+    if let Some(slot) = slots.get_mut(node.0) {
+      slot.subscribers = subscribers;
+    }
+    let mut level = 0..linked.len();
+    while !level.is_empty() {
+      let end = linked.len();
+      for index in level {
+        let Some(slot) = slots.get(linked[index].0.0) else {
+          continue;
+        };
+        for reader in &slot.subscribers {
+          if let Some(Kind::Signal { sink, .. }) = slots.get(reader.0).map(|slot| &slot.kind) {
+            linked.push((*reader, sink.clone()));
+          }
+        }
+      }
+      level = end..linked.len();
+    }
+    Marks { own, linked }
   }
 
   /// Records that `subscriber` read `source`. A node disposed during its own run records nothing,
   /// so no live node lists a dead one.
   pub fn add_edge(&self, source: Node, subscriber: Node) {
     let mut slots = self.slots.borrow_mut();
-    if !slots.contains(subscriber.0) {
+    let Some(subscriber_slot) = slots.get_mut(subscriber.0) else {
+      return;
+    };
+    let reads_few = subscriber_slot.sources.len() <= FEW_SOURCES;
+    if reads_few && subscriber_slot.sources.contains(&source) {
       return;
     }
     let Some(source_slot) = slots.get_mut(source.0) else {
       return;
     };
-    if source_slot.subscribers.contains(&subscriber) {
+    if !reads_few && source_slot.subscribers.contains(&subscriber) {
       return;
     }
     source_slot.subscribers.push(subscriber);
@@ -313,8 +425,7 @@ impl Nodes {
               }
             }
           },
-          Some(Kind::Signal { .. }) => unreachable!("a signal reads nothing"),
-          None => {}
+          Some(Kind::Signal { .. }) | None => {}
         }
       }
     }

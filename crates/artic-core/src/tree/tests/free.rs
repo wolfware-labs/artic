@@ -1,7 +1,7 @@
 use crate::Object;
 use crate::property::{Affects, AnyProperty, AttachedKey, Inheritance, Property, PropertyKey, PropertyVisitor};
 use crate::reactive::{Scope, live_counts};
-use crate::tree::{TreeKind, UiTree};
+use crate::tree::{NodeId, TreeKind, UiTree};
 use pretty_assertions::assert_eq;
 
 static FONT_SIZE: PropertyKey<i32> = PropertyKey::new("FontSize", Affects::LAYOUT, Inheritance::Replace);
@@ -218,10 +218,11 @@ fn a_property_is_listed_only_by_its_own_node() {
   let mut tree = UiTree::new();
   let [first, second] = [(); 2].map(|_| tree.alloc(Box::new(Label::new())));
   let property = tree.get_as::<Label>(first).unwrap().font_size;
-  let property = AnyProperty::new(&property);
+  let id = AnyProperty::new(&property).id();
+  let lists = |node: NodeId| tree.listed.get(node.0).unwrap().contains(&id);
 
-  assert!(property.is_listed_by(&tree.dirty_flags.shared(first)));
-  assert!(!property.is_listed_by(&tree.dirty_flags.shared(second)));
+  assert!(lists(first));
+  assert!(!lists(second));
 }
 
 // A field swapped through `get_as_mut` for another node's property isn't this node's to dispose:
