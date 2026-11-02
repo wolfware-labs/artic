@@ -269,84 +269,22 @@ where
   /// handle kept past that panics when read. A property already disposed, by its scope or an
   /// earlier call, is left as it is.
   fn dispose(self) {
-    if !self.0.is_alive() {
-      return;
+    if self.0.is_alive() {
+      self.0.dispose();
     }
-    self.unfollow(self.0.with_untracked(|state| state.levels.inherited()));
-    self.0.dispose();
   }
 
-  /// Makes the `Inherited` level follow `source`, or no property, and keeps `source`'s followers
-  /// list in step.
+  /// Makes the `Inherited` level follow `source`, or no property. The property's own sink, reading
+  /// its effective value again, then reads `source` instead.
   fn follow(&self, source: Option<Property<T>>) {
-    let previous = self.0.with_untracked(|state| state.levels.inherited());
-    if previous == source {
-      return;
-    }
-    self.unfollow(previous);
-    if let Some(source) = source {
-      source.0.update_with(|state| {
-        state.add_follower(*self);
-        Change::Hidden
-      });
-    }
-    self.edit(|levels| levels.set_inherited(source));
-  }
-
-  /// Takes the property off `source`'s followers list, if `source` is still alive.
-  fn unfollow(self, source: Option<Property<T>>) {
-    if let Some(source) = source.filter(|source| source.0.is_alive()) {
-      source.0.update_with(|state| {
-        state.remove_follower(self);
-        Change::Hidden
-      });
+    if self.0.with_untracked(|state| state.levels.inherited()) != source {
+      self.edit(|levels| levels.set_inherited(source));
     }
   }
 
-  /// Applies `edit` to the levels and, if readers can see it, marks the property's node dirty and
-  /// the nodes of the followers that inherit the new value.
+  /// Applies `edit` to the levels, which says whether readers can see the change.
   fn edit(&self, edit: impl FnOnce(&mut Levels<T>) -> Change) {
-    let mut change = Change::Hidden;
-    self.0.update_with(|state| {
-      change = edit(&mut state.levels);
-      if change == Change::Visible {
-        state.mark_dirty();
-      }
-      change
-    });
-    if change == Change::Visible {
-      self.mark_followers_dirty();
-    }
-  }
-
-  /// Marks dirty the node of every follower whose effective value comes from this property, and
-  /// passes the walk on to their own followers. Reads are untracked, so a write inside an effect
-  /// doesn't subscribe it to every descendant. Followers whose scope was disposed are dropped.
-  fn mark_followers_dirty(&self) {
-    let followers = self.0.with_untracked(|state| state.followers().to_vec());
-    let mut has_disposed = false;
-    for follower in followers {
-      if !follower.0.is_alive() {
-        has_disposed = true;
-        continue;
-      }
-      let inherits_from_here = follower.0.with_untracked(|state| {
-        let inherits = state.levels.combines() || state.levels.effective_source() == Precedence::Inherited;
-        if inherits {
-          state.mark_dirty();
-        }
-        inherits
-      });
-      if inherits_from_here {
-        follower.mark_followers_dirty();
-      }
-    }
-    if has_disposed {
-      self.0.update_with(|state| {
-        state.retain_followers(|follower| follower.0.is_alive());
-        Change::Hidden
-      });
-    }
+    self.0.update_with(|state| edit(&mut state.levels));
   }
 }
 
@@ -372,8 +310,8 @@ where
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::reactive::{Scope, effect, flush_effects};
-  use crate::tree::DirtyHandle;
+  use crate::property::AnyProperty;
+  use crate::reactive::{Scope, effect, flush_effects, live_counts};
   use pretty_assertions::assert_eq;
   use static_assertions::{assert_impl_all, assert_not_impl_any};
   use std::cell::Cell;
@@ -402,6 +340,15 @@ mod tests {
     } else {
       property.set_at(level, value);
     }
+  }
+
+  /// Gives `property` a sink, as the tree gives each property it lists, and returns how often
+  /// it's marked.
+  fn watch(property: Property<i32>) -> Rc<Cell<u32>> {
+    let marks = Rc::new(Cell::new(0));
+    let counted = Rc::clone(&marks);
+    AnyProperty::new(&property).sink(move || counted.set(counted.get() + 1));
+    marks
   }
 
   /// Empties `level` of `property`, unfollowing for the Inherited level.
@@ -700,54 +647,55 @@ mod tests {
     assert_eq!((child.get(), runs.get()), (5, 1));
   }
 
-  // A visible change marks dirty the nodes of followers that inherit it, through every level of
+  // A visible change reaches the sinks of the followers that inherit it, through every level of
   // followers, and stops at a follower with its own value.
   #[test]
-  fn visible_change_marks_inheriting_followers_dirty() {
+  fn a_visible_change_reaches_the_sinks_of_inheriting_followers() {
     let [root, middle, leaf, blocked] = [(); 4].map(|_| Property::new(&TEST, 0));
-    let [middle_dirty, leaf_dirty, blocked_dirty] = [(); 3].map(|_| DirtyHandle::default());
-    middle.attach(middle_dirty.clone());
-    leaf.attach(leaf_dirty.clone());
-    blocked.attach(blocked_dirty.clone());
+    let watched = [middle, leaf, blocked].map(watch);
     middle.follow(Some(root));
     leaf.follow(Some(middle));
     blocked.follow(Some(middle));
     blocked.set(5);
-    for dirty in [&middle_dirty, &leaf_dirty, &blocked_dirty] {
-      dirty.clear(Affects::LAYOUT | Affects::RENDER);
-    }
+    let before = watched.each_ref().map(|marks| marks.get());
 
     root.set(1);
 
-    assert_eq!(middle_dirty.stages(), Affects::LAYOUT);
-    assert_eq!(leaf_dirty.stages(), Affects::LAYOUT);
-    assert_eq!(blocked_dirty.stages(), Affects::NONE);
+    let after = watched.each_ref().map(|marks| marks.get());
+    assert_eq!([after[0] - before[0], after[1] - before[1], after[2] - before[2]], [1, 1, 0]);
   }
 
-  // A follower whose scope was disposed is skipped and dropped from the followers list.
+  // A follower its scope disposed takes its sink with it: a change to the source marks nothing.
   #[test]
-  fn disposed_follower_is_dropped() {
-    let parent = Property::new(&TEST, 0);
+  fn a_follower_its_scope_disposed_is_not_marked() {
+    let before = live_counts();
+    let parent = Property::new_unowned(&TEST, 0);
     let scope = Scope::new_root();
     let child = scope.run(|| Property::new(&TEST, 0));
     child.follow(Some(parent));
+    let marks = watch(child);
 
     scope.dispose();
     parent.set(1);
 
-    assert_eq!(parent.0.with_untracked(|state| state.followers().len()), 0);
+    assert_eq!((marks.get(), live_counts().sinks), (0, before.sinks));
+    parent.dispose();
   }
 
-  // Following another property moves the follower from the old source's list to the new one's.
+  // Following another property moves the follower's sink to the new source.
   #[test]
-  fn refollowing_moves_the_follower() {
+  fn refollowing_moves_the_sink_to_the_new_source() {
     let [first, second, child] = [(); 3].map(|_| Property::new(&TEST, 0));
+    let marks = watch(child);
     child.follow(Some(first));
-
     child.follow(Some(second));
+    let before = marks.get();
 
-    assert_eq!(first.0.with_untracked(|state| state.followers().len()), 0);
-    assert_eq!(second.0.with_untracked(|state| state.followers().to_vec()), [child]);
+    first.set(1);
+    let after_first = marks.get();
+    second.set(1);
+
+    assert_eq!((after_first - before, marks.get() - before), (0, 1));
   }
 
   // Writing the Inherited level directly panics: the tree sets it.
@@ -763,19 +711,17 @@ mod tests {
   fn following_or_unfollowing_a_source_is_visible() {
     let parent = Property::new(&TEST, 20);
     let child = Property::new(&TEST, 0);
-    let dirty = DirtyHandle::default();
-    child.attach(dirty.clone());
+    let marks = watch(child);
     let seen = Rc::new(Cell::new(-1));
     let seen_in_effect = Rc::clone(&seen);
     effect(move || seen_in_effect.set(child.get()));
 
     child.follow(Some(parent));
     flush_effects();
-    assert_eq!((seen.get(), dirty.stages()), (20, Affects::LAYOUT));
+    assert_eq!((seen.get(), marks.get()), (20, 1));
 
-    dirty.clear(Affects::LAYOUT | Affects::RENDER);
     child.follow(None);
     flush_effects();
-    assert_eq!((seen.get(), dirty.stages()), (0, Affects::LAYOUT));
+    assert_eq!((seen.get(), marks.get()), (0, 2));
   }
 }

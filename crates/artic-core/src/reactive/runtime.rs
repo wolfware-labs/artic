@@ -219,15 +219,9 @@ impl Runtime {
     Self::fire(sinks);
   }
 
-  pub fn create_sink(of: SignalId, track: Rc<dyn Fn()>, mark: Rc<dyn Fn()>) -> Node {
+  pub fn create_sink(of: SignalId, track: Rc<dyn Fn()>, mark: Rc<dyn Fn()>) {
     let node = RUNTIME.with(|runtime| runtime.nodes.alloc_sink(of, track, mark));
     Self::track_sink(node);
-    node
-  }
-
-  pub fn dispose_sink(node: Node) {
-    let freed = RUNTIME.with(|runtime| runtime.nodes.remove(node));
-    drop(freed);
   }
 
   pub fn has_sink(signal_id: SignalId) -> bool {

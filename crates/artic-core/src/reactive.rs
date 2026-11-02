@@ -148,7 +148,7 @@ pub use memo::Memo;
 pub(crate) use runtime::SignalId;
 pub use scope::Scope;
 pub use signal::{Change, Signal};
-pub(crate) use sink::{Sink, has_sink};
+pub(crate) use sink::{has_sink, sink};
 
 /// Runs every effect whose dependencies changed since it last ran.
 ///

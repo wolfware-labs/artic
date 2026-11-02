@@ -118,7 +118,7 @@ impl Slot {
 
 /// A freed node's slot, its value and closures still in it.
 pub struct Freed {
-  _slot: Slot,
+  _slots: Vec<Slot>,
 }
 
 pub struct Nodes {
@@ -181,7 +181,21 @@ impl Nodes {
   /// drops it once nothing in the runtime is borrowed, since a value or a closure in it may use the
   /// runtime when dropped. A stale id frees nothing.
   #[must_use]
+  ///
+  /// A signal's sink goes with it: it reads nothing once the signal is gone.
   pub fn remove(&self, node: Node) -> Option<Freed> {
+    let slot = self.free(node)?;
+    let sink = match &slot.kind {
+      Kind::Signal { sink, .. } => *sink,
+      Kind::Observer(_) | Kind::Sink(_) => None,
+    };
+    let mut slots = vec![slot];
+    slots.extend(sink.and_then(|sink| self.free(sink)));
+    Some(Freed { _slots: slots })
+  }
+
+  /// Frees `node`'s slot and cuts its edges in both directions.
+  fn free(&self, node: Node) -> Option<Slot> {
     self.clear_sources(node);
     let mut slots = self.slots.borrow_mut();
     let mut slot = slots.free(node.0)?;
@@ -196,7 +210,7 @@ impl Nodes {
     {
       *sink = None;
     }
-    Some(Freed { _slot: slot })
+    Some(slot)
   }
 
   /// The scope a memo's or an effect's runs own, and an effect's place in the run order. `None`

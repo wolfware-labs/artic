@@ -2,7 +2,7 @@ use crate::reactive::runtime::{Node, Runtime};
 use crate::reactive::{
   Change, LiveCounts, Memo, Scope, Signal, assert_no_reactive_leaks, batch, effect, flush_effects, live_counts,
 };
-use crate::reactive::{Sink, has_sink};
+use crate::reactive::{has_sink, sink};
 use pretty_assertions::assert_eq;
 use std::cell::{Cell, RefCell};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -1597,11 +1597,12 @@ fn effect_chain_in_creation_order_settles_in_one_pass() {
 
 // Sinks
 
-/// A sink for `of` that reads what `track` reads and counts its marks.
-fn counting_sink(of: Signal<i32>, track: impl Fn() + 'static) -> (Sink, Rc<Cell<u32>>) {
+/// Gives `of` a sink that reads what `track` reads, and returns how often it's marked.
+fn counting_sink(of: Signal<i32>, track: impl Fn() + 'static) -> Rc<Cell<u32>> {
   let marks = Rc::new(Cell::new(0));
   let counted = Rc::clone(&marks);
-  (Sink::new(of.id(), track, move || counted.set(counted.get() + 1)), marks)
+  sink(of.id(), track, move || counted.set(counted.get() + 1));
+  marks
 }
 
 // A sink is marked by a visible write to what it read, and reads again at once, so it follows what
@@ -1610,7 +1611,7 @@ fn counting_sink(of: Signal<i32>, track: impl Fn() + 'static) -> (Sink, Rc<Cell<
 fn a_sink_marks_on_a_visible_write_and_tracks_again() {
   let (first, second) = (Signal::new(0), Signal::new(0));
   let reads_first = Signal::new(true);
-  let (sink, marks) = counting_sink(first, move || {
+  let marks = counting_sink(first, move || {
     if reads_first.get() {
       first.get();
     } else {
@@ -1629,14 +1630,13 @@ fn a_sink_marks_on_a_visible_write_and_tracks_again() {
   seen.push(marks.get());
 
   assert_eq!(seen, [1, 2, 2, 3]);
-  sink.dispose();
 }
 
 // A hidden update marks no sink.
 #[test]
 fn a_hidden_update_fires_no_sink() {
   let count = Signal::new(0);
-  let (sink, marks) = counting_sink(count, move || {
+  let marks = counting_sink(count, move || {
     count.get();
   });
 
@@ -1646,14 +1646,13 @@ fn a_hidden_update_fires_no_sink() {
   });
 
   assert_eq!(marks.get(), 0);
-  sink.dispose();
 }
 
 // A sink is marked in the write itself, also inside a batch, with no flush.
 #[test]
 fn a_sink_fires_inside_a_batch_before_it_ends() {
   let count = Signal::new(0);
-  let (sink, marks) = counting_sink(count, move || {
+  let marks = counting_sink(count, move || {
     count.get();
   });
 
@@ -1663,7 +1662,6 @@ fn a_sink_fires_inside_a_batch_before_it_ends() {
   });
 
   assert_eq!(inside, 1);
-  sink.dispose();
 }
 
 // A flush doesn't run a sink: it isn't an effect.
@@ -1672,41 +1670,43 @@ fn a_sink_is_not_an_effect() {
   let count = Signal::new(0);
   let reads = Rc::new(Cell::new(0));
   let counted = Rc::clone(&reads);
-  let sink = Sink::new(count.id(), move || counted.set(counted.get() + 1), || {});
+  sink(count.id(), move || counted.set(counted.get() + 1), || {});
 
   flush_effects();
 
   assert_eq!(reads.get(), 1);
-  sink.dispose();
 }
 
 // A signal has at most one sink, and says whether it has one.
 #[test]
 fn a_signal_has_one_sink() {
   let count = Signal::new(0);
-  let sink = Sink::new(count.id(), || {}, || {});
+  let alone = Signal::new(0);
+  sink(count.id(), || {}, || {});
 
-  let second = catch_unwind(AssertUnwindSafe(|| Sink::new(count.id(), || {}, || {})));
+  let second = catch_unwind(AssertUnwindSafe(|| sink(count.id(), || {}, || {})));
 
-  assert!(second.is_err() && has_sink(count.id()));
-  sink.dispose();
-  assert!(!has_sink(count.id()));
+  assert!(second.is_err());
+  assert_eq!((has_sink(count.id()), has_sink(alone.id())), (true, false));
 }
 
-// Disposing a sink cuts its edges and frees it.
+// A sink goes with its signal: disposing the signal frees the sink and cuts its edges.
 #[test]
-fn disposing_a_sink_cuts_its_edges() {
+fn a_sink_goes_with_its_signal() {
   let before = live_counts();
-  let count = Signal::new_unowned(0);
-  let (sink, _) = counting_sink(count, move || {
+  let (count, other) = (Signal::new_unowned(0), Signal::new(0));
+  counting_sink(count, move || {
     count.get();
+    other.get();
   });
-  let tracked = (Runtime::subscriber_count(count.id()), live_counts().sinks);
+  let tracked = (Runtime::subscriber_count(other.id()), live_counts().sinks);
 
-  sink.dispose();
   count.dispose();
 
-  assert_eq!((tracked, live_counts()), ((1, before.sinks + 1), before));
+  assert_eq!(
+    (tracked, Runtime::subscriber_count(other.id()), live_counts().sinks),
+    ((1, before.sinks + 1), 0, before.sinks)
+  );
 }
 
 // A sink's mark may use the runtime.
@@ -1714,7 +1714,7 @@ fn disposing_a_sink_cuts_its_edges() {
 fn a_sink_may_use_the_runtime_in_mark() {
   let count = Signal::new(0);
   let seen = Signal::new(0);
-  let sink = Sink::new(
+  sink(
     count.id(),
     move || {
       count.get();
@@ -1725,5 +1725,4 @@ fn a_sink_may_use_the_runtime_in_mark() {
   count.set(3);
 
   assert_eq!(seen.get(), 3);
-  sink.dispose();
 }
