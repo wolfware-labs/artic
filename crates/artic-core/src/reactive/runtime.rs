@@ -219,41 +219,28 @@ impl Runtime {
     Self::fire(sinks);
   }
 
-  pub fn read_sink(signal_id: SignalId) {
-    let node = RUNTIME
-      .with(|runtime| runtime.nodes.sink_of(signal_id))
-      .unwrap_or(signal_id.into());
-    Self::record_read(node);
+  pub fn create_sink(of: SignalId, mark: Rc<dyn Fn()>) {
+    RUNTIME.with(|runtime| runtime.nodes.alloc_sink(of, mark));
   }
 
-  pub fn create_sink(of: SignalId, track: Rc<dyn Fn()>, mark: Rc<dyn Fn()>) {
-    let sink = nodes::Sink { track, mark };
-    let node = RUNTIME.with(|runtime| runtime.nodes.alloc_sink(of, sink.clone()));
-    Self::track_sink(node, &sink);
+  /// Links `of`'s sink to `source`'s sink, or to `source` itself when it has none.
+  pub fn link_sink(of: SignalId, source: Option<SignalId>) {
+    RUNTIME.with(|runtime| {
+      let source = source.map(|source| runtime.nodes.sink_of(source).unwrap_or(source.into()));
+      runtime.nodes.link_sink(of, source);
+    });
   }
 
   pub fn has_sink(signal_id: SignalId) -> bool {
     RUNTIME.with(|runtime| runtime.nodes.has_sink(signal_id))
   }
 
-  /// Calls back `sinks`, whose reads a write just changed: each marks and tracks again, since
-  /// what it reads may now be different, then passes the change on to the sinks that read it.
+  /// Calls back `sinks`, which read what a write just changed, and the sinks that read them.
   fn fire(sinks: Vec<Node>) {
     for node in sinks {
-      let Some(sink) = RUNTIME.with(|runtime| runtime.nodes.sink(node)) else {
-        continue;
-      };
-      (sink.mark)();
-      Self::track_sink(node, &sink);
-      Self::pass_on(node);
-    }
-  }
-
-  /// Calls back the sinks that read `node`, a sink just called back, and the sinks that read
-  /// them: each marks. What they read hasn't changed, so they don't track again.
-  fn pass_on(node: Node) {
-    for mark in RUNTIME.with(|runtime| runtime.nodes.reached_marks(node)) {
-      mark();
+      for mark in RUNTIME.with(|runtime| runtime.nodes.reached_marks(node)) {
+        mark();
+      }
     }
   }
 }

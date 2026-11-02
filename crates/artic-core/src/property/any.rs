@@ -2,6 +2,7 @@ use crate::property::{Affects, Property, PropertyKey};
 use crate::reactive::{SignalId, has_sink, sink};
 use std::any::Any;
 use std::fmt::{self, Debug, Formatter};
+use std::rc::Rc;
 
 /// The identity of a property kind: the address of its [`PropertyKey`] static.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -92,10 +93,10 @@ impl<'a> AnyProperty<'a> {
     self.0.affects()
   }
 
-  /// Gives the property a sink that reads its effective value, and so the sources it inherits it
-  /// from, and calls `mark` when it changes. The sink lives as long as the property.
+  /// Gives the property a sink, linked to the source it inherits from, that calls `mark` when its
+  /// effective value changes. The sink lives as long as the property.
   pub(crate) fn sink(self, mark: impl Fn() + 'static) {
-    self.0.sink(Box::new(mark));
+    self.0.sink(Rc::new(mark));
   }
 
   /// Makes the property's `Inherited` level follow `source`, a property of the same kind on a
@@ -135,7 +136,7 @@ pub(crate) trait Erased {
   fn id(&self) -> SignalId;
   fn is_listed(&self) -> bool;
   fn affects(&self) -> Affects;
-  fn sink(&self, mark: Box<dyn Fn()>);
+  fn sink(&self, mark: Rc<dyn Fn()>);
   fn inherit_from(&self, source: Option<AnyProperty<'_>>);
   fn dispose(&self);
 }
@@ -169,9 +170,9 @@ where
     self.key().affects()
   }
 
-  fn sink(&self, mark: Box<dyn Fn()>) {
-    let property = *self;
-    sink(self.0.id(), move || property.track(), mark);
+  fn sink(&self, mark: Rc<dyn Fn()>) {
+    sink(self.0.id(), mark);
+    self.link();
   }
 
   fn inherit_from(&self, source: Option<AnyProperty<'_>>) {

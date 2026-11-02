@@ -66,7 +66,7 @@ mod parse_enum_error;
 mod shared;
 mod state;
 
-use crate::reactive::{Change, Signal, read_sink};
+use crate::reactive::{Change, Signal, link_sink};
 pub use affects::Affects;
 pub use any::PropertyVisitor;
 pub(crate) use any::{AnyProperty, Erased, KeyId};
@@ -282,17 +282,21 @@ where
     }
   }
 
-  /// Reads, tracked, what a change to the effective value can come from: the property's own
-  /// levels and, when it inherits, its source's sink, which a change further up passes through.
-  fn track(&self) {
-    if let Some(source) = self.0.with(|state| state.levels.read_source()) {
-      read_sink(source.0.id());
-    }
+  /// Links the property's sink to the source its effective value comes from, if any, so that a
+  /// change further up passes through to it.
+  fn link(&self) {
+    let source = self.0.with_untracked(|state| state.levels.read_source());
+    link_sink(self.0.id(), source.map(|source| source.0.id()));
   }
 
-  /// Applies `edit` to the levels, which says whether readers can see the change.
+  /// Applies `edit` to the levels, which says whether readers can see the change, and links the
+  /// property's sink again if the source its effective value comes from changed.
   fn edit(&self, edit: impl FnOnce(&mut Levels<T>) -> Change) {
+    let source = self.0.with_untracked(|state| state.levels.read_source());
     self.0.update_with(|state| edit(&mut state.levels));
+    if self.0.with_untracked(|state| state.levels.read_source()) != source {
+      self.link();
+    }
   }
 }
 
@@ -717,6 +721,42 @@ mod tests {
     child.follow(Some(source));
 
     assert_eq!((followed, marks.get()), (1, 1));
+  }
+
+  // A follower with its own value isn't marked by its source's changes, and is again once the value
+  // is cleared.
+  #[test]
+  fn an_own_value_cuts_the_source_until_cleared() {
+    let [source, child] = [(); 2].map(|_| Property::new(&TEST, 0));
+    let marks = watch(child);
+    child.follow(Some(source));
+    child.set(5);
+    let mut seen = Vec::new();
+
+    source.set(1);
+    seen.push(marks.get());
+    child.clear(Precedence::Local);
+    seen.push(marks.get());
+    source.set(2);
+    seen.push(marks.get());
+
+    assert_eq!(seen, [2, 3, 4]);
+  }
+
+  // A combining follower hears its source whatever its own levels hold.
+  #[test]
+  fn a_combining_follower_always_hears_its_source() {
+    let [source, child] = [(); 2].map(|_| Property::new(&ENABLED, true));
+    let marks = Rc::new(Cell::new(0));
+    let counted = Rc::clone(&marks);
+    AnyProperty::new(&child).sink(move || counted.set(counted.get() + 1));
+    child.follow(Some(source));
+    child.set(true);
+    let before = marks.get();
+
+    source.set(false);
+
+    assert_eq!(marks.get() - before, 1);
   }
 
   // Writing the Inherited level directly panics: the tree sets it.

@@ -249,10 +249,10 @@ fn combining_follower_is_marked_dirty_despite_own_value() {
   assert_eq!(tree.dirty(child), Affects::RENDER);
 }
 
-// A root's change reaches its followers through the sinks, not by each follower reading the root:
+// A root's change reaches its followers through its sink, not by each follower reading the root:
 // the root's signal has one reader, its own sink, however many nodes follow it.
 #[test]
-fn followers_read_their_source_through_its_sink() {
+fn followers_hear_their_source_through_its_sink() {
   let mut tree = UiTree::new();
   let (root, root_enabled) = new_toggle(&mut tree, true);
   for _ in 0..3 {

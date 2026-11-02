@@ -1,25 +1,25 @@
-//! A reader the runtime calls back when what it read changes: how a node's dirty flags follow its
-//! properties.
+//! A reader the runtime calls back when a write reaches its signal, or the source it is linked to:
+//! how a node's dirty flags follow its properties.
 
 use crate::reactive::runtime::{Runtime, SignalId};
 use std::rc::Rc;
 
-/// Gives the signal `of` a sink: a reader that reads what `track` reads and, when a visible write
-/// reaches any of it, calls `mark` at once, in the write, then reads again, so it follows what its
-/// reads depend on now. It isn't an effect, so no flush runs it. It lives as long as `of`.
+/// Gives the signal `of` a sink, which calls `mark` at once, in the write, when a visible write
+/// reaches `of` or the source [`link_sink`] gave it. It isn't an effect, so no flush runs it. It
+/// lives as long as `of`.
 ///
 /// # Panics
 ///
 /// Panics if `of` already has a sink.
-pub(crate) fn sink(of: SignalId, track: impl Fn() + 'static, mark: impl Fn() + 'static) {
-  Runtime::create_sink(of, Rc::new(track), Rc::new(mark));
+pub(crate) fn sink(of: SignalId, mark: Rc<dyn Fn()>) {
+  Runtime::create_sink(of, mark);
 }
 
-/// Records, for the reader running now, a read of `of`'s sink, or of `of` itself when it has none:
-/// the reader then hears of every change the sink is called back for, without reading what the sink
-/// reads.
-pub(crate) fn read_sink(of: SignalId) {
-  Runtime::read_sink(of);
+/// Links `of`'s sink to `source`, in place of the source it had: it is then marked by every change
+/// `source`'s sink is marked by, or by every visible write to `source` when that has no sink. `None`
+/// leaves it reading only `of`. A signal with no sink is left alone.
+pub(crate) fn link_sink(of: SignalId, source: Option<SignalId>) {
+  Runtime::link_sink(of, source);
 }
 
 /// Whether `signal` has a sink.

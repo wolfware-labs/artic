@@ -2,7 +2,7 @@ use crate::reactive::runtime::{Node, Runtime};
 use crate::reactive::{
   Change, LiveCounts, Memo, Scope, Signal, assert_no_reactive_leaks, batch, effect, flush_effects, live_counts,
 };
-use crate::reactive::{has_sink, sink};
+use crate::reactive::{has_sink, link_sink, sink};
 use pretty_assertions::assert_eq;
 use std::cell::{Cell, RefCell};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -1616,48 +1616,102 @@ fn a_reader_of_many_signals_records_each_once() {
 
 // Sinks
 
-/// Gives `of` a sink that reads what `track` reads, and returns how often it's marked.
-fn counting_sink(of: Signal<i32>, track: impl Fn() + 'static) -> Rc<Cell<u32>> {
+/// Gives `of` a sink and returns how often it's marked.
+fn counting_sink(of: Signal<i32>) -> Rc<Cell<u32>> {
   let marks = Rc::new(Cell::new(0));
   let counted = Rc::clone(&marks);
-  sink(of.id(), track, move || counted.set(counted.get() + 1));
+  sink(of.id(), Rc::new(move || counted.set(counted.get() + 1)));
   marks
 }
 
-// A sink is marked by a visible write to what it read, and reads again at once, so it follows what
-// its reads depend on now.
+// A sink is marked by a visible write to its signal.
 #[test]
-fn a_sink_marks_on_a_visible_write_and_tracks_again() {
-  let (first, second) = (Signal::new(0), Signal::new(0));
-  let reads_first = Signal::new(true);
-  let marks = counting_sink(first, move || {
-    if reads_first.get() {
-      first.get();
-    } else {
-      second.get();
-    }
-  });
+fn a_sink_marks_on_a_visible_write() {
+  let count = Signal::new(0);
+  let marks = counting_sink(count);
+
+  count.set(1);
+
+  assert_eq!(marks.get(), 1);
+}
+
+// A linked sink is marked by a visible write to its source, through the source's sink.
+#[test]
+fn a_linked_sink_hears_its_source() {
+  let (source, follower) = (Signal::new(0), Signal::new(0));
+  let (source_marks, follower_marks) = (counting_sink(source), counting_sink(follower));
+  link_sink(follower.id(), Some(source.id()));
+
+  source.set(1);
+
+  assert_eq!((source_marks.get(), follower_marks.get()), (1, 1));
+}
+
+// A change passes down a chain of linked sinks, each marked once.
+#[test]
+fn a_change_passes_down_a_chain_of_sinks() {
+  let signals: Vec<Signal<i32>> = (0..4).map(Signal::new).collect();
+  let marks: Vec<Rc<Cell<u32>>> = signals.iter().map(|signal| counting_sink(*signal)).collect();
+  for pair in signals.windows(2) {
+    link_sink(pair[1].id(), Some(pair[0].id()));
+  }
+
+  signals[1].set(10);
+
+  assert_eq!(marks.iter().map(|marks| marks.get()).collect::<Vec<_>>(), [0, 1, 1, 1]);
+}
+
+// Linking again replaces the edge, and linking to nothing cuts it.
+#[test]
+fn linking_replaces_the_edge() {
+  let (first, second, follower) = (Signal::new(0), Signal::new(0), Signal::new(0));
+  let _sources = (counting_sink(first), counting_sink(second));
+  let marks = counting_sink(follower);
+  link_sink(follower.id(), Some(first.id()));
+  link_sink(follower.id(), Some(second.id()));
 
   let mut seen = Vec::new();
   first.set(1);
   seen.push(marks.get());
-  reads_first.set(false);
-  seen.push(marks.get());
-  first.set(2);
-  seen.push(marks.get());
   second.set(1);
   seen.push(marks.get());
+  link_sink(follower.id(), None);
+  second.set(2);
+  seen.push(marks.get());
+  follower.set(1);
+  seen.push(marks.get());
 
-  assert_eq!(seen, [1, 2, 2, 3]);
+  assert_eq!(seen, [0, 1, 1, 2]);
+}
+
+// A source with no sink is linked to directly.
+#[test]
+fn a_source_without_a_sink_is_linked_directly() {
+  let (source, follower) = (Signal::new(0), Signal::new(0));
+  let marks = counting_sink(follower);
+  link_sink(follower.id(), Some(source.id()));
+
+  source.set(1);
+
+  assert_eq!(marks.get(), 1);
+}
+
+// Linking a signal with no sink does nothing.
+#[test]
+fn linking_without_a_sink_does_nothing() {
+  let (source, follower) = (Signal::new(0), Signal::new(0));
+  let sinks = live_counts().sinks;
+
+  link_sink(follower.id(), Some(source.id()));
+
+  assert_eq!((live_counts().sinks, Runtime::subscriber_count(source.id())), (sinks, 0));
 }
 
 // A hidden update marks no sink.
 #[test]
 fn a_hidden_update_fires_no_sink() {
   let count = Signal::new(0);
-  let marks = counting_sink(count, move || {
-    count.get();
-  });
+  let marks = counting_sink(count);
 
   count.update_with(|value| {
     *value = 1;
@@ -1671,9 +1725,7 @@ fn a_hidden_update_fires_no_sink() {
 #[test]
 fn a_sink_fires_inside_a_batch_before_it_ends() {
   let count = Signal::new(0);
-  let marks = counting_sink(count, move || {
-    count.get();
-  });
+  let marks = counting_sink(count);
 
   let inside = batch(|| {
     count.set(1);
@@ -1683,17 +1735,16 @@ fn a_sink_fires_inside_a_batch_before_it_ends() {
   assert_eq!(inside, 1);
 }
 
-// A flush doesn't run a sink: it isn't an effect.
+// A flush doesn't mark a sink again: it isn't an effect.
 #[test]
 fn a_sink_is_not_an_effect() {
   let count = Signal::new(0);
-  let reads = Rc::new(Cell::new(0));
-  let counted = Rc::clone(&reads);
-  sink(count.id(), move || counted.set(counted.get() + 1), || {});
+  let marks = counting_sink(count);
+  count.set(1);
 
   flush_effects();
 
-  assert_eq!(reads.get(), 1);
+  assert_eq!(marks.get(), 1);
 }
 
 // A signal has at most one sink, and says whether it has one.
@@ -1701,34 +1752,32 @@ fn a_sink_is_not_an_effect() {
 fn a_signal_has_one_sink() {
   let count = Signal::new(0);
   let alone = Signal::new(0);
-  sink(count.id(), || {}, || {});
+  sink(count.id(), Rc::new(|| {}));
 
   let sinks = live_counts().sinks;
 
-  let message = panic_message(|| sink(count.id(), || {}, || {}));
+  let message = panic_message(|| sink(count.id(), Rc::new(|| {})));
 
   assert!(message.contains("a signal has one sink"), "{message}");
   assert_eq!(live_counts().sinks, sinks);
   assert_eq!((has_sink(count.id()), has_sink(alone.id())), (true, false));
 }
 
-// A sink goes with its signal: disposing the signal frees the sink and cuts its edges.
+// A sink goes with its signal: disposing the signal frees the sink and cuts its edges, and a sink
+// linked below it hears nothing more from it.
 #[test]
 fn a_sink_goes_with_its_signal() {
-  let before = live_counts();
-  let (count, other) = (Signal::new_unowned(0), Signal::new(0));
-  counting_sink(count, move || {
-    count.get();
-    other.get();
-  });
-  let tracked = (Runtime::subscriber_count(other.id()), live_counts().sinks);
+  let before = live_counts().sinks;
+  let (source, follower) = (Signal::new_unowned(0), Signal::new(0));
+  let _source_marks = counting_sink(source);
+  let marks = counting_sink(follower);
+  link_sink(follower.id(), Some(source.id()));
+  let linked = live_counts().sinks;
 
-  count.dispose();
+  source.dispose();
+  follower.set(1);
 
-  assert_eq!(
-    (tracked, Runtime::subscriber_count(other.id()), live_counts().sinks),
-    ((1, before.sinks + 1), 0, before.sinks)
-  );
+  assert_eq!((linked, live_counts().sinks, marks.get()), (before + 2, before + 1, 1));
 }
 
 // A sink's mark may use the runtime.
@@ -1736,13 +1785,7 @@ fn a_sink_goes_with_its_signal() {
 fn a_sink_may_use_the_runtime_in_mark() {
   let count = Signal::new(0);
   let seen = Signal::new(0);
-  sink(
-    count.id(),
-    move || {
-      count.get();
-    },
-    move || seen.set(count.get()),
-  );
+  sink(count.id(), Rc::new(move || seen.set(count.get())));
 
   count.set(3);
 
