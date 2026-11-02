@@ -68,10 +68,10 @@ impl Observer {
 }
 
 /// A reader the runtime calls back: `mark` when a visible write reaches what `track` read, then
-/// `track` again, so that it reads what it depends on now. `of` is the signal it is for.
+/// `track` again, so that it reads what it depends on now. It belongs to one signal and is freed
+/// with it.
 #[derive(Clone)]
 pub struct Sink {
-  pub of: Node,
   pub track: Rc<dyn Fn()>,
   pub mark: Rc<dyn Fn()>,
 }
@@ -143,11 +143,11 @@ impl Nodes {
 
   /// A sink for `of`, which is then its signal's sink. Panics if `of` already has one, or is gone.
   pub fn alloc_sink(&self, of: SignalId, track: Rc<dyn Fn()>, mark: Rc<dyn Fn()>) -> Node {
-    let node = self.alloc(Kind::Sink(Sink { of: of.0, track, mark }));
-    match self.slots.borrow_mut().get_mut(of.0.0).map(|slot| &mut slot.kind) {
-      Some(Kind::Signal { sink: sink @ None, .. }) => *sink = Some(node),
-      Some(Kind::Signal { .. }) => panic!("a signal has one sink"),
-      _ => panic!("signal slot not found for the specified id"),
+    assert!(self.contains(of.0), "signal slot not found for the specified id");
+    assert!(!self.has_sink(of), "a signal has one sink");
+    let node = self.alloc(Kind::Sink(Sink { track, mark }));
+    if let Some(Kind::Signal { sink, .. }) = self.slots.borrow_mut().get_mut(of.0.0).map(|slot| &mut slot.kind) {
+      *sink = Some(node);
     }
     node
   }
@@ -203,12 +203,6 @@ impl Nodes {
       if let Some(subscriber) = slots.get_mut(subscriber.0) {
         subscriber.sources.retain(|source| *source != node);
       }
-    }
-    if let Kind::Sink(Sink { of, .. }) = &slot.kind
-      && let Some(Kind::Signal { sink, .. }) = slots.get_mut(of.0).map(|slot| &mut slot.kind)
-      && *sink == Some(node)
-    {
-      *sink = None;
     }
     Some(slot)
   }

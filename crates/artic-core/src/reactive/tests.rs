@@ -1684,9 +1684,12 @@ fn a_signal_has_one_sink() {
   let alone = Signal::new(0);
   sink(count.id(), || {}, || {});
 
-  let second = catch_unwind(AssertUnwindSafe(|| sink(count.id(), || {}, || {})));
+  let sinks = live_counts().sinks;
 
-  assert!(second.is_err());
+  let message = panic_message(|| sink(count.id(), || {}, || {}));
+
+  assert!(message.contains("a signal has one sink"), "{message}");
+  assert_eq!(live_counts().sinks, sinks);
   assert_eq!((has_sink(count.id()), has_sink(alone.id())), (true, false));
 }
 

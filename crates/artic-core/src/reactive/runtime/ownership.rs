@@ -1,6 +1,7 @@
 use crate::defer::defer;
 use crate::reactive::runtime::nodes::NodeKind;
 use crate::reactive::runtime::{Node, RUNTIME, Runtime, ScopeId, SignalId};
+use std::collections::HashSet;
 
 impl Runtime {
   pub fn create_scope(parent: Option<ScopeId>) -> ScopeId {
@@ -51,8 +52,10 @@ impl Runtime {
   }
 
   /// Disposes what `scope_id` owns, child scopes first, then effects, memos and signals, until it
-  /// owns nothing: a Drop run meanwhile may make new nodes in it, and those go too.
+  /// owns nothing new: a Drop run meanwhile may make new nodes in it, and those go too. Each node is
+  /// disposed once, so a pass that frees nothing new ends the clearing.
   pub(super) fn clear_scope(scope_id: ScopeId) {
+    let mut seen = HashSet::new();
     loop {
       let (children, nodes) = RUNTIME.with(|runtime| {
         if !runtime.scopes.contains(scope_id) {
@@ -60,6 +63,7 @@ impl Runtime {
         }
         (runtime.scopes.take_children(scope_id), runtime.owned(scope_id))
       });
+      let nodes: Vec<Node> = nodes.into_iter().filter(|node| seen.insert(*node)).collect();
       if children.is_empty() && nodes.is_empty() {
         return;
       }

@@ -698,6 +698,19 @@ mod tests {
     assert_eq!((after_first - before, marks.get() - before), (0, 1));
   }
 
+  // Following the source a property already follows changes nothing, so its sink isn't marked.
+  #[test]
+  fn following_the_same_source_again_marks_nothing() {
+    let [source, child] = [(); 2].map(|_| Property::new(&TEST, 0));
+    let marks = watch(child);
+    child.follow(Some(source));
+    let followed = marks.get();
+
+    child.follow(Some(source));
+
+    assert_eq!((followed, marks.get()), (1, 1));
+  }
+
   // Writing the Inherited level directly panics: the tree sets it.
   #[test]
   #[should_panic(expected = "the Inherited level follows the logical tree")]
