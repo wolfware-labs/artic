@@ -301,7 +301,6 @@ pub enum Change {
   Hidden,
 }
 
-#[cfg(any(test, debug_assertions))]
 impl<TValue> Signal<TValue> {
   pub(crate) fn id(&self) -> SignalId {
     self.0

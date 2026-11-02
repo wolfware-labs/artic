@@ -118,7 +118,8 @@ impl Slot {
 
 /// A freed node's slot, its value and closures still in it.
 pub struct Freed {
-  _slots: Vec<Slot>,
+  _slot: Slot,
+  _sink: Option<Slot>,
 }
 
 pub struct Nodes {
@@ -189,9 +190,10 @@ impl Nodes {
       Kind::Signal { sink, .. } => *sink,
       Kind::Observer(_) | Kind::Sink(_) => None,
     };
-    let mut slots = vec![slot];
-    slots.extend(sink.and_then(|sink| self.free(sink)));
-    Some(Freed { _slots: slots })
+    Some(Freed {
+      _slot: slot,
+      _sink: sink.and_then(|sink| self.free(sink)),
+    })
   }
 
   /// Frees `node`'s slot and cuts its edges in both directions.
