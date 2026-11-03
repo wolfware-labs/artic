@@ -145,6 +145,7 @@ dependencies = [
  "artic-render",
  "artic-style",
  "artic-test",
+ "criterion",
  "pretty_assertions",
  "proptest",
 ]
@@ -226,6 +227,7 @@ version = "0.1.0"
 dependencies = [
  "artic-core",
  "artic-macros",
+ "criterion",
  "pretty_assertions",
  "proptest",
  "thiserror 2.0.21",
