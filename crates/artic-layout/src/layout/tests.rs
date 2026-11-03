@@ -1840,6 +1840,23 @@ fn a_freed_nodes_result_is_reported_when_its_slot_is_reused() {
   assert_eq!(lay_out(&mut layout, &mut tree, holder, WINDOW).results, [node]);
 }
 
+// A node marked for arrange in a freed node's slot, before any run, still reports the result the
+// freed node dropped.
+#[test]
+fn invalidate_arrange_in_a_reused_slot_reports_the_dropped_result() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  tree.free(node);
+  let reused = tree.alloc(Box::<Shaper>::default());
+  layout.invalidate_arrange(reused);
+  tree.add_child(TreeKind::Visual, holder, reused);
+
+  assert_eq!(lay_out(&mut layout, &mut tree, holder, WINDOW).results, [node]);
+}
+
 // Laying out another root forgets the nodes of the one before, and reports the results they drop.
 #[test]
 fn a_new_root_forgets_the_old_ones_nodes() {

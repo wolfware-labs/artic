@@ -137,6 +137,28 @@ struct State {
 }
 
 impl State {
+  /// `node`'s record, made if it has none, in place of any a freed node left in its slot; a result
+  /// that record held is noted as dropped.
+  fn record(&mut self, node: NodeId) -> &mut Record {
+    Self::record_in(&mut self.records, &mut self.changed, node)
+  }
+
+  fn record_in<'s>(records: &'s mut NodeMap<Record>, changed: &mut Vec<NodeId>, node: NodeId) -> &'s mut Record {
+    if records.get(node).is_none()
+      && let Some((freed, record)) = records.insert(node, Record::default())
+    {
+      Self::dropped(changed, freed, &record);
+    }
+    records.get_mut(node).expect("made above")
+  }
+
+  /// Notes that `node`, whose `record` goes, dropped its result if it had one.
+  fn dropped(changed: &mut Vec<NodeId>, node: NodeId, record: &Record) {
+    if record.has_result() && !record.listed {
+      changed.push(node);
+    }
+  }
+
   fn next_stamp(&mut self) -> u64 {
     self.stamp += 1;
     self.stamp
@@ -144,7 +166,7 @@ impl State {
 
   /// Notes that `node`'s result was set or dropped.
   fn changed(&mut self, node: NodeId) {
-    let record = self.records.get_or_default(node);
+    let record = self.record(node);
     if !record.listed {
       record.listed = true;
       self.changed.push(node);
@@ -171,7 +193,8 @@ impl State {
 
   /// Marks `node` to be arranged again, even in the same rectangle.
   fn arrange_later(&mut self, node: NodeId) {
-    Self::wait(&mut self.waiting, node, self.records.get_or_default(node));
+    let record = Self::record_in(&mut self.records, &mut self.changed, node);
+    Self::wait(&mut self.waiting, node, record);
   }
 
   /// Marks every node to be arranged again, even in the same rectangle.
@@ -308,32 +331,17 @@ impl LayoutManager {
   fn sweep(&mut self, tree: &UiTree, root: NodeId) {
     let state = &mut self.state;
     let stamp = state.next_stamp();
-    let changed = &mut state.changed;
-    let mut dropped = |node: NodeId, record: &Record| {
-      if record.has_result() && !record.listed {
-        changed.push(node);
-      }
-    };
     let mut pending = vec![(root, 0)];
     while let Some((node, depth)) = pending.pop() {
-      if let Some(record) = state.records.get_mut(node) {
-        (record.depth, record.swept) = (depth, stamp);
-      } else if let Some((freed, record)) = state.records.insert(
-        node,
-        Record {
-          depth,
-          swept: stamp,
-          ..Record::default()
-        },
-      ) {
-        dropped(freed, &record);
-      }
+      let record = state.record(node);
+      (record.depth, record.swept) = (depth, stamp);
       pending.extend(tree.children(TreeKind::Visual, node).map(|child| (child, depth + 1)));
     }
+    let changed = &mut state.changed;
     state.records.retain(|node, record| {
       let kept = record.swept == stamp;
       if !kept {
-        dropped(node, record);
+        State::dropped(changed, node, record);
       }
       kept
     });
@@ -363,7 +371,7 @@ impl LayoutManager {
       dirty.clear();
     }
     for node in &dirty {
-      state.records.get_or_default(*node).dirty = true;
+      state.record(*node).dirty = true;
     }
 
     let is_dirty = |state: &State, node: NodeId| state.records.get(node).is_some_and(|record| record.dirty);
@@ -389,7 +397,7 @@ impl LayoutManager {
       }
     }
     for node in between {
-      state.records.get_or_default(node).dirty = true;
+      state.record(node).dirty = true;
     }
     let mut cx = MeasureCx {
       pass: Pass {
@@ -427,7 +435,7 @@ impl LayoutManager {
           && let Some(parent) = cx.pass.tree.parent(TreeKind::Visual, node)
           && !is_dirty(cx.pass.state, parent)
         {
-          cx.pass.state.records.get_or_default(parent).dirty = true;
+          cx.pass.state.record(parent).dirty = true;
           by_depth.entry(depth(cx.pass.state, parent)).or_default().push(parent);
         }
       }
@@ -612,7 +620,7 @@ impl<'a> MeasureCx<'a> {
       return Size::ZERO;
     }
     let available = self.checked_available(child, available);
-    let record = self.pass.state.records.get_or_default(child);
+    let record = self.pass.state.record(child);
     if let Some(stamp) = self.measuring {
       record.seen = stamp;
     }
@@ -636,7 +644,7 @@ impl<'a> MeasureCx<'a> {
     };
     self.forget_unmeasured(child, stamp);
     let desired = checked_desired(child, desired, available);
-    let record = self.pass.state.records.get_or_default(child);
+    let record = self.pass.state.record(child);
     let has_result = record.measured.is_some();
     record.dirty = false;
     record.slot.available = Some(available);
@@ -667,7 +675,7 @@ impl<'a> MeasureCx<'a> {
   /// Panics outside a node's `measure`.
   pub fn set_measured<T: Any>(&mut self, result: T) {
     let node = self.pass.node();
-    self.pass.state.records.get_or_default(node).measured = Some(Box::new(result));
+    self.pass.state.record(node).measured = Some(Box::new(result));
   }
 
   /// Forgets what layout knew about `node`'s visual children that its measure, stamped `stamp`,
@@ -797,7 +805,7 @@ impl<'a> ArrangeCx<'a> {
       return;
     }
     let rect = self.snap(self.checked_rect(child, rect));
-    let record = self.pass.state.records.get_or_default(child);
+    let record = self.pass.state.record(child);
     let slot = &mut record.slot;
     if slot.offered == Some(rect) && !slot.arrange_dirty {
       return;
@@ -842,7 +850,7 @@ impl<'a> ArrangeCx<'a> {
   /// Panics outside a node's `arrange`.
   pub fn set_arranged<T: Any>(&mut self, result: T) {
     let node = self.pass.node();
-    self.pass.state.records.get_or_default(node).arranged = Some(Box::new(result));
+    self.pass.state.record(node).arranged = Some(Box::new(result));
     self.pass.state.changed(node);
   }
 
@@ -893,7 +901,7 @@ impl<'a> ArrangeCx<'a> {
   pub fn set_bounds(&mut self, bounds: Rect) -> Rect {
     let node = self.pass.node();
     let bounds = self.snap(self.checked_rect(node, bounds));
-    self.pass.state.records.get_or_default(node).slot.rect = Some(bounds);
+    self.pass.state.record(node).slot.rect = Some(bounds);
     bounds
   }
 
