@@ -5,9 +5,9 @@ use crate::finite;
 use crate::geometry::{Rect, Size};
 use crate::text::TextEngine;
 use artic_core::property::Affects;
-use artic_core::tree::{NodeId, TreeKind, UiTree};
+use artic_core::tree::{NodeId, NodeMap, TreeKind, UiTree};
 use std::any::Any;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::BTreeMap;
 
 /// Something layout can size and place: an element, seen by the layout pass.
 ///
@@ -67,64 +67,107 @@ struct Slot {
 /// visual children did) or when its parent offers it a different size. When a measured node's
 /// size doesn't change, its ancestors keep theirs and only the node is arranged again.
 ///
+/// A run visits the nodes marked since the last one, their ancestors, and what their measures and
+/// arranges reach; it walks the whole subtree only after the tree's structure changed, to forget
+/// the nodes that left it.
+///
 /// A new [`PixelGrid`] arranges every node again, and measures only what the new logical size
 /// reaches: a desired size doesn't depend on the display.
 #[derive(Debug, Default)]
 pub struct LayoutManager {
-  slots: HashMap<NodeId, Slot>,
-  sizes: HashMap<NodeId, Size>,
-  results: Results,
+  state: State,
+  structure: Option<u64>,
   grid: Option<PixelGrid>,
 }
 
-/// What nodes' measures and arranges produced beside their sizes, and the nodes whose result was
-/// set or dropped since a run last reported them.
+/// What layout knows about one node.
 #[derive(Debug, Default)]
-struct Results {
-  /// What each node's last measure set.
-  measured: HashMap<NodeId, Box<dyn Any>>,
-  /// What each node's arrange set, kept while the node only moves.
-  arranged: HashMap<NodeId, Box<dyn Any>>,
-  /// The nodes whose result was set or dropped, in the order they first changed.
-  changed: Vec<NodeId>,
-  /// The nodes in `changed`, to list each once.
-  listed: HashSet<NodeId>,
+struct Record {
+  slot: Slot,
+  /// The size of the node's last arrange, kept while its parent stops laying it out.
+  size: Option<Size>,
+  /// What the node's last measure set.
+  measured: Option<Box<dyn Any>>,
+  /// What the node's arrange set, kept while the node only moves.
+  arranged: Option<Box<dyn Any>>,
+  /// Whether the node is in [`State::changed`].
+  listed: bool,
+  /// Whether the node is measured again this run, whatever its parent offers.
+  dirty: bool,
+  /// How far below the root the node is, as of the last structure sweep.
+  depth: u32,
+  /// The stamp of the measure that last measured the node, through its parent.
+  seen: u64,
+  /// The stamp of the last structure sweep that found the node under the root.
+  swept: u64,
 }
 
-impl Results {
+impl Record {
+  /// Drops what layout worked out for the node, keeping its size from before, and returns whether
+  /// it had a result.
+  fn forget(&mut self) -> bool {
+    let had_result = self.measured.is_some() || self.arranged.is_some();
+    *self = Record {
+      size: self.size,
+      listed: self.listed,
+      depth: self.depth,
+      swept: self.swept,
+      ..Record::default()
+    };
+    had_result
+  }
+}
+
+/// Every node's [`Record`], and the lists a run works through.
+#[derive(Debug, Default)]
+struct State {
+  records: NodeMap<Record>,
+  /// The nodes whose result was set or dropped, in the order they first changed.
+  changed: Vec<NodeId>,
+  /// The nodes marked to be arranged again since the last run, in the order they were marked.
+  waiting: Vec<NodeId>,
+  /// The last stamp handed out.
+  stamp: u64,
+}
+
+impl State {
+  fn next_stamp(&mut self) -> u64 {
+    self.stamp += 1;
+    self.stamp
+  }
+
   /// Notes that `node`'s result was set or dropped.
   fn changed(&mut self, node: NodeId) {
-    if self.listed.insert(node) {
+    let record = self.records.get_or_default(node);
+    if !record.listed {
+      record.listed = true;
       self.changed.push(node);
     }
   }
 
-  /// Drops `node`'s results, as its slot goes, and notes the node if it had one.
+  /// Drops what layout worked out for `node`, and notes the node if it had a result.
   fn forget(&mut self, node: NodeId) {
-    let measured = self.measured.remove(&node).is_some();
-    let arranged = self.arranged.remove(&node).is_some();
-    if measured || arranged {
+    if self.records.get_mut(node).is_some_and(Record::forget) {
       self.changed(node);
     }
   }
 
-  /// Drops the results of every node `keep` turns down.
-  fn retain(&mut self, keep: impl Fn(NodeId) -> bool) {
-    let gone: Vec<NodeId> = self
-      .measured
-      .keys()
-      .chain(self.arranged.keys())
-      .copied()
-      .filter(|node| !keep(*node))
-      .collect();
-    for node in gone {
-      self.forget(node);
+  /// Marks `node` to be arranged again, even in the same rectangle.
+  fn arrange_later(&mut self, node: NodeId) {
+    let slot = &mut self.records.get_or_default(node).slot;
+    if !slot.arrange_dirty {
+      slot.arrange_dirty = true;
+      self.waiting.push(node);
     }
   }
 
   /// Hands over the nodes noted since the last call.
   fn take_changed(&mut self) -> Vec<NodeId> {
-    self.listed.clear();
+    for node in &self.changed {
+      if let Some(record) = self.records.get_mut(*node) {
+        record.listed = false;
+      }
+    }
     std::mem::take(&mut self.changed)
   }
 }
@@ -173,14 +216,18 @@ impl LayoutManager {
     text: &mut dyn TextEngine,
   ) -> LayoutStats {
     if self.grid.replace(grid) != Some(grid) {
-      for slot in self.slots.values_mut() {
-        slot.arrange_dirty = true;
+      for (node, record) in self.state.records.iter_mut() {
+        if !record.slot.arrange_dirty {
+          record.slot.arrange_dirty = true;
+          self.state.waiting.push(node);
+        }
       }
     }
-    let (mut cx, depths, desired) = self.measure_pass(tree, nodes, root, available, text);
+    let (cx, desired) = self.measure_pass(tree, nodes, root, available, text);
     if cx.pass.collapsed(root) {
-      cx.pass.stats.results = cx.pass.results.take_changed();
-      return cx.pass.stats;
+      let mut pass = cx.pass;
+      pass.stats.results = pass.state.take_changed();
+      return pass.stats;
     }
     let mut cx = ArrangeCx { pass: cx.pass, grid };
     let width = if available.width.is_finite() {
@@ -196,23 +243,21 @@ impl LayoutManager {
     cx.arrange(root, Rect::new(0.0, 0.0, width, height));
 
     // The nodes the upward pass stopped at, still waiting in their unchanged rectangles.
-    let mut waiting: Vec<(usize, NodeId)> = cx
-      .pass
-      .slots
-      .iter()
-      .filter(|(_, slot)| slot.arrange_dirty)
-      .map(|(node, _)| (depths[node], *node))
-      .collect();
-    waiting.sort_by_key(|(depth, _)| *depth);
-    for (_, node) in waiting {
-      let slot = cx.pass.slots[&node];
-      if slot.arrange_dirty
+    let mut waiting = std::mem::take(&mut cx.pass.state.waiting);
+    let records = &cx.pass.state.records;
+    waiting.retain(|node| records.get(*node).is_some_and(|record| record.slot.arrange_dirty));
+    waiting.sort_by_key(|node| records.get(*node).map_or(0, |record| record.depth));
+    for node in waiting.drain(..) {
+      let slot = cx.pass.state.records.get(node).map(|record| record.slot);
+      if let Some(slot) = slot
+        && slot.arrange_dirty
         && let Some(rect) = slot.offered
       {
         cx.arrange(node, rect);
       }
     }
-    cx.pass.stats.results = cx.pass.results.take_changed();
+    cx.pass.state.waiting = waiting;
+    cx.pass.stats.results = cx.pass.state.take_changed();
     cx.pass.stats
   }
 
@@ -228,7 +273,30 @@ impl LayoutManager {
     available: Size,
     text: &mut dyn TextEngine,
   ) -> Size {
-    self.measure_pass(tree, nodes, root, available, text).2
+    self.measure_pass(tree, nodes, root, available, text).1
+  }
+
+  /// Gives every node under `root` its depth, and forgets the nodes no longer under it.
+  fn sweep(&mut self, tree: &UiTree, root: NodeId) {
+    let state = &mut self.state;
+    let stamp = state.next_stamp();
+    let mut pending = vec![(root, 0)];
+    while let Some((node, depth)) = pending.pop() {
+      let record = state.records.get_or_default(node);
+      record.depth = depth;
+      record.swept = stamp;
+      pending.extend(tree.children(TreeKind::Visual, node).map(|child| (child, depth + 1)));
+    }
+    let changed = &mut state.changed;
+    state.records.retain(|node, record| {
+      if record.swept == stamp {
+        return true;
+      }
+      if (record.measured.is_some() || record.arranged.is_some()) && !record.listed {
+        changed.push(node);
+      }
+      false
+    });
   }
 
   fn measure_pass<'a>(
@@ -238,77 +306,75 @@ impl LayoutManager {
     root: NodeId,
     available: Size,
     text: &'a mut dyn TextEngine,
-  ) -> (MeasureCx<'a>, HashMap<NodeId, usize>, Size) {
-    let mut depths = HashMap::new();
-    let mut dirty = HashSet::new();
-    let mut pending = vec![(root, 0_usize)];
-    while let Some((node, depth)) = pending.pop() {
-      depths.insert(node, depth);
-      if tree.dirty(node).contains(Affects::LAYOUT) {
-        dirty.insert(node);
-      }
-      pending.extend(tree.children(TreeKind::Visual, node).map(|child| (child, depth + 1)));
+  ) -> (MeasureCx<'a>, Size) {
+    let structure = tree.structure_generation();
+    if self.structure.replace(structure) != Some(structure) {
+      self.sweep(tree, root);
     }
-    for node in &dirty {
-      tree.clear_dirty(*node, Affects::LAYOUT);
-    }
-    self.slots.retain(|node, _| depths.contains_key(node));
-    self.sizes.retain(|node, _| depths.contains_key(node));
-    self.results.retain(|node| depths.contains_key(&node));
+    let mut dirty = tree.take_dirty(Affects::LAYOUT, TreeKind::Visual, root);
+    let state = &mut self.state;
     if collapsed(nodes, tree, root) {
-      self.slots.clear();
-      self.results.retain(|_| false);
+      for (node, record) in state.records.iter_mut() {
+        if record.forget() && !record.listed {
+          record.listed = true;
+          state.changed.push(node);
+        }
+      }
       dirty.clear();
     }
+    for node in &dirty {
+      state.records.get_or_default(*node).dirty = true;
+    }
 
-    let mut nested = HashSet::new();
+    let is_dirty = |state: &State, node: NodeId| state.records.get(node).is_some_and(|record| record.dirty);
+    let depth = |state: &State, node: NodeId| state.records.get(node).map_or(0, |record| record.depth);
+    let mut by_depth: BTreeMap<u32, Vec<NodeId>> = BTreeMap::new();
     let mut between = Vec::new();
     for node in &dirty {
       let mut path = Vec::new();
-      for ancestor in tree
-        .ancestors(TreeKind::Visual, *node)
-        .take_while(|ancestor| depths.contains_key(ancestor))
-      {
-        if dirty.contains(&ancestor) {
-          nested.insert(*node);
+      let mut nested = false;
+      for ancestor in tree.ancestors(TreeKind::Visual, *node) {
+        if is_dirty(state, ancestor) {
+          nested = true;
           between.append(&mut path);
+          break;
+        }
+        if ancestor == root {
           break;
         }
         path.push(ancestor);
       }
+      if !nested {
+        by_depth.entry(depth(state, *node)).or_default().push(*node);
+      }
     }
-    let mut by_depth: BTreeMap<usize, Vec<NodeId>> = BTreeMap::new();
-    for node in dirty.iter().filter(|node| !nested.contains(*node)) {
-      by_depth.entry(depths[node]).or_default().push(*node);
+    for node in between {
+      state.records.get_or_default(node).dirty = true;
     }
-    dirty.extend(between);
     let mut cx = MeasureCx {
       pass: Pass {
         tree,
         nodes,
-        slots: &mut self.slots,
-        sizes: &mut self.sizes,
-        results: &mut self.results,
+        state,
         text,
         current: None,
         stats: LayoutStats::default(),
       },
-      dirty,
-      measured: Vec::new(),
+      measuring: None,
     };
 
     // Upward, deepest first: a dirty node measures again in the size it had. If its desired size
     // is unchanged, the change stops there and only the node is arranged again; otherwise its
     // parent is next. The order is what lets a clean child answer from its cache: when a node is
     // measured here, every dirty node below it has either been measured and marked its way up, or
-    // sits under a dirty ancestor on a path `between` keeps dirty, so a child still clean has
+    // sits under a dirty ancestor on a path `between` kept dirty, so a child still clean has
     // nothing new under it.
     while let Some((_, deepest)) = by_depth.pop_last() {
       for node in deepest {
-        if node == root || !cx.dirty.contains(&node) {
+        if node == root || !is_dirty(cx.pass.state, node) {
           continue;
         }
-        let slot = cx.pass.slots.get(&node).copied().unwrap_or_default();
+        let slot = cx.pass.state.records.get(node).map(|record| record.slot).unwrap_or_default();
         let changed = if cx.pass.collapsed(node) {
           slot.available.is_some()
         } else {
@@ -319,16 +385,17 @@ impl LayoutManager {
         };
         if changed
           && let Some(parent) = cx.pass.tree.parent(TreeKind::Visual, node)
-          && cx.dirty.insert(parent)
+          && !is_dirty(cx.pass.state, parent)
         {
-          by_depth.entry(depths[&parent]).or_default().push(parent);
+          cx.pass.state.records.get_or_default(parent).dirty = true;
+          by_depth.entry(depth(cx.pass.state, parent)).or_default().push(parent);
         }
       }
     }
 
     // Downward: measure from the root; clean nodes answer from their cache.
     let desired = cx.measure(root, available);
-    (cx, depths, desired)
+    (cx, desired)
   }
 
   /// Marks `node` to be measured again in the next [`run`](LayoutManager::run).
@@ -339,44 +406,39 @@ impl LayoutManager {
   /// Marks `node` to be arranged again in the next [`run`](LayoutManager::run), in the same
   /// rectangle, for a change that moves its children without changing its size.
   pub fn invalidate_arrange(&mut self, node: NodeId) {
-    self.slots.entry(node).or_default().arrange_dirty = true;
+    self.state.arrange_later(node);
   }
 
   /// The size `node` last asked for, if it was measured.
   #[must_use]
   pub fn desired(&self, node: NodeId) -> Option<Size> {
     self
-      .slots
-      .get(&node)
-      .filter(|slot| slot.available.is_some())
-      .map(|slot| slot.desired)
+      .state
+      .records
+      .get(node)
+      .filter(|record| record.slot.available.is_some())
+      .map(|record| record.slot.desired)
   }
 
   /// What `node`'s layout produced for it to draw: its arranged result if it has one, and its
   /// measured result otherwise.
   #[must_use]
   pub fn result(&self, node: NodeId) -> Option<&dyn Any> {
-    self
-      .results
-      .arranged
-      .get(&node)
-      .map(|result| &**result)
-      .or_else(|| self.results.measured.get(&node).map(|result| &**result))
+    let record = self.state.records.get(node)?;
+    record.arranged.as_deref().or(record.measured.as_deref())
   }
 
   /// The bounds `node` was last arranged in, in its parent's coordinates.
   #[must_use]
   pub fn rect(&self, node: NodeId) -> Option<Rect> {
-    self.slots.get(&node).and_then(|slot| slot.rect)
+    self.state.records.get(node).and_then(|record| record.slot.rect)
   }
 }
 
 struct Pass<'a> {
   tree: &'a UiTree,
   nodes: &'a dyn LayoutNodes,
-  slots: &'a mut HashMap<NodeId, Slot>,
-  sizes: &'a mut HashMap<NodeId, Size>,
-  results: &'a mut Results,
+  state: &'a mut State,
   text: &'a mut dyn TextEngine,
   current: Option<NodeId>,
   stats: LayoutStats,
@@ -456,10 +518,8 @@ impl<'a> Pass<'a> {
 /// ```
 pub struct MeasureCx<'a> {
   pass: Pass<'a>,
-  /// The nodes to measure again, whatever their parent offers.
-  dirty: HashSet<NodeId>,
-  /// The children measured so far by each node being measured, innermost last.
-  measured: Vec<HashSet<NodeId>>,
+  /// The stamp of the measure running, which each child it measures records.
+  measuring: Option<u64>,
 }
 
 impl<'a> MeasureCx<'a> {
@@ -507,44 +567,43 @@ impl<'a> MeasureCx<'a> {
       "{} measured node {child:?}, which isn't a visual child of it; measure only visual children",
       self.pass.describe_parent(),
     );
-    if self.pass.collapsed(child) {
+    let layoutable = self.pass.nodes.layoutable(self.pass.tree, child);
+    if layoutable.is_some_and(Layoutable::collapsed) {
       return Size::ZERO;
     }
     let available = self.checked_available(child, available);
-    if let Some(siblings) = self.measured.last_mut() {
-      siblings.insert(child);
+    let record = self.pass.state.records.get_or_default(child);
+    if let Some(stamp) = self.measuring {
+      record.seen = stamp;
     }
-    let slot = self.pass.slots.entry(child).or_default();
-    if !self.dirty.contains(&child) && slot.available == Some(available) {
-      return slot.desired;
+    if !record.dirty && record.slot.available == Some(available) {
+      return record.slot.desired;
     }
+    let had_result = record.measured.take().is_some() | record.arranged.take().is_some();
     self.pass.stats.measured += 1;
-    let had_measured = self.pass.results.measured.remove(&child).is_some();
-    let had_arranged = self.pass.results.arranged.remove(&child).is_some();
-    let desired = match self.pass.nodes.layoutable(self.pass.tree, child) {
+    let stamp = self.pass.state.next_stamp();
+    let desired = match layoutable {
       Some(layoutable) => {
         let parent = self.pass.current.replace(child);
-        self.measured.push(HashSet::new());
+        let outer = self.measuring.replace(stamp);
         let desired = layoutable.measure(self, available);
-        let measured = self.measured.pop().expect("pushed above");
+        self.measuring = outer;
         self.pass.current = parent;
-        self.forget_unmeasured(child, &measured);
         desired
       }
-      None => {
-        self.forget_unmeasured(child, &HashSet::new());
-        Size::ZERO
-      }
+      None => Size::ZERO,
     };
+    self.forget_unmeasured(child, stamp);
     let desired = checked_desired(child, desired, available);
-    if had_measured || had_arranged || self.pass.results.measured.contains_key(&child) {
-      self.pass.results.changed(child);
+    let record = self.pass.state.records.get_or_default(child);
+    let has_result = record.measured.is_some();
+    record.dirty = false;
+    record.slot.available = Some(available);
+    record.slot.desired = desired;
+    if had_result || has_result {
+      self.pass.state.changed(child);
     }
-    self.dirty.remove(&child);
-    let slot = self.pass.slots.entry(child).or_default();
-    slot.available = Some(available);
-    slot.desired = desired;
-    slot.arrange_dirty = true;
+    self.pass.state.arrange_later(child);
     desired
   }
 
@@ -567,24 +626,21 @@ impl<'a> MeasureCx<'a> {
   /// Panics outside a node's `measure`.
   pub fn set_measured<T: Any>(&mut self, result: T) {
     let node = self.pass.node();
-    self.pass.results.measured.insert(node, Box::new(result));
+    self.pass.state.records.get_or_default(node).measured = Some(Box::new(result));
   }
 
-  /// Forgets what layout knew about `node`'s visual children that its measure didn't measure, and
-  /// about their subtrees, so neither the upward nor the waiting pass lays them out.
-  fn forget_unmeasured(&mut self, node: NodeId, measured: &HashSet<NodeId>) {
-    let skipped: Vec<NodeId> = self
-      .pass
-      .tree
-      .children(TreeKind::Visual, node)
-      .filter(|child| !measured.contains(child))
-      .collect();
-    for child in skipped {
-      self.pass.slots.remove(&child);
-      self.pass.results.forget(child);
-      for descendant in self.pass.tree.descendants(TreeKind::Visual, child) {
-        self.pass.slots.remove(&descendant);
-        self.pass.results.forget(descendant);
+  /// Forgets what layout knew about `node`'s visual children that its measure, stamped `stamp`,
+  /// didn't measure, and about their subtrees, so neither the upward nor the waiting pass lays them
+  /// out.
+  fn forget_unmeasured(&mut self, node: NodeId, stamp: u64) {
+    let (tree, state) = (self.pass.tree, &mut *self.pass.state);
+    for child in tree.children(TreeKind::Visual, node) {
+      if state.records.get(child).is_some_and(|record| record.seen == stamp) {
+        continue;
+      }
+      state.forget(child);
+      for descendant in tree.descendants(TreeKind::Visual, child) {
+        state.forget(descendant);
       }
     }
   }
@@ -677,7 +733,12 @@ impl<'a> ArrangeCx<'a> {
   /// The size `child` asked for in its last measure, or zero if it wasn't measured.
   #[must_use]
   pub fn desired(&self, child: NodeId) -> Size {
-    self.pass.slots.get(&child).map_or(Size::ZERO, |slot| slot.desired)
+    self
+      .pass
+      .state
+      .records
+      .get(child)
+      .map_or(Size::ZERO, |record| record.slot.desired)
   }
 
   /// Arranges `child` in `rect`, in the coordinates of the node being arranged, snapped to the
@@ -690,11 +751,13 @@ impl<'a> ArrangeCx<'a> {
   /// In debug builds, panics if `rect` isn't finite or has a negative size; release builds treat
   /// such a field as zero.
   pub fn arrange(&mut self, child: NodeId, rect: Rect) {
-    if self.pass.collapsed(child) {
+    let layoutable = self.pass.nodes.layoutable(self.pass.tree, child);
+    if layoutable.is_some_and(Layoutable::collapsed) {
       return;
     }
     let rect = self.snap(self.checked_rect(child, rect));
-    let slot = self.pass.slots.entry(child).or_default();
+    let record = self.pass.state.records.get_or_default(child);
+    let slot = &mut record.slot;
     if slot.offered == Some(rect) && !slot.arrange_dirty {
       return;
     }
@@ -702,17 +765,19 @@ impl<'a> ArrangeCx<'a> {
     slot.offered = Some(rect);
     slot.rect = Some(rect);
     slot.arrange_dirty = false;
+    let dropped = !moved && record.arranged.take().is_some();
     self.pass.stats.arranged += 1;
-    if !moved && self.pass.results.arranged.remove(&child).is_some() {
-      self.pass.results.changed(child);
+    if dropped {
+      self.pass.state.changed(child);
     }
-    if let Some(layoutable) = self.pass.nodes.layoutable(self.pass.tree, child) {
+    if let Some(layoutable) = layoutable {
       let parent = self.pass.current.replace(child);
       layoutable.arrange(self, rect);
       self.pass.current = parent;
     }
-    if let Some(after) = self.pass.slots.get(&child).and_then(|slot| slot.rect).map(Rect::size)
-      && self.pass.sizes.insert(child, after).is_some_and(|before| before != after)
+    if let Some(record) = self.pass.state.records.get_mut(child)
+      && let Some(after) = record.slot.rect.map(Rect::size)
+      && record.size.replace(after).is_some_and(|before| before != after)
     {
       self.pass.stats.resized.push(child);
     }
@@ -736,8 +801,8 @@ impl<'a> ArrangeCx<'a> {
   /// Panics outside a node's `arrange`.
   pub fn set_arranged<T: Any>(&mut self, result: T) {
     let node = self.pass.node();
-    self.pass.results.arranged.insert(node, Box::new(result));
-    self.pass.results.changed(node);
+    self.pass.state.records.get_or_default(node).arranged = Some(Box::new(result));
+    self.pass.state.changed(node);
   }
 
   /// The arranged result the node kept from an arrange it has only moved since, if it's a `T`.
@@ -747,7 +812,14 @@ impl<'a> ArrangeCx<'a> {
   /// Panics outside a node's `arrange`.
   #[must_use]
   pub fn arranged<T: Any>(&self) -> Option<&T> {
-    self.pass.results.arranged.get(&self.pass.node())?.downcast_ref()
+    self
+      .pass
+      .state
+      .records
+      .get(self.pass.node())?
+      .arranged
+      .as_deref()?
+      .downcast_ref()
   }
 
   /// The result the node's last measure kept, if it's a `T`, so an arrange can tell whether the
@@ -758,7 +830,14 @@ impl<'a> ArrangeCx<'a> {
   /// Panics outside a node's `arrange`.
   #[must_use]
   pub fn measured<T: Any>(&self) -> Option<&T> {
-    self.pass.results.measured.get(&self.pass.node())?.downcast_ref()
+    self
+      .pass
+      .state
+      .records
+      .get(self.pass.node())?
+      .measured
+      .as_deref()?
+      .downcast_ref()
   }
 
   /// Sets the bounds of the node being arranged, in its parent's coordinates, when they aren't the
@@ -773,7 +852,7 @@ impl<'a> ArrangeCx<'a> {
   pub fn set_bounds(&mut self, bounds: Rect) -> Rect {
     let node = self.pass.node();
     let bounds = self.snap(self.checked_rect(node, bounds));
-    self.pass.slots.entry(node).or_default().rect = Some(bounds);
+    self.pass.state.records.get_or_default(node).slot.rect = Some(bounds);
     bounds
   }
 

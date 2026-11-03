@@ -195,6 +195,81 @@ fn removed_children_relayout_the_parent() {
   assert_eq!(manager.desired(first), None);
 }
 
+// A node moved to a shallower parent is laid out under its new parent, and the parents it left and
+// joined are measured once more each.
+#[test]
+fn a_moved_node_lays_out_under_its_new_parent() {
+  let mut tree = UiTree::new();
+  let moved = leaf(&mut tree, 100.0, 20.0);
+  let inner = stack(&mut tree, &[moved]);
+  let outer = stack(&mut tree, &[inner]);
+  let root = stack(&mut tree, &[outer]);
+  let mut manager = LayoutManager::default();
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  tree.detach(TreeKind::Visual, moved);
+  tree.add_child(TreeKind::Visual, root, moved);
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  assert_eq!(manager.rect(moved), Some(Rect::new(0.0, 0.0, 400.0, 20.0)));
+  assert_eq!(manager.desired(root), Some(Size::new(100.0, 20.0)));
+  assert_eq!(counts(&tree, &[root, outer, inner]), [(2, 2), (2, 2), (2, 2)]);
+}
+
+// A node marked for layout and freed before the run is skipped; its parent is laid out without it.
+#[test]
+fn a_freed_dirty_node_is_skipped() {
+  let mut tree = UiTree::new();
+  let [first, second] = [leaf(&mut tree, 100.0, 20.0), leaf(&mut tree, 100.0, 30.0)];
+  let root = stack(&mut tree, &[first, second]);
+  let mut manager = LayoutManager::default();
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  LayoutManager::invalidate_measure(&mut tree, first);
+  tree.free(first);
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  assert_eq!(manager.rect(second), Some(Rect::new(0.0, 0.0, 400.0, 30.0)));
+  assert_eq!(manager.desired(first), None);
+}
+
+// Two managers over one tree, one per root, each lay out the dirty nodes under their own root and
+// leave the other's for it.
+#[test]
+fn two_roots_in_one_tree_keep_each_others_dirty_nodes() {
+  let mut tree = UiTree::new();
+  let [left, right] = [leaf(&mut tree, 100.0, 20.0), leaf(&mut tree, 100.0, 20.0)];
+  let (left_root, right_root) = (stack(&mut tree, &[left]), stack(&mut tree, &[right]));
+  let (mut left_manager, mut right_manager) = (LayoutManager::default(), LayoutManager::default());
+  run(&mut left_manager, &mut tree, left_root, WINDOW);
+  run(&mut right_manager, &mut tree, right_root, WINDOW);
+
+  for leaf in [left, right] {
+    node(&tree, leaf).size.set(Size::new(100.0, 40.0));
+    LayoutManager::invalidate_measure(&mut tree, leaf);
+  }
+  run(&mut left_manager, &mut tree, left_root, WINDOW);
+
+  assert_eq!(counts(&tree, &[left, right]), [(2, 2), (1, 1)]);
+  run(&mut right_manager, &mut tree, right_root, WINDOW);
+  assert_eq!(counts(&tree, &[left, right]), [(2, 2), (2, 2)]);
+  assert_eq!(right_manager.desired(right_root), Some(Size::new(100.0, 40.0)));
+}
+
+// A node marked for arrange before it was ever laid out is arranged once, with its first layout.
+#[test]
+fn invalidate_arrange_before_the_first_run_arranges_once() {
+  let mut tree = UiTree::new();
+  let child = leaf(&mut tree, 100.0, 20.0);
+  let root = stack(&mut tree, &[child]);
+  let mut manager = LayoutManager::default();
+
+  manager.invalidate_arrange(child);
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  assert_eq!(counts(&tree, &[root, child]), [(1, 1), (1, 1)]);
+}
+
 // Arrange-only invalidation arranges the node again in the same rectangle, without measuring.
 #[test]
 fn invalidate_arrange_skips_measure() {

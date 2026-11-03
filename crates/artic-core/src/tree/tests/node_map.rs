@@ -69,17 +69,19 @@ fn get_mut_and_remove_reach_the_value() {
   assert_eq!(map.get(node), None);
 }
 
-// values_mut reaches every value, and clear drops them all.
+// iter_mut reaches every value with its node, and clear drops them all.
 #[test]
-fn values_mut_and_clear() {
+fn iter_mut_and_clear() {
   let mut tree = UiTree::new();
   let [a, b] = nodes(&mut tree);
   let mut map = NodeMap::new();
   map.insert(a, 1);
   map.insert(b, 2);
-  map.values_mut().for_each(|value| *value *= 10);
+  map
+    .iter_mut()
+    .for_each(|(node, value)| *value *= if node == a { 10 } else { 100 });
 
-  assert_eq!((map.get(a), map.get(b)), (Some(&10), Some(&20)));
+  assert_eq!((map.get(a), map.get(b)), (Some(&10), Some(&200)));
   map.clear();
   assert_eq!((map.get(a), map.get(b)), (None, None));
 }

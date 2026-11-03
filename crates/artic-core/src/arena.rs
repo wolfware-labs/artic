@@ -228,11 +228,16 @@ impl<TValue> SlotMap<TValue> {
     }
   }
 
-  pub fn values_mut(&mut self) -> impl Iterator<Item = &mut TValue> {
-    self
-      .entries
-      .iter_mut()
-      .filter_map(|entry| entry.as_mut().map(|(_, value)| value))
+  pub fn iter_mut(&mut self) -> impl Iterator<Item = (SlotId, &mut TValue)> {
+    self.entries.iter_mut().enumerate().filter_map(|(index, entry)| {
+      entry.as_mut().map(|(generation, value)| {
+        let id = SlotId {
+          index: index as SlotIndex,
+          generation: *generation,
+        };
+        (id, value)
+      })
+    })
   }
 
   pub fn clear(&mut self) {

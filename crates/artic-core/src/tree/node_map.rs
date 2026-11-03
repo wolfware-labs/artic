@@ -51,8 +51,8 @@ impl<T> NodeMap<T> {
     self.0.retain(|id, value| keep(NodeId(id), value));
   }
 
-  pub fn values_mut(&mut self) -> impl Iterator<Item = &mut T> {
-    self.0.values_mut()
+  pub fn iter_mut(&mut self) -> impl Iterator<Item = (NodeId, &mut T)> {
+    self.0.iter_mut().map(|(id, value)| (NodeId(id), value))
   }
 
   pub fn clear(&mut self) {
