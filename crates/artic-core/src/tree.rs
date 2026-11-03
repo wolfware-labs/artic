@@ -109,8 +109,9 @@ pub struct UiTree {
   /// value changes, and that goes when the property is disposed.
   listed: SlotMap<Vec<SignalId>>,
   structure_generation: u64,
-  /// How many links each tree has had made or cut, logical first.
-  links_generations: [u64; 2],
+  /// The parents each tree, logical first, made or cut a link under since a root above them last
+  /// took them.
+  relinked: [NodeMap<()>; 2],
   #[cfg(debug_assertions)]
   touched: RefCell<HashMap<NodeId, Vec<SignalId>, BuildHasherDefault<DefaultHasher>>>,
 }
@@ -209,7 +210,7 @@ impl UiTree {
       attached_values: AttachedValues::new(),
       listed: SlotMap::new(),
       structure_generation: 0,
-      links_generations: [0; 2],
+      relinked: [NodeMap::new(), NodeMap::new()],
       #[cfg(debug_assertions)]
       touched: RefCell::new(HashMap::with_hasher(BuildHasherDefault::new())),
     }
@@ -293,6 +294,9 @@ impl UiTree {
     self.attached_values.of(node_id).for_each(|property| property.dispose());
     self.attached_values.remove(node_id);
     self.dirty_flags.remove(node_id);
+    for relinked in &mut self.relinked {
+      relinked.remove(node_id);
+    }
     self.logical.remove(node_id);
     self.visual.remove(node_id);
     self.structure_generation += 1;
@@ -421,12 +425,24 @@ impl UiTree {
     self.structure_generation
   }
 
-  /// A number that changes whenever a link is made or cut in `tree`, and at no other time: not for
-  /// the other tree's links, nor for a node allocated or freed without one. Layout compares it to
-  /// know when a visual subtree may have changed shape.
-  #[must_use]
-  pub fn links_generation(&self, tree: TreeKind) -> u64 {
-    self.links_generations[tree as usize]
+  /// Whether a link was made or cut in `tree` under `root`, or at `root` itself, since a call for
+  /// a root above it last took it; takes those links, and leaves the ones under other roots for
+  /// theirs. A node allocated or freed with no link counts for nothing, and neither does the other
+  /// tree. Layout asks it to know when a surface's subtree may have changed shape.
+  pub fn take_relinked(&mut self, tree: TreeKind, root: NodeId) -> bool {
+    let links = match tree {
+      TreeKind::Logical => &self.logical,
+      TreeKind::Visual => &self.visual,
+    };
+    let mut found = false;
+    self.relinked[tree as usize].retain(|parent, ()| {
+      let within = links.is_within(parent, root);
+      if within {
+        found = true;
+      }
+      !within
+    });
+    found
   }
 
   /// Returns `true` if `id` refers to a live node.
@@ -935,7 +951,6 @@ impl UiTree {
   fn attach(&mut self, tree: TreeKind, parent: NodeId, index: usize, child: NodeId) {
     self.tree_mut(tree).link(parent, index, child);
     self.structure_generation += 1;
-    self.links_generations[tree as usize] += 1;
     self.children_changed(tree, parent);
     if tree == TreeKind::Logical {
       inheritance::relink(&self.objects, &self.attached_values, &self.logical, child);
@@ -946,13 +961,13 @@ impl UiTree {
   fn unlink(&mut self, tree: TreeKind, node: NodeId) -> Option<NodeId> {
     let parent = self.tree_mut(tree).unlink(node)?;
     self.structure_generation += 1;
-    self.links_generations[tree as usize] += 1;
     self.children_changed(tree, parent);
     Some(parent)
   }
 
   /// A node's visual children size and place it, so changing them means laying it out again.
   fn children_changed(&mut self, tree: TreeKind, parent: NodeId) {
+    self.relinked[tree as usize].insert(parent, ());
     if tree == TreeKind::Visual {
       self.mark_dirty(parent, Affects::LAYOUT);
     }
