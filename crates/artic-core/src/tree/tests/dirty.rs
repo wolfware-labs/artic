@@ -233,6 +233,9 @@ fn take_dirty_hands_over_a_marked_node_once() {
 fn take_dirty_skips_a_cleared_node() {
   let mut tree = UiTree::new();
   let (id, _, _) = clean_label(&mut tree);
+  tree.take_dirty(Affects::LAYOUT, TreeKind::Visual, id);
+  tree.mark_dirty(id, Affects::LAYOUT);
+  tree.clear_dirty(id, Affects::LAYOUT);
 
   assert_eq!(tree.take_dirty(Affects::LAYOUT, TreeKind::Visual, id), []);
 }
