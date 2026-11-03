@@ -1991,3 +1991,32 @@ fn measuring_a_freed_root_forgets_its_nodes() {
   assert!(layout.result(node).is_none());
   assert_eq!(lay_out(&mut layout, &mut tree, holder, WINDOW).results, [node]);
 }
+
+// A node forgotten after a measure noted its result, before a run reported it, is reported once.
+#[test]
+fn a_result_noted_then_forgotten_is_reported_once() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  layout.measure(&mut tree, &WithShapers, holder, WINDOW, &mut Recorder::default());
+
+  shaper(&tree, node).collapsed.set(true);
+  LayoutManager::invalidate_measure(&mut tree, holder);
+
+  assert_eq!(lay_out(&mut layout, &mut tree, holder, WINDOW).results, [node]);
+}
+
+// A dirty root offered a new size is measured once, in the new size.
+#[test]
+fn a_dirty_root_in_a_new_size_is_measured_once() {
+  let mut tree = UiTree::new();
+  let child = leaf(&mut tree, 100.0, 20.0);
+  let root = stack(&mut tree, &[child]);
+  let mut manager = LayoutManager::default();
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  LayoutManager::invalidate_measure(&mut tree, root);
+  run(&mut manager, &mut tree, root, Size::new(300.0, 200.0));
+
+  assert_eq!(node(&tree, root).measured.get(), 2);
+}

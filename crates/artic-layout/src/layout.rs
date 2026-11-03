@@ -113,13 +113,7 @@ impl Record {
   /// it had a result.
   fn forget(&mut self) -> bool {
     let had_result = self.has_result();
-    *self = Record {
-      size: self.size,
-      listed: self.listed,
-      depth: self.depth,
-      swept: self.swept,
-      ..Record::default()
-    };
+    (self.slot, self.measured, self.arranged, self.dirty, self.seen) = (Slot::default(), None, None, false, 0);
     had_result
   }
 }
@@ -182,11 +176,9 @@ impl State {
 
   /// Drops what layout worked out for every node, and notes the nodes that had a result.
   fn forget_all(&mut self) {
-    for (node, record) in self.records.iter_mut() {
-      if record.forget() && !record.listed {
-        record.listed = true;
-        self.changed.push(node);
-      }
+    let nodes: Vec<NodeId> = self.records.iter_mut().map(|(node, _)| node).collect();
+    for node in nodes {
+      self.forget(node);
     }
     self.waiting.clear();
   }
@@ -403,9 +395,6 @@ impl LayoutManager {
         if is_dirty(state, ancestor) {
           nested = true;
           between.append(&mut path);
-          break;
-        }
-        if ancestor == root {
           break;
         }
         path.push(ancestor);
