@@ -732,6 +732,34 @@ impl UiTree {
     self.dirty_flags.clear(id, stages);
   }
 
+  /// Hands over the nodes marked `stage` that are `root` or under it in `tree`, each once, and clears
+  /// `stage` from them. Nodes marked `stage` elsewhere stay for the stage's other roots, such as
+  /// another surface's.
+  ///
+  /// The tree queues a node when a mark adds `stage` to it, so this costs what was marked, not the
+  /// size of the tree. Only [`Affects::LAYOUT`] is queued.
+  ///
+  /// # Panics
+  ///
+  /// Panics if `root` is stale, or if `stage` isn't queued.
+  #[track_caller]
+  pub fn take_dirty(&mut self, stage: Affects, tree: TreeKind, root: NodeId) -> Vec<NodeId> {
+    self.check(root);
+    let mut taken = Vec::new();
+    self.dirty_flags.retain_queued(stage, |node| {
+      if !self.dirty_flags.get(node).contains(stage) {
+        return false;
+      }
+      if !self.is_within(tree, node, root) {
+        return true;
+      }
+      self.dirty_flags.clear(node, stage);
+      taken.push(node);
+      false
+    });
+    taken
+  }
+
   /// Returns whether any node was marked dirty since the last call, and clears that.
   ///
   /// Every path that marks a node dirty sets it: a property change, [`mark_dirty`](Self::mark_dirty),

@@ -208,3 +208,112 @@ fn change_affecting_nothing_sets_no_pending() {
 
   assert!(!tree.take_pending());
 }
+
+/// The nodes under `root` queued for layout, handed over in any order.
+fn take_layout(tree: &mut UiTree, root: NodeId) -> std::collections::HashSet<NodeId> {
+  tree.take_dirty(Affects::LAYOUT, TreeKind::Visual, root).into_iter().collect()
+}
+
+// A node marked for layout is handed over once, and is no longer marked after.
+#[test]
+fn take_dirty_hands_over_a_marked_node_once() {
+  let mut tree = UiTree::new();
+  let (id, _, _) = clean_label(&mut tree);
+  tree.mark_dirty(id, Affects::LAYOUT);
+  tree.mark_dirty(id, Affects::LAYOUT);
+
+  assert_eq!(tree.take_dirty(Affects::LAYOUT, TreeKind::Visual, id), [id]);
+  assert!(!tree.dirty(id).contains(Affects::LAYOUT));
+  assert_eq!(tree.take_dirty(Affects::LAYOUT, TreeKind::Visual, id), []);
+}
+
+// A node whose layout flag was cleared since it was marked isn't handed over.
+#[test]
+fn take_dirty_skips_a_cleared_node() {
+  let mut tree = UiTree::new();
+  let (id, _, _) = clean_label(&mut tree);
+
+  assert_eq!(tree.take_dirty(Affects::LAYOUT, TreeKind::Visual, id), []);
+}
+
+// Taking layout leaves the node's other stages marked.
+#[test]
+fn take_dirty_clears_only_its_stage() {
+  let mut tree = UiTree::new();
+  let (id, _, _) = clean_label(&mut tree);
+  tree.mark_dirty(id, Affects::LAYOUT | Affects::RENDER);
+
+  tree.take_dirty(Affects::LAYOUT, TreeKind::Visual, id);
+
+  assert_eq!(tree.dirty(id), Affects::RENDER);
+}
+
+// A dirty node under another root stays queued for that root.
+#[test]
+fn take_dirty_leaves_nodes_under_other_roots() {
+  let mut tree = UiTree::new();
+  let (first, _, _) = clean_label(&mut tree);
+  let (second, _, _) = clean_label(&mut tree);
+  let (child, _, _) = clean_label(&mut tree);
+  tree.add_child(TreeKind::Visual, second, child);
+  tree.mark_dirty(child, Affects::LAYOUT);
+  tree.mark_dirty(first, Affects::LAYOUT);
+
+  assert_eq!(take_layout(&mut tree, first), [first].into());
+  assert_eq!(take_layout(&mut tree, second), [second, child].into());
+}
+
+// Nodes are found under the root through the tree asked for, not the other one.
+#[test]
+fn take_dirty_follows_the_tree_kind() {
+  let mut tree = UiTree::new();
+  let (root, _, _) = clean_label(&mut tree);
+  let (child, _, _) = clean_label(&mut tree);
+  tree.add_child(TreeKind::Logical, root, child);
+  tree.mark_dirty(child, Affects::LAYOUT);
+
+  assert_eq!(take_layout(&mut tree, root), [].into());
+  assert_eq!(take_layout(&mut tree, child), [child].into());
+}
+
+// A node freed while queued is never handed over.
+#[test]
+fn take_dirty_skips_freed_nodes() {
+  let mut tree = UiTree::new();
+  let (root, _, _) = clean_label(&mut tree);
+  let (child, _, _) = clean_label(&mut tree);
+  tree.add_child(TreeKind::Visual, root, child);
+  tree.mark_dirty(child, Affects::LAYOUT);
+  tree.free(child);
+  let (reused, _, _) = clean_label(&mut tree);
+  tree.add_child(TreeKind::Visual, root, reused);
+
+  assert_eq!(take_layout(&mut tree, root), [root].into());
+}
+
+// A new node is queued for layout, and a change to a property affecting layout queues it again.
+#[test]
+fn new_nodes_and_layout_changes_are_queued() {
+  let mut tree = UiTree::new();
+  let id = tree.alloc(Box::new(Label {
+    font_size: Property::new(&FONT_SIZE, 12),
+    foreground: Property::new(&FOREGROUND, 0),
+  }));
+  assert_eq!(take_layout(&mut tree, id), [id].into());
+  let font_size = tree.get_as::<Label>(id).unwrap().font_size;
+
+  font_size.set(24);
+
+  assert_eq!(take_layout(&mut tree, id), [id].into());
+}
+
+// A change affecting only rendering doesn't queue the node for layout.
+#[test]
+fn render_changes_are_not_queued_for_layout() {
+  let mut tree = UiTree::new();
+  let (id, _, foreground) = clean_label(&mut tree);
+
+  foreground.set(1);
+
+  assert_eq!(take_layout(&mut tree, id), [].into());
+}
