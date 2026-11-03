@@ -1941,3 +1941,23 @@ fn a_layout_write_during_measure_is_laid_out_next_run() {
 
   assert_eq!(manager.desired(node), Some(Size::new(10.0, 20.0)));
 }
+
+// A freed root or node, whose slot a laid-out node took, leaves that node's record alone.
+#[test]
+fn stale_ids_leave_the_reusing_nodes_record_alone() {
+  let mut tree = UiTree::new();
+  let stale = leaf(&mut tree, 10.0, 10.0);
+  tree.free(stale);
+  let child = leaf(&mut tree, 100.0, 20.0);
+  let root = stack(&mut tree, &[child]);
+  let mut manager = LayoutManager::default();
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  manager.invalidate_arrange(stale);
+  let stats = manager.run(&mut tree, &Nodes, stale, WINDOW, GRID, &mut Recorder::default());
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  assert_eq!(stats, LayoutStats::default());
+  assert_eq!(counts(&tree, &[root, child]), [(1, 1), (1, 1)]);
+  assert_eq!(manager.rect(child), Some(Rect::new(0.0, 0.0, 400.0, 20.0)));
+}

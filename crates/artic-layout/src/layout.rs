@@ -254,8 +254,8 @@ impl LayoutManager {
   /// Lays out `root`'s visual subtree in `available`, on `grid`, shaping text with `text`.
   ///
   /// The root's rectangle is `available` where it's finite, and its desired size where it isn't.
-  /// Results of nodes no longer in the subtree are dropped, and a collapsed root lays out nothing.
-  /// Returns what it measured, arranged and resized.
+  /// Results of nodes no longer in the subtree are dropped, and a collapsed or stale root lays out
+  /// nothing. Returns what it measured, arranged and resized.
   pub fn run(
     &mut self,
     tree: &mut UiTree,
@@ -265,6 +265,9 @@ impl LayoutManager {
     grid: PixelGrid,
     text: &mut dyn TextEngine,
   ) -> LayoutStats {
+    if !tree.contains(root) {
+      return LayoutStats::default();
+    }
     if self.grid.replace(grid) != Some(grid) {
       self.state.arrange_all_later();
     }
@@ -314,8 +317,8 @@ impl LayoutManager {
 
   /// Measures `root`'s visual subtree in `available`, shaping text with `text`, as a
   /// [`run`](LayoutManager::run) does first, without arranging it, and returns the size it wants. A
-  /// later `run` in the same `available` answers every measure from the cache. A collapsed root
-  /// measures nothing and returns zero.
+  /// later `run` in the same `available` answers every measure from the cache. A collapsed or stale
+  /// root measures nothing and returns zero.
   pub fn measure(
     &mut self,
     tree: &mut UiTree,
@@ -324,6 +327,9 @@ impl LayoutManager {
     available: Size,
     text: &mut dyn TextEngine,
   ) -> Size {
+    if !tree.contains(root) {
+      return Size::ZERO;
+    }
     self.measure_pass(tree, nodes, root, available, text).1
   }
 
@@ -360,11 +366,7 @@ impl LayoutManager {
       self.swept = swept;
       self.sweep(tree, root);
     }
-    let mut dirty = if tree.contains(root) {
-      tree.take_dirty(Affects::LAYOUT, TreeKind::Visual, root)
-    } else {
-      Vec::new()
-    };
+    let mut dirty = tree.take_dirty(Affects::LAYOUT, TreeKind::Visual, root);
     let state = &mut self.state;
     if collapsed(nodes, tree, root) {
       state.forget_all();
@@ -452,9 +454,12 @@ impl LayoutManager {
   }
 
   /// Marks `node` to be arranged again in the next [`run`](LayoutManager::run), in the same
-  /// rectangle, for a change that moves its children without changing its size.
+  /// rectangle, for a change that moves its children without changing its size. A node not laid
+  /// out yet is arranged with its first layout anyway.
   pub fn invalidate_arrange(&mut self, node: NodeId) {
-    self.state.arrange_later(node);
+    if let Some(record) = self.state.records.get_mut(node) {
+      State::wait(&mut self.state.waiting, node, record);
+    }
   }
 
   /// The size `node` last asked for, if it was measured.
