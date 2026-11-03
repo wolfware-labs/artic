@@ -45,7 +45,7 @@ pub trait LayoutNodes {
   fn layoutable<'a>(&self, tree: &'a UiTree, node: NodeId) -> Option<&'a dyn Layoutable>;
 }
 
-/// What layout knows about one node.
+/// What a node's last measure and arrange were given and worked out.
 #[derive(Debug, Clone, Copy, Default)]
 struct Slot {
   /// The constraint of the last measure.
@@ -76,7 +76,8 @@ struct Slot {
 #[derive(Debug, Default)]
 pub struct LayoutManager {
   state: State,
-  structure: Option<u64>,
+  /// The root of the last structure sweep, and the tree's structure generation it saw.
+  swept: Option<(NodeId, u64)>,
   grid: Option<PixelGrid>,
 }
 
@@ -92,7 +93,8 @@ struct Record {
   arranged: Option<Box<dyn Any>>,
   /// Whether the node is in [`State::changed`].
   listed: bool,
-  /// Whether the node is measured again this run, whatever its parent offers.
+  /// Whether the node is measured again this run, whatever its parent offers. A run ends with it
+  /// unset: the node is measured, or a parent that skips it forgets it.
   dirty: bool,
   /// How far below the root the node is, as of the last structure sweep.
   depth: u32,
@@ -103,10 +105,14 @@ struct Record {
 }
 
 impl Record {
+  fn has_result(&self) -> bool {
+    self.measured.is_some() || self.arranged.is_some()
+  }
+
   /// Drops what layout worked out for the node, keeping its size from before, and returns whether
   /// it had a result.
   fn forget(&mut self) -> bool {
-    let had_result = self.measured.is_some() || self.arranged.is_some();
+    let had_result = self.has_result();
     *self = Record {
       size: self.size,
       listed: self.listed,
@@ -152,12 +158,33 @@ impl State {
     }
   }
 
+  /// Drops what layout worked out for every node, and notes the nodes that had a result.
+  fn forget_all(&mut self) {
+    for (node, record) in self.records.iter_mut() {
+      if record.forget() && !record.listed {
+        record.listed = true;
+        self.changed.push(node);
+      }
+    }
+    self.waiting.clear();
+  }
+
   /// Marks `node` to be arranged again, even in the same rectangle.
   fn arrange_later(&mut self, node: NodeId) {
-    let slot = &mut self.records.get_or_default(node).slot;
-    if !slot.arrange_dirty {
-      slot.arrange_dirty = true;
-      self.waiting.push(node);
+    Self::wait(&mut self.waiting, node, self.records.get_or_default(node));
+  }
+
+  /// Marks every node to be arranged again, even in the same rectangle.
+  fn arrange_all_later(&mut self) {
+    for (node, record) in self.records.iter_mut() {
+      Self::wait(&mut self.waiting, node, record);
+    }
+  }
+
+  fn wait(waiting: &mut Vec<NodeId>, node: NodeId, record: &mut Record) {
+    if !record.slot.arrange_dirty {
+      record.slot.arrange_dirty = true;
+      waiting.push(node);
     }
   }
 
@@ -216,12 +243,7 @@ impl LayoutManager {
     text: &mut dyn TextEngine,
   ) -> LayoutStats {
     if self.grid.replace(grid) != Some(grid) {
-      for (node, record) in self.state.records.iter_mut() {
-        if !record.slot.arrange_dirty {
-          record.slot.arrange_dirty = true;
-          self.state.waiting.push(node);
-        }
-      }
+      self.state.arrange_all_later();
     }
     let (cx, desired) = self.measure_pass(tree, nodes, root, available, text);
     if cx.pass.collapsed(root) {
@@ -243,11 +265,18 @@ impl LayoutManager {
     cx.arrange(root, Rect::new(0.0, 0.0, width, height));
 
     // The nodes the upward pass stopped at, still waiting in their unchanged rectangles.
-    let mut waiting = std::mem::take(&mut cx.pass.state.waiting);
     let records = &cx.pass.state.records;
-    waiting.retain(|node| records.get(*node).is_some_and(|record| record.slot.arrange_dirty));
-    waiting.sort_by_key(|node| records.get(*node).map_or(0, |record| record.depth));
-    for node in waiting.drain(..) {
+    let mut waiting: Vec<(u32, NodeId)> = std::mem::take(&mut cx.pass.state.waiting)
+      .into_iter()
+      .filter_map(|node| {
+        records
+          .get(node)
+          .filter(|record| record.slot.arrange_dirty)
+          .map(|record| (record.depth, node))
+      })
+      .collect();
+    waiting.sort_by_key(|(depth, _)| *depth);
+    for (_, node) in waiting {
       let slot = cx.pass.state.records.get(node).map(|record| record.slot);
       if let Some(slot) = slot
         && slot.arrange_dirty
@@ -256,7 +285,6 @@ impl LayoutManager {
         cx.arrange(node, rect);
       }
     }
-    cx.pass.state.waiting = waiting;
     cx.pass.stats.results = cx.pass.state.take_changed();
     cx.pass.stats
   }
@@ -280,22 +308,34 @@ impl LayoutManager {
   fn sweep(&mut self, tree: &UiTree, root: NodeId) {
     let state = &mut self.state;
     let stamp = state.next_stamp();
-    let mut pending = vec![(root, 0)];
-    while let Some((node, depth)) = pending.pop() {
-      let record = state.records.get_or_default(node);
-      record.depth = depth;
-      record.swept = stamp;
-      pending.extend(tree.children(TreeKind::Visual, node).map(|child| (child, depth + 1)));
-    }
     let changed = &mut state.changed;
-    state.records.retain(|node, record| {
-      if record.swept == stamp {
-        return true;
-      }
-      if (record.measured.is_some() || record.arranged.is_some()) && !record.listed {
+    let mut dropped = |node: NodeId, record: &Record| {
+      if record.has_result() && !record.listed {
         changed.push(node);
       }
-      false
+    };
+    let mut pending = vec![(root, 0)];
+    while let Some((node, depth)) = pending.pop() {
+      if let Some(record) = state.records.get_mut(node) {
+        (record.depth, record.swept) = (depth, stamp);
+      } else if let Some((freed, record)) = state.records.insert(
+        node,
+        Record {
+          depth,
+          swept: stamp,
+          ..Record::default()
+        },
+      ) {
+        dropped(freed, &record);
+      }
+      pending.extend(tree.children(TreeKind::Visual, node).map(|child| (child, depth + 1)));
+    }
+    state.records.retain(|node, record| {
+      let kept = record.swept == stamp;
+      if !kept {
+        dropped(node, record);
+      }
+      kept
     });
   }
 
@@ -307,19 +347,19 @@ impl LayoutManager {
     available: Size,
     text: &'a mut dyn TextEngine,
   ) -> (MeasureCx<'a>, Size) {
-    let structure = tree.structure_generation();
-    if self.structure.replace(structure) != Some(structure) {
+    let swept = Some((root, tree.structure_generation()));
+    if self.swept != swept {
+      self.swept = swept;
       self.sweep(tree, root);
     }
-    let mut dirty = tree.take_dirty(Affects::LAYOUT, TreeKind::Visual, root);
+    let mut dirty = if tree.contains(root) {
+      tree.take_dirty(Affects::LAYOUT, TreeKind::Visual, root)
+    } else {
+      Vec::new()
+    };
     let state = &mut self.state;
     if collapsed(nodes, tree, root) {
-      for (node, record) in state.records.iter_mut() {
-        if record.forget() && !record.listed {
-          record.listed = true;
-          state.changed.push(node);
-        }
-      }
+      state.forget_all();
       dirty.clear();
     }
     for node in &dirty {
@@ -579,7 +619,8 @@ impl<'a> MeasureCx<'a> {
     if !record.dirty && record.slot.available == Some(available) {
       return record.slot.desired;
     }
-    let had_result = record.measured.take().is_some() | record.arranged.take().is_some();
+    let had_measured = record.measured.take().is_some();
+    let had_arranged = record.arranged.take().is_some();
     self.pass.stats.measured += 1;
     let stamp = self.pass.state.next_stamp();
     let desired = match layoutable {
@@ -600,7 +641,7 @@ impl<'a> MeasureCx<'a> {
     record.dirty = false;
     record.slot.available = Some(available);
     record.slot.desired = desired;
-    if had_result || has_result {
+    if had_measured || had_arranged || has_result {
       self.pass.state.changed(child);
     }
     self.pass.state.arrange_later(child);

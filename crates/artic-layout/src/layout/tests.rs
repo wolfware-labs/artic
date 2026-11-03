@@ -1823,3 +1823,104 @@ mod moving {
     }
   }
 }
+
+// A node freed with a result, whose slot a new node takes before the next run, is still reported
+// as having dropped it.
+#[test]
+fn a_freed_nodes_result_is_reported_when_its_slot_is_reused() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  tree.free(node);
+  let reused = tree.alloc(Box::<Shaper>::default());
+  tree.add_child(TreeKind::Visual, holder, reused);
+
+  assert_eq!(lay_out(&mut layout, &mut tree, holder, WINDOW).results, [node]);
+}
+
+// Laying out another root forgets the nodes of the one before, and reports the results they drop.
+#[test]
+fn a_new_root_forgets_the_old_ones_nodes() {
+  let (mut tree, first, first_shaper) = holding_a_shaper();
+  shaper(&tree, first_shaper).measured.set(Some(1));
+  let second = tree.alloc(Box::new(Holder));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, first, WINDOW);
+
+  let stats = lay_out(&mut layout, &mut tree, second, WINDOW);
+
+  assert_eq!(stats.results, [first_shaper]);
+  assert!(layout.result(first_shaper).is_none());
+  assert_eq!(layout.rect(first_shaper), None);
+}
+
+// A root freed before the run lays out nothing and wants no space, and a run after answers from
+// that measure.
+#[test]
+fn a_stale_root_lays_out_nothing() {
+  let mut tree = UiTree::new();
+  let root = leaf(&mut tree, 100.0, 20.0);
+  tree.free(root);
+  let mut manager = LayoutManager::default();
+
+  assert_eq!(
+    manager.measure(&mut tree, &Nodes, root, WINDOW, &mut Recorder::default()),
+    Size::ZERO
+  );
+  assert_eq!(
+    manager
+      .run(&mut tree, &Nodes, root, WINDOW, GRID, &mut Recorder::default())
+      .measured,
+    0
+  );
+}
+
+static GROWN: artic_core::property::PropertyKey<f32> =
+  artic_core::property::PropertyKey::new("Grown", Affects::LAYOUT, artic_core::property::Inheritance::None);
+
+/// A leaf whose first measure grows it: it writes a layout property, which marks it again.
+#[derive(Debug)]
+struct Growing {
+  height: artic_core::property::Property<f32>,
+}
+
+impl Object for Growing {
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+    visitor.visit(&self.height);
+  }
+}
+
+impl Layoutable for Growing {
+  fn measure(&self, _cx: &mut MeasureCx<'_>, _available: Size) -> Size {
+    let height = self.height.get();
+    self.height.set(20.0);
+    Size::new(10.0, height)
+  }
+
+  fn arrange(&self, _cx: &mut ArrangeCx<'_>, _rect: Rect) {}
+}
+
+struct Growings;
+
+impl LayoutNodes for Growings {
+  fn layoutable<'a>(&self, tree: &'a UiTree, node: NodeId) -> Option<&'a dyn Layoutable> {
+    tree.get_as::<Growing>(node).map(|node| node as &dyn Layoutable)
+  }
+}
+
+// A layout property a node's measure writes marks the node for the next run, not lost to this one.
+#[test]
+fn a_layout_write_during_measure_is_laid_out_next_run() {
+  let mut tree = UiTree::new();
+  let height = artic_core::property::Property::new(&GROWN, 10.0);
+  let node = tree.alloc(Box::new(Growing { height }));
+  let mut manager = LayoutManager::default();
+  manager.run(&mut tree, &Growings, node, WINDOW, GRID, &mut Recorder::default());
+  assert_eq!(manager.desired(node), Some(Size::new(10.0, 10.0)));
+
+  manager.run(&mut tree, &Growings, node, WINDOW, GRID, &mut Recorder::default());
+
+  assert_eq!(manager.desired(node), Some(Size::new(10.0, 20.0)));
+}
