@@ -1942,9 +1942,9 @@ fn a_layout_write_during_measure_is_laid_out_next_run() {
   assert_eq!(manager.desired(node), Some(Size::new(10.0, 20.0)));
 }
 
-// A freed root or node, whose slot a laid-out node took, leaves that node's record alone.
+// A freed node, whose slot a laid-out node took, marked for arrange leaves that node's record alone.
 #[test]
-fn stale_ids_leave_the_reusing_nodes_record_alone() {
+fn invalidate_arrange_on_a_stale_id_leaves_the_reusing_nodes_record_alone() {
   let mut tree = UiTree::new();
   let stale = leaf(&mut tree, 10.0, 10.0);
   tree.free(stale);
@@ -1954,10 +1954,40 @@ fn stale_ids_leave_the_reusing_nodes_record_alone() {
   run(&mut manager, &mut tree, root, WINDOW);
 
   manager.invalidate_arrange(stale);
-  let stats = manager.run(&mut tree, &Nodes, stale, WINDOW, GRID, &mut Recorder::default());
   run(&mut manager, &mut tree, root, WINDOW);
 
-  assert_eq!(stats, LayoutStats::default());
   assert_eq!(counts(&tree, &[root, child]), [(1, 1), (1, 1)]);
   assert_eq!(manager.rect(child), Some(Rect::new(0.0, 0.0, 400.0, 20.0)));
+}
+
+// A run on a root freed since the last one forgets every node it laid out, and reports the results
+// they drop.
+#[test]
+fn a_run_on_a_freed_root_forgets_its_nodes() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  tree.free(holder);
+  let stats = lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  assert_eq!(stats.results, [node]);
+  assert!(layout.result(node).is_none());
+  assert_eq!(layout.rect(holder), None);
+}
+
+// Measuring a root freed since the last run forgets every node too.
+#[test]
+fn measuring_a_freed_root_forgets_its_nodes() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  tree.free(holder);
+  layout.measure(&mut tree, &WithShapers, holder, WINDOW, &mut Recorder::default());
+
+  assert!(layout.result(node).is_none());
+  assert_eq!(lay_out(&mut layout, &mut tree, holder, WINDOW).results, [node]);
 }

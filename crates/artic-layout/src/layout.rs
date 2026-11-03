@@ -266,7 +266,11 @@ impl LayoutManager {
     text: &mut dyn TextEngine,
   ) -> LayoutStats {
     if !tree.contains(root) {
-      return LayoutStats::default();
+      self.forget_stale_root();
+      return LayoutStats {
+        results: self.state.take_changed(),
+        ..LayoutStats::default()
+      };
     }
     if self.grid.replace(grid) != Some(grid) {
       self.state.arrange_all_later();
@@ -328,9 +332,21 @@ impl LayoutManager {
     text: &mut dyn TextEngine,
   ) -> Size {
     if !tree.contains(root) {
+      self.forget_stale_root();
       return Size::ZERO;
     }
     self.measure_pass(tree, nodes, root, available, text).1
+  }
+
+  /// Forgets every node, as a root that's no longer in the tree has none under it. Its id may be
+  /// another node's now, so it gets no record.
+  fn forget_stale_root(&mut self) {
+    let changed = &mut self.state.changed;
+    self.state.records.retain(|node, record| {
+      State::dropped(changed, node, record);
+      false
+    });
+    self.state.waiting.clear();
   }
 
   /// Gives every node under `root` its depth, and forgets the nodes no longer under it.
