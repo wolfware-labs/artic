@@ -68,7 +68,7 @@ struct Slot {
 /// size doesn't change, its ancestors keep theirs and only the node is arranged again.
 ///
 /// A run visits the nodes marked since the last one, their ancestors, and what their measures and
-/// arranges reach; it walks the whole subtree only after the tree's structure changed, to forget
+/// arranges reach; it walks the whole subtree only after a visual link was made or cut, to forget
 /// the nodes that left it.
 ///
 /// A new [`PixelGrid`] arranges every node again, and measures only what the new logical size
@@ -76,7 +76,7 @@ struct Slot {
 #[derive(Debug, Default)]
 pub struct LayoutManager {
   state: State,
-  /// The root of the last structure sweep, and the tree's structure generation it saw.
+  /// The root of the last structure sweep, and the visual tree's links generation it saw.
   swept: Option<(NodeId, u64)>,
   grid: Option<PixelGrid>,
 }
@@ -369,7 +369,7 @@ impl LayoutManager {
     available: Size,
     text: &'a mut dyn TextEngine,
   ) -> (MeasureCx<'a>, Size) {
-    let swept = Some((root, tree.structure_generation()));
+    let swept = Some((root, tree.links_generation(TreeKind::Visual)));
     if self.swept != swept {
       self.swept = swept;
       self.sweep(tree, root);
