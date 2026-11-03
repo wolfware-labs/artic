@@ -1,8 +1,6 @@
 //! [`UserControl`], the root of a view an app composes from other controls.
 
 use artic_element::{Child, ElementImpl};
-use artic_layout::geometry::{Rect, Size};
-use artic_layout::{ArrangeCx, MeasureCx};
 use artic_macros::element;
 
 /// The root of a view: a control an app builds from other controls, usually described in a UI language
@@ -15,12 +13,4 @@ pub struct UserControl {
   pub child: Child,
 }
 
-impl ElementImpl for UserControl {
-  fn measure_override(&self, cx: &mut MeasureCx<'_>, available: Size) -> Size {
-    cx.measure_children(available)
-  }
-
-  fn arrange_override(&self, cx: &mut ArrangeCx<'_>, size: Size) {
-    cx.arrange_children(Rect::new(0.0, 0.0, size.width, size.height));
-  }
-}
+impl ElementImpl for UserControl {}

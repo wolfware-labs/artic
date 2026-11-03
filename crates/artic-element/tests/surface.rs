@@ -93,6 +93,9 @@ fn surface_lays_out_its_content() {
   let mut tree = UiTree::new();
   let (_, surface) = application(&mut tree);
   let content = tree.alloc(Box::new(Surface::default()));
+  let inner = tree.get_as::<Surface>(content).expect("a surface");
+  inner.layout.min_width.set(40.0);
+  inner.layout.min_height.set(30.0);
   tree.add_child(TreeKind::Visual, surface, content);
   let mut layout = LayoutManager::default();
 
@@ -105,6 +108,7 @@ fn surface_lays_out_its_content() {
     &mut Engine::without_fonts(),
   );
 
+  assert_eq!(layout.desired(surface), Some(Size::new(40.0, 30.0)));
   assert_eq!(layout.rect(content), Some(Rect::new(0.0, 0.0, 200.0, 100.0)));
 }
 

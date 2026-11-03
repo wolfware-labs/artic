@@ -3,12 +3,11 @@
 
 use crate::{AccessCx, Child, Children, ElementImpl};
 use artic_core::property::Property;
-use artic_layout::geometry::{Rect, Size};
-use artic_layout::{ArrangeCx, MeasureCx};
 use artic_macros::{UiEnum, UiType, element};
 
 /// The root of an app's tree. Its logical children are the [`Surface`]s the host presents, and a
-/// [`Desktop`] setting on it reaches every one of them.
+/// [`Desktop`] setting on it reaches every one of them. The host lays out each surface on its own,
+/// so the application itself is never laid out.
 #[element]
 #[derive(Debug)]
 pub struct Application {
@@ -40,14 +39,6 @@ pub struct Surface {
 }
 
 impl ElementImpl for Surface {
-  fn measure_override(&self, cx: &mut MeasureCx<'_>, available: Size) -> Size {
-    cx.measure_children(available)
-  }
-
-  fn arrange_override(&self, cx: &mut ArrangeCx<'_>, size: Size) {
-    cx.arrange_children(Rect::new(0.0, 0.0, size.width, size.height));
-  }
-
   fn accessibility(&self, _cx: &AccessCx<'_>, node: &mut accesskit::Node) {
     node.set_role(accesskit::Role::Window);
     node.set_label(self.title.get());

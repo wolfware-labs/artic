@@ -86,7 +86,7 @@ impl artic_element::Element for Block {
 
 artic_element::element_type!(Block);
 
-/// A control with nothing special: its measure is ElementImpl's default, which takes no space.
+/// A control with nothing special: its layout is ElementImpl's default.
 #[derive(Debug)]
 struct Spacer;
 
@@ -124,8 +124,9 @@ impl Object for Unregistered {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
-// A registered column stacks its registered children; an unregistered node and a spacer using
-// ElementImpl's default measure take no space, so the second block sits right under the first.
+// A registered column stacks its registered children; an unregistered node and a spacer with no
+// children, using ElementImpl's default measure, take no space, so the second block sits right
+// under the first.
 #[test]
 fn registered_elements_are_laid_out_through_the_cast_table() {
   let mut tree = UiTree::new();
@@ -154,6 +155,33 @@ fn registered_elements_are_laid_out_through_the_cast_table() {
   assert_eq!(layout.rect(unregistered), Some(Rect::new(0.0, 20.0, 200.0, 0.0)));
   assert_eq!(layout.desired(spacer), Some(Size::ZERO));
   assert_eq!(layout.rect(second), Some(Rect::new(0.0, 20.0, 200.0, 10.0)));
+}
+
+// An element with ElementImpl's default layout fills its box with its children: it wants the
+// largest width and height they want, and arranges each one over its whole box.
+#[test]
+fn the_default_layout_fills_the_box_with_the_children() {
+  let mut tree = UiTree::new();
+  let spacer = tree.alloc(Box::new(Spacer));
+  let (short, tall) = (tree.alloc(Box::new(Block(10.0))), tree.alloc(Box::new(Block(30.0))));
+  for child in [short, tall] {
+    tree.add_child(TreeKind::Visual, spacer, child);
+  }
+  let types = ElementTypes::from_link_time();
+  let mut layout = LayoutManager::default();
+
+  layout.run(
+    &mut tree,
+    &types,
+    spacer,
+    Size::new(200.0, 100.0),
+    PixelGrid { scale: 1.0, snap: false },
+    &mut Engine::without_fonts(),
+  );
+
+  assert_eq!(layout.desired(spacer), Some(Size::new(30.0, 30.0)));
+  assert_eq!(layout.rect(short), Some(Rect::new(0.0, 0.0, 200.0, 100.0)));
+  assert_eq!(layout.rect(tall), Some(Rect::new(0.0, 0.0, 200.0, 100.0)));
 }
 
 // A stale id has no layoutable node; asking doesn't panic.
