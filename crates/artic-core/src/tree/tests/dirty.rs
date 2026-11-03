@@ -2,6 +2,7 @@ use crate::Object;
 use crate::property::{Affects, AttachedKey, Inheritance, Precedence, Property, PropertyKey, PropertyVisitor};
 use crate::tree::{NodeId, TreeKind, UiTree};
 use pretty_assertions::assert_eq;
+use std::collections::HashSet;
 
 static FONT_SIZE: PropertyKey<i32> = PropertyKey::new("FontSize", Affects::LAYOUT, Inheritance::None);
 static FOREGROUND: PropertyKey<i32> = PropertyKey::new("Foreground", Affects::RENDER, Inheritance::None);
@@ -210,7 +211,7 @@ fn change_affecting_nothing_sets_no_pending() {
 }
 
 /// The nodes under `root` queued for layout, handed over in any order.
-fn take_layout(tree: &mut UiTree, root: NodeId) -> std::collections::HashSet<NodeId> {
+fn take_layout(tree: &mut UiTree, root: NodeId) -> HashSet<NodeId> {
   tree.take_dirty(Affects::LAYOUT, TreeKind::Visual, root).into_iter().collect()
 }
 

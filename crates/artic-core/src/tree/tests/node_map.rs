@@ -69,19 +69,51 @@ fn get_mut_and_remove_reach_the_value() {
   assert_eq!(map.get(node), None);
 }
 
-// iter_mut reaches every value with its node, and clear drops them all.
+// iter_mut reaches every value with its node.
 #[test]
-fn iter_mut_and_clear() {
+fn iter_mut_reaches_every_value_with_its_node() {
   let mut tree = UiTree::new();
   let [a, b] = nodes(&mut tree);
   let mut map = NodeMap::new();
   map.insert(a, 1);
   map.insert(b, 2);
+
   map
     .iter_mut()
     .for_each(|(node, value)| *value *= if node == a { 10 } else { 100 });
 
   assert_eq!((map.get(a), map.get(b)), (Some(&10), Some(&200)));
-  map.clear();
-  assert_eq!((map.get(a), map.get(b)), (None, None));
+}
+
+// insert hands back what the slot held: the node's own value, or a freed node's.
+#[test]
+fn insert_hands_back_what_the_slot_held() {
+  let mut tree = UiTree::new();
+  let [old] = nodes(&mut tree);
+  let mut map = NodeMap::new();
+
+  assert_eq!(map.insert(old, 1), None);
+  assert_eq!(map.insert(old, 2), Some((old, 1)));
+  tree.free(old);
+  let new = tree.alloc(Box::new(Control));
+  assert_eq!(map.insert(new, 3), Some((old, 2)));
+}
+
+// Removing or retaining away a value keeps every other value found by its node.
+#[test]
+fn removals_keep_the_other_values_found() {
+  let mut tree = UiTree::new();
+  let [a, b, c, d] = nodes(&mut tree);
+  let mut map = NodeMap::new();
+  for (value, node) in [a, b, c, d].into_iter().enumerate() {
+    map.insert(node, value);
+  }
+
+  map.remove(a);
+  map.retain(|node, _| node != c);
+
+  assert_eq!(
+    [a, b, c, d].map(|node| map.get(node).copied()),
+    [None, Some(1), None, Some(3)]
+  );
 }
