@@ -78,14 +78,16 @@ impl<T> NodeMap<T> {
 
   /// Keeps only the values `keep` accepts, handing it each value's node.
   pub fn retain(&mut self, mut keep: impl FnMut(NodeId, &mut T) -> bool) {
-    let mut position = 0;
-    while position < self.entries.len() {
-      let (node, value) = &mut self.entries[position];
-      if keep(*node, value) {
-        position += 1;
-      } else {
-        self.remove_at(position);
+    let positions = &mut self.positions;
+    self.entries.retain_mut(|(node, value)| {
+      let kept = keep(*node, value);
+      if !kept {
+        positions[node.0.index()] = EMPTY;
       }
+      kept
+    });
+    for (position, (node, _)) in self.entries.iter().enumerate() {
+      positions[node.0.index()] = position as u32;
     }
   }
 
