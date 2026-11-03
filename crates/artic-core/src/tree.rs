@@ -40,6 +40,7 @@ mod dirty;
 mod handle;
 mod hierarchy;
 mod inheritance;
+mod node_map;
 mod objects;
 
 use crate::Object;
@@ -53,6 +54,7 @@ use dirty::DirtyFlags;
 pub(crate) use dirty::DirtyHandle;
 pub use handle::Handle;
 use hierarchy::Tree;
+pub use node_map::NodeMap;
 use objects::Objects;
 use std::any::Any;
 #[cfg(debug_assertions)]

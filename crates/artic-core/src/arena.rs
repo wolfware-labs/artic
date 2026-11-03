@@ -201,6 +201,43 @@ impl<TValue> SlotMap<TValue> {
       None
     }
   }
+
+  pub fn get_or_insert_with(&mut self, id: SlotId, value: impl FnOnce() -> TValue) -> &mut TValue {
+    let index = id.index as usize;
+    if index >= self.entries.len() {
+      self.entries.resize_with(index + 1, || None);
+    }
+    let entry = &mut self.entries[index];
+    if entry.as_ref().is_none_or(|(generation, _)| *generation != id.generation) {
+      *entry = Some((id.generation, value()));
+    }
+    &mut entry.as_mut().expect("set above").1
+  }
+
+  pub fn retain(&mut self, mut keep: impl FnMut(SlotId, &mut TValue) -> bool) {
+    for (index, entry) in self.entries.iter_mut().enumerate() {
+      if let Some((generation, value)) = entry {
+        let id = SlotId {
+          index: index as SlotIndex,
+          generation: *generation,
+        };
+        if !keep(id, value) {
+          *entry = None;
+        }
+      }
+    }
+  }
+
+  pub fn values_mut(&mut self) -> impl Iterator<Item = &mut TValue> {
+    self
+      .entries
+      .iter_mut()
+      .filter_map(|entry| entry.as_mut().map(|(_, value)| value))
+  }
+
+  pub fn clear(&mut self) {
+    self.entries.clear();
+  }
 }
 
 #[cfg(test)]
