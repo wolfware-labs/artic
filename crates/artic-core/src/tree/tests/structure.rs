@@ -96,3 +96,25 @@ fn other_edits_leave_the_structure_generation() {
 
   assert_eq!(tree.structure_generation(), before);
 }
+
+// A tree's links generation changes when a node gains or loses a parent in that tree, and not for
+// the other tree's edits, a new node or freeing a detached one.
+#[test]
+fn links_generation_counts_only_its_trees_links() {
+  let mut tree = UiTree::new();
+  let [root, child, logical, detached] = nodes(&mut tree);
+  let visual = |tree: &UiTree| tree.links_generation(TreeKind::Visual);
+  let before = visual(&tree);
+
+  tree.add_child(TreeKind::Logical, root, logical);
+  let _ = nodes::<1>(&mut tree);
+  tree.free(detached);
+  assert_eq!(visual(&tree), before);
+  assert_ne!(tree.links_generation(TreeKind::Logical), 0);
+
+  tree.add_child(TreeKind::Visual, root, child);
+  let added = visual(&tree);
+  assert_ne!(added, before);
+  tree.detach(TreeKind::Visual, child);
+  assert_ne!(visual(&tree), added);
+}

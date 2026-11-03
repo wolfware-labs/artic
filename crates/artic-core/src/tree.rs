@@ -109,6 +109,8 @@ pub struct UiTree {
   /// value changes, and that goes when the property is disposed.
   listed: SlotMap<Vec<SignalId>>,
   structure_generation: u64,
+  /// How many links each tree has had made or cut, logical first.
+  links_generations: [u64; 2],
   #[cfg(debug_assertions)]
   touched: RefCell<HashMap<NodeId, Vec<SignalId>, BuildHasherDefault<DefaultHasher>>>,
 }
@@ -207,6 +209,7 @@ impl UiTree {
       attached_values: AttachedValues::new(),
       listed: SlotMap::new(),
       structure_generation: 0,
+      links_generations: [0; 2],
       #[cfg(debug_assertions)]
       touched: RefCell::new(HashMap::with_hasher(BuildHasherDefault::new())),
     }
@@ -416,6 +419,14 @@ impl UiTree {
   #[must_use]
   pub fn structure_generation(&self) -> u64 {
     self.structure_generation
+  }
+
+  /// A number that changes whenever a link is made or cut in `tree`, and at no other time: not for
+  /// the other tree's links, nor for a node allocated or freed without one. Layout compares it to
+  /// know when a visual subtree may have changed shape.
+  #[must_use]
+  pub fn links_generation(&self, tree: TreeKind) -> u64 {
+    self.links_generations[tree as usize]
   }
 
   /// Returns `true` if `id` refers to a live node.
@@ -924,6 +935,7 @@ impl UiTree {
   fn attach(&mut self, tree: TreeKind, parent: NodeId, index: usize, child: NodeId) {
     self.tree_mut(tree).link(parent, index, child);
     self.structure_generation += 1;
+    self.links_generations[tree as usize] += 1;
     self.children_changed(tree, parent);
     if tree == TreeKind::Logical {
       inheritance::relink(&self.objects, &self.attached_values, &self.logical, child);
@@ -934,6 +946,7 @@ impl UiTree {
   fn unlink(&mut self, tree: TreeKind, node: NodeId) -> Option<NodeId> {
     let parent = self.tree_mut(tree).unlink(node)?;
     self.structure_generation += 1;
+    self.links_generations[tree as usize] += 1;
     self.children_changed(tree, parent);
     Some(parent)
   }
