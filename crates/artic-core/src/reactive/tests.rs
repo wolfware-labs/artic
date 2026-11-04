@@ -909,6 +909,23 @@ fn writing_disposed_signal_panics_after_slot_reuse() {
   assert_eq!(new.get(), 0);
 }
 
+// Reading a signal whose scope was disposed panics after its slot was reused, and doesn't read the
+// new signal's value.
+#[test]
+fn reading_disposed_signal_panics_after_slot_reuse() {
+  let scope = Scope::new_root();
+  let old = scope.run(|| Signal::new(0));
+  scope.dispose();
+  let new = Signal::new(7);
+
+  let message = panic_message(|| {
+    old.get();
+  });
+
+  assert!(message.starts_with("signal used after it was disposed"), "{message}");
+  assert_eq!(new.get(), 7);
+}
+
 // Reading a memo whose scope was disposed panics.
 #[test]
 fn reading_disposed_memo_panics() {
