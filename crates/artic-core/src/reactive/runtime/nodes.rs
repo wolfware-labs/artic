@@ -40,7 +40,7 @@ pub enum NodeKind {
 /// What an observer is for: a memo keeps a value its run computes, an effect runs in the order it
 /// was created.
 pub enum Job {
-  Memo { value: Rc<ValueCell> },
+  Memo { value: Rc<ValueCell<dyn Any>> },
   Effect { seq: u64 },
 }
 
@@ -73,7 +73,7 @@ enum Kind {
   /// A signal's value, and its sink if it has one: a `mark` called when a visible write reaches the
   /// signal or the source it is linked to.
   Signal {
-    value: Rc<ValueCell>,
+    value: Rc<ValueCell<dyn Any>>,
     sink: Option<Sink>,
   },
   Observer(Observer),
@@ -155,9 +155,9 @@ impl Nodes {
     }
   }
 
-  pub fn alloc_signal(&self, value: Box<dyn Any>) -> SignalId {
+  pub fn alloc_signal<TValue: Any>(&self, value: TValue) -> SignalId {
     SignalId(self.alloc(Kind::Signal {
-      value: Rc::new(ValueCell::new(value, "signal")),
+      value: ValueCell::new(value, "signal"),
       sink: None,
     }))
   }
@@ -205,8 +205,8 @@ impl Nodes {
     self.slots.borrow().get(signal_id.0.0).and_then(Slot::sink).is_some()
   }
 
-  pub fn alloc_memo(&self, value: Box<dyn Any>, compute: Rc<dyn Fn(MemoId)>, scope: ScopeId) -> MemoId {
-    let value = Rc::new(ValueCell::new(value, "memo"));
+  pub fn alloc_memo<TValue: Any>(&self, value: TValue, compute: Rc<dyn Fn(MemoId)>, scope: ScopeId) -> MemoId {
+    let value = ValueCell::new(value, "memo");
     MemoId(self.alloc_observer(Job::Memo { value }, Rc::new(move |node| compute(MemoId(node))), scope))
   }
 
@@ -258,14 +258,14 @@ impl Nodes {
       .count()
   }
 
-  pub fn signal_value(&self, signal_id: SignalId) -> Rc<ValueCell> {
+  pub fn signal_value(&self, signal_id: SignalId) -> Rc<ValueCell<dyn Any>> {
     match &self.slot(signal_id.0, "signal").kind {
       Kind::Signal { value, .. } => Rc::clone(value),
       Kind::Observer(_) => unreachable!("a signal id names a signal"),
     }
   }
 
-  pub fn memo_value(&self, memo_id: MemoId) -> Rc<ValueCell> {
+  pub fn memo_value(&self, memo_id: MemoId) -> Rc<ValueCell<dyn Any>> {
     self.with_observer(memo_id.0, |observer| match &observer.job {
       Job::Memo { value } => Rc::clone(value),
       Job::Effect { .. } => unreachable!("a memo id names a memo"),
@@ -476,7 +476,7 @@ mod tests {
   fn nodes() -> (Nodes, Node, Node, Node) {
     let nodes = Nodes::new();
     let scope = ScopeStore::new().alloc(None);
-    let signal = nodes.alloc_signal(Box::new(0)).into();
+    let signal = nodes.alloc_signal(0).into();
     let observer = || nodes.alloc_effect(|| {}, scope);
     let (first, second) = (observer(), observer());
     (nodes, signal, first, second)

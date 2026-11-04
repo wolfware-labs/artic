@@ -73,7 +73,7 @@ where
   #[track_caller]
   pub fn new(compute: impl Fn() -> TValue + 'static) -> Memo<TValue> {
     let memo_id = Runtime::create_memo(
-      Box::new(None::<TValue>),
+      None::<TValue>,
       Rc::new(move |memo_id| {
         let new_value = Some(compute());
         if !Runtime::contains_memo(memo_id) {

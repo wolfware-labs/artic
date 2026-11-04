@@ -59,7 +59,7 @@ impl Runtime {
   where
     TValue: Any,
   {
-    RUNTIME.with(|runtime| runtime.nodes.alloc_signal(Box::new(value)))
+    RUNTIME.with(|runtime| runtime.nodes.alloc_signal(value))
   }
 
   pub fn contains_signal(signal_id: SignalId) -> bool {
@@ -151,7 +151,7 @@ impl Runtime {
     RUNTIME.with(|runtime| runtime.nodes.is_dirty(node))
   }
 
-  pub fn create_memo(initial_value: Box<dyn Any>, compute: Rc<dyn Fn(MemoId)>) -> MemoId {
+  pub fn create_memo<TValue: Any>(initial_value: TValue, compute: Rc<dyn Fn(MemoId)>) -> MemoId {
     RUNTIME.with(|runtime| {
       let scope = runtime.scopes.alloc(runtime.scopes.active());
       let memo_id = runtime.nodes.alloc_memo(initial_value, compute, scope);
