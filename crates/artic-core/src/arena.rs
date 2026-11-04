@@ -30,6 +30,12 @@ pub struct SlotId {
   generation: SlotGeneration,
 }
 
+impl SlotId {
+  pub(crate) const fn index(self) -> usize {
+    self.index as usize
+  }
+}
+
 impl<TValue> Default for Arena<TValue> {
   fn default() -> Self {
     Self::new()

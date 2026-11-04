@@ -40,6 +40,7 @@ mod dirty;
 mod handle;
 mod hierarchy;
 mod inheritance;
+mod node_map;
 mod objects;
 
 use crate::Object;
@@ -53,6 +54,7 @@ use dirty::DirtyFlags;
 pub(crate) use dirty::DirtyHandle;
 pub use handle::Handle;
 use hierarchy::Tree;
+pub use node_map::NodeMap;
 use objects::Objects;
 use std::any::Any;
 #[cfg(debug_assertions)]
@@ -107,6 +109,9 @@ pub struct UiTree {
   /// value changes, and that goes when the property is disposed.
   listed: SlotMap<Vec<SignalId>>,
   structure_generation: u64,
+  /// The parents each tree, logical first, made or cut a link under since a root above them last
+  /// took them.
+  relinked: [NodeMap<()>; 2],
   #[cfg(debug_assertions)]
   touched: RefCell<HashMap<NodeId, Vec<SignalId>, BuildHasherDefault<DefaultHasher>>>,
 }
@@ -205,6 +210,7 @@ impl UiTree {
       attached_values: AttachedValues::new(),
       listed: SlotMap::new(),
       structure_generation: 0,
+      relinked: [NodeMap::new(), NodeMap::new()],
       #[cfg(debug_assertions)]
       touched: RefCell::new(HashMap::with_hasher(BuildHasherDefault::new())),
     }
@@ -288,6 +294,9 @@ impl UiTree {
     self.attached_values.of(node_id).for_each(|property| property.dispose());
     self.attached_values.remove(node_id);
     self.dirty_flags.remove(node_id);
+    for relinked in &mut self.relinked {
+      relinked.remove(node_id);
+    }
     self.logical.remove(node_id);
     self.visual.remove(node_id);
     self.structure_generation += 1;
@@ -414,6 +423,26 @@ impl UiTree {
   #[must_use]
   pub fn structure_generation(&self) -> u64 {
     self.structure_generation
+  }
+
+  /// Whether a link was made or cut in `tree` under `root`, or at `root` itself, since a call for
+  /// a root above it last took it; takes those links, and leaves the ones under other roots for
+  /// theirs. A node allocated or freed with no link counts for nothing, and neither does the other
+  /// tree. Layout asks it to know when a surface's subtree may have changed shape.
+  pub fn take_relinked(&mut self, tree: TreeKind, root: NodeId) -> bool {
+    let links = match tree {
+      TreeKind::Logical => &self.logical,
+      TreeKind::Visual => &self.visual,
+    };
+    let mut found = false;
+    self.relinked[tree as usize].retain(|parent, ()| {
+      let within = links.is_within(parent, root);
+      if within {
+        found = true;
+      }
+      !within
+    });
+    found
   }
 
   /// Returns `true` if `id` refers to a live node.
@@ -730,6 +759,34 @@ impl UiTree {
     self.dirty_flags.clear(id, stages);
   }
 
+  /// Hands over the nodes marked `stage` that are `root` or under it in `tree`, each once, and clears
+  /// `stage` from them. Nodes marked `stage` elsewhere stay for the stage's other roots, such as
+  /// another surface's.
+  ///
+  /// The tree queues a node when a mark adds `stage` to it, so this costs what was marked, not the
+  /// size of the tree. Only [`Affects::LAYOUT`] is queued.
+  ///
+  /// # Panics
+  ///
+  /// Panics if `root` is stale, or if `stage` isn't queued.
+  #[track_caller]
+  pub fn take_dirty(&mut self, stage: Affects, tree: TreeKind, root: NodeId) -> Vec<NodeId> {
+    self.check(root);
+    let mut taken = Vec::new();
+    self.dirty_flags.retain_queued(stage, |node| {
+      if !self.dirty_flags.get(node).contains(stage) {
+        return false;
+      }
+      if !self.is_within(tree, node, root) {
+        return true;
+      }
+      self.dirty_flags.clear(node, stage);
+      taken.push(node);
+      false
+    });
+    taken
+  }
+
   /// Returns whether any node was marked dirty since the last call, and clears that.
   ///
   /// Every path that marks a node dirty sets it: a property change, [`mark_dirty`](Self::mark_dirty),
@@ -910,6 +967,7 @@ impl UiTree {
 
   /// A node's visual children size and place it, so changing them means laying it out again.
   fn children_changed(&mut self, tree: TreeKind, parent: NodeId) {
+    self.relinked[tree as usize].insert(parent, ());
     if tree == TreeKind::Visual {
       self.mark_dirty(parent, Affects::LAYOUT);
     }

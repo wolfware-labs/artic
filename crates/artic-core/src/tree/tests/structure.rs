@@ -96,3 +96,56 @@ fn other_edits_leave_the_structure_generation() {
 
   assert_eq!(tree.structure_generation(), before);
 }
+
+// A link made or cut under a root is reported to that root once.
+#[test]
+fn take_relinked_reports_a_link_under_the_root_once() {
+  let mut tree = UiTree::new();
+  let [root, parent, child] = nodes(&mut tree);
+  tree.add_child(TreeKind::Visual, root, parent);
+  assert!(tree.take_relinked(TreeKind::Visual, root));
+  assert!(!tree.take_relinked(TreeKind::Visual, root));
+
+  tree.add_child(TreeKind::Visual, parent, child);
+  assert!(tree.take_relinked(TreeKind::Visual, root));
+  tree.detach(TreeKind::Visual, child);
+  assert!(tree.take_relinked(TreeKind::Visual, root));
+  assert!(!tree.take_relinked(TreeKind::Visual, root));
+}
+
+// A link under one root stays for that root, and isn't reported to another.
+#[test]
+fn take_relinked_leaves_other_roots_links() {
+  let mut tree = UiTree::new();
+  let [first, second, child] = nodes(&mut tree);
+  tree.add_child(TreeKind::Visual, second, child);
+
+  assert!(!tree.take_relinked(TreeKind::Visual, first));
+  assert!(tree.take_relinked(TreeKind::Visual, second));
+}
+
+// Links in the other tree, new nodes and freeing a detached one aren't visual links.
+#[test]
+fn take_relinked_counts_only_its_trees_links() {
+  let mut tree = UiTree::new();
+  let [root, logical, detached] = nodes(&mut tree);
+  tree.add_child(TreeKind::Logical, root, logical);
+  let _ = nodes::<1>(&mut tree);
+  tree.free(detached);
+
+  assert!(!tree.take_relinked(TreeKind::Visual, root));
+  assert!(tree.take_relinked(TreeKind::Logical, root));
+}
+
+// Freeing a node under the root cuts its link, which the root is told of.
+#[test]
+fn freeing_a_node_under_the_root_is_a_relink() {
+  let mut tree = UiTree::new();
+  let [root, child] = nodes(&mut tree);
+  tree.add_child(TreeKind::Visual, root, child);
+  tree.take_relinked(TreeKind::Visual, root);
+
+  tree.free(child);
+
+  assert!(tree.take_relinked(TreeKind::Visual, root));
+}

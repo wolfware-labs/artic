@@ -195,6 +195,81 @@ fn removed_children_relayout_the_parent() {
   assert_eq!(manager.desired(first), None);
 }
 
+// A node moved to a shallower parent is laid out under its new parent, and the parents it left and
+// joined are measured once more each.
+#[test]
+fn a_moved_node_lays_out_under_its_new_parent() {
+  let mut tree = UiTree::new();
+  let moved = leaf(&mut tree, 100.0, 20.0);
+  let inner = stack(&mut tree, &[moved]);
+  let outer = stack(&mut tree, &[inner]);
+  let root = stack(&mut tree, &[outer]);
+  let mut manager = LayoutManager::default();
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  tree.detach(TreeKind::Visual, moved);
+  tree.add_child(TreeKind::Visual, root, moved);
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  assert_eq!(manager.rect(moved), Some(Rect::new(0.0, 0.0, 400.0, 20.0)));
+  assert_eq!(manager.desired(root), Some(Size::new(100.0, 20.0)));
+  assert_eq!(counts(&tree, &[root, outer, inner]), [(2, 2), (2, 2), (2, 2)]);
+}
+
+// A node marked for layout and freed before the run is skipped; its parent is laid out without it.
+#[test]
+fn a_freed_dirty_node_is_skipped() {
+  let mut tree = UiTree::new();
+  let [first, second] = [leaf(&mut tree, 100.0, 20.0), leaf(&mut tree, 100.0, 30.0)];
+  let root = stack(&mut tree, &[first, second]);
+  let mut manager = LayoutManager::default();
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  LayoutManager::invalidate_measure(&mut tree, first);
+  tree.free(first);
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  assert_eq!(manager.rect(second), Some(Rect::new(0.0, 0.0, 400.0, 30.0)));
+  assert_eq!(manager.desired(first), None);
+}
+
+// Two managers over one tree, one per root, each lay out the dirty nodes under their own root and
+// leave the other's for it.
+#[test]
+fn two_roots_in_one_tree_keep_each_others_dirty_nodes() {
+  let mut tree = UiTree::new();
+  let [left, right] = [leaf(&mut tree, 100.0, 20.0), leaf(&mut tree, 100.0, 20.0)];
+  let (left_root, right_root) = (stack(&mut tree, &[left]), stack(&mut tree, &[right]));
+  let (mut left_manager, mut right_manager) = (LayoutManager::default(), LayoutManager::default());
+  run(&mut left_manager, &mut tree, left_root, WINDOW);
+  run(&mut right_manager, &mut tree, right_root, WINDOW);
+
+  for leaf in [left, right] {
+    node(&tree, leaf).size.set(Size::new(100.0, 40.0));
+    LayoutManager::invalidate_measure(&mut tree, leaf);
+  }
+  run(&mut left_manager, &mut tree, left_root, WINDOW);
+
+  assert_eq!(counts(&tree, &[left, right]), [(2, 2), (1, 1)]);
+  run(&mut right_manager, &mut tree, right_root, WINDOW);
+  assert_eq!(counts(&tree, &[left, right]), [(2, 2), (2, 2)]);
+  assert_eq!(right_manager.desired(right_root), Some(Size::new(100.0, 40.0)));
+}
+
+// A node marked for arrange before it was ever laid out is arranged once, with its first layout.
+#[test]
+fn invalidate_arrange_before_the_first_run_arranges_once() {
+  let mut tree = UiTree::new();
+  let child = leaf(&mut tree, 100.0, 20.0);
+  let root = stack(&mut tree, &[child]);
+  let mut manager = LayoutManager::default();
+
+  manager.invalidate_arrange(child);
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  assert_eq!(counts(&tree, &[root, child]), [(1, 1), (1, 1)]);
+}
+
 // Arrange-only invalidation arranges the node again in the same rectangle, without measuring.
 #[test]
 fn invalidate_arrange_skips_measure() {
@@ -1747,4 +1822,201 @@ mod moving {
       assert_eq!(tree.get_as::<Mover>(*child).unwrap().arranged.get(), 2);
     }
   }
+}
+
+// A node freed with a result, whose slot a new node takes before the next run, is still reported
+// as having dropped it.
+#[test]
+fn a_freed_nodes_result_is_reported_when_its_slot_is_reused() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  tree.free(node);
+  let reused = tree.alloc(Box::<Shaper>::default());
+  tree.add_child(TreeKind::Visual, holder, reused);
+
+  assert_eq!(lay_out(&mut layout, &mut tree, holder, WINDOW).results, [node]);
+}
+
+// A node marked for arrange in a freed node's slot, before any run, still reports the result the
+// freed node dropped.
+#[test]
+fn invalidate_arrange_in_a_reused_slot_reports_the_dropped_result() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  tree.free(node);
+  let reused = tree.alloc(Box::<Shaper>::default());
+  layout.invalidate_arrange(reused);
+  tree.add_child(TreeKind::Visual, holder, reused);
+
+  assert_eq!(lay_out(&mut layout, &mut tree, holder, WINDOW).results, [node]);
+}
+
+// Laying out another root forgets the nodes of the one before, and reports the results they drop.
+#[test]
+fn a_new_root_forgets_the_old_ones_nodes() {
+  let (mut tree, first, first_shaper) = holding_a_shaper();
+  shaper(&tree, first_shaper).measured.set(Some(1));
+  let second = tree.alloc(Box::new(Holder));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, first, WINDOW);
+
+  let stats = lay_out(&mut layout, &mut tree, second, WINDOW);
+
+  assert_eq!(stats.results, [first_shaper]);
+  assert!(layout.result(first_shaper).is_none());
+  assert_eq!(layout.rect(first_shaper), None);
+}
+
+// A root freed before the run lays out nothing and wants no space, and a run after answers from
+// that measure.
+#[test]
+fn a_stale_root_lays_out_nothing() {
+  let mut tree = UiTree::new();
+  let root = leaf(&mut tree, 100.0, 20.0);
+  tree.free(root);
+  let mut manager = LayoutManager::default();
+
+  assert_eq!(
+    manager.measure(&mut tree, &Nodes, root, WINDOW, &mut Recorder::default()),
+    Size::ZERO
+  );
+  assert_eq!(
+    manager
+      .run(&mut tree, &Nodes, root, WINDOW, GRID, &mut Recorder::default())
+      .measured,
+    0
+  );
+}
+
+static GROWN: artic_core::property::PropertyKey<f32> =
+  artic_core::property::PropertyKey::new("Grown", Affects::LAYOUT, artic_core::property::Inheritance::None);
+
+/// A leaf whose first measure grows it: it writes a layout property, which marks it again.
+#[derive(Debug)]
+struct Growing {
+  height: artic_core::property::Property<f32>,
+}
+
+impl Object for Growing {
+  fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+    visitor.visit(&self.height);
+  }
+}
+
+impl Layoutable for Growing {
+  fn measure(&self, _cx: &mut MeasureCx<'_>, _available: Size) -> Size {
+    let height = self.height.get();
+    self.height.set(20.0);
+    Size::new(10.0, height)
+  }
+
+  fn arrange(&self, _cx: &mut ArrangeCx<'_>, _rect: Rect) {}
+}
+
+struct Growings;
+
+impl LayoutNodes for Growings {
+  fn layoutable<'a>(&self, tree: &'a UiTree, node: NodeId) -> Option<&'a dyn Layoutable> {
+    tree.get_as::<Growing>(node).map(|node| node as &dyn Layoutable)
+  }
+}
+
+// A layout property a node's measure writes marks the node for the next run, not lost to this one.
+#[test]
+fn a_layout_write_during_measure_is_laid_out_next_run() {
+  let mut tree = UiTree::new();
+  let height = artic_core::property::Property::new(&GROWN, 10.0);
+  let node = tree.alloc(Box::new(Growing { height }));
+  let mut manager = LayoutManager::default();
+  manager.run(&mut tree, &Growings, node, WINDOW, GRID, &mut Recorder::default());
+  assert_eq!(manager.desired(node), Some(Size::new(10.0, 10.0)));
+
+  manager.run(&mut tree, &Growings, node, WINDOW, GRID, &mut Recorder::default());
+
+  assert_eq!(manager.desired(node), Some(Size::new(10.0, 20.0)));
+}
+
+// A freed node, whose slot a laid-out node took, marked for arrange leaves that node's record alone.
+#[test]
+fn invalidate_arrange_on_a_stale_id_leaves_the_reusing_nodes_record_alone() {
+  let mut tree = UiTree::new();
+  let stale = leaf(&mut tree, 10.0, 10.0);
+  tree.free(stale);
+  let child = leaf(&mut tree, 100.0, 20.0);
+  let root = stack(&mut tree, &[child]);
+  let mut manager = LayoutManager::default();
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  manager.invalidate_arrange(stale);
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  assert_eq!(counts(&tree, &[root, child]), [(1, 1), (1, 1)]);
+  assert_eq!(manager.rect(child), Some(Rect::new(0.0, 0.0, 400.0, 20.0)));
+}
+
+// A run on a root freed since the last one forgets every node it laid out, and reports the results
+// they drop.
+#[test]
+fn a_run_on_a_freed_root_forgets_its_nodes() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  tree.free(holder);
+  let stats = lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  assert_eq!(stats.results, [node]);
+  assert!(layout.result(node).is_none());
+  assert_eq!(layout.rect(holder), None);
+}
+
+// Measuring a root freed since the last run forgets every node too.
+#[test]
+fn measuring_a_freed_root_forgets_its_nodes() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  lay_out(&mut layout, &mut tree, holder, WINDOW);
+
+  tree.free(holder);
+  layout.measure(&mut tree, &WithShapers, holder, WINDOW, &mut Recorder::default());
+
+  assert!(layout.result(node).is_none());
+  assert_eq!(lay_out(&mut layout, &mut tree, holder, WINDOW).results, [node]);
+}
+
+// A node forgotten after a measure noted its result, before a run reported it, is reported once.
+#[test]
+fn a_result_noted_then_forgotten_is_reported_once() {
+  let (mut tree, holder, node) = holding_a_shaper();
+  shaper(&tree, node).measured.set(Some(1));
+  let mut layout = LayoutManager::default();
+  layout.measure(&mut tree, &WithShapers, holder, WINDOW, &mut Recorder::default());
+
+  shaper(&tree, node).collapsed.set(true);
+  LayoutManager::invalidate_measure(&mut tree, holder);
+
+  assert_eq!(lay_out(&mut layout, &mut tree, holder, WINDOW).results, [node]);
+}
+
+// A dirty root offered a new size is measured once, in the new size.
+#[test]
+fn a_dirty_root_in_a_new_size_is_measured_once() {
+  let mut tree = UiTree::new();
+  let child = leaf(&mut tree, 100.0, 20.0);
+  let root = stack(&mut tree, &[child]);
+  let mut manager = LayoutManager::default();
+  run(&mut manager, &mut tree, root, WINDOW);
+
+  LayoutManager::invalidate_measure(&mut tree, root);
+  run(&mut manager, &mut tree, root, Size::new(300.0, 200.0));
+
+  assert_eq!(node(&tree, root).measured.get(), 2);
 }

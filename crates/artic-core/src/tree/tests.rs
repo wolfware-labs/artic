@@ -5,6 +5,7 @@ mod free;
 mod handle;
 mod inheritance;
 mod links;
+mod node_map;
 mod objects;
 mod structure;
 mod wiring;
