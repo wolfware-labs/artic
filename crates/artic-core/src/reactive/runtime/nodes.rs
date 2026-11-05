@@ -1,5 +1,5 @@
 //! Every reactive node in one arena, each slot holding the node's kind, its edges and, for a memo
-//! or an effect, its observer state.
+//! or an effect, its observer state; each signal's and memo's value in a map of its own beside it.
 
 use crate::arena::{Arena, SlotId, SlotMap};
 use crate::reactive::runtime::ScopeId;
@@ -37,8 +37,8 @@ pub enum NodeKind {
   Effect,
 }
 
-/// What an observer is for: a memo keeps a value its run computes, an effect runs in the order it
-/// was created.
+/// What an observer is for: a memo's run computes the value [`Nodes::values`] keeps for it, an
+/// effect runs in the order it was created.
 pub enum Job {
   Memo,
   Effect { seq: u64 },
@@ -72,7 +72,9 @@ pub type Sink = Rc<dyn Fn()>;
 enum Kind {
   /// A signal, and its sink if it has one: a `mark` called when a visible write reaches the signal or
   /// the source it is linked to. Its value is in [`Nodes::values`].
-  Signal { sink: Option<Sink> },
+  Signal {
+    sink: Option<Sink>,
+  },
   Observer(Observer),
 }
 
@@ -103,9 +105,7 @@ impl Slot {
   fn node_kind(&self) -> NodeKind {
     match &self.kind {
       Kind::Signal { .. } => NodeKind::Signal,
-      Kind::Observer(Observer {
-        job: Job::Memo, ..
-      }) => NodeKind::Memo,
+      Kind::Observer(Observer { job: Job::Memo, .. }) => NodeKind::Memo,
       Kind::Observer(Observer {
         job: Job::Effect { .. }, ..
       }) => NodeKind::Effect,
@@ -113,10 +113,10 @@ impl Slot {
   }
 }
 
-/// A freed node's slot and value, its closures still in the slot.
+/// A freed node's value and slot, its closures still in the slot. The value drops first.
 pub struct Freed {
-  _slot: Slot,
   _value: Option<Rc<ValueCell<dyn Any>>>,
+  _slot: Slot,
 }
 
 /// The sinks a change reached, to call once nothing in the runtime is borrowed: the changed signal's
@@ -218,9 +218,9 @@ impl Nodes {
     self.alloc_observer(Job::Effect { seq }, Rc::new(move |_| (run.borrow_mut())()), scope)
   }
 
-  /// Frees `node` and cuts its edges in both directions, returning what the slot held: the caller
-  /// drops it once nothing in the runtime is borrowed, since a value or a closure in it may use the
-  /// runtime when dropped. A stale id frees nothing.
+  /// Frees `node` and cuts its edges in both directions, returning its value and what its slot held:
+  /// the caller drops them once nothing in the runtime is borrowed, since a value or a closure may use
+  /// the runtime when dropped. A stale id frees nothing.
   #[must_use]
   pub fn remove(&self, node: Node) -> Option<Freed> {
     self.clear_sources(node);
@@ -233,8 +233,8 @@ impl Nodes {
     }
     let value = self.values.borrow_mut().remove(node.0);
     Some(Freed {
-      _slot: slot,
       _value: value,
+      _slot: slot,
     })
   }
 

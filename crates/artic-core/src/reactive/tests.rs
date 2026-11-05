@@ -1216,6 +1216,38 @@ fn a_scope_frees_effects_then_memos_then_signals() {
   assert_eq!((before, log.borrow().clone()), (0, vec!["effect", "memo", "signal"]));
 }
 
+/// A memo value that logs when dropped and never equals another.
+struct DroppedValue {
+  _dropped: Dropped,
+}
+
+impl PartialEq for DroppedValue {
+  fn eq(&self, _other: &Self) -> bool {
+    false
+  }
+}
+
+// A freed memo drops its value before the closure that computed it.
+#[test]
+fn a_freed_memo_drops_its_value_before_its_closure() {
+  let log = Rc::new(RefCell::new(Vec::new()));
+  let scope = Scope::new_root();
+  let memo = scope.run(|| {
+    let (held, made) = (Dropped("closure", Rc::clone(&log)), Rc::clone(&log));
+    Memo::new(move || {
+      let _held = &held;
+      DroppedValue {
+        _dropped: Dropped("value", Rc::clone(&made)),
+      }
+    })
+  });
+  memo.with(|_| ());
+
+  scope.dispose();
+
+  assert_eq!(*log.borrow(), ["value", "closure"]);
+}
+
 // A child scope disposed on its own leaves its parent's list at once.
 #[test]
 fn a_disposed_child_scope_leaves_its_parent() {

@@ -119,9 +119,9 @@ impl<TValue> Signal<TValue> {
   /// count.with(|_| count.set(2)); // writes `count` while it is being read
   /// ```
   pub fn with<TResult>(&self, function: impl FnOnce(&TValue) -> TResult) -> TResult {
-    let value = self.value();
+    let cell = self.cell();
     Runtime::record_read(self.0.into());
-    value.with(function)
+    cell.with(function)
   }
 
   /// Replaces the value with `new_value` and marks every subscribed observer as dirty.
@@ -144,7 +144,7 @@ impl<TValue> Signal<TValue> {
   /// Panics if called from inside this signal's own [`update`](Signal::update) or
   /// [`with`](Signal::with) closure.
   pub fn set(&self, new_value: TValue) {
-    Runtime::write_signal(self.0, &self.value(), |value| *value = new_value);
+    Runtime::write_signal(self.0, &self.cell(), |value| *value = new_value);
   }
 
   /// Changes the value in place through `action`, then marks every subscribed observer as dirty.
@@ -177,7 +177,7 @@ impl<TValue> Signal<TValue> {
   /// count.update(|value| *value += count.get()); // reads `count` while it is being updated
   /// ```
   pub fn update(&self, action: impl FnOnce(&mut TValue)) {
-    Runtime::write_signal(self.0, &self.value(), action);
+    Runtime::write_signal(self.0, &self.cell(), action);
   }
 
   /// Changes the value in place through `action`, and marks subscribed observers as dirty only if
@@ -208,7 +208,7 @@ impl<TValue> Signal<TValue> {
   ///
   /// Panics in the same cases as [`update`](Signal::update).
   pub fn update_with(&self, action: impl FnOnce(&mut TValue) -> Change) {
-    Runtime::update_signal_with(self.0, &self.value(), action);
+    Runtime::update_signal_with(self.0, &self.cell(), action);
   }
 
   /// Frees the signal now rather than with its scope. Disposing it again, or disposing its scope
@@ -222,7 +222,7 @@ impl<TValue> Signal<TValue> {
   }
 
   pub(crate) fn with_untracked<TResult>(&self, function: impl FnOnce(&TValue) -> TResult) -> TResult {
-    self.value().with(function)
+    self.cell().with(function)
   }
 
   pub(crate) fn ensure_alive(&self) {
@@ -232,7 +232,7 @@ impl<TValue> Signal<TValue> {
   }
 
   /// The signal's value cell. Panics if the signal was disposed.
-  fn value(&self) -> Rc<ValueCell<dyn Any>> {
+  fn cell(&self) -> Rc<ValueCell<dyn Any>> {
     Runtime::value(self.0.into()).unwrap_or_else(|| self.1.panic(DISPOSED))
   }
 }
@@ -291,8 +291,9 @@ where
   /// this signal's own [`with`](Signal::with) closure with a different value, because the write
   /// happens while the value is borrowed. An equal value writes nothing there, so it doesn't panic.
   pub fn set_if_changed(&self, new_value: TValue) {
-    if self.value().with(|value: &TValue| *value != new_value) {
-      self.set(new_value)
+    let cell = self.cell();
+    if cell.with(|value: &TValue| *value != new_value) {
+      Runtime::write_signal(self.0, &cell, |value| *value = new_value);
     }
   }
 }

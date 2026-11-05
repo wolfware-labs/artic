@@ -73,13 +73,13 @@ impl Runtime {
     RUNTIME.with(|runtime| runtime.nodes.value(node))
   }
 
-  /// Changes `signal_id`'s `value` through `action`, then marks its readers, also if `action`
-  /// panics. Panics, before anything changes, if the value is being read or updated.
-  pub(crate) fn write_signal<TValue>(signal_id: SignalId, value: &ValueCell<dyn Any>, action: impl FnOnce(&mut TValue))
+  /// Changes the value in `cell`, `signal_id`'s, through `action`, then marks its readers, also if
+  /// `action` panics. Panics, before anything changes, if the value is being read or updated.
+  pub(crate) fn write_signal<TValue>(signal_id: SignalId, cell: &ValueCell<dyn Any>, action: impl FnOnce(&mut TValue))
   where
     TValue: Any,
   {
-    let taken = value.take();
+    let taken = cell.take();
     let _written = defer(|| Self::record_write(signal_id));
     taken.write(action);
   }
@@ -88,12 +88,12 @@ impl Runtime {
   /// is visible.
   pub(crate) fn update_signal_with<TValue>(
     signal_id: SignalId,
-    value: &ValueCell<dyn Any>,
+    cell: &ValueCell<dyn Any>,
     action: impl FnOnce(&mut TValue) -> Change,
   ) where
     TValue: Any,
   {
-    let taken = value.take();
+    let taken = cell.take();
     let written = defer(|| Self::record_write(signal_id));
     if taken.write(action) == Change::Hidden {
       written.cancel();
