@@ -67,8 +67,8 @@ impl Runtime {
     RUNTIME.with(|runtime| runtime.nodes.contains(signal_id.into()))
   }
 
-  /// The value of the signal or memo `node`, or `None` once it's freed: one lookup, which a read
-  /// or a write makes before it touches the value.
+  /// The value of the signal or memo `node`, or `None` once it's freed: one lookup, which a write
+  /// or an untracked read makes before it touches the value.
   pub(crate) fn value(node: Node) -> Option<Rc<ValueCell<dyn Any>>> {
     RUNTIME.with(|runtime| runtime.nodes.value(node))
   }

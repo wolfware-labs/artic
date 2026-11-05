@@ -1,8 +1,10 @@
 use crate::defer::defer_unwind;
-use crate::reactive::runtime::{Node, RUNTIME, Runtime, SignalId};
+use crate::reactive::runtime::{Node, RUNTIME, Runtime, SignalId, ValueCell};
+use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::hash::{BuildHasherDefault, DefaultHasher};
+use std::rc::Rc;
 
 pub struct Tracker {
   running: RefCell<Vec<Node>>,
@@ -55,11 +57,15 @@ impl Runtime {
     action();
   }
 
-  pub fn record_read(source: Node) {
+  /// The value of the signal or memo `source`, recorded as a source of the running observer, or
+  /// `None` once it's freed.
+  pub(crate) fn read(source: Node) -> Option<Rc<ValueCell<dyn Any>>> {
     RUNTIME.with(|runtime| {
+      let value = runtime.nodes.value(source)?;
       if let Some(reader) = runtime.tracker.current() {
         runtime.nodes.add_edge(source, reader);
       }
+      Some(value)
     })
   }
 }

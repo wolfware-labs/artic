@@ -119,9 +119,9 @@ impl<TValue> Signal<TValue> {
   /// count.with(|_| count.set(2)); // writes `count` while it is being read
   /// ```
   pub fn with<TResult>(&self, function: impl FnOnce(&TValue) -> TResult) -> TResult {
-    let cell = self.cell();
-    Runtime::record_read(self.0.into());
-    cell.with(function)
+    Runtime::read(self.0.into())
+      .unwrap_or_else(|| self.1.panic(DISPOSED))
+      .with(function)
   }
 
   /// Replaces the value with `new_value` and marks every subscribed observer as dirty.

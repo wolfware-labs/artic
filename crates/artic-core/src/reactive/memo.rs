@@ -113,8 +113,7 @@ impl<TValue> Memo<TValue> {
   pub fn with<TResult>(&self, function: impl FnOnce(&TValue) -> TResult) -> TResult {
     self.ensure_alive();
     Runtime::refresh(self.0.into());
-    let value = Runtime::value(self.0.into()).unwrap_or_else(|| self.1.panic(DISPOSED));
-    Runtime::record_read(self.0.into());
+    let value = Runtime::read(self.0.into()).unwrap_or_else(|| self.1.panic(DISPOSED));
     value.with(|value: &Option<TValue>| function(value.as_ref().expect("a refreshed memo has a value")))
   }
 
