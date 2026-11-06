@@ -6,7 +6,8 @@
 //   cargo bench -p artic-core --bench tree -- --save-baseline main
 //   cargo bench -p artic-core --bench tree -- --baseline main
 //
-// The write bench checks that its writes reached every node.
+// The write bench checks, inside its closure, that its writes reached every node: under CodSpeed
+// each bench runs in a process of its own.
 
 use artic_core::Object;
 use artic_core::property::{Affects, Inheritance, Property, PropertyKey, PropertyVisitor, inherit};
@@ -53,8 +54,6 @@ fn root_write(c: &mut Criterion) {
       tree.clear_dirty(*node, Affects::LAYOUT | Affects::RENDER);
     }
     let mut value = true;
-    // The check runs in the bench's closure: under CodSpeed each bench runs in a process of its
-    // own, so the writes never reach this one's tree.
     group.bench_function(BenchmarkId::from_parameter(count), |b| {
       b.iter(|| {
         value = !value;
