@@ -251,8 +251,8 @@ pub fn compile_str(
   paths: &CratePaths,
 ) -> Result<String, Diagnostics>;
 
-/// Compiles every file of `language` under `dir` to `$OUT_DIR/views/<path under dir>.rs`, for a
-/// build script. #52 changes the output to the path in the crate.
+/// Compiles every file of `language` under `dir` to `$OUT_DIR/views/`, each view at its path in
+/// the crate, for a build script.
 pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), paths: &CratePaths) -> Result<(), CompileError>;
 
 /// `compile_dir`'s work with every input passed in, for a tool that isn't a build script.
@@ -275,7 +275,7 @@ pub fn compile_into(
 
 - each object element's type through a URI's crates or a `using:` module, or a problem: an undeclared URI (`once` set to `namespace:` and the URI), an unknown type with the linking hint when the type's crate is the one `with_app_crate` names, an ambiguous one ("use a `using:` namespace to pick one"), an `x:` primitive (#62), or a value provider written as an element;
 - each property member, attribute or property element, as one `Member::Property`; a markup extension in it (the issue that adds it, or an unknown value provider) or an element in it (#57) is the value's problem;
-- `x:Name` as `Member::Name`, or the problem "`x:Name` takes a name written as text"; `x:Key` (#111) and attached properties (#50) as `Unsupported`; `x:Class`, `x:FieldModifier` and `x:DataType` as nothing for now, as today, until #52 reads the first two into the document's code type and field visibility and #94 the third into its data type; `x:Uid` as nothing until localization (#168);
+- `x:Name` as `Member::Name`, or the problem "`x:Name` takes a name written as text"; `x:Key` (#111) and attached properties (#50) as `Unsupported`; `x:Class` and `x:FieldModifier` as `Member::CodeType` and `Member::FieldVisibility` (#52); `x:DataType` as nothing until #94 reads it into the document's data type; `x:Uid` as nothing until localization (#168);
 - content as `Member::Content`, its text with its MS-XAML form and its raw form. XAML's parser writes markup extensions only in attribute values, so XAML's content has no `Unsupported` node; the variant is for a language whose content can hold one.
 
 Every message keeps its text and its span, and the checker reaches each problem where `lower.rs` reported it, so the snapshots don't change. The XAML compiler crate becomes `artic-xaml-lang` because the loader will use the front end too; a crate named "compiler" would be wrong for it. The crate's fixture packages keep their names, so the generated `use … as _;` lines in their views don't change.
