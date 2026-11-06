@@ -82,10 +82,19 @@ fn absolute_dir_is_shown_relative() {
 fn parent_relative_dir_stays_in_the_output() {
   let root = setup("parent_relative", &[("a.view", PANEL)]);
   let cwd = std::env::current_dir().expect("a current directory");
-  let up = cwd.ancestors().count() - 1;
-  let dir = std::iter::repeat_n(Path::new(".."), up)
+  let views = root.join("views");
+  let shared = cwd
+    .ancestors()
+    .find(|ancestor| views.starts_with(ancestor))
+    .expect("an ancestor both share");
+  let dir = cwd
+    .strip_prefix(shared)
+    .expect("below it")
+    .components()
+    .map(|_| Path::new(".."))
     .collect::<PathBuf>()
-    .join(root.join("views").strip_prefix("/").expect("absolute"));
+    .join(views.strip_prefix(shared).expect("below it"));
+  assert!(dir.starts_with(".."), "{}", dir.display());
 
   run(&root, &dir).expect("a valid view");
 
