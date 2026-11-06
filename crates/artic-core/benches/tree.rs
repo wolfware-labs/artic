@@ -53,16 +53,18 @@ fn root_write(c: &mut Criterion) {
       tree.clear_dirty(*node, Affects::LAYOUT | Affects::RENDER);
     }
     let mut value = true;
+    // The check runs in the bench's closure: under CodSpeed each bench runs in a process of its
+    // own, so the writes never reach this one's tree.
     group.bench_function(BenchmarkId::from_parameter(count), |b| {
       b.iter(|| {
         value = !value;
         enabled.set(value);
       });
+      assert!(
+        nodes.iter().all(|node| tree.dirty(*node).contains(Affects::RENDER)),
+        "a node missed the change"
+      );
     });
-    assert!(
-      nodes.iter().all(|node| tree.dirty(*node).contains(Affects::RENDER)),
-      "a node missed the change"
-    );
   }
   group.finish();
 }
