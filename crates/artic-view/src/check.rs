@@ -19,6 +19,8 @@ pub struct CheckedView {
   pub span: Span,
   /// Each valid name, its field and its element's index, in the order the elements are built.
   pub names: Vec<CheckedName>,
+  /// The Rust type the view's code is, which takes the root's place, as the view writes it.
+  pub code_type: Option<Text>,
 }
 
 /// A valid name: what the view writes and the field a back end gives the element.
@@ -30,6 +32,17 @@ pub struct CheckedName {
   pub field: String,
   /// The named element's index.
   pub element: usize,
+  /// The visibility the view writes for the field, or `None` for the back end's default.
+  pub visibility: Option<FieldVisibility>,
+}
+
+/// The visibility a view writes for the field a name gives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldVisibility {
+  /// `pub(crate)`: visible in the crate.
+  Crate,
+  /// `pub`: visible wherever the code type is.
+  Public,
 }
 
 /// An element ready to build: its type, its properties and its children.
@@ -66,13 +79,15 @@ pub fn check(document: &Document) -> (CheckedView, Diagnostics) {
     diagnostics: Diagnostics::new(),
     named: HashMap::new(),
     reported: HashSet::new(),
+    code_type: None,
   };
-  let root = check.element(&document.root);
+  let root = check.element(&document.root, true);
   let view = CheckedView {
     elements: check.elements,
     root,
     span: document.root.span,
     names: check.names,
+    code_type: check.code_type,
   };
   (view, check.diagnostics)
 }
@@ -86,6 +101,8 @@ struct Check {
   named: HashMap<String, Text>,
   /// The `once` keys already reported.
   reported: HashSet<String>,
+  /// The code type the root names.
+  code_type: Option<Text>,
 }
 
 /// What checking one element's members gathers.
@@ -96,12 +113,16 @@ struct Members {
   set: HashMap<&'static str, Span>,
   content: CheckedContent,
   name: Option<(Text, String)>,
+  /// Whether the element is named, validly or not.
+  named: bool,
+  /// Where the field visibility is written, and what it is if valid.
+  visibility: Option<(Span, Option<FieldVisibility>)>,
 }
 
 impl Check {
   /// Checks an element and the elements in its content, returning its index, or `None` when its
-  /// type wasn't found.
-  fn element(&mut self, element: &Element) -> Option<usize> {
+  /// type wasn't found. Only the `root` may name the view's code type.
+  fn element(&mut self, element: &Element, root: bool) -> Option<usize> {
     let ty = match &element.ty {
       Ok(ty) => Some(ty),
       Err(problem) => {
@@ -118,9 +139,40 @@ impl Check {
             self.property(info, name, *span, value, &mut gathered);
           }
         }
-        Member::Name(name) => gathered.name = self.name(name),
+        Member::Name(name) => {
+          gathered.named = true;
+          gathered.name = self.name(name);
+        }
+        Member::CodeType(code_type) => self.code_type(code_type, root),
+        Member::FieldVisibility(visibility) => gathered.visibility = self.visibility(visibility),
         Member::Content { span, nodes } => self.content(info, *span, nodes, &mut gathered),
         Member::Unsupported(problem) => self.report(problem),
+      }
+    }
+    if let Some((span, _)) = gathered.visibility
+      && !gathered.named
+    {
+      self
+        .diagnostics
+        .push(Diagnostic::error(span, "a field visibility needs a name on its element").with_label("no name here"));
+    }
+    if root && self.code_type.is_some() {
+      if let Some((name, _)) = gathered.name.take() {
+        self.diagnostics.push(
+          Diagnostic::error(name.span, "the root of a view with a code type can't be named")
+            .with_help("the code type is the root: its code reaches it as `self`"),
+        );
+      }
+      if let Some(ty) = ty
+        && !ty.info.code_type_root
+      {
+        self.diagnostics.push(
+          Diagnostic::error(
+            element.span,
+            format!("`{}` can't be the root of a view with a code type", ty.info.name),
+          )
+          .with_help("the code type takes the root's place, so the root's type must allow it"),
+        );
       }
     }
     let ty: &TypeUse = ty?;
@@ -135,6 +187,7 @@ impl Check {
         name,
         field,
         element: index,
+        visibility: gathered.visibility.and_then(|(_, visibility)| visibility),
       });
     }
     Some(index)
@@ -233,13 +286,61 @@ impl Check {
     }
   }
 
+  /// Takes the code type `code_type` names, reporting it anywhere but the `root` or a second time.
+  fn code_type(&mut self, code_type: &Result<Text, Problem>, root: bool) {
+    let code_type = match code_type {
+      Ok(code_type) => code_type,
+      Err(problem) => {
+        self.report(problem);
+        return;
+      }
+    };
+    if !root {
+      self.diagnostics.push(
+        Diagnostic::error(code_type.span, "only the root element can name the view's code type").with_label("not the root"),
+      );
+    } else if let Some(first) = &self.code_type {
+      self.diagnostics.push(
+        Diagnostic::error(code_type.span, "the code type is named twice")
+          .with_label("named again here")
+          .with_secondary(first.span, "first named here"),
+      );
+    } else {
+      self.code_type = Some(code_type.clone());
+    }
+  }
+
+  /// Where `visibility` is written and what it is, `None` inside after reporting text that isn't
+  /// one; `None` after reporting the front end's problem.
+  fn visibility(&mut self, visibility: &Result<Text, Problem>) -> Option<(Span, Option<FieldVisibility>)> {
+    let visibility = match visibility {
+      Ok(visibility) => visibility,
+      Err(problem) => {
+        self.report(problem);
+        return None;
+      }
+    };
+    let parsed = match visibility.text.as_str() {
+      "pub" => Some(FieldVisibility::Public),
+      "pub(crate)" => Some(FieldVisibility::Crate),
+      text => {
+        self.diagnostics.push(
+          Diagnostic::error(visibility.span, format!("`{text}` isn't a field visibility"))
+            .with_help("write `pub` or `pub(crate)`; without one, the field is visible to the code type's module"),
+        );
+        None
+      }
+    };
+    Some((visibility.span, parsed))
+  }
+
   /// Checks the content of an element of type `info`, or, for a type that wasn't found, only the
   /// elements in it, for their own problems.
   fn content(&mut self, info: Option<&'static TypeInfo>, span: Span, nodes: &[Content], members: &mut Members) {
     let Some(info) = info else {
       for node in nodes {
         if let Content::Element(element) = node {
-          self.element(element);
+          self.element(element, false);
         }
       }
       return;
@@ -272,7 +373,7 @@ impl Check {
             element.span,
             format!("`{}` takes no child elements", info.name),
           ));
-          self.element(element);
+          self.element(element, false);
         }
         Content::Text { .. } | Content::Unsupported(_) => {}
       }
@@ -318,7 +419,7 @@ impl Check {
         }
         Content::Element(element) => {
           written.push(element.span);
-          children.extend(self.element(element));
+          children.extend(self.element(element, false));
         }
         Content::Text { .. } | Content::Unsupported(_) => {}
       }

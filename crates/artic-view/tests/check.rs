@@ -2,8 +2,9 @@
 
 mod common;
 
-use artic_view::document::{Content, Document};
-use artic_view::{CheckedContent, check};
+use artic_diagnostics::Diagnostic;
+use artic_view::document::{Content, Document, Member};
+use artic_view::{CheckedContent, FieldVisibility, check};
 use common::*;
 use pretty_assertions::assert_eq;
 
@@ -378,4 +379,204 @@ fn view_lists_children_first() {
   assert_eq!(view.span, span(0, 1));
   assert_eq!(view.elements[2].content, CheckedContent::Children(vec![0, 1]));
   assert_eq!((view.names[0].name.text.as_str(), view.names[0].element), ("form", 2));
+}
+
+// The code type written on the root is the view's.
+#[test]
+fn code_type_on_the_root_is_kept() {
+  let document = Document {
+    root: element(&HOST, 0, vec![code_type("app::views::Login", 5)]),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  assert!(diagnostics.is_empty());
+  let code_type = view.code_type.expect("a code type");
+  assert_eq!((code_type.text.as_str(), code_type.span), ("app::views::Login", span(5, 6)));
+}
+
+// A view without a code type has none.
+#[test]
+fn a_view_without_a_code_type_has_none() {
+  let document = Document {
+    root: element(&HOST, 0, Vec::new()),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  assert!(diagnostics.is_empty());
+  assert_eq!(view.code_type, None);
+}
+
+// A code type written below the root is reported there and isn't the view's.
+#[test]
+fn code_type_below_the_root_is_reported() {
+  let child = element(&HOST, 21, vec![code_type("app::views::Login", 25)]);
+  let document = Document {
+    root: element(&PANEL, 0, vec![content(20, vec![Content::Element(child)])]),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  assert_eq!(
+    reported(&diagnostics),
+    [at("only the root element can name the view's code type", 25)]
+  );
+  assert_eq!(view.code_type, None);
+}
+
+// A code type named twice is reported at the second, pointing at the first, which stays.
+#[test]
+fn code_type_named_twice_points_at_both() {
+  let document = Document {
+    root: element(&HOST, 0, vec![code_type("app::One", 5), code_type("app::Two", 9)]),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  assert_eq!(reported(&diagnostics), [at("the code type is named twice", 9)]);
+  let diagnostic = diagnostics.iter().next().expect("one diagnostic");
+  assert_eq!(diagnostic.labels[0].span, span(5, 6));
+  assert_eq!(view.code_type.map(|code_type| code_type.text).as_deref(), Some("app::One"));
+}
+
+// A root whose type a code type can't take the place of is reported at the root.
+#[test]
+fn root_type_must_allow_a_code_type() {
+  let document = Document {
+    root: element(&PANEL, 0, vec![code_type("app::views::Login", 5)]),
+  };
+
+  let (_, diagnostics) = check(&document);
+
+  assert_eq!(
+    reported(&diagnostics),
+    [at("`Panel` can't be the root of a view with a code type", 0)]
+  );
+}
+
+// A root whose type wasn't found reports only that, not that it can't take a code type.
+#[test]
+fn unknown_root_reports_only_its_type() {
+  let document = Document {
+    root: unknown(0, vec![code_type("app::views::Login", 5)]),
+  };
+
+  let (_, diagnostics) = check(&document);
+
+  assert_eq!(reported(&diagnostics), [at("no type `Gauge`", 1)]);
+}
+
+// The root of a view with a code type can't be named, written before the code type or after,
+// and its name gives no field.
+#[test]
+fn named_code_type_root_is_reported() {
+  for members in [
+    vec![name("login", 5), code_type("app::views::Login", 9)],
+    vec![code_type("app::views::Login", 9), name("login", 5)],
+  ] {
+    let document = Document {
+      root: element(&HOST, 0, members),
+    };
+
+    let (view, diagnostics) = check(&document);
+
+    assert_eq!(
+      reported(&diagnostics),
+      [at("the root of a view with a code type can't be named", 5)]
+    );
+    assert!(view.names.is_empty());
+  }
+}
+
+// A field visibility of `pub` or `pub(crate)` is kept with its name; a name without one has none.
+#[test]
+fn field_visibility_is_kept_with_its_name() {
+  let children = [
+    element(&IMAGE, 20, vec![name("a", 21), visibility("pub", 22)]),
+    element(&IMAGE, 30, vec![visibility("pub(crate)", 31), name("b", 32)]),
+    element(&IMAGE, 40, vec![name("c", 41)]),
+  ];
+  let document = Document {
+    root: element(&PANEL, 0, vec![content(10, children.map(Content::Element).into())]),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  assert!(diagnostics.is_empty());
+  let visibilities: Vec<(&str, Option<FieldVisibility>)> =
+    view.names.iter().map(|name| (name.field.as_str(), name.visibility)).collect();
+  assert_eq!(
+    visibilities,
+    [
+      ("a", Some(FieldVisibility::Public)),
+      ("b", Some(FieldVisibility::Crate)),
+      ("c", None)
+    ]
+  );
+}
+
+// Any other visibility is reported, with what to write, and the name stays without one.
+#[test]
+fn other_field_visibility_is_reported() {
+  for text in ["pub(super)", "private", " pub", "pub(crate) ", ""] {
+    let document = Document {
+      root: element(&PANEL, 0, vec![name("panel", 5), visibility(text, 9)]),
+    };
+
+    let (view, diagnostics) = check(&document);
+
+    assert_eq!(
+      reported(&diagnostics),
+      [at(&format!("`{text}` isn't a field visibility"), 9)],
+      "{text:?}"
+    );
+    let help = diagnostics.iter().next().and_then(|diagnostic| diagnostic.help.clone());
+    assert_eq!(
+      help.as_deref(),
+      Some("write `pub` or `pub(crate)`; without one, the field is visible to the code type's module")
+    );
+    assert_eq!(view.names[0].visibility, None);
+  }
+}
+
+// A field visibility on an element without a name is reported; one beside an invalid name isn't,
+// since the name is reported already.
+#[test]
+fn field_visibility_needs_a_name() {
+  let unnamed = Document {
+    root: element(&PANEL, 0, vec![visibility("pub", 9)]),
+  };
+  let misnamed = Document {
+    root: element(&PANEL, 0, vec![name("1x", 5), visibility("pub", 9)]),
+  };
+
+  let (_, unnamed) = check(&unnamed);
+  let (_, misnamed) = check(&misnamed);
+
+  assert_eq!(reported(&unnamed), [at("a field visibility needs a name on its element", 9)]);
+  assert_eq!(reported(&misnamed), [at("`1x` isn't a valid name", 5)]);
+}
+
+// A code type's or a visibility's problem from the front end is reported where the checker
+// reaches it.
+#[test]
+fn front_end_problems_are_reported() {
+  let document = Document {
+    root: element(
+      &HOST,
+      0,
+      vec![
+        Member::CodeType(Err(Diagnostic::error(span(5, 6), "takes text").into())),
+        name("host", 7),
+        Member::FieldVisibility(Err(Diagnostic::error(span(9, 10), "takes text").into())),
+      ],
+    ),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  assert_eq!(reported(&diagnostics), [at("takes text", 5), at("takes text", 9)]);
+  assert_eq!(view.code_type, None);
+  assert_eq!(view.names[0].visibility, None);
 }
