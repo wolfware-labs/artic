@@ -3,12 +3,13 @@
 
 use crate::CratePaths;
 use artic_diagnostics::{Diagnostic, Diagnostics, Span};
+use artic_ident::is_path_keyword;
 use artic_registry::{PropertyInfo, PropertyRef, RustExpr, TypeInfo};
 use artic_view::document::{Text, TypeUse};
-use artic_view::{CheckedContent, CheckedElement, CheckedView};
+use artic_view::{CheckedContent, CheckedElement, CheckedName, CheckedView, FieldVisibility};
 use std::collections::{BTreeMap, BTreeSet};
 use syn::parse::Parser;
-use syn::{Expr, Ident, Path};
+use syn::{Expr, Ident, Path, PathSegment, Visibility, parse_quote};
 
 /// A view ready to be written.
 pub(crate) struct View {
@@ -18,13 +19,32 @@ pub(crate) struct View {
   pub elements: Vec<Element>,
   /// The root's index.
   pub root: usize,
-  /// The `View` fields the names give, in the order their elements are built, each with its
-  /// element's index.
-  pub names: Vec<(Ident, usize)>,
+  /// The `View` fields the names give, in the order their elements are built.
+  pub names: Vec<Name>,
+  /// The type the view's code is, which takes the root's place.
+  pub code_type: Option<CodeType>,
   /// The methods traits the setters call through, keyed by their text so they're written sorted.
   pub traits: BTreeMap<String, Path>,
   /// Every crate the language names or has a path, by its path, so the app links them.
   pub links: Vec<Path>,
+}
+
+/// A `View` field a name gives.
+pub(crate) struct Name {
+  /// The field.
+  pub field: Ident,
+  /// The named element's index.
+  pub element: usize,
+  /// The field's visibility.
+  pub visibility: Visibility,
+}
+
+/// The type the view's code is.
+pub(crate) struct CodeType {
+  /// Its path in generated code, at `crate`.
+  pub path: Path,
+  /// Its path as the view writes it, which `CODE_TYPE` states.
+  pub written: String,
 }
 
 /// One element: its type, the builder methods that set its properties, and its children.
@@ -68,30 +88,71 @@ pub(crate) fn lower(view: &CheckedView, paths: &CratePaths, crates: &[&str]) -> 
     .into_iter()
     .map(|krate| parse_path(&paths.path_of(krate), view.span, &mut lower.diagnostics))
     .collect();
-  let names = view
-    .names
-    .iter()
-    .map(|name| {
-      (
-        syn::parse_str(&name.field).expect("a field name is an identifier"),
-        name.element,
-      )
-    })
-    .collect();
+  let code_type = view
+    .code_type
+    .as_ref()
+    .map(|code_type| code_type_path(code_type, &mut lower.diagnostics));
+  let names = view.names.iter().map(|name| field(name, code_type.is_some())).collect();
   let elements: Option<Vec<Element>> = elements.into_iter().collect();
   let links: Option<Vec<Path>> = links.into_iter().collect();
-  let lowered = match (view.root, tree, elements, links) {
-    (Some(root), Some(tree), Some(elements), Some(links)) => Some(View {
+  let code_type = match code_type {
+    None => Some(None),
+    Some(found) => found.map(Some),
+  };
+  let lowered = match (view.root, tree, elements, links, code_type) {
+    (Some(root), Some(tree), Some(elements), Some(links), Some(code_type)) => Some(View {
       tree,
       elements,
       root,
       names,
+      code_type,
       traits: lower.traits,
       links,
     }),
     _ => None,
   };
   (lowered, lower.diagnostics)
+}
+
+/// The `View` field `name` gives: `pub(super)` by default in a view with a code type, so the
+/// field is visible to the code type's module, and `pub` by default in one without.
+fn field(name: &CheckedName, has_code_type: bool) -> Name {
+  let visibility = match (name.visibility, has_code_type) {
+    (Some(FieldVisibility::Public), _) | (None, false) => parse_quote!(pub),
+    (Some(FieldVisibility::Crate), _) => parse_quote!(pub(crate)),
+    (None, true) => parse_quote!(pub(super)),
+  };
+  Name {
+    field: syn::parse_str(&name.field).expect("a field name is an identifier"),
+    element: name.element,
+    visibility,
+  }
+}
+
+/// The code type `written` names, at `crate` in place of its crate, or `None` after reporting
+/// text that isn't a type's full path.
+fn code_type_path(written: &Text, diagnostics: &mut Diagnostics) -> Option<CodeType> {
+  let parsed = Path::parse_mod_style.parse_str(&written.text).ok().filter(|path| {
+    !written.text.contains(char::is_whitespace)
+      && path.leading_colon.is_none()
+      && path.segments.len() >= 2
+      && path
+        .segments
+        .iter()
+        .all(|segment| !is_path_keyword(&segment.ident.to_string()))
+  });
+  let Some(mut path) = parsed else {
+    diagnostics.push(
+      Diagnostic::error(written.span, format!("`{}` isn't the path of a type", written.text))
+        .with_help("write the type's full path, starting with its crate, such as `app::views::login::LoginView`"),
+    );
+    return None;
+  };
+  path.segments[0] = PathSegment::from(Ident::new("crate", proc_macro2::Span::call_site()));
+  Some(CodeType {
+    path,
+    written: written.text.clone(),
+  })
 }
 
 /// Parses `text`, built from the crates' paths, as the path of an item, or records that

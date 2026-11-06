@@ -17,6 +17,7 @@ use syn::{DeriveInput, parse_macro_input};
 /// - `override_defaults`: `Default` calls `OverrideDefaults::override_defaults` once after building
 ///   the fields, to change defaults the type doesn't declare, such as a flattened group's.
 /// - `whitespace = "significant"`: keep whitespace in text content (the default collapses it).
+/// - `code_type_root`: a view's code type can take the type's place at the root of the view.
 /// - `crate = "path"`: where generated code finds artic, if neither `artic` nor `artic-registry`
 ///   is a direct dependency under its usual name.
 /// - `attached(name = "Row", ty = usize, default = 0, affects = layout, target = children)`, once

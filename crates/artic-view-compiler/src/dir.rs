@@ -7,7 +7,7 @@ use artic_diagnostics::{Diagnostics, SourceMap};
 use artic_registry::{Registry, RegistryError};
 use artic_view::Language;
 use std::fmt::{self, Debug, Display, Formatter};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::{fs, io};
 
 /// Why [`compile_dir`] stopped.
@@ -49,10 +49,13 @@ impl Debug for CompileError {
 
 /// Compiles every file of `language` under `dir` into `$OUT_DIR/views/`, for a build script.
 ///
-/// `dir` is read relative to the crate, where Cargo runs build scripts. Each view is written to
-/// `$OUT_DIR/views/<path under dir>.rs`, replacing what an earlier run wrote there, and Cargo is
-/// told to rerun the script when the directory or any view changes. A symlink to a directory
-/// isn't followed.
+/// `dir` is read relative to the crate, where Cargo runs build scripts. Each view is written at
+/// its path in the crate under `$OUT_DIR/views/`, such as `$OUT_DIR/views/src/views/login.rs` for
+/// `src/views/login.ui`, which is where a code type's macro finds it; a `dir` outside the crate
+/// writes each view at its path under `dir`. `$OUT_DIR/views/` is replaced, so a view removed
+/// since the last run leaves nothing behind, and a build script with views in several
+/// directories calls it once, on a directory that holds them all. Cargo is told to rerun the
+/// script when the directory or any view changes. A symlink to a directory isn't followed.
 ///
 /// The compiler finds types in the registry of the build script itself, which holds the crates it
 /// links. So `build.rs` names each control crate its views use with `use <crate> as _;`, and
@@ -82,9 +85,9 @@ pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), p
   Ok(())
 }
 
-/// Compiles every file of `language` under `dir` into `out`, mirroring the layout, and returns the
-/// views read, sorted. `out` is replaced, so a view removed since the last run leaves no output
-/// behind. Stops at the first view with errors.
+/// Compiles every file of `language` under `dir` into `out`, each at the path its header names it
+/// by, and returns the views read, sorted. `out` is replaced, so a view removed since the last
+/// run leaves no output behind. Stops at the first view with errors.
 ///
 /// This is [`compile_dir`]'s work with every input passed in, for a tool that isn't a build
 /// script: it reads no environment and prints nothing for Cargo.
@@ -107,12 +110,13 @@ pub fn compile_into(
     let relative = view.strip_prefix(dir).expect("a view found under its directory");
     let text = fs::read_to_string(view).map_err(io_error(view))?;
     let mut sources = SourceMap::new();
-    let file = sources.add(shown(dir, relative), text);
+    let shown = shown(dir, relative);
+    let file = sources.add(shown.clone(), text);
     let rust = match compile_str(&sources, file, language, registry, paths) {
       Ok(rust) => rust,
       Err(diagnostics) => return Err(CompileError::Diagnostics { sources, diagnostics }),
     };
-    let target = out.join(relative).with_extension("rs");
+    let target = out.join(shown).with_extension("rs");
     if let Some(parent) = target.parent() {
       fs::create_dir_all(parent).map_err(io_error(parent))?;
     }
@@ -143,12 +147,20 @@ fn find_views(dir: &Path, extension: &str) -> Result<Vec<PathBuf>, CompileError>
   Ok(views)
 }
 
-/// The path a view is named by in its header and diagnostics: under `dir` as the build script
-/// wrote it when that is relative, or relative to `dir` otherwise, so no absolute path reaches
-/// the output.
+/// The path a view is named by in its header and diagnostics, and written at under the output:
+/// its path in the crate when `dir` is in the crate, a relative path without `..`; otherwise its
+/// path under `dir`, so no absolute path reaches the output and no output leaves its directory.
 fn shown(dir: &Path, relative: &Path) -> PathBuf {
-  if dir.is_relative() {
-    dir.join(relative)
+  let in_crate = dir.is_relative()
+    && dir
+      .components()
+      .all(|component| matches!(component, Component::Normal(_) | Component::CurDir));
+  if in_crate {
+    dir
+      .components()
+      .filter(|component| matches!(component, Component::Normal(_)))
+      .collect::<PathBuf>()
+      .join(relative)
   } else {
     relative.to_owned()
   }
@@ -159,5 +171,28 @@ fn io_error(path: &Path) -> impl FnOnce(io::Error) -> CompileError + '_ {
   move |error| CompileError::Io {
     path: path.to_owned(),
     error,
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use pretty_assertions::assert_eq;
+
+  // A directory in the crate names each view by its path in the crate; one outside it, absolute
+  // or reached through `..`, by its path under the directory.
+  #[test]
+  fn views_are_named_by_their_path_in_the_crate() {
+    let login = Path::new("login.ui");
+    for (dir, shown_as) in [
+      ("src/views", "src/views/login.ui"),
+      ("./src/views", "src/views/login.ui"),
+      ("src/./views", "src/views/login.ui"),
+      ("../shared/views", "login.ui"),
+      ("src/../views", "login.ui"),
+      ("/abs/views", "login.ui"),
+    ] {
+      assert_eq!(shown(Path::new(dir), login), PathBuf::from(shown_as), "{dir}");
+    }
   }
 }

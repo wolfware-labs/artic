@@ -99,7 +99,7 @@ The compiled file is included in a module named after the struct in snake case (
 | `pub(crate)` | `pub(crate)` | the crate |
 | `pub` | `pub` | anywhere the code type is |
 
-`pub(super)` in the included module is the code type's own module, which is what "private" means for a field of the code type. The compiler writes these visibilities. A view without a code type keeps every field `pub`, as now.
+`pub(super)` in the included module is the code type's own module, which is what "private" means for a field of the code type. The compiler writes these visibilities. A view without a code type gives a field `pub` unless the view writes another.
 
 ## Building it
 

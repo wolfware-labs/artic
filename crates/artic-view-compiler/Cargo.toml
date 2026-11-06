@@ -11,6 +11,7 @@ repository.workspace = true
 [dependencies]
 artic-core.workspace = true
 artic-diagnostics.workspace = true
+artic-ident.workspace = true
 artic-registry = { workspace = true, features = ["literals"] }
 artic-view.workspace = true
 prettyplease.workspace = true

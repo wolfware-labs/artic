@@ -25,7 +25,7 @@ struct Lookup;
 #[test]
 fn bare_element_builds_its_root() {
   let rust = compile(r#"<Border xmlns="https://artic.rs/ui"/>"#).expect("a valid view");
-  insta::assert_snapshot!(rust, @r"
+  insta::assert_snapshot!(rust, @r#"
   // Generated from view.xaml.
 
   use ::artic::core::tree::{Handle, UiTree};
@@ -35,6 +35,9 @@ fn bare_element_builds_its_root() {
   use ::artic::layout as _;
   use ::artic::render as _;
   use ::elements as _;
+  /// The type the view's code is, which takes the root's place, as the view names it.
+  #[allow(dead_code, reason = "only a code type's macro reads it")]
+  pub const CODE_TYPE: Option<&str> = None;
   /// The nodes of `view.xaml`: its root and one handle per named element.
   #[derive(Clone, Copy, Debug)]
   pub struct View {
@@ -45,7 +48,7 @@ fn bare_element_builds_its_root() {
       let __e0 = ::artic::controls::Border::new().build(tree);
       View { root: __e0 }
   }
-  ");
+  "#);
 }
 
 // A type no crate of the namespace has is reported at its name, naming the namespace.

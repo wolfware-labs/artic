@@ -79,6 +79,11 @@ pub enum Member {
   Property { name: String, span: Span, value: Result<Text, Problem> },
   /// The name the view's code reaches the element by.
   Name(Result<Text, Problem>),
+  /// The Rust type the view's code is, such as `app::views::login::LoginView`: written on the
+  /// root, it takes the root's place.
+  CodeType(Result<Text, Problem>),
+  /// The visibility of the field the element's name gives, such as `pub(crate)`.
+  FieldVisibility(Result<Text, Problem>),
   /// What is written directly inside the element, every node kept, blank text included.
   Content { span: Span, nodes: Vec<Content> },
   /// A member the document can't hold yet, reported whenever the checker reaches the element.
@@ -156,11 +161,12 @@ pub fn field_name(name: &str) -> Result<String, &'static str>;
 
 The checker is `lower.rs`'s member half, unchanged in behavior, and needs no registry: each `TypeInfo` it holds answers for its own properties. It walks the document in member order, children where their content member is, and, for each element it reaches:
 
-1. reports the type's problem and goes on: properties are checked only when the type was found; names and `Unsupported` members always; the elements in the content always when the type wasn't found, and as step 4 says when it was;
+1. reports the type's problem and goes on: properties are checked only when the type was found; names, code types, field visibilities and `Unsupported` members always; the elements in the content always when the type wasn't found, and as step 5 says when it was;
 2. for a property, finds it by name; an unknown name is reported (an event's name gives "event handlers come with #82") and ends that member, its value and "set twice" never checked; for a found property, reports the value's problem if it has one, and otherwise a property set twice;
-3. for a name, reports its problem, then a name `field_name` refuses, with the reason as help, then two elements with one name, so a name that's invalid twice is reported twice;
-4. for content, applies the type's rule: text for a content property, where the first element or `Unsupported` node is reported and ends the content; the text sets the property as a `Property` member would, so a property set by both is reported as set twice; children for `child` or `children`, where text is reported with the help "put the text in an element, such as a `TextBlock`", every child element counts toward "takes one child" whether its type was found or not, and the child taken is the only found one; nothing for a type that takes none, where text and elements are reported and the elements still checked; and, for a collection of values, "value collections come with #57" when it holds anything but blank text, the elements inside it never reached;
-5. reports each `Unsupported` member.
+3. for a name, reports its problem, then a name `field_name` refuses, with the reason as help, then two elements with one name, so a name that's invalid twice is reported twice; a name on the root of a view with a code type is reported and gives no field;
+4. for a code type, reports its problem, then a code type below the root or named a second time; a root whose type's `code_type_root` is false is reported when the view has a code type; for a field visibility, reports its problem, then any text but `pub` or `pub(crate)`, then a visibility on an element without a name;
+5. for content, applies the type's rule: text for a content property, where the first element or `Unsupported` node is reported and ends the content; the text sets the property as a `Property` member would, so a property set by both is reported as set twice; children for `child` or `children`, where text is reported with the help "put the text in an element, such as a `TextBlock`", every child element counts toward "takes one child" whether its type was found or not, and the child taken is the only found one; nothing for a type that takes none, where text and elements are reported and the elements still checked; and, for a collection of values, "value collections come with #57" when it holds anything but blank text, the elements inside it never reached;
+6. reports each `Unsupported` member.
 
 An element whose type isn't found still has its name checked and the elements in its content checked, so an unknown type doesn't hide the problems below it. `field_name` is `names.rs`'s rule without `syn`, built on `artic-ident`: an identifier by Unicode's XID rules, not `_`, a keyword written as a raw identifier by `rust_identifier`, and `self`, `Self`, `crate`, `super`, `root` and a leading `r#` refused with today's three reasons. It converts the name to snake_case first (a word starts at a capital after a lowercase letter or a digit, and at the last capital of an acronym, and a run of underscores inside the name becomes one), and checks the field, so `Root` is refused and `Type` gives `r#type`; two names with one field are two elements with one name, with help naming both spellings. It takes the name as written, so `" email "` is refused where `syn` skipped the spaces. Its keyword list is checked in its tests against `syn`, except `gen`, reserved since Rust 2024, which `syn` still takes as an identifier: `gen` becomes `r#gen`, so the field compiles on any edition, where the `syn` rule gave `gen`. Emission takes each field from it.
 
@@ -178,6 +184,8 @@ pub struct CheckedView {
   pub span: Span,
   /// Each valid name, its field and its element's index, in the order the elements are built.
   pub names: Vec<CheckedName>,
+  /// The Rust type the view's code is, which takes the root's place, as the view writes it.
+  pub code_type: Option<Text>,
 }
 
 /// A valid name: what the view writes and the field a back end gives the element.
@@ -189,6 +197,17 @@ pub struct CheckedName {
   pub field: String,
   /// The named element's index.
   pub element: usize,
+  /// The visibility the view writes for the field, or `None` for the back end's default.
+  pub visibility: Option<FieldVisibility>,
+}
+
+/// The visibility a view writes for the field a name gives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldVisibility {
+  /// `pub(crate)`: visible in the crate.
+  Crate,
+  /// `pub`: visible wherever the code type is.
+  Public,
 }
 
 /// An element ready to build: its type, its properties and its children.
@@ -251,8 +270,8 @@ pub fn compile_str(
   paths: &CratePaths,
 ) -> Result<String, Diagnostics>;
 
-/// Compiles every file of `language` under `dir` to `$OUT_DIR/views/<path under dir>.rs`, for a
-/// build script. #52 changes the output to the path in the crate.
+/// Compiles every file of `language` under `dir` to `$OUT_DIR/views/`, each view at its path in
+/// the crate, for a build script.
 pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), paths: &CratePaths) -> Result<(), CompileError>;
 
 /// `compile_dir`'s work with every input passed in, for a tool that isn't a build script.
@@ -275,7 +294,7 @@ pub fn compile_into(
 
 - each object element's type through a URI's crates or a `using:` module, or a problem: an undeclared URI (`once` set to `namespace:` and the URI), an unknown type with the linking hint when the type's crate is the one `with_app_crate` names, an ambiguous one ("use a `using:` namespace to pick one"), an `x:` primitive (#62), or a value provider written as an element;
 - each property member, attribute or property element, as one `Member::Property`; a markup extension in it (the issue that adds it, or an unknown value provider) or an element in it (#57) is the value's problem;
-- `x:Name` as `Member::Name`, or the problem "`x:Name` takes a name written as text"; `x:Key` (#111) and attached properties (#50) as `Unsupported`; `x:Class`, `x:FieldModifier` and `x:DataType` as nothing for now, as today, until #52 reads the first two into the document's code type and field visibility and #94 the third into its data type; `x:Uid` as nothing until localization (#168);
+- `x:Name` as `Member::Name`, or the problem "`x:Name` takes a name written as text"; `x:Key` (#111) and attached properties (#50) as `Unsupported`; `x:Class` and `x:FieldModifier` as `Member::CodeType` and `Member::FieldVisibility` (#52); `x:DataType` as nothing until #94 reads it into the document's data type; `x:Uid` as nothing until localization (#168);
 - content as `Member::Content`, its text with its MS-XAML form and its raw form. XAML's parser writes markup extensions only in attribute values, so XAML's content has no `Unsupported` node; the variant is for a language whose content can hold one.
 
 Every message keeps its text and its span, and the checker reaches each problem where `lower.rs` reported it, so the snapshots don't change. The XAML compiler crate becomes `artic-xaml-lang` because the loader will use the front end too; a crate named "compiler" would be wrong for it. The crate's fixture packages keep their names, so the generated `use … as _;` lines in their views don't change.

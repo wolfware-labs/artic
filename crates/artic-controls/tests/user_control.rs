@@ -1,11 +1,12 @@
 // UserControl: a view's root, which describes itself as a plain container and fills its content
 // into its box.
 
-use artic_controls::UserControl;
+use artic_controls::{Border, UserControl};
 use artic_core::tree::{TreeKind, UiTree};
 use artic_element::{AccessCx, ElementTypes};
 use artic_layout::geometry::{Rect, Size};
 use artic_layout::{LayoutManager, PixelGrid};
+use artic_registry::UiType;
 use pretty_assertions::assert_eq;
 
 // A UserControl is a plain container to accessibility.
@@ -59,4 +60,11 @@ fn user_control_builder_takes_one_child() {
   for kind in TreeKind::ALL {
     assert_eq!(tree.children(kind, view.id()).collect::<Vec<_>>(), [content.id()]);
   }
+}
+
+// A view's code type can take a user control's place at the root, and not a border's.
+#[test]
+fn user_control_can_be_a_code_type_root() {
+  assert!(<UserControl as UiType>::TYPE_INFO.code_type_root);
+  assert!(!<Border as UiType>::TYPE_INFO.code_type_root);
 }

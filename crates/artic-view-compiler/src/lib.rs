@@ -1,9 +1,10 @@
 //! Compiles the views of any UI language to Rust.
 //!
 //! A [`Language`] reads a file into a document. [`compile_str`] checks it with
-//! `artic_view::check` and writes the checked view as the module body that builds it: a `View`
-//! struct that holds the root and one handle per named element, and a `build` function that
-//! creates each element with its builder, children first. Every problem in the document is
+//! `artic_view::check` and writes the checked view as the module body that builds it: a
+//! `CODE_TYPE` constant, a `View` struct with one handle per named element, and the root unless
+//! the view has a code type, and a `build` function that creates each element with its builder,
+//! children first, and the root as the code type when it has one. Every problem in the document is
 //! reported in one pass. [`compile_dir`] does it for every view of a directory, from a build
 //! script. [`CratePaths`] says how generated code reaches each crate.
 

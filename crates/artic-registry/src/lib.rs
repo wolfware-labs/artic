@@ -59,6 +59,7 @@ use linkme::distributed_slice;
 ///   attached_properties: &[],
 ///   value_provider: None,
 ///   whitespace: Whitespace::Collapse,
+///   code_type_root: false,
 /// };
 ///
 /// artic_registry::register_type!(GAUGE);
@@ -115,6 +116,7 @@ pub static UI_TYPES: [&'static TypeInfo];
 ///   attached_properties: &[],
 ///   value_provider: None,
 ///   whitespace: Whitespace::Collapse,
+///   code_type_root: false,
 /// };
 ///
 /// artic_registry::register_type!(DIAL);

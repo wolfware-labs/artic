@@ -51,6 +51,11 @@ pub enum Member {
   },
   /// The name the view's code reaches the element by.
   Name(Result<Text, Problem>),
+  /// The Rust type the view's code is, such as `app::views::login::LoginView`: written on the
+  /// root, it takes the root's place.
+  CodeType(Result<Text, Problem>),
+  /// The visibility of the field the element's name gives, such as `pub(crate)`.
+  FieldVisibility(Result<Text, Problem>),
   /// What is written directly inside the element, every node kept, blank text included.
   Content {
     /// From the first node to the last: the span a content property's text is set at.

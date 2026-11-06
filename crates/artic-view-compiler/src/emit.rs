@@ -1,6 +1,6 @@
 //! Writing a [`View`] as a formatted module body.
 
-use crate::lower::{Setter, View};
+use crate::lower::{Element, Name, Setter, View};
 use artic_registry::ContentMethod;
 use artic_view::CheckedContent;
 use proc_macro2::TokenStream;
@@ -11,51 +11,97 @@ use std::path::{Component, Path};
 pub(crate) fn emit(view: &View, path: &Path) -> String {
   let file = display(path);
   let root = view.root;
-  let root_ty = &view.elements[root].ty;
-  let root_local = local(root);
   let tree_module = &view.tree;
   let traits = view.traits.values();
   let links = &view.links;
-  let fields = view.names.iter().map(|(name, index)| {
-    let ty = &view.elements[*index].ty;
-    quote!(pub #name: Handle<#ty>)
-  });
-  let names = view.names.iter().map(|(name, index)| {
-    let local = local(*index);
-    quote!(#name: #local)
-  });
-  let lets = view.elements.iter().enumerate().map(|(index, element)| {
-    let local = local(index);
-    let ty = &element.ty;
-    let setters = element
-      .setters
-      .iter()
-      .map(|Setter { method, value }| quote!(.#method(#value)));
-    let content = content(&element.content);
-    quote!(let #local = #ty::new() #(#setters)* #content .build(tree);)
-  });
-  let view_doc = format!(" The nodes of `{file}`: its root and one handle per named element.");
-  let build_doc = format!(" Builds `{file}` in `tree` and returns its nodes.");
+  let fields = view.names.iter().map(
+    |Name {
+       field,
+       element,
+       visibility,
+     }| {
+      let ty = &view.elements[*element].ty;
+      quote!(#visibility #field: Handle<#ty>)
+    },
+  );
+  let names: Vec<TokenStream> = view
+    .names
+    .iter()
+    .map(|Name { field, element, .. }| {
+      let local = local(*element);
+      quote!(#field: #local)
+    })
+    .collect();
+  let lets = view
+    .elements
+    .iter()
+    .enumerate()
+    .filter(|(index, _)| view.code_type.is_none() || *index != root)
+    .map(|(index, element)| {
+      let local = local(index);
+      let built = built(element, &element.ty, quote!());
+      quote!(let #local = #built;)
+    });
+  let root_element = &view.elements[root];
+  let (code_type, root_field, returns, tail, view_doc, build_doc) = match &view.code_type {
+    Some(code_type) => {
+      let (path, written) = (&code_type.path, &code_type.written);
+      (
+        quote!(Some(#written)),
+        quote!(),
+        quote!(Handle<#path>),
+        built(root_element, path, quote!(View { #(#names,)* })),
+        format!(" The named nodes of `{file}`, one handle each."),
+        format!(" Builds `{file}` in `tree`, with its code type at the root."),
+      )
+    }
+    None => {
+      let (root_ty, root_local) = (&root_element.ty, local(root));
+      (
+        quote!(None),
+        quote!(pub root: Handle<#root_ty>,),
+        quote!(View),
+        quote!(View { root: #root_local, #(#names,)* }),
+        format!(" The nodes of `{file}`: its root and one handle per named element."),
+        format!(" Builds `{file}` in `tree` and returns its nodes."),
+      )
+    }
+  };
   let tokens = quote! {
     use #tree_module::{Handle, UiTree};
     #(use #traits as _;)*
     #(use #links as _;)*
 
+    /// The type the view's code is, which takes the root's place, as the view names it.
+    #[allow(dead_code, reason = "only a code type's macro reads it")]
+    pub const CODE_TYPE: Option<&str> = #code_type;
+
     #[doc = #view_doc]
     #[derive(Clone, Copy, Debug)]
     pub struct View {
-      pub root: Handle<#root_ty>,
+      #root_field
       #(#fields,)*
     }
 
     #[doc = #build_doc]
-    pub fn build(tree: &mut UiTree) -> View {
+    pub fn build(tree: &mut UiTree) -> #returns {
       #(#lets)*
-      View { root: #root_local, #(#names,)* }
+      #tail
     }
   };
   let module: syn::File = syn::parse2(tokens).expect("the generated module parses");
   format!("// Generated from {file}.\n\n{}", prettyplease::unparse(&module))
+}
+
+/// The expression that builds `element` as `ty`, created with `ty::new(#arguments)`, then each
+/// setter and the content call.
+fn built(element: &Element, ty: &syn::Path, arguments: TokenStream) -> TokenStream {
+  let setters = element
+    .setters
+    .iter()
+    .map(|Setter { method, value }| quote!(.#method(#value)));
+  let content = content(&element.content);
+  quote!(#ty::new(#arguments) #(#setters)* #content .build(tree))
 }
 
 /// The content call of an element, or nothing.

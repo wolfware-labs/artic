@@ -163,7 +163,7 @@ A value provider computes a property's value when the UI is built: a binding, a 
 
 ## 9. Language features
 
-**Node names are built with the XAML compiler (#49). The code type and field visibility come with `#[ui_class]` (#52), the data type with #94, resource keys with #111 and typed literals with #62.**
+**Node names, the code type and field visibility are built in the view compiler; the `#[ui_class]` macro that takes the code type's place comes with #52, the data type with #94, resource keys with #111 and typed literals with #62.**
 
 These aren't in the registry. A language offers them in its own syntax, with these meanings:
 

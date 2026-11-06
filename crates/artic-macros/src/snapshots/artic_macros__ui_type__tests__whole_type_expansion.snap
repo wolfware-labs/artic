@@ -317,6 +317,7 @@ const _: () = {
         attached_properties: &__ATTACHED,
         value_provider: ::core::option::Option::Some(&__VALUE_PROVIDER),
         whitespace: __artic::Whitespace::Significant,
+        code_type_root: false,
     };
     impl __artic::UiType for Panel {
         const TYPE_INFO: &'static __artic::TypeInfo = &__TYPE_INFO;

@@ -30,6 +30,9 @@ pub struct TypeInfo {
   pub value_provider: Option<&'static ValueProviderInfo>,
   /// How the parser treats whitespace in text written inside the element.
   pub whitespace: Whitespace,
+  /// Whether a view's code type can take this type's place at the root of the view, as a struct
+  /// with this type's members.
+  pub code_type_root: bool,
 }
 
 /// How the parser treats whitespace in text content.
@@ -337,6 +340,7 @@ mod tests {
     attached_properties: &[],
     value_provider: None,
     whitespace: Whitespace::Collapse,
+    code_type_root: false,
   };
 
   // A descriptor written as a `static` copies its property metadata from the property's key at

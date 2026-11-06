@@ -29,6 +29,7 @@ const fn info(name: &'static str, rust_path: &'static str) -> TypeInfo {
     attached_properties: &[],
     value_provider: None,
     whitespace: Whitespace::Collapse,
+    code_type_root: false,
   }
 }
 
@@ -92,6 +93,17 @@ pub static CODE: TypeInfo = TypeInfo {
   properties: &TEXT,
   whitespace: Whitespace::Significant,
   ..info("Code", "test_ui::Code")
+};
+
+/// Takes one child; a view's code type can take its place at the root.
+pub static HOST: TypeInfo = TypeInfo {
+  content: Some(ContentInfo::Collection {
+    field: "child",
+    method: Some(ContentMethod::Child),
+    add_child,
+  }),
+  code_type_root: true,
+  ..info("Host", "test_ui::Host")
 };
 
 /// Takes no content.
@@ -170,6 +182,22 @@ pub fn property_problem(name: &str, at: usize, message: &str) -> Member {
 /// The name `text` at `at`.
 pub fn name(text: &str, at: usize) -> Member {
   Member::Name(Ok(Text {
+    text: text.to_owned(),
+    span: span(at, at + 1),
+  }))
+}
+
+/// The code type `path` at `at`.
+pub fn code_type(path: &str, at: usize) -> Member {
+  Member::CodeType(Ok(Text {
+    text: path.to_owned(),
+    span: span(at, at + 1),
+  }))
+}
+
+/// The field visibility `text` at `at`.
+pub fn visibility(text: &str, at: usize) -> Member {
+  Member::FieldVisibility(Ok(Text {
     text: text.to_owned(),
     span: span(at, at + 1),
   }))

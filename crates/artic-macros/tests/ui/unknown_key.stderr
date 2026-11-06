@@ -1,4 +1,4 @@
-error: unknown `ui` key `color`; expected `whitespace`, `crate`, `attached`, `value_provider` or `override_defaults`
+error: unknown `ui` key `color`; expected `whitespace`, `crate`, `attached`, `value_provider`, `override_defaults` or `code_type_root`
  --> tests/ui/unknown_key.rs:4:6
   |
 4 | #[ui(color = "red")]

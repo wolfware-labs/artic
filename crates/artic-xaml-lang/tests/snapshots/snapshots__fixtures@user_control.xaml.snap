@@ -12,15 +12,17 @@ use ::artic::core as _;
 use ::artic::element as _;
 use ::artic::layout as _;
 use ::artic::render as _;
-/// The nodes of `user_control.xaml`: its root and one handle per named element.
+/// The type the view's code is, which takes the root's place, as the view names it.
+#[allow(dead_code, reason = "only a code type's macro reads it")]
+pub const CODE_TYPE: Option<&str> = Some("app::views::LoginView");
+/// The named nodes of `user_control.xaml`, one handle each.
 #[derive(Clone, Copy, Debug)]
 pub struct View {
-    pub root: Handle<::artic::controls::UserControl>,
-    pub email: Handle<::artic::controls::TextBlock>,
-    pub r#type: Handle<::artic::controls::TextBlock>,
+    pub(super) email: Handle<::artic::controls::TextBlock>,
+    pub(super) r#type: Handle<::artic::controls::TextBlock>,
 }
-/// Builds `user_control.xaml` in `tree` and returns its nodes.
-pub fn build(tree: &mut UiTree) -> View {
+/// Builds `user_control.xaml` in `tree`, with its code type at the root.
+pub fn build(tree: &mut UiTree) -> Handle<crate::views::LoginView> {
     let __e0 = ::artic::controls::TextBlock::new()
         .text(::std::string::String::from("Email"))
         .build(tree);
@@ -32,10 +34,7 @@ pub fn build(tree: &mut UiTree) -> View {
         .margin(::artic::layout::Thickness::new(16.0_f32, 16.0_f32, 16.0_f32, 16.0_f32))
         .children([__e0.id(), __e1.id()])
         .build(tree);
-    let __e3 = ::artic::controls::UserControl::new().child(__e2).build(tree);
-    View {
-        root: __e3,
-        email: __e0,
-        r#type: __e1,
-    }
+    crate::views::LoginView::new(View { email: __e0, r#type: __e1 })
+        .child(__e2)
+        .build(tree)
 }

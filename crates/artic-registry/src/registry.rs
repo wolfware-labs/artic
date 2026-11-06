@@ -166,6 +166,7 @@ mod tests {
       attached_properties: &[],
       value_provider: None,
       whitespace: Whitespace::Collapse,
+      code_type_root: false,
     }
   }
 
