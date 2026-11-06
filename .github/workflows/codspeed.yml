@@ -1,0 +1,44 @@
+name: CodSpeed
+
+# Runs the criterion benches (artic-core, artic-layout, artic-controls) under CodSpeed's CPU
+# simulation, so each pull request reports how it changes them against main.
+#
+# The CodSpeed action authenticates with the job's OIDC token, so there's no CodSpeed token to
+# store; the actions that run while the token is reachable are pinned by commit, as Codecov's are.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # Lets CodSpeed run the benches on past commits to build its first history.
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  benchmarks:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-rust
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-codspeed
+      - name: Build the benches
+        run: cargo codspeed build -m simulation
+      - name: Run the benches
+        uses: CodSpeedHQ/action@af75f77f17a054769abefaa42fe8dc2975469b5f # v5.6.3
+        with:
+          mode: simulation
+          run: cargo codspeed run

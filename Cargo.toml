@@ -75,8 +75,9 @@ artic-xaml-runtime = { path = "crates/artic-xaml-runtime", version = "0.1.0" }
 
 accesskit = "0.25.1"
 # Only `cargo bench` builds it; without plots or rayon, the terminal report and saved baselines
-# are all a before and after comparison needs.
-criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+# are all a before and after comparison needs. CodSpeed's criterion-compatible layer: under
+# `cargo bench` it measures as criterion does, under `cargo codspeed` it reports to CodSpeed.
+criterion = { package = "codspeed-criterion-compat", version = "6.0.0", default-features = false, features = ["cargo_bench_support"] }
 # fontique and parley are pre-1.0, as vello is: pinned exactly. fontique loads fontconfig when it
 # runs (`fontconfig-dlopen`), so building on Linux needs no fontconfig headers.
 fontique = { version = "=0.12.0", features = ["fontconfig-dlopen"] }
