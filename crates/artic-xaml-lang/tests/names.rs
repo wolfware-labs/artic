@@ -77,14 +77,87 @@ fn duplicate_name_reports_error() {
   assert!(errors.contains("`a` names two elements"), "{errors}");
 }
 
-// `x:Class`, `x:DataType` and `x:Uid` are accepted and add nothing yet.
+// `x:DataType` and `x:Uid` are accepted and add nothing yet.
 #[test]
 fn recorded_directives_are_accepted() {
   let rust = compile(
-    r#"<Border xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup" x:Class="app::views::Card" x:DataType="app::vm::Card" x:Uid="card"/>"#,
+    r#"<Border xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup" x:DataType="app::vm::Card" x:Uid="card"/>"#,
   )
   .expect("a valid view");
   assert!(!rust.contains("app::"), "{rust}");
+}
+
+/// A view whose root is `root` with `attributes`, around a `StackPanel` holding `child`.
+fn view(root: &str, attributes: &str, child: &str) -> Result<String, String> {
+  compile(&format!(
+    r#"<{root} xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup" {attributes}><StackPanel>{child}</StackPanel></{root}>"#
+  ))
+}
+
+// `x:Class` on a `UserControl` root names the view's code type, which the root is built as.
+#[test]
+fn class_names_the_code_type() {
+  let rust = view(
+    "UserControl",
+    r#"x:Class="app::views::login::LoginView""#,
+    r#"<Border x:Name="card"/>"#,
+  )
+  .expect("a valid view");
+  let joined: String = rust.split_whitespace().collect();
+  assert!(
+    joined.contains(r#"CODE_TYPE:Option<&str>=Some("app::views::login::LoginView");"#),
+    "{rust}"
+  );
+  assert!(joined.contains("->Handle<crate::views::login::LoginView>{"), "{rust}");
+  assert!(joined.contains("pub(super)card:Handle<::artic::controls::Border>,"), "{rust}");
+}
+
+// `x:Class` below the root is reported at its value.
+#[test]
+fn class_below_the_root_is_reported() {
+  let errors = view("UserControl", "", r#"<UserControl x:Class="app::views::Card"/>"#).expect_err("not the root");
+  assert!(
+    errors.contains("only the root element can name the view's code type"),
+    "{errors}"
+  );
+}
+
+// `x:Class` on a root a code type can't take the place of is reported.
+#[test]
+fn class_on_a_border_root_is_reported() {
+  let errors = view("Border", r#"x:Class="app::views::Card""#, "").expect_err("not a user control");
+  assert!(
+    errors.contains("`Border` can't be the root of a view with a code type"),
+    "{errors}"
+  );
+}
+
+// `x:FieldModifier` sets the visibility of the field `x:Name` gives.
+#[test]
+fn field_modifier_sets_the_field_visibility() {
+  let rust = named_with(r#"x:Name="card" x:FieldModifier="pub(crate)""#).expect("a valid view");
+  let joined: String = rust.split_whitespace().collect();
+  assert!(joined.contains("pub(crate)card:Handle<::artic::controls::Border>,"), "{rust}");
+}
+
+// `x:FieldModifier` on an element without `x:Name`, or with a value other than `pub` and
+// `pub(crate)`, is reported.
+#[test]
+fn field_modifier_problems_are_reported() {
+  let unnamed = named_with(r#"x:FieldModifier="pub""#).expect_err("no name");
+  let internal = named_with(r#"x:Name="card" x:FieldModifier="internal""#).expect_err("not a visibility");
+  assert!(
+    unnamed.contains("a field visibility needs a name on its element"),
+    "{unnamed}"
+  );
+  assert!(internal.contains("`internal` isn't a field visibility"), "{internal}");
+}
+
+/// A view whose `Border` child has `attributes`.
+fn named_with(attributes: &str) -> Result<String, String> {
+  compile(&format!(
+    r#"<StackPanel xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup"><Border {attributes}/></StackPanel>"#
+  ))
 }
 
 // A name is taken as written: spaces or a comment around it make it invalid rather than being

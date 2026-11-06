@@ -96,8 +96,8 @@ impl Reader<'_> {
     }
   }
 
-  /// Reads one member, or `None` for a directive the document doesn't hold yet: `x:Class` and
-  /// `x:FieldModifier` (#52), `x:DataType` (#94) and `x:Uid` (#168).
+  /// Reads one member, or `None` for a directive the document doesn't hold yet: `x:DataType` (#94)
+  /// and `x:Uid` (#168).
   fn member(&self, member: &XamlMember) -> Option<Member> {
     match &member.key {
       MemberKey::Property(name) => Some(Member::Property {
@@ -106,9 +106,17 @@ impl Reader<'_> {
         value: value(member),
       }),
       MemberKey::Attached { .. } => Some(Member::Unsupported(unsupported::attached(member.span).into())),
-      MemberKey::Directive(Directive::Name) => Some(Member::Name(name(member))),
+      MemberKey::Directive(Directive::Name) => Some(Member::Name(text(member, "`x:Name` takes a name written as text"))),
+      MemberKey::Directive(Directive::Class) => Some(Member::CodeType(text(
+        member,
+        "`x:Class` takes a type's path written as text",
+      ))),
+      MemberKey::Directive(Directive::FieldModifier) => Some(Member::FieldVisibility(text(
+        member,
+        "`x:FieldModifier` takes a visibility written as text",
+      ))),
       MemberKey::Directive(Directive::Key) => Some(Member::Unsupported(unsupported::resource_key(member.span).into())),
-      MemberKey::Directive(Directive::Class | Directive::DataType | Directive::FieldModifier | Directive::Uid) => None,
+      MemberKey::Directive(Directive::DataType | Directive::Uid) => None,
       MemberKey::Content | MemberKey::Items => Some(Member::Content {
         span: member.span,
         nodes: member.value.iter().map(|node| self.content(node)).collect(),
@@ -148,13 +156,13 @@ fn value(member: &XamlMember) -> Result<Text, Problem> {
   Ok(Text { text, span })
 }
 
-/// The name `x:Name` gives, or the problem when it isn't written as text.
-fn name(member: &XamlMember) -> Result<Text, Problem> {
+/// The text a directive holds, or `problem` when it isn't written as text.
+fn text(member: &XamlMember, problem: &str) -> Result<Text, Problem> {
   match member.value.as_slice() {
     [XamlNode::Value { text, span, .. }] => Ok(Text {
       text: text.clone(),
       span: *span,
     }),
-    _ => Err(Diagnostic::error(member.span, "`x:Name` takes a name written as text").into()),
+    _ => Err(Diagnostic::error(member.span, problem).into()),
   }
 }
