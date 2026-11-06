@@ -76,6 +76,22 @@ fn absolute_dir_is_shown_relative() {
   assert!(rust.starts_with("// Generated from a.view.\n"), "{rust}");
 }
 
+// A directory reached through `..` names each view relative to it, so its output stays in the
+// output directory.
+#[test]
+fn parent_relative_dir_stays_in_the_output() {
+  let root = setup("parent_relative", &[("a.view", PANEL)]);
+  let cwd = std::env::current_dir().expect("a current directory");
+  let up = cwd.ancestors().count() - 1;
+  let dir = std::iter::repeat_n(Path::new(".."), up)
+    .collect::<PathBuf>()
+    .join(root.join("views").strip_prefix("/").expect("absolute"));
+
+  run(&root, &dir).expect("a valid view");
+
+  assert!(root.join("out/a.rs").is_file());
+}
+
 // A view that's gone leaves no output behind, so an `include!` of it fails instead of building
 // the old view.
 #[test]

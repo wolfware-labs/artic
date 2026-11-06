@@ -4,6 +4,6 @@
 pub mod views {
   /// `src/views/card.xaml`.
   pub mod card {
-    include!(concat!(env!("OUT_DIR"), "/views/card.rs"));
+    include!(concat!(env!("OUT_DIR"), "/views/src/views/card.rs"));
   }
 }
