@@ -163,7 +163,7 @@ fn code_type_is_the_root() {
   syn::parse_file(&rust).expect("the output parses");
   let rust = squashed(&rust);
   for expected in [
-    "pubconstCODE_TYPE:Option<&str>=Some(\"app::views::login::Login\");",
+    "#[allow(dead_code,reason=\"onlyacodetype'smacroreadsit\")]pubconstCODE_TYPE:Option<&str>=Some(\"app::views::login::Login\");",
     "pubstructView{pub(super)title:Handle<::ui::Label>,pub(crate)subtitle:Handle<::ui::Label>,pubbody:Handle<::ui::Label>,}",
     "pubfnbuild(tree:&mutUiTree)->Handle<crate::views::login::Login>{",
     "crate::views::login::Login::new(View{title:__e0,subtitle:__e1,body:__e2,}).margin(",
@@ -206,7 +206,19 @@ fn view_without_a_code_type_keeps_its_root() {
 // A code type that isn't a type's full path, starting with its crate, is reported at it.
 #[test]
 fn code_type_must_be_a_full_path() {
-  for path in ["Login", "app::views::", "::app::Login", "app::Login<T>", "app login"] {
+  for path in [
+    "Login",
+    "app::views::",
+    "::app::Login",
+    "app::Login<T>",
+    "app login",
+    " app::Login",
+    "app :: Login",
+    "crate::views::Login",
+    "app::super::Login",
+    "app::self::Login",
+    "app::Self",
+  ] {
     let errors = compile(|file| login(file, path), |_| {}).expect_err("not a full path");
 
     assert_eq!(errors, [(format!("`{path}` isn't the path of a type"), 1)], "{path}");

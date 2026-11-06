@@ -3,6 +3,7 @@
 
 use crate::CratePaths;
 use artic_diagnostics::{Diagnostic, Diagnostics, Span};
+use artic_ident::is_path_keyword;
 use artic_registry::{PropertyInfo, PropertyRef, RustExpr, TypeInfo};
 use artic_view::document::{Text, TypeUse};
 use artic_view::{CheckedContent, CheckedElement, CheckedName, CheckedView, FieldVisibility};
@@ -131,10 +132,15 @@ fn field(name: &CheckedName, has_code_type: bool) -> Name {
 /// The code type `written` names, at `crate` in place of its crate, or `None` after reporting
 /// text that isn't a type's full path.
 fn code_type_path(written: &Text, diagnostics: &mut Diagnostics) -> Option<CodeType> {
-  let parsed = Path::parse_mod_style
-    .parse_str(&written.text)
-    .ok()
-    .filter(|path| path.leading_colon.is_none() && path.segments.len() >= 2);
+  let parsed = Path::parse_mod_style.parse_str(&written.text).ok().filter(|path| {
+    !written.text.contains(char::is_whitespace)
+      && path.leading_colon.is_none()
+      && path.segments.len() >= 2
+      && path
+        .segments
+        .iter()
+        .all(|segment| !is_path_keyword(&segment.ident.to_string()))
+  });
   let Some(mut path) = parsed else {
     diagnostics.push(
       Diagnostic::error(written.span, format!("`{}` isn't the path of a type", written.text))

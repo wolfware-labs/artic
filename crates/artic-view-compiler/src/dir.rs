@@ -51,10 +51,11 @@ impl Debug for CompileError {
 ///
 /// `dir` is read relative to the crate, where Cargo runs build scripts. Each view is written at
 /// its path in the crate under `$OUT_DIR/views/`, such as `$OUT_DIR/views/src/views/login.rs` for
-/// `src/views/login.xaml`, which is where a code type's macro finds it; a `dir` outside the crate
-/// writes each view at its path under `dir`. What an earlier run wrote there is replaced, and
-/// Cargo is told to rerun the script when the directory or any view changes. A symlink to a
-/// directory isn't followed.
+/// `src/views/login.ui`, which is where a code type's macro finds it; a `dir` outside the crate
+/// writes each view at its path under `dir`. `$OUT_DIR/views/` is replaced, so a view removed
+/// since the last run leaves nothing behind, and a build script with views in several
+/// directories calls it once, on a directory that holds them all. Cargo is told to rerun the
+/// script when the directory or any view changes. A symlink to a directory isn't followed.
 ///
 /// The compiler finds types in the registry of the build script itself, which holds the crates it
 /// links. So `build.rs` names each control crate its views use with `use <crate> as _;`, and
@@ -85,8 +86,8 @@ pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), p
 }
 
 /// Compiles every file of `language` under `dir` into `out`, each at the path its header names it
-/// by, and returns the views read, sorted. `out` is replaced, so a view removed since the last run leaves no output
-/// behind. Stops at the first view with errors.
+/// by, and returns the views read, sorted. `out` is replaced, so a view removed since the last
+/// run leaves no output behind. Stops at the first view with errors.
 ///
 /// This is [`compile_dir`]'s work with every input passed in, for a tool that isn't a build
 /// script: it reads no environment and prints nothing for Cargo.
@@ -182,14 +183,14 @@ mod tests {
   // or reached through `..`, by its path under the directory.
   #[test]
   fn views_are_named_by_their_path_in_the_crate() {
-    let login = Path::new("login.xaml");
+    let login = Path::new("login.ui");
     for (dir, shown_as) in [
-      ("src/views", "src/views/login.xaml"),
-      ("./src/views", "src/views/login.xaml"),
-      ("src/./views", "src/views/login.xaml"),
-      ("../shared/views", "login.xaml"),
-      ("src/../views", "login.xaml"),
-      ("/abs/views", "login.xaml"),
+      ("src/views", "src/views/login.ui"),
+      ("./src/views", "src/views/login.ui"),
+      ("src/./views", "src/views/login.ui"),
+      ("../shared/views", "login.ui"),
+      ("src/../views", "login.ui"),
+      ("/abs/views", "login.ui"),
     ] {
       assert_eq!(shown(Path::new(dir), login), PathBuf::from(shown_as), "{dir}");
     }

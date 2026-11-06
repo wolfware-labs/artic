@@ -87,6 +87,7 @@ use ::artic::core as _;
 use ::artic::element::LayoutMethods as _;
 
 /// The type the view's code is, which takes the root's place, as the view names it.
+#[allow(dead_code, reason = "only a code type's macro reads it")]
 pub const CODE_TYPE: Option<&str> = None;
 
 /// The nodes of `login_view.xaml`: its root and one handle per named element.

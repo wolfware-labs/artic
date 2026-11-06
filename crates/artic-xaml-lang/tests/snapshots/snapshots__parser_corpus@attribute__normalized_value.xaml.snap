@@ -12,6 +12,7 @@ use ::artic::element as _;
 use ::artic::layout as _;
 use ::artic::render as _;
 /// The type the view's code is, which takes the root's place, as the view names it.
+#[allow(dead_code, reason = "only a code type's macro reads it")]
 pub const CODE_TYPE: Option<&str> = None;
 /// The nodes of `valid/attribute/normalized_value.xaml`: its root and one handle per named element.
 #[derive(Clone, Copy, Debug)]

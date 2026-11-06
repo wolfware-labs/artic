@@ -489,6 +489,32 @@ fn named_code_type_root_is_reported() {
   }
 }
 
+// A named root of a view with a code type is reported once, and its name stays free for a child,
+// whichever member comes first.
+#[test]
+fn root_name_leaves_a_child_its_name() {
+  for members in [
+    [name("login", 5), code_type("app::views::Login", 9)],
+    [code_type("app::views::Login", 9), name("login", 5)],
+  ] {
+    let child = element(&IMAGE, 30, vec![name("login", 31)]);
+    let mut members = members.to_vec();
+    members.push(content(19, vec![Content::Element(child)]));
+    let document = Document {
+      root: element(&HOST, 0, members),
+    };
+
+    let (view, diagnostics) = check(&document);
+
+    assert_eq!(
+      reported(&diagnostics),
+      [at("the root of a view with a code type can't be named", 5)]
+    );
+    let names: Vec<(&str, usize)> = view.names.iter().map(|name| (name.field.as_str(), name.element)).collect();
+    assert_eq!(names, [("login", 0)]);
+  }
+}
+
 // A field visibility of `pub` or `pub(crate)` is kept with its name; a name without one has none.
 #[test]
 fn field_visibility_is_kept_with_its_name() {
@@ -534,7 +560,7 @@ fn other_field_visibility_is_reported() {
     let help = diagnostics.iter().next().and_then(|diagnostic| diagnostic.help.clone());
     assert_eq!(
       help.as_deref(),
-      Some("write `pub` or `pub(crate)`; without one, the field is visible to the code type's module")
+      Some("write `pub` or `pub(crate)`, or nothing for the back end's default")
     );
     assert_eq!(view.names[0].visibility, None);
   }

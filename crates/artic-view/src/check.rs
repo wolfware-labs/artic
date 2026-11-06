@@ -131,6 +131,13 @@ impl Check {
       }
     };
     let info = ty.map(|ty| ty.info);
+    if root {
+      for member in &element.members {
+        if let Member::CodeType(code_type) = member {
+          self.code_type(code_type, true);
+        }
+      }
+    }
     let mut gathered = Members::default();
     for member in &element.members {
       match member {
@@ -141,9 +148,17 @@ impl Check {
         }
         Member::Name(name) => {
           gathered.named = true;
-          gathered.name = self.name(name);
+          if root && self.code_type.is_some() {
+            self.root_name(name);
+          } else {
+            gathered.name = self.name(name);
+          }
         }
-        Member::CodeType(code_type) => self.code_type(code_type, root),
+        Member::CodeType(code_type) => {
+          if !root {
+            self.code_type(code_type, false);
+          }
+        }
         Member::FieldVisibility(visibility) => gathered.visibility = self.visibility(visibility),
         Member::Content { span, nodes } => self.content(info, *span, nodes, &mut gathered),
         Member::Unsupported(problem) => self.report(problem),
@@ -156,24 +171,18 @@ impl Check {
         .diagnostics
         .push(Diagnostic::error(span, "a field visibility needs a name on its element").with_label("no name here"));
     }
-    if root && self.code_type.is_some() {
-      if let Some((name, _)) = gathered.name.take() {
-        self.diagnostics.push(
-          Diagnostic::error(name.span, "the root of a view with a code type can't be named")
-            .with_help("the code type is the root: its code reaches it as `self`"),
-        );
-      }
-      if let Some(ty) = ty
-        && !ty.info.code_type_root
-      {
-        self.diagnostics.push(
-          Diagnostic::error(
-            element.span,
-            format!("`{}` can't be the root of a view with a code type", ty.info.name),
-          )
-          .with_help("the code type takes the root's place, so the root's type must allow it"),
-        );
-      }
+    if root
+      && self.code_type.is_some()
+      && let Some(ty) = ty
+      && !ty.info.code_type_root
+    {
+      self.diagnostics.push(
+        Diagnostic::error(
+          element.span,
+          format!("`{}` can't be the root of a view with a code type", ty.info.name),
+        )
+        .with_help("the code type takes the root's place, so the root's type must allow it"),
+      );
     }
     let ty: &TypeUse = ty?;
     self.elements.push(CheckedElement {
@@ -286,6 +295,17 @@ impl Check {
     }
   }
 
+  /// Reports the name of the root of a view with a code type, which gives no field.
+  fn root_name(&mut self, name: &Result<Text, Problem>) {
+    match name {
+      Ok(name) => self.diagnostics.push(
+        Diagnostic::error(name.span, "the root of a view with a code type can't be named")
+          .with_help("the code type is the root: its code reaches it as `self`"),
+      ),
+      Err(problem) => self.report(problem),
+    }
+  }
+
   /// Takes the code type `code_type` names, reporting it anywhere but the `root` or a second time.
   fn code_type(&mut self, code_type: &Result<Text, Problem>, root: bool) {
     let code_type = match code_type {
@@ -326,7 +346,7 @@ impl Check {
       text => {
         self.diagnostics.push(
           Diagnostic::error(visibility.span, format!("`{text}` isn't a field visibility"))
-            .with_help("write `pub` or `pub(crate)`; without one, the field is visible to the code type's module"),
+            .with_help("write `pub` or `pub(crate)`, or nothing for the back end's default"),
         );
         None
       }
