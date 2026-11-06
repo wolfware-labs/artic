@@ -220,6 +220,7 @@ mod tests {
     attached_properties: &[],
     value_provider: None,
     whitespace: Whitespace::Collapse,
+    code_type_root: false,
   };
 
   // The check resolves for a FromStr type, a UI type and a child node. A type that is none of

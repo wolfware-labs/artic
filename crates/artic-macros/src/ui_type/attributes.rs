@@ -13,6 +13,7 @@ pub struct TypeAttributes {
   /// The properties set by position, in order, if the type is a value provider.
   pub value_provider: Option<Vec<Ident>>,
   pub override_defaults: bool,
+  pub code_type_root: bool,
 }
 
 /// One `attached(...)` entry on the struct: an attached property the type owns, with the names of
@@ -50,6 +51,7 @@ pub fn parse_type_attributes(input: &DeriveInput) -> syn::Result<TypeAttributes>
   let mut attached = Vec::new();
   let mut value_provider = None;
   let mut override_defaults = false;
+  let mut code_type_root = false;
   for attribute in input.attrs.iter().filter(|attribute| attribute.path().is_ident("ui")) {
     attribute.parse_nested_meta(|meta| {
       if meta.path.is_ident("whitespace") {
@@ -68,10 +70,12 @@ pub fn parse_type_attributes(input: &DeriveInput) -> syn::Result<TypeAttributes>
         value_provider = Some(parse_value_provider(&meta)?);
       } else if meta.path.is_ident("override_defaults") {
         override_defaults = true;
+      } else if meta.path.is_ident("code_type_root") {
+        code_type_root = true;
       } else {
         return Err(unknown_key(
           &meta,
-          "`whitespace`, `crate`, `attached`, `value_provider` or `override_defaults`",
+          "`whitespace`, `crate`, `attached`, `value_provider`, `override_defaults` or `code_type_root`",
         ));
       }
       Ok(())
@@ -83,6 +87,7 @@ pub fn parse_type_attributes(input: &DeriveInput) -> syn::Result<TypeAttributes>
     attached,
     value_provider,
     override_defaults,
+    code_type_root,
   })
 }
 
@@ -189,6 +194,35 @@ mod tests {
 
     assert!(attributes.override_defaults);
     assert_eq!(attributes.whitespace, Whitespace::Significant);
+  }
+
+  // `code_type_root` is a flag, off unless written.
+  #[test]
+  fn code_type_root_is_a_flag() {
+    let marked: DeriveInput = parse_quote! {
+      #[ui(code_type_root)]
+      struct UserControl { child: u8 }
+    };
+    let plain: DeriveInput = parse_quote! {
+      struct Border { child: u8 }
+    };
+
+    let marked = parse_type_attributes(&marked).expect("valid attributes");
+    let plain = parse_type_attributes(&plain).expect("valid attributes");
+
+    assert!(marked.code_type_root);
+    assert!(!plain.code_type_root);
+  }
+
+  // `code_type_root` takes no value.
+  #[test]
+  fn code_type_root_with_a_value_is_refused() {
+    let input: DeriveInput = parse_quote! {
+      #[ui(code_type_root = true)]
+      struct UserControl { child: u8 }
+    };
+
+    assert!(parse_type_attributes(&input).is_err());
   }
 
   // `whitespace` takes "collapse" as well as "significant".

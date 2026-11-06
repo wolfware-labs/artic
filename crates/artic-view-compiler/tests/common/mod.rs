@@ -47,6 +47,7 @@ const fn info(name: &'static str, rust_path: &'static str) -> TypeInfo {
     attached_properties: &[],
     value_provider: None,
     whitespace: Whitespace::Collapse,
+    code_type_root: false,
   }
 }
 

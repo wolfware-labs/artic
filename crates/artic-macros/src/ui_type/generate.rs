@@ -217,6 +217,7 @@ fn type_info(analysis: &TypeAnalysis) -> TokenStream {
     Whitespace::Collapse => quote!(__artic::Whitespace::Collapse),
     Whitespace::Significant => quote!(__artic::Whitespace::Significant),
   };
+  let code_type_root = analysis.attributes.code_type_root;
   quote! {
     fn __new(tree: &mut __artic::UiTree) -> __artic::NodeId {
       tree.alloc(::std::boxed::Box::new(<#ident as ::core::default::Default>::default()))
@@ -233,6 +234,7 @@ fn type_info(analysis: &TypeAnalysis) -> TokenStream {
       attached_properties: &__ATTACHED,
       value_provider: #value_provider,
       whitespace: #whitespace,
+      code_type_root: #code_type_root,
     };
 
     impl __artic::UiType for #ident {
