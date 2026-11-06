@@ -18,7 +18,7 @@ impl Runtime {
     let epoch = RUNTIME.with(|runtime| runtime.epoch.get());
     let (running, is_memo, verified) = RUNTIME.with(|runtime| {
       runtime.nodes.with_observer(node, |observer| {
-        let is_memo = matches!(observer.job, Job::Memo { .. });
+        let is_memo = matches!(observer.job, Job::Memo);
         (observer.running, is_memo, !observer.dirty && observer.verified == epoch)
       })
     });
@@ -88,7 +88,7 @@ impl Runtime {
       observer.dirty = true;
       match observer.job {
         Job::Effect { seq } => Some(seq),
-        Job::Memo { .. } => None,
+        Job::Memo => None,
       }
     });
     if let Some(seq) = seq {

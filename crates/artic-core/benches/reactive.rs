@@ -1,7 +1,7 @@
 // The reactive runtime's hot paths, through the public API: reads and writes, a write that reaches
 // many effects directly or through a memo, memo chains read after a change and without one, a memo
-// whose value doesn't change, a diamond, a memo with many sources, a batch, and a scope's whole
-// life.
+// whose value doesn't change, a diamond, a memo with many sources, a batch, a scope's whole
+// life, and reading many properties once each, beside the same number of plain cells.
 //
 // To compare a change, save a baseline on main and compare the branch against it on the same
 // machine:
@@ -12,6 +12,7 @@
 // Every write is followed by a flush, as the dispatcher does after each event, so a bench measures
 // the whole cost of a change. Each bench checks that the measured work ran and that no node leaked.
 
+use artic_core::property::{Affects, Inheritance, Property, PropertyKey};
 use artic_core::reactive::{LiveCounts, Memo, Scope, Signal, batch, effect, flush_effects, live_counts};
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use std::cell::Cell;
@@ -327,6 +328,39 @@ fn scope(c: &mut Criterion) {
   assert_no_leak(before);
 }
 
+static WIDTH: PropertyKey<u32> = PropertyKey::new("Width", Affects::LAYOUT, Inheritance::None);
+
+/// The sum of `0..count`, which reading `count` values made from their indices adds up to.
+fn index_sum(count: u32) -> u64 {
+  u64::from(count) * u64::from(count - 1) / 2
+}
+
+// Many properties read once each, untracked, as a layout pass reads every element's: once they no
+// longer fit in the cache, a read costs what it takes to reach the value. The floor reads the same
+// number of plain cells.
+fn property_reads(c: &mut Criterion) {
+  let mut group = c.benchmark_group("property/read_many");
+  for count in [1_000_u32, 100_000] {
+    in_scope(
+      || (0..count).map(|index| Property::new(&WIDTH, index)).collect::<Vec<_>>(),
+      |properties| {
+        let sum = |properties: &[Property<u32>]| properties.iter().map(|property| u64::from(property.get())).sum::<u64>();
+        assert_eq!(sum(properties), index_sum(count), "a property read other than its value");
+        group.bench_function(BenchmarkId::from_parameter(count), |b| b.iter(|| sum(black_box(properties))));
+      },
+    );
+  }
+  group.finish();
+  let mut group = c.benchmark_group("property/read_many_floor");
+  for count in [1_000_u32, 100_000] {
+    let cells: Vec<Cell<u32>> = (0..count).map(Cell::new).collect();
+    let sum = |cells: &[Cell<u32>]| cells.iter().map(|cell| u64::from(cell.get())).sum::<u64>();
+    assert_eq!(sum(&cells), index_sum(count), "a cell read other than its value");
+    group.bench_function(BenchmarkId::from_parameter(count), |b| b.iter(|| sum(black_box(&cells))));
+  }
+  group.finish();
+}
+
 criterion_group!(
   reactive,
   signal,
@@ -337,6 +371,7 @@ criterion_group!(
   diamond,
   tracked_reads,
   batched,
-  scope
+  scope,
+  property_reads
 );
 criterion_main!(reactive);

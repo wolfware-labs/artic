@@ -1,7 +1,7 @@
 //! Every reactive node in one arena, each slot holding the node's kind, its edges and, for a memo
-//! or an effect, its observer state.
+//! or an effect, its observer state; each signal's and memo's value in a map of its own beside it.
 
-use crate::arena::{Arena, SlotId};
+use crate::arena::{Arena, SlotId, SlotMap};
 use crate::reactive::runtime::ScopeId;
 use crate::reactive::runtime::value_cell::ValueCell;
 use std::any::Any;
@@ -37,10 +37,10 @@ pub enum NodeKind {
   Effect,
 }
 
-/// What an observer is for: a memo keeps a value its run computes, an effect runs in the order it
-/// was created.
+/// What an observer is for: a memo's run computes the value [`Nodes::values`] keeps for it, an
+/// effect runs in the order it was created.
 pub enum Job {
-  Memo { value: Rc<ValueCell> },
+  Memo,
   Effect { seq: u64 },
 }
 
@@ -61,7 +61,7 @@ impl Observer {
   fn seq(&self) -> Option<u64> {
     match self.job {
       Job::Effect { seq } => Some(seq),
-      Job::Memo { .. } => None,
+      Job::Memo => None,
     }
   }
 }
@@ -70,10 +70,9 @@ impl Observer {
 pub type Sink = Rc<dyn Fn()>;
 
 enum Kind {
-  /// A signal's value, and its sink if it has one: a `mark` called when a visible write reaches the
-  /// signal or the source it is linked to.
+  /// A signal, and its sink if it has one: a `mark` called when a visible write reaches the signal or
+  /// the source it is linked to. Its value is in [`Nodes::values`].
   Signal {
-    value: Rc<ValueCell>,
     sink: Option<Sink>,
   },
   Observer(Observer),
@@ -106,9 +105,7 @@ impl Slot {
   fn node_kind(&self) -> NodeKind {
     match &self.kind {
       Kind::Signal { .. } => NodeKind::Signal,
-      Kind::Observer(Observer {
-        job: Job::Memo { .. }, ..
-      }) => NodeKind::Memo,
+      Kind::Observer(Observer { job: Job::Memo, .. }) => NodeKind::Memo,
       Kind::Observer(Observer {
         job: Job::Effect { .. }, ..
       }) => NodeKind::Effect,
@@ -116,8 +113,9 @@ impl Slot {
   }
 }
 
-/// A freed node's slot, its value and closures still in it.
+/// A freed node's value and slot, its closures still in the slot. The value drops first.
 pub struct Freed {
+  _value: Option<Rc<ValueCell<dyn Any>>>,
   _slot: Slot,
 }
 
@@ -144,6 +142,9 @@ const FEW_SOURCES: usize = 8;
 
 pub struct Nodes {
   slots: RefCell<Arena<Slot>>,
+  /// Each signal's and memo's value, apart from the slots so that a read reaches it through a small
+  /// entry.
+  values: RefCell<SlotMap<Rc<ValueCell<dyn Any>>>>,
   next_seq: Cell<u64>,
 }
 
@@ -151,15 +152,15 @@ impl Nodes {
   pub const fn new() -> Self {
     Self {
       slots: RefCell::new(Arena::new()),
+      values: RefCell::new(SlotMap::new()),
       next_seq: Cell::new(0),
     }
   }
 
-  pub fn alloc_signal(&self, value: Box<dyn Any>) -> SignalId {
-    SignalId(self.alloc(Kind::Signal {
-      value: Rc::new(ValueCell::new(value, "signal")),
-      sink: None,
-    }))
+  pub fn alloc_signal<TValue: Any>(&self, value: TValue) -> SignalId {
+    let node = self.alloc(Kind::Signal { sink: None });
+    self.values.borrow_mut().insert(node.0, ValueCell::new(value, "signal"));
+    SignalId(node)
   }
 
   /// Gives `of` a sink. Panics if `of` already has one, or is gone.
@@ -205,9 +206,10 @@ impl Nodes {
     self.slots.borrow().get(signal_id.0.0).and_then(Slot::sink).is_some()
   }
 
-  pub fn alloc_memo(&self, value: Box<dyn Any>, compute: Rc<dyn Fn(MemoId)>, scope: ScopeId) -> MemoId {
-    let value = Rc::new(ValueCell::new(value, "memo"));
-    MemoId(self.alloc_observer(Job::Memo { value }, Rc::new(move |node| compute(MemoId(node))), scope))
+  pub fn alloc_memo<TValue: Any>(&self, value: TValue, compute: Rc<dyn Fn(MemoId)>, scope: ScopeId) -> MemoId {
+    let node = self.alloc_observer(Job::Memo, Rc::new(move |node| compute(MemoId(node))), scope);
+    self.values.borrow_mut().insert(node.0, ValueCell::new(value, "memo"));
+    MemoId(node)
   }
 
   pub fn alloc_effect(&self, run: impl FnMut() + 'static, scope: ScopeId) -> Node {
@@ -216,9 +218,9 @@ impl Nodes {
     self.alloc_observer(Job::Effect { seq }, Rc::new(move |_| (run.borrow_mut())()), scope)
   }
 
-  /// Frees `node` and cuts its edges in both directions, returning what the slot held: the caller
-  /// drops it once nothing in the runtime is borrowed, since a value or a closure in it may use the
-  /// runtime when dropped. A stale id frees nothing.
+  /// Frees `node` and cuts its edges in both directions, returning its value and what its slot held:
+  /// the caller drops them once nothing in the runtime is borrowed, since a value or a closure may use
+  /// the runtime when dropped. A stale id frees nothing.
   #[must_use]
   pub fn remove(&self, node: Node) -> Option<Freed> {
     self.clear_sources(node);
@@ -229,7 +231,11 @@ impl Nodes {
         subscriber.sources.retain(|source| *source != node);
       }
     }
-    Some(Freed { _slot: slot })
+    let value = self.values.borrow_mut().remove(node.0);
+    Some(Freed {
+      _value: value,
+      _slot: slot,
+    })
   }
 
   /// The scope a memo's or an effect's runs own, and an effect's place in the run order. `None`
@@ -258,18 +264,9 @@ impl Nodes {
       .count()
   }
 
-  pub fn signal_value(&self, signal_id: SignalId) -> Rc<ValueCell> {
-    match &self.slot(signal_id.0, "signal").kind {
-      Kind::Signal { value, .. } => Rc::clone(value),
-      Kind::Observer(_) => unreachable!("a signal id names a signal"),
-    }
-  }
-
-  pub fn memo_value(&self, memo_id: MemoId) -> Rc<ValueCell> {
-    self.with_observer(memo_id.0, |observer| match &observer.job {
-      Job::Memo { value } => Rc::clone(value),
-      Job::Effect { .. } => unreachable!("a memo id names a memo"),
-    })
+  /// The value of the signal or memo `node`, or `None` once it's freed.
+  pub fn value(&self, node: Node) -> Option<Rc<ValueCell<dyn Any>>> {
+    self.values.borrow().get(node.0).cloned()
   }
 
   /// Calls `action` with `node`'s observer state. Panics if `node` is not a live observer.
@@ -456,14 +453,6 @@ impl Nodes {
       scope,
     }))
   }
-
-  fn slot(&self, node: Node, label: &str) -> std::cell::Ref<'_, Slot> {
-    std::cell::Ref::map(self.slots.borrow(), |slots| {
-      slots
-        .get(node.0)
-        .unwrap_or_else(|| panic!("{label} slot not found for the specified id"))
-    })
-  }
 }
 
 #[cfg(test)]
@@ -476,7 +465,7 @@ mod tests {
   fn nodes() -> (Nodes, Node, Node, Node) {
     let nodes = Nodes::new();
     let scope = ScopeStore::new().alloc(None);
-    let signal = nodes.alloc_signal(Box::new(0)).into();
+    let signal = nodes.alloc_signal(0).into();
     let observer = || nodes.alloc_effect(|| {}, scope);
     let (first, second) = (observer(), observer());
     (nodes, signal, first, second)

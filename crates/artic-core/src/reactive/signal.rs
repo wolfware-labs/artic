@@ -1,6 +1,11 @@
 use crate::reactive::origin::Origin;
-use crate::reactive::runtime::{Runtime, SignalId};
+use crate::reactive::runtime::{Runtime, SignalId, ValueCell};
+use std::any::Any;
 use std::marker::PhantomData;
+use std::rc::Rc;
+
+/// What using a signal after it was disposed panics with.
+const DISPOSED: &str = "signal used after it was disposed";
 
 /// A reactive value.
 ///
@@ -114,8 +119,9 @@ impl<TValue> Signal<TValue> {
   /// count.with(|_| count.set(2)); // writes `count` while it is being read
   /// ```
   pub fn with<TResult>(&self, function: impl FnOnce(&TValue) -> TResult) -> TResult {
-    self.ensure_alive();
-    Runtime::with_signal_value(self.0, function)
+    Runtime::read(self.0.into())
+      .unwrap_or_else(|| self.1.panic(DISPOSED))
+      .with(function)
   }
 
   /// Replaces the value with `new_value` and marks every subscribed observer as dirty.
@@ -138,8 +144,7 @@ impl<TValue> Signal<TValue> {
   /// Panics if called from inside this signal's own [`update`](Signal::update) or
   /// [`with`](Signal::with) closure.
   pub fn set(&self, new_value: TValue) {
-    self.ensure_alive();
-    Runtime::set_signal_value(self.0, new_value)
+    Runtime::write_signal(self.0, &self.cell(), |value| *value = new_value);
   }
 
   /// Changes the value in place through `action`, then marks every subscribed observer as dirty.
@@ -172,8 +177,7 @@ impl<TValue> Signal<TValue> {
   /// count.update(|value| *value += count.get()); // reads `count` while it is being updated
   /// ```
   pub fn update(&self, action: impl FnOnce(&mut TValue)) {
-    self.ensure_alive();
-    Runtime::with_signal_mut_value(self.0, action);
+    Runtime::write_signal(self.0, &self.cell(), action);
   }
 
   /// Changes the value in place through `action`, and marks subscribed observers as dirty only if
@@ -204,8 +208,7 @@ impl<TValue> Signal<TValue> {
   ///
   /// Panics in the same cases as [`update`](Signal::update).
   pub fn update_with(&self, action: impl FnOnce(&mut TValue) -> Change) {
-    self.ensure_alive();
-    Runtime::update_signal_value_with(self.0, action);
+    Runtime::update_signal_with(self.0, &self.cell(), action);
   }
 
   /// Frees the signal now rather than with its scope. Disposing it again, or disposing its scope
@@ -219,14 +222,18 @@ impl<TValue> Signal<TValue> {
   }
 
   pub(crate) fn with_untracked<TResult>(&self, function: impl FnOnce(&TValue) -> TResult) -> TResult {
-    self.ensure_alive();
-    Runtime::with_untracked_signal_value(self.0, function)
+    self.cell().with(function)
   }
 
   pub(crate) fn ensure_alive(&self) {
     if !Runtime::contains_signal(self.0) {
-      self.1.panic("signal used after it was disposed");
+      self.1.panic(DISPOSED);
     }
+  }
+
+  /// The signal's value cell. Panics if the signal was disposed.
+  fn cell(&self) -> Rc<ValueCell<dyn Any>> {
+    Runtime::value(self.0.into()).unwrap_or_else(|| self.1.panic(DISPOSED))
   }
 }
 
@@ -252,8 +259,7 @@ where
   ///
   /// Panics if called from inside this signal's own [`update`](Signal::update) closure.
   pub fn get(&self) -> TValue {
-    self.ensure_alive();
-    Runtime::get_signal_value(self.0)
+    self.with(TValue::clone)
   }
 }
 
@@ -285,9 +291,8 @@ where
   /// this signal's own [`with`](Signal::with) closure with a different value, because the write
   /// happens while the value is borrowed. An equal value writes nothing there, so it doesn't panic.
   pub fn set_if_changed(&self, new_value: TValue) {
-    self.ensure_alive();
-    if Runtime::with_untracked_signal_value(self.0, |v: &TValue| *v != new_value) {
-      self.set(new_value)
+    if self.cell().with(|value: &TValue| *value != new_value) {
+      self.set(new_value);
     }
   }
 }

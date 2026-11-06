@@ -3,6 +3,9 @@ use crate::reactive::runtime::{MemoId, Runtime};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
+/// What using a memo after its scope was disposed panics with.
+const DISPOSED: &str = "memo used after its scope was disposed";
+
 /// A value computed from signals and other memos, and remembered until one of them changes.
 ///
 /// A memo runs its closure lazily: not when it is created and not when a dependency changes, but on
@@ -73,14 +76,14 @@ where
   #[track_caller]
   pub fn new(compute: impl Fn() -> TValue + 'static) -> Memo<TValue> {
     let memo_id = Runtime::create_memo(
-      Box::new(None::<TValue>),
+      None::<TValue>,
       Rc::new(move |memo_id| {
         let new_value = Some(compute());
-        if !Runtime::contains_memo(memo_id) {
+        let Some(value) = Runtime::value(memo_id.into()) else {
           return;
-        }
-        if Runtime::with_memo_value(memo_id, |value: &Option<TValue>| *value != new_value) {
-          Runtime::set_memo_value(memo_id, new_value);
+        };
+        if value.with(|value: &Option<TValue>| *value != new_value) {
+          Runtime::set_memo_value(memo_id, &value, new_value);
         }
       }),
     );
@@ -110,16 +113,13 @@ impl<TValue> Memo<TValue> {
   pub fn with<TResult>(&self, function: impl FnOnce(&TValue) -> TResult) -> TResult {
     self.ensure_alive();
     Runtime::refresh(self.0.into());
-    self.ensure_alive();
-    Runtime::record_read(self.0.into());
-    Runtime::with_memo_value(self.0, |value: &Option<TValue>| {
-      function(value.as_ref().expect("a refreshed memo has a value"))
-    })
+    let value = Runtime::read(self.0.into()).unwrap_or_else(|| self.1.panic(DISPOSED));
+    value.with(|value: &Option<TValue>| function(value.as_ref().expect("a refreshed memo has a value")))
   }
 
   fn ensure_alive(&self) {
     if !Runtime::contains_memo(self.0) {
-      self.1.panic("memo used after its scope was disposed");
+      self.1.panic(DISPOSED);
     }
   }
 }

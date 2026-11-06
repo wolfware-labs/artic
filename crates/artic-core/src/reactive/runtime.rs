@@ -17,6 +17,7 @@ use std::any::Any;
 use std::cell::Cell;
 use std::rc::Rc;
 use tracking::Tracker;
+pub(crate) use value_cell::ValueCell;
 
 thread_local! {
   static RUNTIME: Runtime  = const {
@@ -59,60 +60,39 @@ impl Runtime {
   where
     TValue: Any,
   {
-    RUNTIME.with(|runtime| runtime.nodes.alloc_signal(Box::new(value)))
+    RUNTIME.with(|runtime| runtime.nodes.alloc_signal(value))
   }
 
   pub fn contains_signal(signal_id: SignalId) -> bool {
     RUNTIME.with(|runtime| runtime.nodes.contains(signal_id.into()))
   }
 
-  pub fn get_signal_value<TValue>(signal_id: SignalId) -> TValue
-  where
-    TValue: Any + Clone,
-  {
-    Self::with_signal_value::<TValue, TValue>(signal_id, |v| v.clone())
+  /// The value of the signal or memo `node`, or `None` once it's freed: one lookup, which a write
+  /// or an untracked read makes before it touches the value.
+  pub(crate) fn value(node: Node) -> Option<Rc<ValueCell<dyn Any>>> {
+    RUNTIME.with(|runtime| runtime.nodes.value(node))
   }
 
-  pub fn with_signal_value<TValue, TResult>(signal_id: SignalId, action: impl FnOnce(&TValue) -> TResult) -> TResult
+  /// Changes the value in `cell`, `signal_id`'s, through `action`, then marks its readers, also if
+  /// `action` panics. Panics, before anything changes, if the value is being read or updated.
+  pub(crate) fn write_signal<TValue>(signal_id: SignalId, cell: &ValueCell<dyn Any>, action: impl FnOnce(&mut TValue))
   where
     TValue: Any,
   {
-    Self::record_read(signal_id.into());
-    Self::with_untracked_signal_value(signal_id, action)
-  }
-
-  pub(crate) fn with_untracked_signal_value<TValue, TResult>(
-    signal_id: SignalId,
-    action: impl FnOnce(&TValue) -> TResult,
-  ) -> TResult
-  where
-    TValue: Any,
-  {
-    RUNTIME.with(|runtime| runtime.nodes.signal_value(signal_id)).with(action)
-  }
-
-  pub fn set_signal_value<TValue>(signal_id: SignalId, value: TValue)
-  where
-    TValue: Any,
-  {
-    Self::with_signal_mut_value(signal_id, |v| *v = value)
-  }
-
-  pub fn with_signal_mut_value<TValue>(signal_id: SignalId, action: impl FnOnce(&mut TValue))
-  where
-    TValue: Any,
-  {
-    let cell = RUNTIME.with(|runtime| runtime.nodes.signal_value(signal_id));
     let taken = cell.take();
     let _written = defer(|| Self::record_write(signal_id));
     taken.write(action);
   }
 
-  pub fn update_signal_value_with<TValue>(signal_id: SignalId, action: impl FnOnce(&mut TValue) -> Change)
-  where
+  /// [`write_signal`](Runtime::write_signal), marking the readers only when `action` says the change
+  /// is visible.
+  pub(crate) fn update_signal_with<TValue>(
+    signal_id: SignalId,
+    cell: &ValueCell<dyn Any>,
+    action: impl FnOnce(&mut TValue) -> Change,
+  ) where
     TValue: Any,
   {
-    let cell = RUNTIME.with(|runtime| runtime.nodes.signal_value(signal_id));
     let taken = cell.take();
     let written = defer(|| Self::record_write(signal_id));
     if taken.write(action) == Change::Hidden {
@@ -151,7 +131,7 @@ impl Runtime {
     RUNTIME.with(|runtime| runtime.nodes.is_dirty(node))
   }
 
-  pub fn create_memo(initial_value: Box<dyn Any>, compute: Rc<dyn Fn(MemoId)>) -> MemoId {
+  pub fn create_memo<TValue: Any>(initial_value: TValue, compute: Rc<dyn Fn(MemoId)>) -> MemoId {
     RUNTIME.with(|runtime| {
       let scope = runtime.scopes.alloc(runtime.scopes.active());
       let memo_id = runtime.nodes.alloc_memo(initial_value, compute, scope);
@@ -164,18 +144,10 @@ impl Runtime {
     RUNTIME.with(|runtime| runtime.nodes.contains(memo_id.into()))
   }
 
-  pub fn with_memo_value<TValue, TResult>(memo_id: MemoId, action: impl FnOnce(&TValue) -> TResult) -> TResult
+  pub fn set_memo_value<TValue>(memo_id: MemoId, cell: &ValueCell<dyn Any>, value: TValue)
   where
     TValue: Any,
   {
-    RUNTIME.with(|runtime| runtime.nodes.memo_value(memo_id)).with(action)
-  }
-
-  pub fn set_memo_value<TValue>(memo_id: MemoId, value: TValue)
-  where
-    TValue: Any,
-  {
-    let cell = RUNTIME.with(|runtime| runtime.nodes.memo_value(memo_id));
     let taken = cell.take();
     let _changed = defer(|| {
       RUNTIME

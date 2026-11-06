@@ -909,6 +909,47 @@ fn writing_disposed_signal_panics_after_slot_reuse() {
   assert_eq!(new.get(), 0);
 }
 
+// Reading a signal whose scope was disposed panics after its slot was reused, and doesn't read the
+// new signal's value.
+#[test]
+fn reading_disposed_signal_panics_after_slot_reuse() {
+  let scope = Scope::new_root();
+  let old = scope.run(|| Signal::new(0));
+  scope.dispose();
+  let new = Signal::new(7);
+
+  let message = panic_message(|| {
+    old.get();
+  });
+
+  assert!(message.starts_with("signal used after it was disposed"), "{message}");
+  assert_eq!(new.get(), 7);
+}
+
+/// A value whose comparison disposes the scope in `scope`, as user code in `PartialEq` may.
+struct DisposesOnCompare(u32, Rc<Cell<Option<Scope>>>);
+
+impl PartialEq for DisposesOnCompare {
+  fn eq(&self, other: &Self) -> bool {
+    if let Some(scope) = self.1.take() {
+      scope.dispose();
+    }
+    self.0 == other.0
+  }
+}
+
+// `set_if_changed` on a signal whose comparison disposes it panics instead of writing the freed value.
+#[test]
+fn set_if_changed_panics_when_the_comparison_disposes_the_signal() {
+  let (holder, scope) = (Rc::new(Cell::new(None)), Scope::new_root());
+  let signal = scope.run(|| Signal::new(DisposesOnCompare(0, Rc::clone(&holder))));
+  holder.set(Some(scope));
+
+  let message = panic_message(|| signal.set_if_changed(DisposesOnCompare(1, Rc::clone(&holder))));
+
+  assert!(message.starts_with("signal used after it was disposed"), "{message}");
+}
+
 // Reading a memo whose scope was disposed panics.
 #[test]
 fn reading_disposed_memo_panics() {
@@ -1197,6 +1238,38 @@ fn a_scope_frees_effects_then_memos_then_signals() {
   scope.dispose();
 
   assert_eq!((before, log.borrow().clone()), (0, vec!["effect", "memo", "signal"]));
+}
+
+/// A memo value that logs when dropped and never equals another.
+struct DroppedValue {
+  _dropped: Dropped,
+}
+
+impl PartialEq for DroppedValue {
+  fn eq(&self, _other: &Self) -> bool {
+    false
+  }
+}
+
+// A freed memo drops its value before the closure that computed it.
+#[test]
+fn a_freed_memo_drops_its_value_before_its_closure() {
+  let log = Rc::new(RefCell::new(Vec::new()));
+  let scope = Scope::new_root();
+  let memo = scope.run(|| {
+    let (held, made) = (Dropped("closure", Rc::clone(&log)), Rc::clone(&log));
+    Memo::new(move || {
+      let _held = &held;
+      DroppedValue {
+        _dropped: Dropped("value", Rc::clone(&made)),
+      }
+    })
+  });
+  memo.with(|_| ());
+
+  scope.dispose();
+
+  assert_eq!(*log.borrow(), ["value", "closure"]);
 }
 
 // A child scope disposed on its own leaves its parent's list at once.
