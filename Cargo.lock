@@ -410,6 +410,7 @@ version = "0.1.0"
 dependencies = [
  "artic-core",
  "artic-diagnostics",
+ "artic-ident",
  "artic-registry",
  "artic-view",
  "pretty_assertions",
