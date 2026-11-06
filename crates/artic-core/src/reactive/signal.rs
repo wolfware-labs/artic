@@ -291,9 +291,8 @@ where
   /// this signal's own [`with`](Signal::with) closure with a different value, because the write
   /// happens while the value is borrowed. An equal value writes nothing there, so it doesn't panic.
   pub fn set_if_changed(&self, new_value: TValue) {
-    let cell = self.cell();
-    if cell.with(|value: &TValue| *value != new_value) {
-      Runtime::write_signal(self.0, &cell, |value| *value = new_value);
+    if self.cell().with(|value: &TValue| *value != new_value) {
+      self.set(new_value);
     }
   }
 }

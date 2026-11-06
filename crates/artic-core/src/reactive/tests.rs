@@ -926,6 +926,30 @@ fn reading_disposed_signal_panics_after_slot_reuse() {
   assert_eq!(new.get(), 7);
 }
 
+/// A value whose comparison disposes the scope in `scope`, as user code in `PartialEq` may.
+struct DisposesOnCompare(u32, Rc<Cell<Option<Scope>>>);
+
+impl PartialEq for DisposesOnCompare {
+  fn eq(&self, other: &Self) -> bool {
+    if let Some(scope) = self.1.take() {
+      scope.dispose();
+    }
+    self.0 == other.0
+  }
+}
+
+// `set_if_changed` on a signal whose comparison disposes it panics instead of writing the freed value.
+#[test]
+fn set_if_changed_panics_when_the_comparison_disposes_the_signal() {
+  let (holder, scope) = (Rc::new(Cell::new(None)), Scope::new_root());
+  let signal = scope.run(|| Signal::new(DisposesOnCompare(0, Rc::clone(&holder))));
+  holder.set(Some(scope));
+
+  let message = panic_message(|| signal.set_if_changed(DisposesOnCompare(1, Rc::clone(&holder))));
+
+  assert!(message.starts_with("signal used after it was disposed"), "{message}");
+}
+
 // Reading a memo whose scope was disposed panics.
 #[test]
 fn reading_disposed_memo_panics() {
