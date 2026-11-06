@@ -35,6 +35,8 @@ fn bare_element_builds_its_root() {
   use ::artic::layout as _;
   use ::artic::render as _;
   use ::elements as _;
+  /// The type the view's code is, which takes the root's place, as the view names it.
+  pub const CODE_TYPE: Option<&str> = None;
   /// The nodes of `view.xaml`: its root and one handle per named element.
   #[derive(Clone, Copy, Debug)]
   pub struct View {

@@ -88,6 +88,18 @@ pub static PANEL: TypeInfo = TypeInfo {
   ..info("Panel", "test_ui::panel::Panel")
 };
 
+/// Takes one child; has the group `layout` with `Margin`; a code type can take its place.
+pub static HOST: TypeInfo = TypeInfo {
+  content: Some(ContentInfo::Collection {
+    field: "child",
+    method: Some(ContentMethod::Child),
+    add_child,
+  }),
+  groups: &LAYOUT,
+  code_type_root: true,
+  ..info("Host", "test_ui::host::Host")
+};
+
 /// Has `Text`.
 pub static LABEL: TypeInfo = TypeInfo {
   properties: &TEXT,
@@ -96,16 +108,19 @@ pub static LABEL: TypeInfo = TypeInfo {
 
 /// The registry of the hand-built types.
 pub fn registry() -> Registry {
-  Registry::from_types(&[&PANEL, &LABEL]).expect("no duplicate types")
+  Registry::from_types(&[&PANEL, &LABEL, &HOST]).expect("no duplicate types")
 }
 
 /// The language's crates.
 const CRATES: [&str; 1] = ["test_ui"];
 
 /// A language whose reader returns the document `build` makes for the file.
-pub struct Built(pub fn(SourceId) -> Document);
+pub struct Built<F>(pub F);
 
-impl Language for Built {
+impl<F> Language for Built<F>
+where
+  F: Fn(SourceId) -> Document,
+{
   fn extension(&self) -> &str {
     "view"
   }
@@ -194,6 +209,22 @@ pub fn property(file: SourceId, name: &str, at: usize, value: &str) -> Member {
 /// The name `text` at `at`.
 pub fn name(file: SourceId, text: &str, at: usize) -> Member {
   Member::Name(Ok(Text {
+    text: text.to_owned(),
+    span: span(file, at),
+  }))
+}
+
+/// The code type `path` at `at`.
+pub fn code_type(file: SourceId, path: &str, at: usize) -> Member {
+  Member::CodeType(Ok(Text {
+    text: path.to_owned(),
+    span: span(file, at),
+  }))
+}
+
+/// The field visibility `text` at `at`.
+pub fn visibility(file: SourceId, text: &str, at: usize) -> Member {
+  Member::FieldVisibility(Ok(Text {
     text: text.to_owned(),
     span: span(file, at),
   }))
