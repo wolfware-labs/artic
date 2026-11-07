@@ -235,7 +235,9 @@ pub fn element(attribute: TokenStream, item: TokenStream) -> TokenStream {
 /// it. The build script's `compile_dir` must cover it: the macro includes what it wrote at the
 /// view's path in the crate, `$OUT_DIR/views/src/views/login.rs`, in a module named after the
 /// struct in snake case (`login_view`), with the struct's visibility. The view must name the
-/// struct as its code type, by the path that defines it: `app::views::login::LoginView`.
+/// struct as its code type, by the path that defines it: `app::views::login::LoginView`. An editor
+/// that doesn't say which file the struct is in, such as rust-analyzer, gets the one compiled
+/// view whose path ends with the argument's.
 ///
 /// The macro adds two fields before the struct's own, `ui: login_view::View`, the view's named
 /// nodes, with the struct's visibility, and `child`, the content of the view's root. It then makes

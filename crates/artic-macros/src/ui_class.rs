@@ -4,7 +4,8 @@ use crate::ui_type::attributes::parse_type_attributes;
 use artic_ident::{is_keyword, snake_case};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 use syn::{DeriveInput, Error, Fields, FieldsNamed, Ident, ItemStruct, LitStr, parse_quote};
 
 /// Where the macro is expanded: what the compiler and Cargo say about the struct's crate.
@@ -119,16 +120,53 @@ fn module_ident(ident: &Ident) -> syn::Result<Ident> {
   }
 }
 
-/// The view's path in the crate, checked against the site: the struct's file is known, the view is
-/// inside the crate, and the build script compiled it.
+/// The view's path in the crate, checked against the site: the view is inside the crate and the
+/// build script compiled it. Without the struct's file, which rust-analyzer doesn't give, it's the
+/// one compiled view whose path ends with the argument's.
 fn view_path(site: &Site, path: &LitStr) -> syn::Result<String> {
   let argument = path.value();
-  let source_file = site.source_file.as_ref().ok_or_else(|| {
+  let no_views = || {
     Error::new(
       path.span(),
-      "can't find the file this struct is in, so the view's path can't be resolved",
+      "this crate compiles no views: it has no build script, so it has no compiled view",
     )
-  })?;
+  };
+  let not_compiled = |view: &str| {
+    Error::new(
+      path.span(),
+      format!("no compiled view for `{view}`: the file doesn't exist, or the build script's `compile_dir` doesn't cover it"),
+    )
+  };
+  let Some(source_file) = &site.source_file else {
+    let views = site.out_dir.as_ref().ok_or_else(no_views)?.join("views");
+    let end = with_rs_extension(
+      &slashes(&argument)
+        .split('/')
+        .filter(|segment| !matches!(*segment, "" | "." | ".."))
+        .collect::<Vec<_>>()
+        .join("/"),
+    );
+    let extension = argument.rfind('.').map_or("", |dot| &argument[dot..]);
+    let found: Vec<String> = compiled_views(&views, "")
+      .into_iter()
+      .filter(|compiled| *compiled == end || compiled.ends_with(&format!("/{end}")))
+      .map(|compiled| format!("{}{extension}", compiled.strip_suffix(".rs").unwrap_or(&compiled)))
+      .collect();
+    return match found.as_slice() {
+      [] => Err(not_compiled(&argument)),
+      [view] => Ok(view.clone()),
+      [first @ .., last] => {
+        let first: Vec<String> = first.iter().map(|view| format!("`{view}`")).collect();
+        Err(Error::new(
+          path.span(),
+          format!(
+            "several compiled views end with `{argument}`, {} and `{last}`, and this editor doesn't say which file the struct is in",
+            first.join(", ")
+          ),
+        ))
+      }
+    };
+  };
   let view = crate_relative(
     &source_file.to_string_lossy(),
     &site.manifest_dir.to_string_lossy(),
@@ -140,19 +178,31 @@ fn view_path(site: &Site, path: &LitStr) -> syn::Result<String> {
       format!("`{argument}` is outside the crate, so it has no compiled view"),
     )
   })?;
-  let out_dir = site.out_dir.as_ref().ok_or_else(|| {
-    Error::new(
-      path.span(),
-      "this crate compiles no views: it has no build script, so it has no compiled view",
-    )
-  })?;
+  let out_dir = site.out_dir.as_ref().ok_or_else(no_views)?;
   if !out_dir.join("views").join(with_rs_extension(&view)).is_file() {
-    return Err(Error::new(
-      path.span(),
-      format!("no compiled view for `{view}`: the file doesn't exist, or the build script's `compile_dir` doesn't cover it"),
-    ));
+    return Err(not_compiled(&view));
   }
   Ok(view)
+}
+
+/// The compiled views under `dir`, each as its path below it with `/` separators after `prefix`,
+/// sorted.
+fn compiled_views(dir: &Path, prefix: &str) -> Vec<String> {
+  let Ok(entries) = fs::read_dir(dir) else {
+    return Vec::new();
+  };
+  let mut views = Vec::new();
+  for entry in entries.flatten() {
+    let name = format!("{prefix}{}", entry.file_name().to_string_lossy());
+    let path = entry.path();
+    if path.is_dir() {
+      views.extend(compiled_views(&path, &format!("{name}/")));
+    } else if name.ends_with(".rs") {
+      views.push(name);
+    }
+  }
+  views.sort();
+  views
 }
 
 /// `path` with its last segment's extension replaced by `rs`, as `compile_dir` names its output.
@@ -207,7 +257,6 @@ mod tests {
   use super::*;
   use proc_macro2::Span;
   use quote::quote;
-  use std::fs;
 
   /// A site for `src/views/login.rs` in the crate at `/w/app`, whose build script wrote
   /// `$OUT_DIR/views/src/views/login.rs` unless `compiled` is false.
@@ -356,15 +405,7 @@ mod tests {
   // Each problem with the view's file is reported, in the order the macro meets them.
   #[test]
   fn file_problems() {
-    let item = || {
-      quote!(
-        struct LoginView;
-      )
-    };
-    let no_source = Site {
-      source_file: None,
-      ..site("no-source", true)
-    };
+    let item = || quote! { struct LoginView; };
     let outside = Site {
       manifest_dir: "/w/other".into(),
       ..site("outside", true)
@@ -374,12 +415,62 @@ mod tests {
       ..site("no-out-dir", true)
     };
 
-    assert!(error(quote!("login.xaml"), item(), &no_source).starts_with("can't find the file this struct is in"));
     assert!(error(quote!("login.xaml"), item(), &outside).starts_with("`login.xaml` is outside the crate"));
     assert!(error(quote!("login.xaml"), item(), &no_out_dir).starts_with("this crate compiles no views"));
     assert_eq!(
       error(quote!("login.xaml"), item(), &site("missing", false)),
       "no compiled view for `src/views/login.xaml`: the file doesn't exist, or the build script's `compile_dir` doesn't cover it"
     );
+  }
+
+  /// A site with no source file, as rust-analyzer expands macros, whose build script wrote each
+  /// of `compiled` under `$OUT_DIR/views`.
+  fn editor_site(name: &str, compiled: &[&str]) -> Site {
+    let out_dir = std::env::temp_dir().join(format!("artic-ui-class-editor-{name}-{}", std::process::id()));
+    for path in compiled {
+      let path = out_dir.join("views").join(path);
+      fs::create_dir_all(path.parent().expect("a directory")).expect("a temporary directory");
+      fs::write(path, "").expect("a compiled view");
+    }
+    Site {
+      source_file: None,
+      manifest_dir: "/w/app".into(),
+      out_dir: Some(out_dir),
+    }
+  }
+
+  // Without the struct's file, the view is the one compiled view whose path ends with the
+  // argument's, `..` segments left out.
+  #[test]
+  fn editor_finds_the_compiled_view_by_its_end() {
+    let site = editor_site("one", &["src/views/login.rs", "src/views/card.rs", "src/old_login.rs"]);
+
+    assert_eq!(
+      view_path(&site, &literal("login.xaml")).expect("found"),
+      "src/views/login.xaml"
+    );
+    assert_eq!(
+      view_path(&site, &literal("../views/login.xaml")).expect("found"),
+      "src/views/login.xaml"
+    );
+  }
+
+  // Without the struct's file, no compiled view or several with the argument's end are reported.
+  #[test]
+  fn editor_reports_no_view_or_several() {
+    let site = editor_site("several", &["src/a/login.rs", "src/b/login.rs"]);
+
+    assert_eq!(
+      view_path(&site, &literal("card.xaml")).expect_err("none").to_string(),
+      "no compiled view for `card.xaml`: the file doesn't exist, or the build script's `compile_dir` doesn't cover it"
+    );
+    assert_eq!(
+      view_path(&site, &literal("login.xaml")).expect_err("several").to_string(),
+      "several compiled views end with `login.xaml`, `src/a/login.xaml` and `src/b/login.xaml`, and this editor doesn't say which file the struct is in"
+    );
+  }
+
+  fn literal(text: &str) -> LitStr {
+    LitStr::new(text, Span::call_site())
   }
 }
