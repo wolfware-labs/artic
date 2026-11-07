@@ -153,7 +153,7 @@ Every markup extension, a value provider in [the UI language contract](../spec/d
 
 **Attribute text.** `<Border Padding="4,8"/>`
 
-1. The loader resolves `Border` with `Registry::type_by_name` (or `type_by_rust_path` for a `using:` prefix) and creates the node with `TypeInfo::new`.
+1. The loader resolves `Border` with `Registry::type_by_name` (or `type_by_rust_path` for a `using:` prefix) and creates the node with `TypeInfo::new`, reporting a type that has none, such as a view's code type (#59).
 2. It finds `PropertyInfo` `Padding` in `border.properties`.
 3. It calls `(padding.access.set_text)(tree, node, "4,8", Precedence::Local)`.
 4. The thunk parses a `Thickness` and calls `border.padding.set_at(Local, value)`.

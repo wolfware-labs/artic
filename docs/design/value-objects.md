@@ -36,7 +36,7 @@ pub enum TypeKind {
 
 pub struct TypeInfo {
   // existing fields …
-  pub new: fn(&mut UiTree) -> NodeId,   // unchanged
+  pub new: Option<fn(&mut UiTree) -> NodeId>,   // unchanged; `Some` for every value type
   pub kind: TypeKind,                      // new
 }
 ```
@@ -95,7 +95,7 @@ The [loader values](loader-values.md) thunk `set_object` for `Property<V>` or `P
 For `<Border.Background><SolidColorBrush Color="#3B82F6"/></Border.Background>`:
 
 1. Resolve `SolidColorBrush` in the registry. Its `kind` is `Value`.
-2. Stage it: `(info.new)(tree)` allocates a `SolidColorBrush` with its defaults.
+2. Stage it: `info.new`, which every value type has, allocates a `SolidColorBrush` with its defaults.
 3. Set its members through their thunks: `Color`'s `set_text("#3B82F6")` parses a `Color` and assigns the field.
 4. Call `Background`'s `set_object(tree, border, staged, Precedence::Local)`.
 5. The thunk calls `Brush::from_object`, which frees the staging node, takes the `SolidColorBrush` out and converts it with `Brush::from`, then calls `background.set_at(Local, Some(brush))`.

@@ -4,6 +4,9 @@
 //! [`controls`], [`core`], [`element`], [`layout`] and [`render`]. With default features it adds
 //! no UI language, host or renderer: each comes with a feature named after it.
 //!
+//! [`ui_class`] makes a struct the code type of a compiled view: the element at its root, holding
+//! its named nodes.
+//!
 //! Features:
 //!
 //! - `view-compiler`: `view::compile_dir` and `view::crate_paths()`, which compile a directory of
