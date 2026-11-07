@@ -39,7 +39,7 @@ const fn info(name: &'static str, rust_path: &'static str) -> TypeInfo {
   TypeInfo {
     name,
     rust_path,
-    new: new_node,
+    new: Some(new_node),
     content: None,
     properties: &[],
     groups: &[],

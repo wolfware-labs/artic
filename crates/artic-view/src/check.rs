@@ -184,6 +184,14 @@ impl Check {
         .with_help("the code type takes the root's place, so the root's type must allow it"),
       );
     }
+    if let Some(ty) = ty
+      && ty.info.new.is_none()
+    {
+      self.diagnostics.push(Diagnostic::error(
+        element.span,
+        format!("`{}` can't be created from markup yet (#59)", ty.info.name),
+      ));
+    }
     let ty: &TypeUse = ty?;
     self.elements.push(CheckedElement {
       ty: ty.clone(),

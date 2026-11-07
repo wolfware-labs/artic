@@ -226,7 +226,7 @@ fn type_info(analysis: &TypeAnalysis) -> TokenStream {
     static __TYPE_INFO: __artic::TypeInfo = __artic::TypeInfo {
       name: ::core::stringify!(#ident),
       rust_path: ::core::concat!(::core::module_path!(), "::", ::core::stringify!(#ident)),
-      new: __new,
+      new: ::core::option::Option::Some(__new),
       content: #content,
       properties: &__PROPERTIES,
       groups: &__GROUPS,

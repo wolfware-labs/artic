@@ -14,8 +14,9 @@ pub struct TypeInfo {
   /// The full Rust path where the type is defined, such as `artic_controls::border::Border`; a
   /// re-export doesn't change it.
   pub rust_path: &'static str,
-  /// Creates a node of this type with its default values and returns its id.
-  pub new: fn(&mut UiTree) -> NodeId,
+  /// Creates a node of this type with its default values and returns its id, or `None` for a type
+  /// that can't be created from markup alone, such as one with a `#[ui(required)]` field.
+  pub new: Option<fn(&mut UiTree) -> NodeId>,
   /// What receives content written directly inside the element, if anything.
   pub content: Option<ContentInfo>,
   /// The type's settable properties.
@@ -322,7 +323,7 @@ mod tests {
   static BORDER: TypeInfo = TypeInfo {
     name: "Border",
     rust_path: "artic_controls::Border",
-    new: new_border,
+    new: Some(new_border),
     content: None,
     properties: &[PropertyInfo {
       name: PADDING.name(),
@@ -349,7 +350,7 @@ mod tests {
   fn static_descriptor_reads_metadata_from_the_key() {
     let mut tree = UiTree::new();
 
-    let node = (BORDER.new)(&mut tree);
+    let node = (BORDER.new.expect("created from defaults"))(&mut tree);
 
     assert_eq!(BORDER.properties[0].name, "Padding");
     assert_eq!(BORDER.properties[0].affects, Affects::LAYOUT);

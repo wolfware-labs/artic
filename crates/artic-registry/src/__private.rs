@@ -212,7 +212,7 @@ mod tests {
   static GAUGE: TypeInfo = TypeInfo {
     name: "Gauge",
     rust_path: "tests::Gauge",
-    new: |_| unreachable!("never created"),
+    new: None,
     content: None,
     properties: &[],
     groups: &[],
