@@ -258,6 +258,30 @@ mod tests {
     }
   }
 
+  // `required` takes no other setting, each one refused alone.
+  #[test]
+  fn required_takes_no_other_setting() {
+    for setting in [
+      "default = 1",
+      "key = KEY",
+      "affects = layout",
+      "inherits",
+      "name = \"B\"",
+      "flatten",
+      "content",
+    ] {
+      let setting: proc_macro2::TokenStream = setting.parse().expect("tokens");
+      let input: DeriveInput = parse_quote! { struct A { #[ui(required, #setting)] a: u8 } };
+
+      let error = parse_field_attributes(first_field(&input)).expect_err(&setting.to_string());
+
+      assert!(
+        error.to_string().starts_with("`required` takes no other settings"),
+        "{setting}"
+      );
+    }
+  }
+
   // A shared key can't be combined with `affects` or `inherits`, which the key already holds.
   #[test]
   fn key_with_affects_is_an_error() {

@@ -509,6 +509,27 @@ mod tests {
     );
   }
 
+  // A file's extension starts at the last dot of its name, unless that dot starts the name.
+  #[test]
+  fn extension_is_read_from_the_last_name() {
+    assert_eq!(split_extension("views/login.ui"), ("views/login", ".ui"));
+    assert_eq!(split_extension("v1.2/card"), ("v1.2/card", ""));
+    assert_eq!(split_extension("a/.ui"), ("a/.ui", ""));
+    assert_eq!(split_extension(".ui"), (".ui", ""));
+  }
+
+  // A path is absolute from a root, or from a drive letter followed by `:/`.
+  #[test]
+  fn absolute_paths_start_at_a_root_or_a_drive() {
+    assert!(is_absolute("/w/app"));
+    assert!(is_absolute("C:/w/app"));
+    assert!(!is_absolute("w/app"));
+    assert!(!is_absolute("C:"));
+    assert!(!is_absolute("C:w"));
+    assert!(!is_absolute("Cx/w"));
+    assert!(!is_absolute("1:/w"));
+  }
+
   // Without the struct's file, no compiled view or several with the argument's end are reported.
   #[test]
   fn editor_reports_no_view_or_several() {
