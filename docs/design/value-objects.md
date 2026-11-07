@@ -36,7 +36,7 @@ pub enum TypeKind {
 
 pub struct TypeInfo {
   // existing fields …
-  pub new: Option<fn(&mut UiTree) -> NodeId>,   // unchanged; `Some` for every value type
+  pub new: Option<fn(&mut UiTree) -> NodeId>,   // `None` for a code type (#52), `Some` for every value type
   pub kind: TypeKind,                      // new
 }
 ```
