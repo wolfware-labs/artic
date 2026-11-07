@@ -2,7 +2,7 @@
 source: crates/artic-macros/src/ui_class.rs
 expression: "prettyplease::unparse(&file)"
 ---
-///The compiled `src/views/login.xaml`.
+///The compiled `src/views/login.ui`.
 pub mod login_view {
     ::core::include!(
         ::core::concat!(::core::env!("OUT_DIR"), "/views/src/views/login.rs")
@@ -24,7 +24,7 @@ pub struct LoginView {
     ///What style selectors and code find the element by.
     #[ui(flatten)]
     pub identity: ::artic_element::__private::Identity,
-    ///The named nodes of `src/views/login.xaml`.
+    ///The named nodes of `src/views/login.ui`.
     #[ui(required)]
     pub ui: login_view::View,
     /// The content of the view's root.
@@ -106,7 +106,7 @@ const _: () = {
 };
 impl ::artic_element::__private::ElementImpl for LoginView {}
 impl LoginView {
-    ///Builds `src/views/login.xaml` in `tree`, with this type at the root.
+    ///Builds `src/views/login.ui` in `tree`, with this type at the root.
     #[must_use = "the handle is needed to link or reach the node"]
     pub fn create(
         tree: &mut ::artic_element::__private::UiTree,
@@ -117,6 +117,6 @@ impl LoginView {
 const _: () = ::core::assert!(
     ::artic_element::__private::same_code_type(login_view::CODE_TYPE,
     ::core::concat!(::core::module_path!(), "::", "LoginView")),
-    ::core::concat!("`src/views/login.xaml` must name `", ::core::module_path!(),
+    ::core::concat!("`src/views/login.ui` must name `", ::core::module_path!(),
     "::LoginView` as its code type"),
 );

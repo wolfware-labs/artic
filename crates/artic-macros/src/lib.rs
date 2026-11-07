@@ -221,7 +221,7 @@ pub fn element(attribute: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// ```ignore
 /// // src/views/login.rs
-/// #[ui_class("login.xaml")]
+/// #[ui_class("login.ui")]
 /// #[derive(Debug)]
 /// pub struct LoginView {
 ///   attempts: u32,

@@ -27,7 +27,7 @@ pub fn expand(argument: TokenStream, item: TokenStream, site: &Site) -> syn::Res
   let path: LitStr = syn::parse2(argument).map_err(|error| {
     Error::new(
       error.span(),
-      "`#[ui_class]` takes the view's path, such as `#[ui_class(\"login.xaml\")]`",
+      "`#[ui_class]` takes the view's path, such as `#[ui_class(\"login.ui\")]`",
     )
   })?;
   let mut item: ItemStruct = syn::parse2(item)?;
@@ -349,7 +349,7 @@ mod tests {
       }
     };
 
-    let expanded = expand(quote!("login.xaml"), item, &site("whole", true)).expect("valid");
+    let expanded = expand(quote!("login.ui"), item, &site("whole", true)).expect("valid");
 
     let file: syn::File = syn::parse2(expanded).expect("parses");
     insta::assert_snapshot!(prettyplease::unparse(&file));
@@ -359,8 +359,8 @@ mod tests {
   #[test]
   fn windows_paths_use_slashes() {
     assert_eq!(
-      crate_relative(r"\\?\C:\w\app\src\views\login.rs", r"C:\w\app", "login.xaml").as_deref(),
-      Some("src/views/login.xaml")
+      crate_relative(r"\\?\C:\w\app\src\views\login.rs", r"C:\w\app", "login.ui").as_deref(),
+      Some("src/views/login.ui")
     );
   }
 
@@ -368,25 +368,25 @@ mod tests {
   #[test]
   fn parent_segments_resolve() {
     assert_eq!(
-      crate_relative("/w/app/src/views/login.rs", "/w/app/", "./../shared/login.xaml").as_deref(),
-      Some("src/shared/login.xaml")
+      crate_relative("/w/app/src/views/login.rs", "/w/app/", "./../shared/login.ui").as_deref(),
+      Some("src/shared/login.ui")
     );
   }
 
   // A view outside the crate, by `..` or by an absolute path, has no path in the crate.
   #[test]
   fn outside_the_crate_has_no_path() {
-    assert_eq!(crate_relative("/w/app/src/login.rs", "/w/app", "../../login.xaml"), None);
-    assert_eq!(crate_relative("/w/app/src/login.rs", "/w/app", "/w/other/login.xaml"), None);
-    assert_eq!(crate_relative("/w/application/src/login.rs", "/w/app", "login.xaml"), None);
+    assert_eq!(crate_relative("/w/app/src/login.rs", "/w/app", "../../login.ui"), None);
+    assert_eq!(crate_relative("/w/app/src/login.rs", "/w/app", "/w/other/login.ui"), None);
+    assert_eq!(crate_relative("/w/application/src/login.rs", "/w/app", "login.ui"), None);
   }
 
   // An absolute path inside the crate is the view at that path.
   #[test]
   fn absolute_path_inside_the_crate() {
     assert_eq!(
-      crate_relative("/w/app/src/login.rs", "/w/app", "/w/app/views/login.xaml").as_deref(),
-      Some("views/login.xaml")
+      crate_relative("/w/app/src/login.rs", "/w/app", "/w/app/views/login.ui").as_deref(),
+      Some("views/login.ui")
     );
   }
 
@@ -425,21 +425,21 @@ mod tests {
         "`#[ui_class]` takes the view's path",
       ),
       (
-        quote!("a.xaml"),
+        quote!("a.ui"),
         quote!(
           struct A<T>(T);
         ),
         "`#[ui_class]` can't be used on a generic struct",
       ),
       (
-        quote!("a.xaml"),
+        quote!("a.ui"),
         quote!(
           struct A(u8);
         ),
         "`#[ui_class]` needs a struct with named fields",
       ),
       (
-        quote!("a.xaml"),
+        quote!("a.ui"),
         quote!(
           struct A {
             ui: u8,
@@ -448,7 +448,7 @@ mod tests {
         "`ui` is added by `#[ui_class]`",
       ),
       (
-        quote!("a.xaml"),
+        quote!("a.ui"),
         quote!(
           struct A {
             child: u8,
@@ -472,11 +472,11 @@ mod tests {
     let mut no_out_dir = site("no-out-dir", true);
     no_out_dir.out_dir = None;
 
-    assert!(error(quote!("login.xaml"), item(), &outside).starts_with("`login.xaml` is outside the crate"));
-    assert!(error(quote!("login.xaml"), item(), &no_out_dir).starts_with("this crate compiles no views"));
+    assert!(error(quote!("login.ui"), item(), &outside).starts_with("`login.ui` is outside the crate"));
+    assert!(error(quote!("login.ui"), item(), &no_out_dir).starts_with("this crate compiles no views"));
     assert_eq!(
-      error(quote!("login.xaml"), item(), &site("missing", false)),
-      "no compiled view for `src/views/login.xaml`: the file doesn't exist, or the build script's `compile_dir` doesn't cover it"
+      error(quote!("login.ui"), item(), &site("missing", false)),
+      "no compiled view for `src/views/login.ui`: the file doesn't exist, or the build script's `compile_dir` doesn't cover it"
     );
   }
 
@@ -492,13 +492,10 @@ mod tests {
   fn editor_finds_the_compiled_view_by_its_end() {
     let site = editor_site("one", &["src/views/login.rs", "src/views/card.rs", "src/old_login.rs"]);
 
+    assert_eq!(view_path(&site, &literal("login.ui")).expect("found"), "src/views/login.ui");
     assert_eq!(
-      view_path(&site, &literal("login.xaml")).expect("found"),
-      "src/views/login.xaml"
-    );
-    assert_eq!(
-      view_path(&site, &literal("../views/login.xaml")).expect("found"),
-      "src/views/login.xaml"
+      view_path(&site, &literal("../views/login.ui")).expect("found"),
+      "src/views/login.ui"
     );
   }
 
@@ -508,12 +505,12 @@ mod tests {
     let site = editor_site("several", &["src/a/login.rs", "src/b/login.rs"]);
 
     assert_eq!(
-      view_path(&site, &literal("card.xaml")).expect_err("none").to_string(),
-      "no compiled view for `card.xaml`: the file doesn't exist, or the build script's `compile_dir` doesn't cover it"
+      view_path(&site, &literal("card.ui")).expect_err("none").to_string(),
+      "no compiled view for `card.ui`: the file doesn't exist, or the build script's `compile_dir` doesn't cover it"
     );
     assert_eq!(
-      view_path(&site, &literal("login.xaml")).expect_err("several").to_string(),
-      "several compiled views end with `login.xaml`, `src/a/login.xaml` and `src/b/login.xaml`, and this editor doesn't say which file the struct is in"
+      view_path(&site, &literal("login.ui")).expect_err("several").to_string(),
+      "several compiled views end with `login.ui`, `src/a/login.ui` and `src/b/login.ui`, and this editor doesn't say which file the struct is in"
     );
   }
 
@@ -533,8 +530,8 @@ mod tests {
     );
     assert_eq!(view_path(&site, &literal("../v1.2/card")).expect("found"), "src/v1.2/card");
     assert_eq!(
-      view_path(&site, &literal("/w/app/src/views/login.xaml")).expect("found"),
-      "src/views/login.xaml"
+      view_path(&site, &literal("/w/app/src/views/login.ui")).expect("found"),
+      "src/views/login.ui"
     );
   }
 
@@ -543,10 +540,10 @@ mod tests {
   fn braces_in_the_view_path_are_escaped_in_the_message() {
     let site = TestSite::new("braces", Some("/w/app/src/views/login.rs"), &["src/views/{a}.rs"]);
 
-    let expanded = expand(quote!("{a}.xaml"), quote! { struct LoginView; }, &site).expect("valid");
+    let expanded = expand(quote!("{a}.ui"), quote! { struct LoginView; }, &site).expect("valid");
 
     assert!(
-      expanded.to_string().contains("\"`src/views/{{a}}.xaml` must name `\""),
+      expanded.to_string().contains("\"`src/views/{{a}}.ui` must name `\""),
       "{expanded}"
     );
   }
@@ -554,7 +551,7 @@ mod tests {
   // A struct named with a raw identifier gets the module and the code type of its plain name.
   #[test]
   fn raw_struct_name_is_read_without_its_prefix() {
-    let expanded = expand(quote!("login.xaml"), quote! { struct r#LoginView; }, &site("raw", true)).expect("valid");
+    let expanded = expand(quote!("login.ui"), quote! { struct r#LoginView; }, &site("raw", true)).expect("valid");
 
     let text = expanded.to_string();
     assert!(text.contains("mod login_view"), "{text}");
@@ -573,8 +570,7 @@ mod tests {
     };
 
     assert!(
-      error(quote!("login.xaml"), item, &site("required", true))
-        .starts_with("a code type's own fields start at their defaults"),
+      error(quote!("login.ui"), item, &site("required", true)).starts_with("a code type's own fields start at their defaults"),
     );
   }
 }
