@@ -1,0 +1,5 @@
+error[E0616]: field `email` of struct `View` is private
+  --> src/bin/private_field.rs:12:31
+   |
+12 |   let _ = login.get(&tree).ui.email;
+   |                               ^^^^^ private field

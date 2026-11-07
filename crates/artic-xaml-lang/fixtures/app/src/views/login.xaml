@@ -1,0 +1,8 @@
+<!-- A sign-in form whose code type is `LoginView`, in `login.rs` beside it. -->
+<UserControl xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup"
+             x:Class="artic_xaml_compiler_fixture_app::views::login::LoginView" Margin="16">
+  <StackPanel Spacing="8">
+    <TextBlock x:Name="email" x:FieldModifier="pub(crate)" Text="Email"/>
+    <TextBlock x:Name="status" Text="Signed out"/>
+  </StackPanel>
+</UserControl>

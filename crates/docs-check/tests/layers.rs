@@ -559,8 +559,8 @@ fn nothing_depends_on_an_adapter() {
   assert_none(problems);
 }
 
-// The facade depends without a feature only on crates it re-exports, none of them a seam's, and
-// its default features add no seam's crate.
+// The facade depends without a feature only on crates it re-exports, whole or by item, none of
+// them a seam's, and its default features add no seam's crate.
 #[test]
 fn the_facade_depends_only_on_what_it_re_exports() {
   let packages = metadata();
@@ -576,8 +576,13 @@ fn the_facade_depends_only_on_what_it_re_exports() {
     if seams.contains(target.as_str()) {
       problems.push(format!("artic -> {target}: a seam's crate, so it comes with a feature"));
     }
-    let re_export = format!("pub use {} ", target.replace('-', "_"));
-    if !lib.lines().any(|line| line.trim_start().starts_with(&re_export)) {
+    let library = target.replace('-', "_");
+    let (whole, item) = (format!("pub use {library} "), format!("pub use {library}::"));
+    if !lib
+      .lines()
+      .map(str::trim_start)
+      .any(|line| line.starts_with(&whole) || line.starts_with(&item))
+    {
       problems.push(format!("artic -> {target}: depended on, not re-exported in src/lib.rs"));
     }
   }

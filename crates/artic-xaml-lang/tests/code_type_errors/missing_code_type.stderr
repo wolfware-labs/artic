@@ -1,0 +1,17 @@
+error[E0308]: mismatched types
+ --> src/bin/missing_code_type.rs:5:8
+  |
+3 | #[artic::ui_class("missing_code_type.xaml")]
+  | -------------------------------------------- expected `Handle<LoginView>` because of return type
+4 | #[derive(Debug)]
+5 | struct LoginView;
+  |        ^^^^^^^^^ expected `Handle<LoginView>`, found `View`
+  |
+  = note: expected struct `Handle<LoginView>`
+             found struct `View`
+
+error[E0080]: evaluation panicked: `src/bin/missing_code_type.xaml` must name `missing_code_type::LoginView` as its code type
+ --> src/bin/missing_code_type.rs:5:8
+  |
+5 | struct LoginView;
+  |        ^^^^^^^^^ evaluation of `_` failed here

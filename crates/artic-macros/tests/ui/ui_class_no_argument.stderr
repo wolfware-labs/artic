@@ -1,0 +1,7 @@
+error: `#[ui_class]` takes the view's path, such as `#[ui_class("login.ui")]`
+ --> tests/ui/ui_class_no_argument.rs:3:1
+  |
+3 | #[ui_class]
+  | ^^^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `ui_class` (in Nightly builds, run with -Z macro-backtrace for more info)

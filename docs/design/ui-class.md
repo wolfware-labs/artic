@@ -107,7 +107,7 @@ A code type is built like any element, except for `ui`: every other field starts
 
 `ui` has no default: its handles exist only once the view's nodes are built. The `UiType` derive gains a field setting for that, usable by any type: `#[ui(required)]`. The derive then writes `new(ui: View) -> Self`, with every other field as `Default` would write it, instead of `Default` and `new()`.
 
-Such a type has no node to create from the tree alone, so `TypeInfo::new` becomes `Option<fn(&mut UiTree) -> NodeId>`, `None` for a type with a required field. Every other type keeps `Some`. The runtime loader creates a node with `TypeInfo::new` and then sets its members and builds its children from the source, so pointing it at `create` would build the compiled children a second time, and a view that only exists at run time has no compiled file to call. Until #59 designs that path (build the children, fill `View` from the named nodes, then construct the code type), the loader reports "`LoginView` can't be created from markup yet (#59)".
+Such a type has no node to create from the tree alone, so `TypeInfo::new` becomes `Option<fn(&mut UiTree) -> NodeId>`, `None` for a type with a required field. Every other type keeps `Some`. The runtime loader creates a node with `TypeInfo::new` and then sets its members and builds its children from the source, so pointing it at `create` would build the compiled children a second time, and a view that only exists at run time has no compiled file to call. Until #59 designs that path (build the children, fill `View` from the named nodes, then construct the code type), the loader reports "`LoginView` can't be created from markup yet (#59)". The view checker reports the same for such a type used as an element in a compiled view, at the element, for every UI language.
 
 `#[ui_class]` writes both:
 
@@ -146,11 +146,11 @@ The root's members resolve through the element the document's root names, `UserC
 Two checks keep the struct and the file together:
 
 - rustc checks the path: a code type that doesn't exist, or isn't a type with that `View`, fails to compile.
-- The compiled file states its code type, `pub const CODE_TYPE: Option<&str> = Some("app::views::login::LoginView");`, or `None` without one. `#[ui_class]` adds a constant assertion comparing it with `concat!(module_path!(), "::LoginView")` through a `const fn` that compares the bytes, since `==` on `&str` isn't usable in a constant, whose message is a literal naming the source file and the expected path: "`src/views/login.xaml` must name this struct as its code type: add `x:Class="app::views::login::LoginView"` to its root".
+- The compiled file states its code type, `pub const CODE_TYPE: Option<&str> = Some("app::views::login::LoginView");`, or `None` without one. `#[ui_class]` adds a constant assertion comparing it with `concat!(module_path!(), "::LoginView")` through a `const fn` that compares the bytes, since `==` on `&str` isn't usable in a constant, whose message is a literal naming the source file and the expected path: "`src/views/login.xaml` must name `app::views::login::LoginView` as its code type". The macro knows no UI language, so the message doesn't spell the attribute.
 
 ## The file argument
 
-`#[ui_class("login.xaml")]` names the view relative to the file the struct is in, as `include_str!` does. The macro finds that file with `Span::local_file` and makes the path relative to the crate (`src/views/login.xaml`).
+`#[ui_class("login.xaml")]` names the view relative to the file the struct is in, as `include_str!` does. The macro finds that file with `Span::local_file` and makes the path relative to the crate (`src/views/login.xaml`). rust-analyzer doesn't say which file a macro is expanded in, so there the macro takes the one compiled view under `$OUT_DIR/views` whose path ends with the argument's, and reports none or several in the editor; rustc builds always resolve the path exactly.
 
 `compile_dir` writes each view at its path in the crate: `$OUT_DIR/views/src/views/login.rs`, where it writes `$OUT_DIR/views/login.rs` today for `compile_dir("src/views")`. That is the same path its header and diagnostics already show, so the macro needs nothing else to find the compiled file. A view in a directory outside the crate keeps its path relative to that directory and can't have a code type, since the macro's path is always inside the crate. A missing compiled file is the macro's error, at the string: "no compiled view for `src/views/login.xaml`: the file doesn't exist, or the build script's `compile_dir` doesn't cover it".
 
@@ -179,8 +179,9 @@ Two checks keep the struct and the file together:
 | A field visibility on an element without a name | compiler | the attribute |
 | The file and the struct name different code types, including another crate, or the file names none | `#[ui_class]`'s assertion | the struct, naming the `.xaml` |
 | An item beside the struct already named like its module (`login_view`) | rustc, as a duplicate name | the struct |
-| No compiled file | `#[ui_class]` | the path string |
-| A struct with generics, a tuple struct, or a field named `ui` or `child` | `#[ui_class]` | the struct or the field |
+| No compiled file, a crate without a build script, or a view outside the crate | `#[ui_class]` | the path string |
+| A type whose `TypeInfo::new` is `None` used as an element | view checker | the element |
+| A struct with generics, a tuple struct, a field named `ui` or `child`, or a field of its own marked `#[ui(required)]` | `#[ui_class]` | the struct or the field |
 
 ## Not in this design
 
@@ -192,14 +193,14 @@ Two checks keep the struct and the file together:
 ## Testing
 
 - `artic-element`: an element with no `ElementImpl` methods fills its box with its children; `UserControl` and `Surface` layouts are unchanged.
-- `artic-macros` (trybuild): a code type builds; a field named `ui`; generics; a missing compiled file, with `.stderr` naming the `.xaml`.
+- `artic-macros`: the expansion, snapshot-tested with the struct's file and `OUT_DIR` passed in; trybuild for what the macro reports before it reads a file (a field named `ui` or `child`, generics, a tuple struct, a view outside the crate).
 - `artic-registry`: a type with a required field registers `new: None`; every other type `Some`.
 - The view compiler (`artic-view`, `artic-view-compiler`) and `artic-xaml-lang`: snapshots of a view with a code type and field visibilities; each new diagnostic.
 - The fixture app (`crates/artic-xaml-lang/fixtures/app`) gains a code type:
   - `build_returns_code_type_root`: `create` returns the code type at the root of the tree, with the view's root content as its child;
   - two named nodes resolve to the right nodes;
-  - a mismatched or missing `x:Class` fails (trybuild, against the fixture's views);
-  - `field_visibility_sets_access`: a `pub(crate)` handle is reachable from another module, and a default one isn't (trybuild).
+  - a `pub(crate)` handle is reachable from another module, and a default one from the code type's module.
+- `artic-xaml-lang`'s `code_type_errors`: trybuild's projects have no build script, so failures that need a compiled view build a small app under the target directory with `cargo check` and compare its errors with `.stderr` files: a mismatched or missing `x:Class`, a view that wasn't compiled, and a default handle read from another module.
 
 ## Changes to other documents and issues
 

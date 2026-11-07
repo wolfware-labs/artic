@@ -1,0 +1,6 @@
+error: `required` takes no other settings: the code that creates the type gives the field its value
+ --> tests/ui/required_with_other_setting.rs:5:3
+  |
+5 | /   #[ui(required, name = "Session")]
+6 | |   session: u32,
+  | |______________^

@@ -1,0 +1,5 @@
+error: no compiled view for `src/bin/absent.xaml`: the file doesn't exist, or the build script's `compile_dir` doesn't cover it
+ --> src/bin/no_compiled_view.rs:3:19
+  |
+3 | #[artic::ui_class("absent.xaml")]
+  |                   ^^^^^^^^^^^^^

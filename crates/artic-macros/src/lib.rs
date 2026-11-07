@@ -3,6 +3,7 @@
 mod crate_root;
 mod element;
 mod members;
+mod ui_class;
 mod ui_enum;
 mod ui_properties;
 mod ui_type;
@@ -58,6 +59,10 @@ use syn::{DeriveInput, parse_macro_input};
 ///   the element. A flattened group may mark one of its properties instead; a type has at most one
 ///   content member, counting its groups.
 ///
+/// - `#[ui(required)]` on a field of any type: it has no default, so `new` takes it as an argument,
+///   in field order with the other required fields. It takes no other setting, and a property
+///   group can't have one.
+///
 /// Unmarked fields are created with their own `Default`.
 ///
 /// # Generated code
@@ -65,9 +70,12 @@ use syn::{DeriveInput, parse_macro_input};
 /// The derive implements `Default`, `Object` (with `visit_properties`) and `UiType`, writes the
 /// type's `TypeInfo` with its property, event, attached property and value provider descriptors,
 /// and adds it to `UI_TYPES`. So the struct derives `Debug` but not `Default`, and a crate's types
-/// only reach the registry if the crate is linked (see `UI_TYPES`).
+/// only reach the registry if the crate is linked (see `UI_TYPES`). A type with a required field
+/// has no `Default`, and its `TypeInfo::new` is `None`, since nothing can create it from its
+/// defaults alone.
 ///
-/// It also writes the builder from the builder design: `new()`, the `Default`; one method per
+/// It also writes the builder from the builder design: `new()`, the `Default`, or
+/// `new(required, ...)` for a type with required fields; one method per
 /// `Property` field, named after the field, which sets the `Local` level and takes `impl Into<T>`
 /// (the `X` of `Option<X>`), or the number itself for a number type written as `f32` or
 /// `core::primitive::f32`, so a literal such as `8.0` needs no suffix; and `build(tree)`, which
@@ -204,6 +212,58 @@ pub fn derive_ui_enum(input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn element(attribute: TokenStream, item: TokenStream) -> TokenStream {
   element::expand(attribute.into(), item.into())
+    .unwrap_or_else(syn::Error::into_compile_error)
+    .into()
+}
+
+/// Makes a struct the code type of a compiled view: the element at the root of the view, holding
+/// its named nodes.
+///
+/// ```ignore
+/// // src/views/login.rs
+/// #[ui_class("login.ui")]
+/// #[derive(Debug)]
+/// pub struct LoginView {
+///   attempts: u32,
+/// }
+///
+/// let login: Handle<LoginView> = LoginView::create(&mut tree);
+/// let email = login.get(&tree).ui.email;
+/// ```
+///
+/// The path is the view's source, relative to the file the struct is in, as `include_str!` reads
+/// it. The build script's `compile_dir` must cover it: the macro includes what it wrote at the
+/// view's path in the crate, `$OUT_DIR/views/src/views/login.rs`, in a module named after the
+/// struct in snake case (`login_view`), with the struct's visibility. The view must name the
+/// struct as its code type, by the path that defines it: `app::views::login::LoginView`. An editor
+/// that doesn't say which file the struct is in, such as rust-analyzer, gets the one compiled
+/// view whose path ends with the argument's.
+///
+/// The macro adds two fields before the struct's own, `ui: login_view::View`, the view's named
+/// nodes, with the struct's visibility, and `child`, the content of the view's root. It then makes
+/// the struct an `#[element]` whose `ElementImpl` is the default one, so it takes the root's place
+/// with the root's members, and writes `create(tree) -> Handle<Self>`, which builds the view.
+/// Every other field starts at its `Default`, and the registry can't create the type from markup,
+/// since `ui` exists only once the view is built.
+///
+/// It reports, at the path, a view outside the crate, a crate without a build script and a view
+/// the build script didn't compile; at the struct, a generic or tuple struct, a field named `ui` or
+/// `child` or marked `#[ui(required)]`, and a view that names another code type or none. The struct's own `#[ui(...)]`
+/// settings and derives follow `#[element]`'s rules.
+#[proc_macro_attribute]
+pub fn ui_class(argument: TokenStream, item: TokenStream) -> TokenStream {
+  let source_file = proc_macro::Span::call_site()
+    .local_file()
+    .map(|file| match std::env::current_dir() {
+      Ok(current) => current.join(file),
+      Err(_) => file,
+    });
+  let site = ui_class::Site {
+    source_file,
+    manifest_dir: std::env::var_os("CARGO_MANIFEST_DIR").map(Into::into).unwrap_or_default(),
+    out_dir: std::env::var_os("OUT_DIR").map(Into::into),
+  };
+  ui_class::expand(argument.into(), item.into(), &site)
     .unwrap_or_else(syn::Error::into_compile_error)
     .into()
 }

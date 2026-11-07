@@ -177,7 +177,7 @@ fn border_is_registered_with_its_members() {
 fn new_creates_a_node_with_defaults() {
   let mut tree = UiTree::new();
 
-  let node = (lookup("Border").new)(&mut tree);
+  let node = (lookup("Border").new.expect("created from defaults"))(&mut tree);
 
   let border = tree.get_as::<Border>(node).expect("a Border node");
   assert_eq!(border.child.get(), None);
@@ -217,8 +217,8 @@ fn whitespace_setting_reaches_the_descriptor() {
 #[test]
 fn shared_key_inherits_across_types() {
   let mut tree = UiTree::new();
-  let window = (Window::TYPE_INFO.new)(&mut tree);
-  let text = (TextBlock::TYPE_INFO.new)(&mut tree);
+  let window = (Window::TYPE_INFO.new.expect("created from defaults"))(&mut tree);
+  let text = (TextBlock::TYPE_INFO.new.expect("created from defaults"))(&mut tree);
 
   tree.add_child(TreeKind::Logical, window, text);
   tree.get_as::<Window>(window).expect("a Window").font_size.set(20.0);
@@ -256,7 +256,7 @@ fn attached_property_is_found_by_owner_and_name() {
 #[test]
 fn attached_helpers_set_and_read_with_precedence() {
   let mut tree = UiTree::new();
-  let border = (Border::TYPE_INFO.new)(&mut tree);
+  let border = (Border::TYPE_INFO.new.expect("created from defaults"))(&mut tree);
   assert_eq!(Grid::row(&tree, border), 0);
   assert_eq!(Grid::label(&tree, border), "unnamed");
 
@@ -279,7 +279,7 @@ struct Typed;
 #[test]
 fn keyword_attached_name_gets_a_raw_getter() {
   let mut tree = UiTree::new();
-  let border = (Border::TYPE_INFO.new)(&mut tree);
+  let border = (Border::TYPE_INFO.new.expect("created from defaults"))(&mut tree);
 
   Typed::set_type(&mut tree, border, 3);
 
@@ -305,8 +305,8 @@ struct Theme;
 #[test]
 fn attached_property_inherits_through_the_logical_tree() {
   let mut tree = UiTree::new();
-  let outer = (Border::TYPE_INFO.new)(&mut tree);
-  let inner = (Border::TYPE_INFO.new)(&mut tree);
+  let outer = (Border::TYPE_INFO.new.expect("created from defaults"))(&mut tree);
+  let inner = (Border::TYPE_INFO.new.expect("created from defaults"))(&mut tree);
   tree.add_child(TreeKind::Logical, outer, inner);
 
   Theme::set_accent(&mut tree, outer, 7);
@@ -552,7 +552,7 @@ fn content_property_in_a_group() {
 #[test]
 fn add_child_pushes_into_the_content_field() {
   let mut tree = UiTree::new();
-  let panel = (lookup("ItemList").new)(&mut tree);
+  let panel = (lookup("ItemList").new.expect("created from defaults"))(&mut tree);
   let child = tree.alloc(Box::new(ItemList::default()));
   let Some(ContentInfo::Collection { add_child, .. }) = lookup("ItemList").content else {
     panic!("a collection");
@@ -567,7 +567,7 @@ fn add_child_pushes_into_the_content_field() {
 #[test]
 fn add_child_refuses_another_type() {
   let mut tree = UiTree::new();
-  let other = (lookup("Border").new)(&mut tree);
+  let other = (lookup("Border").new.expect("created from defaults"))(&mut tree);
   let child = tree.alloc(Box::new(ItemList::default()));
   let Some(ContentInfo::Collection { add_child, .. }) = lookup("ItemList").content else {
     panic!("a collection");
@@ -800,4 +800,35 @@ fn group_methods_set_local() {
 fn group_describes_its_trait_and_keys() {
   assert!(<Common as PropertyGroup>::METHODS.ends_with("::CommonMethods"));
   assert_eq!(Common::MARGIN.name(), "Margin");
+}
+
+// A required field is an argument of `new`, every other field starts at its default with the
+// type's own defaults applied, and the registry can't create the type.
+#[test]
+fn required_field_is_an_argument_of_new() {
+  #[derive(Debug, UiType)]
+  #[ui(override_defaults)]
+  struct Login {
+    #[ui(required)]
+    session: u32,
+    #[ui(default = 2.0)]
+    width: Property<f32>,
+    #[ui(required)]
+    user: String,
+    attempts: u8,
+  }
+
+  impl OverrideDefaults for Login {
+    fn override_defaults(&self) {
+      self.width.set_default(3.0);
+    }
+  }
+
+  let login = Login::new(7, "ada".to_owned());
+
+  assert_eq!(
+    (login.session, login.width.get(), login.user.as_str(), login.attempts),
+    (7, 3.0, "ada", 0)
+  );
+  assert!(Login::TYPE_INFO.new.is_none());
 }

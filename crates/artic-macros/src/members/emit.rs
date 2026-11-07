@@ -6,10 +6,10 @@ use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 use syn::{Ident, Type};
 
-/// The `Default` impl of `ident`: each property at its key's default, every other field at its
-/// type's. A type with something to run on the built value passes it as `after`, which reads the
-/// value as `__artic_value`.
-pub fn default_impl(ident: &Ident, members: &Members, after: Option<TokenStream>) -> TokenStream {
+/// The expression that creates the struct: each property at its default, each required field
+/// from the variable of its name, and every other field at its own `Default`, followed by `after`,
+/// which reads the value as `__artic_value`.
+pub fn initializer(members: &Members, after: Option<TokenStream>) -> TokenStream {
   let properties = members.properties.iter().map(default_field);
   let content = match &members.content {
     Some(Content::Collection { ident, .. }) => Some(*ident),
@@ -22,20 +22,27 @@ pub fn default_impl(ident: &Ident, members: &Members, after: Option<TokenStream>
     .chain(members.groups.iter().map(|group| group.ident))
     .chain(content)
     .chain(members.unmarked.iter().copied());
+  let required = members.required.iter().map(|field| field.ident);
   let value = quote! {
     Self {
       #(#properties,)*
       #(#plain: ::core::default::Default::default(),)*
+      #(#required,)*
     }
   };
-  let body = match after {
+  match after {
     Some(after) => quote! {
       let __artic_value = #value;
       #after
       __artic_value
     },
     None => value,
-  };
+  }
+}
+
+/// The `Default` impl: the struct as [`initializer`] creates it.
+pub fn default_impl(ident: &Ident, members: &Members, after: Option<TokenStream>) -> TokenStream {
+  let body = initializer(members, after);
   quote! {
     impl ::core::default::Default for #ident {
       fn default() -> Self {

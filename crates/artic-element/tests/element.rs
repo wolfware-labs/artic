@@ -276,7 +276,7 @@ fn knob_overrides_group_defaults() {
   assert_eq!(knob.interaction.cursor.get(), Cursor::Hand);
 
   let mut tree = UiTree::new();
-  let node = (<Knob as UiType>::TYPE_INFO.new)(&mut tree);
+  let node = (<Knob as UiType>::TYPE_INFO.new.expect("created from defaults"))(&mut tree);
   assert!(tree.get_as::<Knob>(node).unwrap().interaction.focusable.get());
 }
 
@@ -295,7 +295,7 @@ fn style_setter_beats_control_default() {
 fn element_adds_derive_ui_type() {
   let mut tree = UiTree::new();
 
-  let node = (<Knob as UiType>::TYPE_INFO.new)(&mut tree);
+  let node = (<Knob as UiType>::TYPE_INFO.new.expect("created from defaults"))(&mut tree);
 
   assert!(tree.get_as::<Knob>(node).is_some());
 }
