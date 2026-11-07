@@ -10,10 +10,11 @@ name: CI
 # The mutants shards are a matrix, so the ruleset requires `Mutants`, the job that reports
 # whether every shard passed or was skipped.
 #
-# CodSpeed's and Codecov's verdicts come from their apps, which report nothing when the jobs that
-# feed them are skipped, so the ruleset can't require them directly. It requires `CodSpeed` and
-# `Coverage gate` instead: each waits for its app's verdict on the pull request's head commit and
-# passes or fails with it, and is skipped along with the job it follows.
+# CodSpeed's and Codecov's verdicts are check runs of their apps, which report nothing when the
+# jobs that feed them are skipped, so the ruleset can't require them directly. It requires
+# `CodSpeed` and `Coverage gate` instead: each waits for its app's check run on the pull request's
+# head commit and passes or fails with it, and is skipped along with the job it follows. The gates'
+# script is in both change filters, so a change to it runs them.
 
 on:
   pull_request:
@@ -61,6 +62,7 @@ jobs:
               - '.cargo/**'
               - '.github/workflows/ci.yml'
               - '.github/actions/**'
+              - '.github/scripts/**'
             # What can move a bench, or how the benches run.
             benches:
               - 'crates/**'
@@ -70,6 +72,7 @@ jobs:
               - '.cargo/**'
               - '.github/workflows/ci.yml'
               - '.github/actions/setup-rust/**'
+              - '.github/scripts/**'
             dependencies:
               - '**/Cargo.toml'
               - 'Cargo.lock'
@@ -197,10 +200,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
           FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
           UPSTREAM_JOB: Benchmarks
           UPSTREAM_RESULT: ${{ needs.benchmarks.result }}
-        run: .github/scripts/wait-for-verdict.sh check "CodSpeed Performance Analysis" 257293
+        run: .github/scripts/wait-for-verdict.sh "CodSpeed Performance Analysis" 257293
 
   coverage-gate:
     name: Coverage gate
@@ -210,7 +215,7 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: read
-      statuses: read
+      checks: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -220,10 +225,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
           FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
           UPSTREAM_JOB: Codecov
           UPSTREAM_RESULT: ${{ needs.codecov.result }}
-        run: .github/scripts/wait-for-verdict.sh status codecov/ codecov/patch
+        run: .github/scripts/wait-for-verdict.sh codecov/patch 254
 
   # Mutates the lines a pull request changes (.cargo/mutants.toml): each mutant must make a test
   # fail or stop the build, so one that survives, code no test checks, fails its shard.
