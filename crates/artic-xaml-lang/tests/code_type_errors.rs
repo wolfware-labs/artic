@@ -7,6 +7,23 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// The variables cargo sets for the package whose tests run, or that a coverage run sets for its
+/// own profiles, by name or prefix. The app is another package, so it gets none of them; the
+/// user's configuration, such as `CARGO_NET_OFFLINE` or a linker, stays.
+const OUTER_PACKAGE: [&str; 11] = [
+  "CARGO_MANIFEST_",
+  "CARGO_PKG_",
+  "CARGO_CRATE_NAME",
+  "CARGO_BIN_",
+  "CARGO_PRIMARY_PACKAGE",
+  "CARGO_TARGET_TMPDIR",
+  "CARGO_TARGET_DIR",
+  "CARGO_RUSTC_CURRENT_DIR",
+  "CARGO_LLVM_COV",
+  "OUT_DIR",
+  "LLVM_PROFILE_FILE",
+];
+
 const CASES: [&str; 4] = ["wrong_code_type", "missing_code_type", "no_compiled_view", "private_field"];
 
 /// The repository root.
@@ -64,7 +81,7 @@ fn errors(app: &Path, case: &str) -> String {
   let mut command = Command::new(env!("CARGO"));
   for (name, _) in std::env::vars_os() {
     let name = name.to_string_lossy();
-    if name.starts_with("CARGO_") && !matches!(name.as_ref(), "CARGO_HOME" | "CARGO_BUILD_JOBS") {
+    if OUTER_PACKAGE.iter().any(|prefix| name.starts_with(prefix)) {
       command.env_remove(name.as_ref());
     }
   }

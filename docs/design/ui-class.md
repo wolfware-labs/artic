@@ -181,7 +181,7 @@ Two checks keep the struct and the file together:
 | An item beside the struct already named like its module (`login_view`) | rustc, as a duplicate name | the struct |
 | No compiled file, a crate without a build script, or a view outside the crate | `#[ui_class]` | the path string |
 | A type whose `TypeInfo::new` is `None` used as an element | view checker | the element |
-| A struct with generics, a tuple struct, or a field named `ui` or `child` | `#[ui_class]` | the struct or the field |
+| A struct with generics, a tuple struct, a field named `ui` or `child`, or a field of its own marked `#[ui(required)]` | `#[ui_class]` | the struct or the field |
 
 ## Not in this design
 

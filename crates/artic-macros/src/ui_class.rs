@@ -1,11 +1,13 @@
 use crate::crate_root::{ELEMENT, crate_root};
 use crate::element::expand_struct;
+use crate::members::attributes::parse_field_attributes;
 use crate::ui_type::attributes::parse_type_attributes;
 use artic_ident::{is_keyword, snake_case};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use std::fs;
 use std::path::{Path, PathBuf};
+use syn::ext::IdentExt;
 use syn::{DeriveInput, Error, Fields, FieldsNamed, Ident, ItemStruct, LitStr, parse_quote};
 
 /// Where the macro is expanded: what the compiler and Cargo say about the struct's crate.
@@ -53,6 +55,13 @@ pub fn expand(argument: TokenStream, item: TokenStream, site: &Site) -> syn::Res
         format!("`{name}` is added by `#[ui_class]`; rename this field"),
       ));
     }
+    if let Some(span) = parse_field_attributes(field)?.and_then(|attributes| attributes.required) {
+      return Err(Error::new(
+        span,
+        "a code type's own fields start at their defaults, since its view creates it from the named nodes alone; \
+         `required` can't be used here",
+      ));
+    }
   }
   let ident = item.ident.clone();
   let module = module_ident(&ident)?;
@@ -79,8 +88,8 @@ pub fn expand(argument: TokenStream, item: TokenStream, site: &Site) -> syn::Res
   let compiled = format!("/views/{}", with_rs_extension(&view));
   let module_doc = format!("The compiled `{view}`.");
   let create_doc = format!("Builds `{view}` in `tree`, with this type at the root.");
-  let name = ident.to_string();
-  let message = format!("`{view}` must name `");
+  let name = ident.unraw().to_string();
+  let message = format!("`{}` must name `", view.replace('{', "{{").replace('}', "}}"));
   let message_end = format!("::{name}` as its code type");
   Ok(quote_spanned! {ident.span()=>
     #[doc = #module_doc]
@@ -109,7 +118,7 @@ pub fn expand(argument: TokenStream, item: TokenStream, site: &Site) -> syn::Res
 
 /// The module the compiled view goes in: the struct's name in snake case, raw if it's a keyword.
 fn module_ident(ident: &Ident) -> syn::Result<Ident> {
-  let name = snake_case(&ident.to_string());
+  let name = snake_case(&ident.unraw().to_string());
   match name.as_str() {
     "self" | "super" | "crate" => Err(Error::new_spanned(
       ident,
@@ -131,6 +140,12 @@ fn view_path(site: &Site, path: &LitStr) -> syn::Result<String> {
       "this crate compiles no views: it has no build script, so it has no compiled view",
     )
   };
+  let outside = |argument: &str| {
+    Error::new(
+      path.span(),
+      format!("`{argument}` is outside the crate, so it has no compiled view"),
+    )
+  };
   let not_compiled = |view: &str| {
     Error::new(
       path.span(),
@@ -139,17 +154,26 @@ fn view_path(site: &Site, path: &LitStr) -> syn::Result<String> {
   };
   let Some(source_file) = &site.source_file else {
     let views = site.out_dir.as_ref().ok_or_else(no_views)?.join("views");
-    let end = with_rs_extension(
-      &slashes(&argument)
+    let written = slashes(&argument);
+    let (end, exact) = if is_absolute(&written) {
+      let manifest_dir = slashes(&site.manifest_dir.to_string_lossy());
+      let inside = written
+        .strip_prefix(manifest_dir.trim_end_matches('/'))
+        .and_then(|rest| rest.strip_prefix('/'))
+        .ok_or_else(|| outside(&argument))?;
+      (inside.to_owned(), true)
+    } else {
+      let segments: Vec<&str> = written
         .split('/')
         .filter(|segment| !matches!(*segment, "" | "." | ".."))
-        .collect::<Vec<_>>()
-        .join("/"),
-    );
-    let extension = argument.rfind('.').map_or("", |dot| &argument[dot..]);
+        .collect();
+      (segments.join("/"), false)
+    };
+    let (stem, extension) = split_extension(&end);
+    let compiled_end = format!("{stem}.rs");
     let found: Vec<String> = compiled_views(&views, "")
       .into_iter()
-      .filter(|compiled| *compiled == end || compiled.ends_with(&format!("/{end}")))
+      .filter(|compiled| *compiled == compiled_end || (!exact && compiled.ends_with(&format!("/{compiled_end}"))))
       .map(|compiled| format!("{}{extension}", compiled.strip_suffix(".rs").unwrap_or(&compiled)))
       .collect();
     return match found.as_slice() {
@@ -172,12 +196,7 @@ fn view_path(site: &Site, path: &LitStr) -> syn::Result<String> {
     &site.manifest_dir.to_string_lossy(),
     &argument,
   )
-  .ok_or_else(|| {
-    Error::new(
-      path.span(),
-      format!("`{argument}` is outside the crate, so it has no compiled view"),
-    )
-  })?;
+  .ok_or_else(|| outside(&argument))?;
   let out_dir = site.out_dir.as_ref().ok_or_else(no_views)?;
   if !out_dir.join("views").join(with_rs_extension(&view)).is_file() {
     return Err(not_compiled(&view));
@@ -207,10 +226,16 @@ fn compiled_views(dir: &Path, prefix: &str) -> Vec<String> {
 
 /// `path` with its last segment's extension replaced by `rs`, as `compile_dir` names its output.
 fn with_rs_extension(path: &str) -> String {
+  format!("{}.rs", split_extension(path).0)
+}
+
+/// `path` split before its last segment's extension, as `Path::extension` reads it: a leading
+/// dot starts no extension.
+fn split_extension(path: &str) -> (&str, &str) {
   let name_start = path.rfind('/').map_or(0, |slash| slash + 1);
   match path[name_start..].rfind('.') {
-    Some(dot) if dot > 0 => format!("{}.rs", &path[..name_start + dot]),
-    _ => format!("{path}.rs"),
+    Some(dot) if dot > 0 => path.split_at(name_start + dot),
+    _ => (path, ""),
   }
 }
 
@@ -257,21 +282,57 @@ mod tests {
   use super::*;
   use proc_macro2::Span;
   use quote::quote;
+  use std::ops::{Deref, DerefMut};
+
+  /// A site whose `OUT_DIR` is a temporary directory holding `compiled` under `views/`, removed
+  /// when the site drops.
+  struct TestSite {
+    site: Site,
+    dir: PathBuf,
+  }
+
+  impl TestSite {
+    fn new(name: &str, source_file: Option<&str>, compiled: &[&str]) -> TestSite {
+      let dir = std::env::temp_dir().join(format!("artic-ui-class-{name}-{}", std::process::id()));
+      for path in compiled {
+        let path = dir.join("views").join(path);
+        fs::create_dir_all(path.parent().expect("a directory")).expect("a temporary directory");
+        fs::write(path, "").expect("a compiled view");
+      }
+      let site = Site {
+        source_file: source_file.map(Into::into),
+        manifest_dir: "/w/app".into(),
+        out_dir: Some(dir.clone()),
+      };
+      TestSite { site, dir }
+    }
+  }
+
+  impl Deref for TestSite {
+    type Target = Site;
+
+    fn deref(&self) -> &Site {
+      &self.site
+    }
+  }
+
+  impl DerefMut for TestSite {
+    fn deref_mut(&mut self) -> &mut Site {
+      &mut self.site
+    }
+  }
+
+  impl Drop for TestSite {
+    fn drop(&mut self) {
+      let _ = fs::remove_dir_all(&self.dir);
+    }
+  }
 
   /// A site for `src/views/login.rs` in the crate at `/w/app`, whose build script wrote
   /// `$OUT_DIR/views/src/views/login.rs` unless `compiled` is false.
-  fn site(name: &str, compiled: bool) -> Site {
-    let out_dir = std::env::temp_dir().join(format!("artic-ui-class-{name}-{}", std::process::id()));
-    let views = out_dir.join("views/src/views");
-    fs::create_dir_all(&views).expect("a temporary directory");
-    if compiled {
-      fs::write(views.join("login.rs"), "").expect("a compiled view");
-    }
-    Site {
-      source_file: Some("/w/app/src/views/login.rs".into()),
-      manifest_dir: "/w/app".into(),
-      out_dir: Some(out_dir),
-    }
+  fn site(name: &str, compiled: bool) -> TestSite {
+    let views: &[&str] = if compiled { &["src/views/login.rs"] } else { &[] };
+    TestSite::new(name, Some("/w/app/src/views/login.rs"), views)
   }
 
   fn error(argument: TokenStream, item: TokenStream, site: &Site) -> String {
@@ -406,14 +467,10 @@ mod tests {
   #[test]
   fn file_problems() {
     let item = || quote! { struct LoginView; };
-    let outside = Site {
-      manifest_dir: "/w/other".into(),
-      ..site("outside", true)
-    };
-    let no_out_dir = Site {
-      out_dir: None,
-      ..site("no-out-dir", true)
-    };
+    let mut outside = site("outside", true);
+    outside.manifest_dir = "/w/other".into();
+    let mut no_out_dir = site("no-out-dir", true);
+    no_out_dir.out_dir = None;
 
     assert!(error(quote!("login.xaml"), item(), &outside).starts_with("`login.xaml` is outside the crate"));
     assert!(error(quote!("login.xaml"), item(), &no_out_dir).starts_with("this crate compiles no views"));
@@ -425,18 +482,8 @@ mod tests {
 
   /// A site with no source file, as rust-analyzer expands macros, whose build script wrote each
   /// of `compiled` under `$OUT_DIR/views`.
-  fn editor_site(name: &str, compiled: &[&str]) -> Site {
-    let out_dir = std::env::temp_dir().join(format!("artic-ui-class-editor-{name}-{}", std::process::id()));
-    for path in compiled {
-      let path = out_dir.join("views").join(path);
-      fs::create_dir_all(path.parent().expect("a directory")).expect("a temporary directory");
-      fs::write(path, "").expect("a compiled view");
-    }
-    Site {
-      source_file: None,
-      manifest_dir: "/w/app".into(),
-      out_dir: Some(out_dir),
-    }
+  fn editor_site(name: &str, compiled: &[&str]) -> TestSite {
+    TestSite::new(&format!("editor-{name}"), None, compiled)
   }
 
   // Without the struct's file, the view is the one compiled view whose path ends with the
@@ -472,5 +519,62 @@ mod tests {
 
   fn literal(text: &str) -> LitStr {
     LitStr::new(text, Span::call_site())
+  }
+
+  // Without the struct's file, an argument without an extension, or with dots in its directories,
+  // ends where `include_str!` would read it, and an absolute one is the view at that path.
+  #[test]
+  fn editor_reads_extensions_and_absolute_paths_as_rustc_does() {
+    let site = editor_site("extensions", &["src/views/login.rs", "src/v1.2/card.rs"]);
+
+    assert_eq!(
+      view_path(&site, &literal("../views/login")).expect("found"),
+      "src/views/login"
+    );
+    assert_eq!(view_path(&site, &literal("../v1.2/card")).expect("found"), "src/v1.2/card");
+    assert_eq!(
+      view_path(&site, &literal("/w/app/src/views/login.xaml")).expect("found"),
+      "src/views/login.xaml"
+    );
+  }
+
+  // A view path with braces is text in the assertion's message, not a format argument.
+  #[test]
+  fn braces_in_the_view_path_are_escaped_in_the_message() {
+    let site = TestSite::new("braces", Some("/w/app/src/views/login.rs"), &["src/views/{a}.rs"]);
+
+    let expanded = expand(quote!("{a}.xaml"), quote! { struct LoginView; }, &site).expect("valid");
+
+    assert!(
+      expanded.to_string().contains("\"`src/views/{{a}}.xaml` must name `\""),
+      "{expanded}"
+    );
+  }
+
+  // A struct named with a raw identifier gets the module and the code type of its plain name.
+  #[test]
+  fn raw_struct_name_is_read_without_its_prefix() {
+    let expanded = expand(quote!("login.xaml"), quote! { struct r#LoginView; }, &site("raw", true)).expect("valid");
+
+    let text = expanded.to_string();
+    assert!(text.contains("mod login_view"), "{text}");
+    assert!(text.contains("\"::\" , \"LoginView\""), "{text}");
+  }
+
+  // A code type's own fields start at their defaults, since the compiled view calls `new` with
+  // the named nodes only, so one of them can't be required.
+  #[test]
+  fn own_required_field_is_reported() {
+    let item = quote! {
+      struct LoginView {
+        #[ui(required)]
+        session: u32,
+      }
+    };
+
+    assert!(
+      error(quote!("login.xaml"), item, &site("required", true))
+        .starts_with("a code type's own fields start at their defaults"),
+    );
   }
 }

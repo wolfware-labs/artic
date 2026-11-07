@@ -248,7 +248,7 @@ pub fn element(attribute: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// It reports, at the path, a view outside the crate, a crate without a build script and a view
 /// the build script didn't compile; at the struct, a generic or tuple struct, a field named `ui` or
-/// `child`, and a view that names another code type or none. The struct's own `#[ui(...)]`
+/// `child` or marked `#[ui(required)]`, and a view that names another code type or none. The struct's own `#[ui(...)]`
 /// settings and derives follow `#[element]`'s rules.
 #[proc_macro_attribute]
 pub fn ui_class(argument: TokenStream, item: TokenStream) -> TokenStream {
