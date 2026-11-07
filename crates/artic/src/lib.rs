@@ -26,6 +26,9 @@ pub use artic_layout as layout;
 /// Scenes, colors, brushes and shadows.
 pub use artic_render as render;
 
+/// Makes a struct the code type of a compiled view, the element at the root of the view.
+pub use artic_macros::ui_class;
+
 /// What a view needs in scope: the tree, typed handles and the builder methods of the property
 /// groups every element has, such as `.margin(…)` and `.width(…)`.
 pub mod prelude {

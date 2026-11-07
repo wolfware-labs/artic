@@ -20,12 +20,12 @@ artic-element.workspace = true
 artic-layout.workspace = true
 artic-render.workspace = true
 artic-controls.workspace = true
+artic-macros.workspace = true
 artic-view-compiler = { workspace = true, optional = true }
 artic-xaml = { workspace = true, optional = true }
 artic-xaml-lang = { workspace = true, optional = true }
 
 [dev-dependencies]
-artic-macros.workspace = true
 artic-registry.workspace = true
 
 [lints]
