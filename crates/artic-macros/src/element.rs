@@ -20,7 +20,11 @@ pub fn expand(attribute: TokenStream, item: TokenStream) -> syn::Result<TokenStr
   if !attribute.is_empty() {
     return Err(Error::new_spanned(attribute, "`#[element]` takes no settings"));
   }
-  let mut item: ItemStruct = syn::parse2(item)?;
+  expand_struct(syn::parse2(item)?)
+}
+
+/// What `#[element]` writes for `item`, for it and for the macros that make a struct an element.
+pub fn expand_struct(mut item: ItemStruct) -> syn::Result<TokenStream> {
   let ident = item.ident.clone();
   if !item.generics.params.is_empty() {
     return Err(Error::new_spanned(

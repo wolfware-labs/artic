@@ -21,6 +21,26 @@ fn unknown_property_is_reported_at_its_name() {
   assert!(view.elements[0].properties.is_empty());
 }
 
+// A type with no way to be created from markup is reported at its element, and its members and
+// children are still checked.
+#[test]
+fn type_without_new_is_reported_at_its_element() {
+  let login = element(&LOGIN, 10, vec![property("Width", 20, "4")]);
+  let document = Document {
+    root: element(&PANEL, 0, vec![content(5, vec![Content::Element(login)])]),
+  };
+
+  let (_, diagnostics) = check(&document);
+
+  assert_eq!(
+    reported(&diagnostics),
+    [
+      at("`Login` has no property `Width`", 20),
+      at("`Login` can't be created from markup yet (#59)", 10)
+    ]
+  );
+}
+
 // An event set where a property is names the issue that adds handlers.
 #[test]
 fn event_names_its_issue() {

@@ -1,0 +1,4 @@
+<UserControl xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup"
+             x:Class="wrong_code_type::SignupView">
+  <TextBlock Text="Sign up"/>
+</UserControl>

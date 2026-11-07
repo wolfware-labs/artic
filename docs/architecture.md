@@ -118,7 +118,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-test` | `artic-core`, `artic-layout`, `artic-render`, `artic-text`, `artic-test-fonts`, `artic-element`, `artic-platform`, `artic-registry` (planned), `artic-style` (planned) | none |
 | `artic-winit` | `artic-render`, `artic-platform` | none |
 | `artic-vello` | `artic-layout`, `artic-render` | `artic-controls`, `artic-core`, `artic-element`, `artic-test`, `artic-test-fonts`, `artic-text` |
-| `artic` | `artic-core`, `artic-element`, `artic-layout`, `artic-render`, `artic-controls`, `artic-platform` (planned #55), `artic-text` (planned #55), `artic-style` (planned #106), `artic-theme` (planned #106), `artic-xaml` (feature `xaml`), `artic-view-compiler` (feature `view-compiler`), `artic-xaml-lang` (feature `xaml-compiler`), `artic-xaml-runtime` (planned #66, feature `xaml-runtime`) | `artic-macros`, `artic-registry` |
+| `artic` | `artic-core`, `artic-element`, `artic-layout`, `artic-render`, `artic-controls`, `artic-macros`, `artic-platform` (planned #55), `artic-text` (planned #55), `artic-style` (planned #106), `artic-theme` (planned #106), `artic-xaml` (feature `xaml`), `artic-view-compiler` (feature `view-compiler`), `artic-xaml-lang` (feature `xaml-compiler`), `artic-xaml-runtime` (planned #66, feature `xaml-runtime`) | `artic-registry` |
 
 ## Rules
 

@@ -5,7 +5,9 @@ use artic::layout::Thickness;
 use artic::prelude::UiTree;
 use artic_core::tree::TreeKind;
 use artic_registry::Registry;
+use artic_xaml_compiler_fixture_app::email;
 use artic_xaml_compiler_fixture_app::views::card;
+use artic_xaml_compiler_fixture_app::views::login::LoginView;
 
 // The view builds a border around a panel of two texts, with the markup's values.
 #[test]
@@ -38,4 +40,51 @@ fn named_crate_is_linked() {
       .type_by_rust_path("artic_xaml_compiler_fixture_controls::Gauge")
       .is_some()
   );
+}
+
+// `create` puts the code type at the root of the tree, with the view's root content as its only
+// child, the root's attributes set on it, and its own fields at their defaults.
+#[test]
+fn build_returns_code_type_root() {
+  let mut tree = UiTree::new();
+
+  let login = LoginView::create(&mut tree);
+
+  let children = tree.children(TreeKind::Logical, login.id()).collect::<Vec<_>>();
+  assert_eq!(tree.parent(TreeKind::Logical, login.id()), None);
+  assert_eq!(children.len(), 1);
+  assert_eq!(login.get(&tree).layout.margin.get(), Thickness::uniform(16.0));
+  assert_eq!(login.get(&tree).attempts, 0);
+}
+
+// The code type's handles are the panel's children, in document order, with the markup's text:
+// one reached from another module through its `pub(crate)` field, one through the code type's
+// own module.
+#[test]
+fn code_type_handles_are_the_named_nodes() {
+  let mut tree = UiTree::new();
+  let login = LoginView::create(&mut tree);
+  let view = login.get(&tree);
+  let (email, status) = (email(view), view.status());
+
+  let panel = tree
+    .children(TreeKind::Logical, login.id())
+    .next()
+    .expect("the root's content");
+  let named = tree.children(TreeKind::Logical, panel).collect::<Vec<_>>();
+  assert_eq!(named, [email.id(), status.id()]);
+  assert_eq!(email.get(&tree).text.get(), "Email");
+  assert_eq!(status.get(&tree).text.get(), "Signed out");
+}
+
+// The registry knows the code type by the path that defines it, and can't create it from markup.
+#[test]
+fn code_type_has_no_new() {
+  let registry = Registry::from_link_time().expect("no duplicate types");
+
+  let info = registry
+    .type_by_rust_path("artic_xaml_compiler_fixture_app::views::login::LoginView")
+    .expect("registered");
+
+  assert!(info.new.is_none());
 }

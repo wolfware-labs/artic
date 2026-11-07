@@ -158,7 +158,7 @@ mod tests {
     TypeInfo {
       name,
       rust_path,
-      new: new_node,
+      new: Some(new_node),
       content: None,
       properties: &[],
       groups: &[],

@@ -1,0 +1,5 @@
+error: `login.ui` is outside the crate, so it has no compiled view
+ --> tests/ui/ui_class_outside_crate.rs:4:12
+  |
+4 | #[ui_class("login.ui")]
+  |            ^^^^^^^^^^

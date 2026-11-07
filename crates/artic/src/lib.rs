@@ -4,6 +4,9 @@
 //! [`controls`], [`core`], [`element`], [`layout`] and [`render`]. With default features it adds
 //! no UI language, host or renderer: each comes with a feature named after it.
 //!
+//! [`ui_class`] makes a struct the code type of a compiled view: the element at its root, holding
+//! its named nodes.
+//!
 //! Features:
 //!
 //! - `view-compiler`: `view::compile_dir` and `view::crate_paths()`, which compile a directory of
@@ -25,6 +28,9 @@ pub use artic_element as element;
 pub use artic_layout as layout;
 /// Scenes, colors, brushes and shadows.
 pub use artic_render as render;
+
+/// Makes a struct the code type of a compiled view, the element at the root of the view.
+pub use artic_macros::ui_class;
 
 /// What a view needs in scope: the tree, typed handles and the builder methods of the property
 /// groups every element has, such as `.margin(…)` and `.width(…)`.

@@ -295,7 +295,7 @@ const _: () = {
         rust_path: ::core::concat!(
             ::core::module_path!(), "::", ::core::stringify!(Panel)
         ),
-        new: __new,
+        new: ::core::option::Option::Some(__new),
         content: __artic::one_content(
             &[
                 ::core::option::Option::Some(__artic::ContentInfo::Collection {

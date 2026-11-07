@@ -58,7 +58,7 @@ How a language spells a namespace is its own business. XAML maps URIs to crates 
 
 **Built.**
 
-`TypeInfo::new` creates a node with its default values and returns its id:
+`TypeInfo::new` creates a node with its default values and returns its id. It's `None` for a type that can't be created from its defaults alone, such as a view's code type, whose named nodes exist only once its view is built ([code types](../design/ui-class.md#building-it)):
 
 ```rust
 # use artic_controls as _;
@@ -68,7 +68,8 @@ use artic_core::tree::UiTree;
 # let registry = Registry::from_link_time().unwrap();
 # let border = registry.type_by_name("artic_controls", "Border").found().unwrap();
 let mut tree = UiTree::new();
-let node = (border.new)(&mut tree);
+let new = border.new.expect("a Border is created from its defaults");
+let node = new(&mut tree);
 assert!(tree.get_as::<artic_controls::Border>(node).is_some());
 ```
 

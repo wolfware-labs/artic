@@ -1,0 +1,5 @@
+error: `#[ui_class]` can't be used on a generic struct
+ --> tests/ui/ui_class_generic.rs:5:17
+  |
+5 | struct LoginView<T> {
+  |                 ^^^

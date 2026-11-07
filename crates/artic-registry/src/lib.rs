@@ -51,7 +51,7 @@ use linkme::distributed_slice;
 /// static GAUGE: TypeInfo = TypeInfo {
 ///   name: "Gauge",
 ///   rust_path: "my_app::views::Gauge",
-///   new: |tree: &mut UiTree| -> NodeId { tree.alloc(Box::new(Gauge)) },
+///   new: Some(|tree: &mut UiTree| -> NodeId { tree.alloc(Box::new(Gauge)) }),
 ///   content: None,
 ///   properties: &[],
 ///   groups: &[],
@@ -108,7 +108,7 @@ pub static UI_TYPES: [&'static TypeInfo];
 /// static DIAL: TypeInfo = TypeInfo {
 ///   name: "Dial",
 ///   rust_path: "my_app::views::Dial",
-///   new: |tree: &mut UiTree| -> NodeId { tree.alloc(Box::new(Dial)) },
+///   new: Some(|tree: &mut UiTree| -> NodeId { tree.alloc(Box::new(Dial)) }),
 ///   content: None,
 ///   properties: &[],
 ///   groups: &[],

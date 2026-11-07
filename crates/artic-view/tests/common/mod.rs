@@ -21,7 +21,7 @@ const fn info(name: &'static str, rust_path: &'static str) -> TypeInfo {
   TypeInfo {
     name,
     rust_path,
-    new: new_node,
+    new: Some(new_node),
     content: None,
     properties: &[],
     groups: &[],
@@ -104,6 +104,12 @@ pub static HOST: TypeInfo = TypeInfo {
   }),
   code_type_root: true,
   ..info("Host", "test_ui::Host")
+};
+
+/// Takes no content and has a required field, so it can't be created from markup.
+pub static LOGIN: TypeInfo = TypeInfo {
+  new: None,
+  ..info("Login", "test_ui::Login")
 };
 
 /// Takes no content.

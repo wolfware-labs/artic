@@ -1,0 +1,5 @@
+error: `child` is added by `#[ui_class]`; rename this field
+ --> tests/ui/ui_class_field_child.rs:6:3
+  |
+6 |   child: u32,
+  |   ^^^^^

@@ -1,0 +1,5 @@
+error: `ui` is added by `#[ui_class]`; rename this field
+ --> tests/ui/ui_class_field_ui.rs:6:3
+  |
+6 |   ui: u32,
+  |   ^^

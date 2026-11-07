@@ -1,0 +1,4 @@
+<UserControl xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup"
+             x:Class="private_field::form::LoginView">
+  <TextBlock x:Name="email" Text="Email"/>
+</UserControl>
