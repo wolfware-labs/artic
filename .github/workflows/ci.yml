@@ -9,6 +9,11 @@ name: CI
 #
 # The mutants shards are a matrix, so the ruleset requires `Mutants`, the job that reports
 # whether every shard passed or was skipped.
+#
+# CodSpeed's and Codecov's verdicts come from their apps, which report nothing when the jobs that
+# feed them are skipped, so the ruleset can't require them directly. It requires `CodSpeed` and
+# `Coverage gate` instead: each waits for its app's verdict on the pull request's head commit and
+# passes or fails with it, and is skipped along with the job it follows.
 
 on:
   pull_request:
@@ -37,6 +42,7 @@ jobs:
       pull-requests: read
     outputs:
       rust: ${{ steps.filter.outputs.rust }}
+      benches: ${{ steps.filter.outputs.benches }}
       dependencies: ${{ steps.filter.outputs.dependencies }}
       docs: ${{ steps.filter.outputs.docs }}
     steps:
@@ -55,6 +61,15 @@ jobs:
               - '.cargo/**'
               - '.github/workflows/ci.yml'
               - '.github/actions/**'
+            # What can move a bench, or how the benches run.
+            benches:
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'rust-toolchain.toml'
+              - '.cargo/**'
+              - '.github/workflows/ci.yml'
+              - '.github/actions/setup-rust/**'
             dependencies:
               - '**/Cargo.toml'
               - 'Cargo.lock'
@@ -137,6 +152,78 @@ jobs:
           files: lcov.info
           use_oidc: true
           fail_ci_if_error: false
+
+  # The criterion benches (artic-core, artic-layout, artic-controls) under CodSpeed's CPU
+  # simulation; CodSpeed compares a pull request against the latest commit of main that has a run.
+  # The CodSpeed action authenticates with this job's OIDC token, so there's no CodSpeed token to
+  # store. Only this job gets the token, and every action it runs, `setup-rust`'s included, is
+  # pinned by commit, as Codecov's are.
+  benchmarks:
+    name: Benchmarks
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.benches == 'true') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-rust
+      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
+        with:
+          tool: cargo-codspeed@6.0.0
+      - name: Build the benches
+        run: cargo codspeed build -m simulation
+      - name: Run the benches
+        uses: CodSpeedHQ/action@af75f77f17a054769abefaa42fe8dc2975469b5f # v5.6.3
+        with:
+          mode: simulation
+          run: cargo codspeed run
+  codspeed-gate:
+    name: CodSpeed
+    needs: [changes, benchmarks]
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.benches == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Wait for CodSpeed's verdict
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+          UPSTREAM_JOB: Benchmarks
+          UPSTREAM_RESULT: ${{ needs.benchmarks.result }}
+        run: .github/scripts/wait-for-verdict.sh check "CodSpeed Performance Analysis" 257293
+
+  coverage-gate:
+    name: Coverage gate
+    needs: [changes, codecov]
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.rust == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      statuses: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Wait for Codecov's verdict
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+          UPSTREAM_JOB: Codecov
+          UPSTREAM_RESULT: ${{ needs.codecov.result }}
+        run: .github/scripts/wait-for-verdict.sh status codecov/ codecov/patch
 
   # Mutates the lines a pull request changes (.cargo/mutants.toml): each mutant must make a test
   # fail or stop the build, so one that survives, code no test checks, fails its shard.
