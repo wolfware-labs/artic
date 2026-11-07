@@ -191,6 +191,7 @@ jobs:
     permissions:
       contents: read
       checks: read
+      actions: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -216,6 +217,7 @@ jobs:
     permissions:
       contents: read
       checks: read
+      actions: read
     steps:
       - uses: actions/checkout@v7
         with:
