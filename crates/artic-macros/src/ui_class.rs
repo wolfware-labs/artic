@@ -156,12 +156,8 @@ fn view_path(site: &Site, path: &LitStr) -> syn::Result<String> {
     let views = site.out_dir.as_ref().ok_or_else(no_views)?.join("views");
     let written = slashes(&argument);
     let (end, exact) = if is_absolute(&written) {
-      let manifest_dir = slashes(&site.manifest_dir.to_string_lossy());
-      let inside = written
-        .strip_prefix(manifest_dir.trim_end_matches('/'))
-        .and_then(|rest| rest.strip_prefix('/'))
-        .ok_or_else(|| outside(&argument))?;
-      (inside.to_owned(), true)
+      let inside = crate_relative("", &site.manifest_dir.to_string_lossy(), &written).ok_or_else(|| outside(&argument))?;
+      (inside, true)
     } else {
       let mut segments: Vec<&str> = Vec::new();
       for segment in written.split('/') {
@@ -566,6 +562,10 @@ mod tests {
     assert_eq!(view_path(&site, &literal("../v1.2/card")).expect("found"), "src/v1.2/card");
     assert_eq!(
       view_path(&site, &literal("/w/app/src/views/login.ui")).expect("found"),
+      "src/views/login.ui"
+    );
+    assert_eq!(
+      view_path(&site, &literal("/w/app/src/views/card/./../login.ui")).expect("found"),
       "src/views/login.ui"
     );
   }
