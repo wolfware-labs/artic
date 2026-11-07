@@ -118,6 +118,14 @@ const fn same_text(a: &str, b: &str) -> bool {
   true
 }
 
+/// Whether a compiled view's code type is `path`, in const code.
+pub const fn same_code_type(code_type: Option<&str>, path: &str) -> bool {
+  match code_type {
+    Some(code_type) => same_text(code_type, path),
+    None => false,
+  }
+}
+
 /// Whether a group's `properties` hold a field named `name`.
 pub const fn group_has_field(properties: &[PropertyInfo], name: &str) -> bool {
   let mut index = 0;
@@ -234,5 +242,14 @@ mod tests {
     (&&ValueCheck::<f32>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
     (&&ValueCheck::<Gauge>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
     (&&ValueCheck::<NodeId>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+  }
+
+  // A code type matches only the same whole path, and a view without one matches nothing.
+  #[test]
+  fn same_code_type_compares_whole_paths() {
+    assert!(same_code_type(Some("app::views::LoginView"), "app::views::LoginView"));
+    assert!(!same_code_type(Some("app::views::LoginView"), "app::views::LoginViews"));
+    assert!(!same_code_type(Some("other::views::LoginView"), "app::views::LoginView"));
+    assert!(!same_code_type(None, "app::views::LoginView"));
   }
 }
