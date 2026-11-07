@@ -1,0 +1,122 @@
+---
+source: crates/artic-macros/src/ui_class.rs
+expression: "prettyplease::unparse(&file)"
+---
+///The compiled `src/views/login.xaml`.
+pub mod login_view {
+    ::core::include!(
+        ::core::concat!(::core::env!("OUT_DIR"), "/views/src/views/login.rs")
+    );
+}
+#[derive(::artic_element::__private::UiType)]
+#[derive(Debug)]
+#[ui(crate = "::artic_element")]
+pub struct LoginView {
+    ///Where the element sits and how big it is.
+    #[ui(flatten)]
+    pub layout: ::artic_element::__private::Layout,
+    ///How the element is drawn.
+    #[ui(flatten)]
+    pub appearance: ::artic_element::__private::Appearance,
+    ///How the element takes input.
+    #[ui(flatten)]
+    pub interaction: ::artic_element::__private::Interaction,
+    ///What style selectors and code find the element by.
+    #[ui(flatten)]
+    pub identity: ::artic_element::__private::Identity,
+    ///The named nodes of `src/views/login.xaml`.
+    #[ui(required)]
+    pub ui: login_view::View,
+    /// The content of the view's root.
+    #[ui(content)]
+    pub child: ::artic_element::__private::Child,
+    attempts: u32,
+}
+const _: () = {
+    use ::artic_element::__private as __artic;
+    impl __artic::Layoutable for LoginView {
+        fn measure(
+            &self,
+            cx: &mut __artic::MeasureCx<'_>,
+            available: __artic::Size,
+        ) -> __artic::Size {
+            self.layout
+                .measure(
+                    cx,
+                    available,
+                    |cx, available| {
+                        <Self as __artic::ElementImpl>::measure_override(
+                            self,
+                            cx,
+                            available,
+                        )
+                    },
+                )
+        }
+        fn arrange(&self, cx: &mut __artic::ArrangeCx<'_>, slot: __artic::Rect) {
+            self.layout
+                .arrange(
+                    cx,
+                    slot,
+                    |cx, size| {
+                        <Self as __artic::ElementImpl>::arrange_override(self, cx, size)
+                    },
+                )
+        }
+        fn collapsed(&self) -> bool {
+            self.appearance.visibility.get() == __artic::Visibility::Collapsed
+        }
+    }
+    impl __artic::Element for LoginView {
+        fn render(
+            &self,
+            cx: &mut __artic::RenderCx<'_>,
+            scene: &mut __artic::SceneBuilder,
+        ) {
+            <Self as __artic::ElementImpl>::render(self, cx, scene)
+        }
+        fn hit_test(
+            &self,
+            cx: &__artic::HitTestCx<'_>,
+            point: __artic::Point,
+        ) -> __artic::HitTestResult {
+            self.interaction.hit_test(cx, self.appearance.visibility.get(), point)
+        }
+        fn on_event(
+            &mut self,
+            cx: &mut __artic::EventCx<'_>,
+            event: &__artic::InputEvent,
+        ) -> __artic::Handled {
+            if !self.interaction.accepts_input() {
+                return __artic::Handled::No;
+            }
+            <Self as __artic::ElementImpl>::on_event(self, cx, event)
+        }
+        fn accessibility(&self, cx: &__artic::AccessCx<'_>) -> __artic::accesskit::Node {
+            let mut node = self.interaction.accessibility(cx);
+            <Self as __artic::ElementImpl>::accessibility(self, cx, &mut node);
+            node
+        }
+        fn layers(&self, size: __artic::Size) -> __artic::Layers {
+            self.appearance
+                .layers(size, <Self as __artic::ElementImpl>::clip(self, size))
+        }
+    }
+    __artic::element_type!(LoginView);
+};
+impl ::artic_element::__private::ElementImpl for LoginView {}
+impl LoginView {
+    ///Builds `src/views/login.xaml` in `tree`, with this type at the root.
+    #[must_use = "the handle is needed to link or reach the node"]
+    pub fn create(
+        tree: &mut ::artic_element::__private::UiTree,
+    ) -> ::artic_element::__private::Handle<Self> {
+        login_view::build(tree)
+    }
+}
+const _: () = ::core::assert!(
+    ::artic_element::__private::same_code_type(login_view::CODE_TYPE,
+    ::core::concat!(::core::module_path!(), "::", "LoginView")),
+    ::core::concat!("`src/views/login.xaml` must name `", ::core::module_path!(),
+    "::LoginView` as its code type"),
+);

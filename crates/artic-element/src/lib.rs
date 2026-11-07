@@ -46,7 +46,7 @@ pub use visibility::{Cursor, Visibility};
 #[doc(hidden)]
 pub mod __private {
   pub use crate::{
-    AccessCx, Appearance, ELEMENT_TYPES, Element, ElementImpl, ElementType, EventCx, Handled, HasState, HitTestCx,
+    AccessCx, Appearance, Child, ELEMENT_TYPES, Element, ElementImpl, ElementType, EventCx, Handled, HasState, HitTestCx,
     HitTestResult, Identity, Interaction, Layout, RenderCx, Visibility, element_type,
   };
   pub use accesskit;
