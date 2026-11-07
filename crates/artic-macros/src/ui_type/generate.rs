@@ -20,11 +20,10 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
   let members = &analysis.members;
   let attached = &analysis.attributes.attached;
   let keys = members.properties.iter().map(key_static);
-  let override_defaults = analysis
-    .attributes
-    .override_defaults
-    .then(|| quote!(<Self as __artic::OverrideDefaults>::override_defaults(&__artic_value);));
-  let default_impl = default_impl(ident, members, override_defaults);
+  let default_impl = members
+    .required
+    .is_empty()
+    .then(|| default_impl(ident, members, override_defaults(analysis)));
   let visits = visits(members);
   let group_items = group_items(ident, members);
   let descriptors = descriptors(members, attached);
@@ -70,6 +69,14 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
       #checks
     };
   })
+}
+
+/// The call to `OverrideDefaults::override_defaults` on the new value, for a type that asks for it.
+pub fn override_defaults(analysis: &TypeAnalysis) -> Option<TokenStream> {
+  analysis
+    .attributes
+    .override_defaults
+    .then(|| quote!(<Self as __artic::OverrideDefaults>::override_defaults(&__artic_value);))
 }
 
 /// For each flattened group: its `HasGroup` impl, and the const checks that no property of the
@@ -218,15 +225,23 @@ fn type_info(analysis: &TypeAnalysis) -> TokenStream {
     Whitespace::Significant => quote!(__artic::Whitespace::Significant),
   };
   let code_type_root = analysis.attributes.code_type_root;
+  let (new_fn, new) = if analysis.members.required.is_empty() {
+    let new_fn = quote! {
+      fn __new(tree: &mut __artic::UiTree) -> __artic::NodeId {
+        tree.alloc(::std::boxed::Box::new(<#ident as ::core::default::Default>::default()))
+      }
+    };
+    (new_fn, quote!(::core::option::Option::Some(__new)))
+  } else {
+    (TokenStream::new(), quote!(::core::option::Option::None))
+  };
   quote! {
-    fn __new(tree: &mut __artic::UiTree) -> __artic::NodeId {
-      tree.alloc(::std::boxed::Box::new(<#ident as ::core::default::Default>::default()))
-    }
+    #new_fn
 
     static __TYPE_INFO: __artic::TypeInfo = __artic::TypeInfo {
       name: ::core::stringify!(#ident),
       rust_path: ::core::concat!(::core::module_path!(), "::", ::core::stringify!(#ident)),
-      new: ::core::option::Option::Some(__new),
+      new: #new,
       content: #content,
       properties: &__PROPERTIES,
       groups: &__GROUPS,

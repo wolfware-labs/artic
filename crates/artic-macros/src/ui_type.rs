@@ -43,4 +43,22 @@ mod tests {
     let file: syn::File = syn::parse2(expand(&input).expect("valid")).expect("parses");
     insta::assert_snapshot!(prettyplease::unparse(&file));
   }
+
+  // A type with required fields: `new` takes them in order, and there is no `Default` and no
+  // `TypeInfo::new`.
+  #[test]
+  fn required_type_expansion() {
+    let input: DeriveInput = parse_quote! {
+      #[ui(override_defaults)]
+      pub struct Login {
+        #[ui(required)] pub ui: View,
+        #[ui(default = 1.0)] pub width: Property<f32>,
+        #[ui(required)] session: u32,
+        attempts: u8,
+      }
+    };
+
+    let file: syn::File = syn::parse2(expand(&input).expect("valid")).expect("parses");
+    insta::assert_snapshot!(prettyplease::unparse(&file));
+  }
 }

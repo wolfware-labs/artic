@@ -58,6 +58,10 @@ use syn::{DeriveInput, parse_macro_input};
 ///   the element. A flattened group may mark one of its properties instead; a type has at most one
 ///   content member, counting its groups.
 ///
+/// - `#[ui(required)]` on a field of any type: it has no default, so `new` takes it as an argument,
+///   in field order with the other required fields. It takes no other setting, and a property
+///   group can't have one.
+///
 /// Unmarked fields are created with their own `Default`.
 ///
 /// # Generated code
@@ -65,9 +69,12 @@ use syn::{DeriveInput, parse_macro_input};
 /// The derive implements `Default`, `Object` (with `visit_properties`) and `UiType`, writes the
 /// type's `TypeInfo` with its property, event, attached property and value provider descriptors,
 /// and adds it to `UI_TYPES`. So the struct derives `Debug` but not `Default`, and a crate's types
-/// only reach the registry if the crate is linked (see `UI_TYPES`).
+/// only reach the registry if the crate is linked (see `UI_TYPES`). A type with a required field
+/// has no `Default`, and its `TypeInfo::new` is `None`, since nothing can create it from its
+/// defaults alone.
 ///
-/// It also writes the builder from the builder design: `new()`, the `Default`; one method per
+/// It also writes the builder from the builder design: `new()`, the `Default`, or
+/// `new(required, ...)` for a type with required fields; one method per
 /// `Property` field, named after the field, which sets the `Local` level and takes `impl Into<T>`
 /// (the `X` of `Option<X>`), or the number itself for a number type written as `f32` or
 /// `core::primitive::f32`, so a literal such as `8.0` needs no suffix; and `build(tree)`, which

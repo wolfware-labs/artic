@@ -1,0 +1,5 @@
+error: a property group's fields all have defaults; `required` is for a type's fields
+ --> tests/ui/required_in_group.rs:6:8
+  |
+6 |   #[ui(required)]
+  |        ^^^^^^^^

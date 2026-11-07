@@ -1,0 +1,83 @@
+---
+source: crates/artic-macros/src/ui_type.rs
+expression: "prettyplease::unparse(&file)"
+---
+const _: () = {
+    use ::artic_registry::__private as __artic;
+    static __KEY_WIDTH: __artic::PropertyKey<f32> = __artic::PropertyKey::new(
+        "Width",
+        __artic::Affects::NONE,
+        __artic::Inheritance::None,
+    );
+    impl __artic::Object for Login {
+        fn visit_properties(&self, visitor: &mut __artic::PropertyVisitor<'_>) {
+            visitor.visit(&self.width);
+        }
+    }
+    const _: () = {};
+    static __PROPERTIES: [__artic::PropertyInfo; 1usize] = [
+        __artic::PropertyInfo {
+            name: (&__KEY_WIDTH).name(),
+            field: "width",
+            value_type: ::core::stringify!(f32),
+            affects: (&__KEY_WIDTH).affects(),
+            inherits: (&__KEY_WIDTH).inherits(),
+            literal: __artic::literal!(f32),
+        },
+    ];
+    static __EVENTS: [__artic::EventInfo; 0usize] = [];
+    static __ATTACHED: [__artic::AttachedPropertyInfo; 0usize] = [];
+    static __GROUPS: [__artic::PropertyGroupInfo; 0usize] = [];
+    impl Login {
+        ///The key of `Width`, for styles.
+        pub const WIDTH: &'static __artic::PropertyKey<f32> = &__KEY_WIDTH;
+        ///Creates a `Login` from its required fields, with every other field at its default.
+        #[must_use]
+        pub fn new(ui: View, session: u32) -> Self {
+            let __artic_value = Self {
+                width: __artic::Property::new((&__KEY_WIDTH), 1.0),
+                attempts: ::core::default::Default::default(),
+                ui,
+                session,
+            };
+            <Self as __artic::OverrideDefaults>::override_defaults(&__artic_value);
+            __artic_value
+        }
+        ///Adds this `Login` to `tree` and returns its handle.
+        #[must_use = "the handle is needed to link or reach the node"]
+        pub fn build(self, tree: &mut __artic::UiTree) -> __artic::Handle<Self> {
+            tree.alloc_typed(self)
+        }
+        ///Sets `Width`, the local value.
+        #[must_use]
+        pub fn width(self, value: f32) -> Self {
+            self.width.set(value);
+            self
+        }
+    }
+    static __TYPE_INFO: __artic::TypeInfo = __artic::TypeInfo {
+        name: ::core::stringify!(Login),
+        rust_path: ::core::concat!(
+            ::core::module_path!(), "::", ::core::stringify!(Login)
+        ),
+        new: ::core::option::Option::None,
+        content: __artic::one_content(&[::core::option::Option::None]),
+        properties: &__PROPERTIES,
+        groups: &__GROUPS,
+        events: &__EVENTS,
+        attached_properties: &__ATTACHED,
+        value_provider: ::core::option::Option::None,
+        whitespace: __artic::Whitespace::Collapse,
+        code_type_root: false,
+    };
+    impl __artic::UiType for Login {
+        const TYPE_INFO: &'static __artic::TypeInfo = &__TYPE_INFO;
+    }
+    __artic::register_type!(__TYPE_INFO);
+    #[allow(dead_code, clippy::needless_borrow)]
+    fn __checks() {
+        use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+        (&&__artic::ValueCheck::<f32>(__artic::PhantomData))
+            .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+    }
+};

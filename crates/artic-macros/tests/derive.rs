@@ -801,3 +801,34 @@ fn group_describes_its_trait_and_keys() {
   assert!(<Common as PropertyGroup>::METHODS.ends_with("::CommonMethods"));
   assert_eq!(Common::MARGIN.name(), "Margin");
 }
+
+// A required field is an argument of `new`, every other field starts at its default with the
+// type's own defaults applied, and the registry can't create the type.
+#[test]
+fn required_field_is_an_argument_of_new() {
+  #[derive(Debug, UiType)]
+  #[ui(override_defaults)]
+  struct Login {
+    #[ui(required)]
+    session: u32,
+    #[ui(default = 2.0)]
+    width: Property<f32>,
+    #[ui(required)]
+    user: String,
+    attempts: u8,
+  }
+
+  impl OverrideDefaults for Login {
+    fn override_defaults(&self) {
+      self.width.set_default(3.0);
+    }
+  }
+
+  let login = Login::new(7, "ada".to_owned());
+
+  assert_eq!(
+    (login.session, login.width.get(), login.user.as_str(), login.attempts),
+    (7, 3.0, "ada", 0)
+  );
+  assert!(Login::TYPE_INFO.new.is_none());
+}

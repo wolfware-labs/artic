@@ -1,6 +1,7 @@
-use crate::members::emit::{Setter, key_constant, setter};
+use crate::members::emit::{Setter, initializer, key_constant, setter};
 use crate::members::{Content, ContentMethod, PropertyField};
 use crate::ui_type::analysis::TypeAnalysis;
+use crate::ui_type::generate::override_defaults;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
@@ -10,7 +11,7 @@ use quote::{format_ident, quote};
 pub fn builders(analysis: &TypeAnalysis) -> TokenStream {
   let ident = analysis.ident;
   let properties = &analysis.members.properties;
-  let new_doc = format!("Creates a `{ident}` with each property at its default.");
+  let new = new(analysis);
   let build_doc = format!("Adds this `{ident}` to `tree` and returns its handle.");
   let constants = properties.iter().filter_map(key_constant);
   let content = content_builder(analysis);
@@ -18,11 +19,7 @@ pub fn builders(analysis: &TypeAnalysis) -> TokenStream {
   quote! {
     #(#constants)*
 
-    #[doc = #new_doc]
-    #[must_use]
-    pub fn new() -> Self {
-      <Self as ::core::default::Default>::default()
-    }
+    #new
 
     #[doc = #build_doc]
     #[must_use = "the handle is needed to link or reach the node"]
@@ -33,6 +30,35 @@ pub fn builders(analysis: &TypeAnalysis) -> TokenStream {
     #content
 
     #(#methods)*
+  }
+}
+
+/// `new`: the `Default`, or for a type with required fields, a function taking them in order.
+fn new(analysis: &TypeAnalysis) -> TokenStream {
+  let ident = analysis.ident;
+  let required = &analysis.members.required;
+  if required.is_empty() {
+    let doc = format!("Creates a `{ident}` with each property at its default.");
+    return quote! {
+      #[doc = #doc]
+      #[must_use]
+      pub fn new() -> Self {
+        <Self as ::core::default::Default>::default()
+      }
+    };
+  }
+  let doc = format!("Creates a `{ident}` from its required fields, with every other field at its default.");
+  let parameters = required.iter().map(|field| {
+    let (field_ident, ty) = (field.ident, field.ty);
+    quote!(#field_ident: #ty)
+  });
+  let body = initializer(&analysis.members, override_defaults(analysis));
+  quote! {
+    #[doc = #doc]
+    #[must_use]
+    pub fn new(#(#parameters),*) -> Self {
+      #body
+    }
   }
 }
 

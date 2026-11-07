@@ -55,6 +55,14 @@ pub struct Members<'a> {
   pub groups: Vec<GroupField<'a>>,
   pub content: Option<Content<'a>>,
   pub unmarked: Vec<&'a Ident>,
+  /// The fields marked `#[ui(required)]`, in order: the arguments of the type's `new`.
+  pub required: Vec<RequiredField<'a>>,
+}
+
+/// A field marked `#[ui(required)]`, which has no default: code gives it its value.
+pub struct RequiredField<'a> {
+  pub ident: &'a Ident,
+  pub ty: &'a Type,
 }
 
 /// A `Property<T>` field marked `#[ui]`.
@@ -169,6 +177,7 @@ impl<'a> Members<'a> {
       groups: Vec::new(),
       content: None,
       unmarked: Vec::new(),
+      required: Vec::new(),
     };
     let mut marked = Vec::new();
     let mut collections = Vec::new();
@@ -179,6 +188,16 @@ impl<'a> Members<'a> {
         members.unmarked.push(ident);
         continue;
       };
+      if let Some(span) = attributes.required {
+        if kind == Kind::Group {
+          return Err(Error::new(
+            span,
+            "a property group's fields all have defaults; `required` is for a type's fields",
+          ));
+        }
+        members.required.push(RequiredField { ident, ty: &field.ty });
+        continue;
+      }
       let content = attributes.content;
       let member = classify(field, ident, attributes)?;
       if kind == Kind::Group && !matches!(member, Member::Property(_)) {

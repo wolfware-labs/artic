@@ -22,6 +22,7 @@ pub struct FieldAttributes {
   pub name: Option<LitStr>,
   pub flatten: Option<Span>,
   pub content: Option<Span>,
+  pub required: Option<Span>,
 }
 
 impl FieldAttributes {
@@ -97,10 +98,12 @@ pub fn parse_field_attributes(field: &Field) -> syn::Result<Option<FieldAttribut
         attributes.flatten = Some(meta.path.get_ident().map_or_else(Span::call_site, Ident::span));
       } else if meta.path.is_ident("content") {
         attributes.content = Some(meta.path.get_ident().map_or_else(Span::call_site, Ident::span));
+      } else if meta.path.is_ident("required") {
+        attributes.required = Some(meta.path.get_ident().map_or_else(Span::call_site, Ident::span));
       } else {
         return Err(unknown_key(
           &meta,
-          "`default`, `key`, `affects`, `inherits`, `name`, `flatten` or `content`",
+          "`default`, `key`, `affects`, `inherits`, `name`, `flatten`, `content` or `required`",
         ));
       }
       Ok(())
@@ -113,6 +116,15 @@ pub fn parse_field_attributes(field: &Field) -> syn::Result<Option<FieldAttribut
     return Err(Error::new_spanned(
       field,
       "`flatten` takes no other settings: the group's properties carry their own",
+    ));
+  }
+  if let Some(attributes) = &found
+    && attributes.required.is_some()
+    && (attributes.sets_property() || attributes.name.is_some() || attributes.flatten.is_some() || attributes.content.is_some())
+  {
+    return Err(Error::new_spanned(
+      field,
+      "`required` takes no other settings: the code that creates the type gives the field its value",
     ));
   }
   if let Some(attributes) = &found
