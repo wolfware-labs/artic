@@ -255,8 +255,8 @@ pub fn ui_class(argument: TokenStream, item: TokenStream) -> TokenStream {
   let source_file = proc_macro::Span::call_site()
     .local_file()
     .map(|file| match std::env::current_dir() {
-      Ok(current) if file.is_relative() => current.join(file),
-      _ => file,
+      Ok(current) => current.join(file),
+      Err(_) => file,
     });
   let site = ui_class::Site {
     source_file,
