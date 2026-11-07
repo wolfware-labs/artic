@@ -507,6 +507,10 @@ mod tests {
       view_path(&site, &literal("card/../login.ui")).expect("found"),
       "src/views/login.ui"
     );
+    assert_eq!(
+      view_path(&site, &literal(".//login.ui")).expect("found"),
+      "src/views/login.ui"
+    );
   }
 
   // A file's extension starts at the last dot of its name, unless that dot starts the name.
