@@ -163,10 +163,16 @@ fn view_path(site: &Site, path: &LitStr) -> syn::Result<String> {
         .ok_or_else(|| outside(&argument))?;
       (inside.to_owned(), true)
     } else {
-      let segments: Vec<&str> = written
-        .split('/')
-        .filter(|segment| !matches!(*segment, "" | "." | ".."))
-        .collect();
+      let mut segments: Vec<&str> = Vec::new();
+      for segment in written.split('/') {
+        match segment {
+          "" | "." => {}
+          ".." => {
+            segments.pop();
+          }
+          _ => segments.push(segment),
+        }
+      }
       (segments.join("/"), false)
     };
     let (stem, extension) = split_extension(&end);
@@ -487,7 +493,7 @@ mod tests {
   }
 
   // Without the struct's file, the view is the one compiled view whose path ends with the
-  // argument's, `..` segments left out.
+  // argument's: a `..` after a segment goes back over it, and a leading one is left out.
   #[test]
   fn editor_finds_the_compiled_view_by_its_end() {
     let site = editor_site("one", &["src/views/login.rs", "src/views/card.rs", "src/old_login.rs"]);
@@ -495,6 +501,10 @@ mod tests {
     assert_eq!(view_path(&site, &literal("login.ui")).expect("found"), "src/views/login.ui");
     assert_eq!(
       view_path(&site, &literal("../views/login.ui")).expect("found"),
+      "src/views/login.ui"
+    );
+    assert_eq!(
+      view_path(&site, &literal("card/../login.ui")).expect("found"),
       "src/views/login.ui"
     );
   }
