@@ -4,6 +4,9 @@
 //! [`controls`], [`core`], [`element`](mod@element), [`layout`] and [`render`]. With default
 //! features it adds no UI language, host or renderer: each comes with a feature named after it.
 //!
+//! An app crate's `pub fn app() -> artic::App` says how to build its tree, and a launcher runs it
+//! with [`run`], naming a host and a renderer.
+//!
 //! [`ui_class`] makes a struct the code type of a compiled view: the element at its root, holding
 //! its named nodes. The root also has what an app's own code writes: the reactive types, the tree
 //! and its handles, [`element`](macro@element) and the element traits, and the `UiType` and
@@ -34,6 +37,7 @@ pub use artic_render as render;
 /// Makes a struct the code type of a compiled view, the element at the root of the view.
 pub use artic_macros::ui_class;
 
+pub use app::{App, run};
 pub use artic_core::property::Property;
 pub use artic_core::reactive::{Memo, Signal, effect};
 pub use artic_core::tree::{Handle, NodeId, UiTree};
@@ -50,6 +54,8 @@ pub mod prelude {
   pub use artic_element::{AppearanceMethods, IdentityMethods, InteractionMethods, LayoutMethods};
 }
 
+mod app;
+mod hooks;
 #[cfg(feature = "view-compiler")]
 pub mod view;
 #[cfg(feature = "xaml")]

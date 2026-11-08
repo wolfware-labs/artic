@@ -23,6 +23,7 @@ artic-controls.workspace = true
 artic-macros.workspace = true
 artic-platform.workspace = true
 artic-registry.workspace = true
+artic-text.workspace = true
 artic-view-compiler = { workspace = true, optional = true }
 artic-xaml = { workspace = true, optional = true }
 artic-xaml-lang = { workspace = true, optional = true }

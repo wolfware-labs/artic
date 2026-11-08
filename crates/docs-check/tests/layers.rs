@@ -559,14 +559,20 @@ fn nothing_depends_on_an_adapter() {
   assert_none(problems);
 }
 
-// The facade depends without a feature only on crates it re-exports, whole or by item, none of
-// them a seam's, and its default features add no seam's crate.
+// The facade depends without a feature only on crates it re-exports, whole or by item, or uses to
+// run the app, none of them a seam's, and its default features add no seam's crate.
 #[test]
 fn the_facade_depends_only_on_what_it_re_exports() {
   let packages = metadata();
   let architecture = Architecture::read(&packages);
   let facade = &packages["artic"];
   let lib = read("crates/artic/src/lib.rs");
+  let used: String = std::fs::read_dir(repository().join("crates/artic/src"))
+    .expect("the facade has a src/")
+    .map(|entry| entry.expect("src/ lists").path())
+    .filter(|path| path.extension().is_some_and(|extension| extension == "rs"))
+    .map(|path| std::fs::read_to_string(path).expect("a source file reads"))
+    .collect();
   let seams = architecture.seam_crates();
   let mut problems = Vec::new();
   for (target, optional) in facade.dependencies.get("normal").into_iter().flatten() {
@@ -578,12 +584,14 @@ fn the_facade_depends_only_on_what_it_re_exports() {
     }
     let library = target.replace('-', "_");
     let (whole, item) = (format!("pub use {library} "), format!("pub use {library}::"));
-    if !lib
+    let re_exported = lib
       .lines()
       .map(str::trim_start)
-      .any(|line| line.starts_with(&whole) || line.starts_with(&item))
-    {
-      problems.push(format!("artic -> {target}: depended on, not re-exported in src/lib.rs"));
+      .any(|line| line.starts_with(&whole) || line.starts_with(&item));
+    if !re_exported && !used.contains(&format!("{library}::")) {
+      problems.push(format!(
+        "artic -> {target}: depended on, neither re-exported in src/lib.rs nor used in src/"
+      ));
     }
   }
   let mut pending = vec!["default".to_owned()];

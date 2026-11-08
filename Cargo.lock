@@ -130,6 +130,7 @@ dependencies = [
  "artic-platform",
  "artic-registry",
  "artic-render",
+ "artic-text",
  "artic-view-compiler",
  "artic-xaml",
  "artic-xaml-lang",

@@ -39,7 +39,7 @@ flowchart TD
   artic -. planned .-> theme[artic-theme]
   artic --> controls[artic-controls]
   artic --> platform[artic-platform]
-  artic -. planned .-> text[artic-text]
+  artic --> text[artic-text]
   artic -. planned: xaml-runtime / xaml-hot-reload .-> runtime[artic-xaml-runtime]
   artic -. xaml .-> xaml
   artic -. view-compiler .-> viewc[artic-view-compiler]
@@ -118,7 +118,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-test` | `artic-core`, `artic-layout`, `artic-render`, `artic-text`, `artic-test-fonts`, `artic-element`, `artic-platform`, `artic-registry` (planned), `artic-style` (planned) | none |
 | `artic-winit` | `artic-render`, `artic-platform` | none |
 | `artic-vello` | `artic-layout`, `artic-render` | `artic-controls`, `artic-core`, `artic-element`, `artic-test`, `artic-test-fonts`, `artic-text` |
-| `artic` | `artic-core`, `artic-element`, `artic-layout`, `artic-render`, `artic-controls`, `artic-macros`, `artic-registry`, `artic-platform`, `artic-text` (planned #55), `artic-style` (planned #106), `artic-theme` (planned #106), `artic-xaml` (feature `xaml`), `artic-view-compiler` (feature `view-compiler`), `artic-xaml-lang` (feature `xaml-compiler`), `artic-xaml-runtime` (planned #66, feature `xaml-runtime`) | none |
+| `artic` | `artic-core`, `artic-element`, `artic-layout`, `artic-render`, `artic-controls`, `artic-macros`, `artic-registry`, `artic-platform`, `artic-text`, `artic-style` (planned #106), `artic-theme` (planned #106), `artic-xaml` (feature `xaml`), `artic-view-compiler` (feature `view-compiler`), `artic-xaml-lang` (feature `xaml-compiler`), `artic-xaml-runtime` (planned #66, feature `xaml-runtime`) | none |
 
 ## Rules
 
@@ -140,7 +140,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 - `crates/docs-check` is test-only (`publish = false`) and sits outside the layers, like the registry fixtures. It compiles the Rust code in the documents.
 - `artic-xaml` does not depend on the registry. Type references stay unresolved in the infoset, so parser tests need no registry.
 - Release builds will link `artic-xaml-runtime` only when the app enables `xaml-runtime`; `xaml-hot-reload` is for development builds. Compiled views never touch the loader.
-- The facade's default features add no UI language, host or renderer. Each one comes with an opt-in feature named after it, such as `xaml`, so adding a language or a renderer never costs an app that doesn't use it. The facade depends on a crate only to re-export it.
+- The facade's default features add no UI language, host or renderer. Each one comes with an opt-in feature named after it, such as `xaml`, so adding a language or a renderer never costs an app that doesn't use it. The facade depends on a crate only to re-export it, or to run the app: `artic::run` builds the `Runner` of `artic-platform` with the text engine of `artic-text`, which an app never names.
 - App-facing crates stay free of native-only dependencies, so a web target can be added later without app changes (D24 in the spec).
 - Backend adapters (`artic-winit`, `artic-vello`, and any third-party adapter) depend only on the public API of `artic-render` and `artic-platform`. Nothing in artic depends on an adapter: each target's launcher names its host and renderer ([backend design](design/backends.md)). `artic-render` and `artic-platform` have no backend dependencies (`wgpu`, `vello`, `winit` and the OS crates live in adapters). Examples that need both a host and a renderer live in `artic-examples`, so no adapter depends on another.
 
@@ -164,4 +164,4 @@ The first version of the spec drew `artic-core -> artic-layout -> artic-controls
 cargo test -p docs-check --test layers
 ```
 
-The test reads `cargo metadata` and the tables above, and fails on an edge one side has that the other lacks, a crate whose layer isn't its depth, a dev-dependency against the layers that the exceptions table doesn't list, a crate in the layers that depends on an adapter, and a facade dependency it doesn't re-export or that adds a seam's crate by default. It also checks the README's table of crates and layers. `cargo deny check bans` keeps `winit`, `vello` and `wgpu` in their adapters. A pull request that adds an edge updates this document in the same change.
+The test reads `cargo metadata` and the tables above, and fails on an edge one side has that the other lacks, a crate whose layer isn't its depth, a dev-dependency against the layers that the exceptions table doesn't list, a crate in the layers that depends on an adapter, and a facade dependency it neither re-exports nor uses in `src/`, or that adds a seam's crate by default. It also checks the README's table of crates and layers. `cargo deny check bans` keeps `winit`, `vello` and `wgpu` in their adapters. A pull request that adds an edge updates this document in the same change.
