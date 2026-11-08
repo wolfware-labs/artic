@@ -40,8 +40,8 @@ fn root_items_make_an_element() {
   own_kind::<Badge>();
   assert_eq!(badge.get(&tree).tone.get(), Tone::Loud);
   assert_eq!(<Badge as UiType>::TYPE_INFO.name, "Badge");
-  assert!(tree.get(node).is_some());
-  assert_eq!(<Tone as std::str::FromStr>::from_str("Calm").ok(), Some(Tone::Calm));
+  assert!(tree.contains(node));
+  assert_eq!("Calm".parse(), Ok(Tone::Calm));
 }
 
 // A signal, a memo over it and an effect reading the memo are reachable from the root.

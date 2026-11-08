@@ -21,6 +21,7 @@ impl App {
   /// ```compile_fail
   /// artic::App::new(|tree| artic::controls::Border::new().build(tree));
   /// ```
+  #[must_use]
   pub fn new<T: ElementKind<Kind = Application>>(build: impl FnOnce(&mut UiTree) -> Handle<T> + 'static) -> App {
     App {
       build: Box::new(move |tree| build(tree).id()),

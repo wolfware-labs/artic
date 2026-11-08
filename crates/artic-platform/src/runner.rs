@@ -17,10 +17,11 @@ use std::fmt::{self, Debug, Formatter};
 use std::time::Duration;
 
 /// Drives a tree's frames from a host: it presents the open [`Surface`]s of the tree's
-/// [`Application`](artic_element::Application), asks for a frame when something changed, and runs each frame's stages.
+/// [`Application`](artic_element::Application), asks for a frame when something changed, and runs
+/// each frame's stages.
 ///
-/// Build it with the tree, a renderer, a text engine and the root node, an `Application` or a code type of one, register
-/// hooks, and hand it to
+/// Build it with the tree, a renderer, a text engine and the root node, an `Application` or a code
+/// type of one, register hooks, and hand it to
 /// [`run`](crate::run). After every call from the host it reconciles the surfaces with the host: a surface
 /// opened is presented, one closed or taken out of the tree is taken down, and one whose title,
 /// size or chrome changed is updated.
@@ -156,7 +157,7 @@ impl<R: Renderer> Runner<R> {
   #[must_use]
   #[track_caller]
   pub fn new(tree: UiTree, renderer: R, text: Box<dyn TextEngine>, application: NodeId) -> Self {
-    assert!(tree.get(application).is_some(), "node {application:?} isn't in the tree");
+    assert!(tree.contains(application), "node {application:?} isn't in the tree");
     Runner {
       tree,
       renderer,

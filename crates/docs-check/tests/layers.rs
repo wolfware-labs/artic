@@ -1,7 +1,7 @@
 //! Checks the crate graph against `docs/architecture.md`: every edge Cargo has is in its tables and
 //! every edge there is in Cargo, each crate's layer is its depth, dev-dependencies break the layers
 //! only where the exceptions table says so, nothing in the layers reaches an adapter, and the facade
-//! depends only on what it re-exports.
+//! adds no seam's crate by default.
 
 mod common;
 

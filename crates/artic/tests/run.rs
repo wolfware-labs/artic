@@ -8,6 +8,7 @@ use artic::render::{
 use artic::{App, Error};
 use artic_platform::{AppHandler, DisplayId, Host, HostContext, SurfaceInfo, SurfaceLoss, Waker, WindowDesc, Windows};
 use std::cell::{Cell, RefCell};
+use std::io;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -18,23 +19,11 @@ struct Log {
   opened: Vec<String>,
 }
 
-/// Why the scripted host's loop failed.
-#[derive(Debug)]
-struct DisplayGone;
-
-impl std::fmt::Display for DisplayGone {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.write_str("the display went away")
-  }
-}
-
-impl std::error::Error for DisplayGone {}
-
 /// A host lending pixel buffers, whose loop opens what the app asks for, draws one frame on its
-/// first surface and ends, failing at the end when `fail` is set.
+/// first surface and ends with `end`.
 struct Scripted {
   log: Rc<RefCell<Log>>,
-  fail: bool,
+  end: Result<(), io::Error>,
 }
 
 /// The scripted host's context: it opens windows numbered from 1 and logs their titles.
@@ -65,13 +54,13 @@ impl Windows for Context<'_> {
 }
 
 impl Host for Scripted {
-  type Error = DisplayGone;
+  type Error = io::Error;
 
   fn targets(&self) -> TargetKind {
     TargetKind::Pixels
   }
 
-  fn run(self, mut app: impl AppHandler + 'static) -> Result<(), DisplayGone> {
+  fn run(self, mut app: impl AppHandler + 'static) -> Result<(), io::Error> {
     self.log.borrow_mut().ran = true;
     let mut cx = Context { log: &self.log };
     let surface = SurfaceId::new(1);
@@ -92,21 +81,21 @@ impl Host for Scripted {
     });
     app.frame(&mut cx, surface, target, Duration::from_millis(16));
     app.surface_lost(&mut cx, surface, SurfaceLoss::Gone);
-    if self.fail { Err(DisplayGone) } else { Ok(()) }
+    self.end
   }
 }
 
-/// A renderer that draws on pixel buffers when `draws` is set, and on nothing otherwise, and
-/// counts the frames it drew.
+/// A renderer that draws on `draws_on`, or on nothing when it's `None`, and counts the frames it
+/// drew.
 #[derive(Debug)]
 struct Pixels {
-  draws: bool,
+  draws_on: Option<TargetKind>,
   rendered: Rc<Cell<u32>>,
 }
 
 impl Renderer for Pixels {
   fn accepts(&self, kind: TargetKind) -> bool {
-    self.draws && kind == TargetKind::Pixels
+    self.draws_on == Some(kind)
   }
 
   fn render(&mut self, _scene: &Scene, _surface: SurfaceView<'_>) -> Result<(), RenderError> {
@@ -125,17 +114,17 @@ fn hello() -> App {
   })
 }
 
-/// Runs `hello` on a scripted host, failing at the end when `fail` is set, with a renderer that
-/// draws when `draws` is set; returns the result, the host's log and the frames drawn.
-fn run_hello(fail: bool, draws: bool) -> (Result<(), Error>, Log, u32) {
+/// Runs `hello` on a scripted host whose loop ends with `end`, with a renderer that draws on
+/// `draws_on`; returns the result, the host's log and the frames drawn.
+fn run_hello(end: Result<(), io::Error>, draws_on: Option<TargetKind>) -> (Result<(), Error>, Log, u32) {
   let log = Rc::new(RefCell::new(Log::default()));
   let rendered = Rc::new(Cell::new(0));
   let host = Scripted {
     log: Rc::clone(&log),
-    fail,
+    end,
   };
   let renderer = Pixels {
-    draws,
+    draws_on,
     rendered: Rc::clone(&rendered),
   };
   let result = artic::run(host, renderer, hello());
@@ -145,7 +134,7 @@ fn run_hello(fail: bool, draws: bool) -> (Result<(), Error>, Log, u32) {
 // The app's surface opens as a window and draws a frame, and the run ends without an error.
 #[test]
 fn run_returns_ok() {
-  let (result, log, rendered) = run_hello(false, true);
+  let (result, log, rendered) = run_hello(Ok(()), Some(TargetKind::Pixels));
 
   assert!(result.is_ok(), "{result:?}");
   assert_eq!(log.opened, ["Hello"]);
@@ -155,7 +144,7 @@ fn run_returns_ok() {
 // A renderer that can't draw on the host's pixel buffers ends the run before the host starts.
 #[test]
 fn run_returns_unsupported() {
-  let (result, log, _) = run_hello(false, false);
+  let (result, log, _) = run_hello(Ok(()), None);
 
   assert!(matches!(result, Err(Error::Unsupported(TargetKind::Pixels))), "{result:?}");
   assert!(!log.ran);
@@ -164,7 +153,7 @@ fn run_returns_unsupported() {
 // The host's own failure comes back as the run's error, with the host's message.
 #[test]
 fn run_returns_the_host_error() {
-  let (result, log, _) = run_hello(true, true);
+  let (result, log, _) = run_hello(Err(io::Error::other("the display went away")), Some(TargetKind::Pixels));
 
   let Err(Error::Host(error)) = result else {
     panic!("expected the host's error, got {result:?}");

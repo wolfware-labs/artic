@@ -122,7 +122,7 @@ Changing the title at runtime needs app code that runs after the tree is built (
 | `run_returns_the_host_error` | a fake host whose loop fails: `Err(Error::Host)` with its error |
 | `run_returns_ok` | a fake host that starts, draws a frame and ends: `Ok(())`, and the frame drew the app's surface |
 | `app_accepts_a_code_type` | `App::new(HelloApp::create)`, through the fixture app, runs like a plain `Application` |
-| the facade's tests | rewritten on `artic::…` paths only, except those that check the crates' roots and the registry |
+| the facade's tests | rewritten on `artic::…` paths only, except those that check the crates' roots and the registry, and `run`'s fake host, which implements `artic_platform`'s traits as a host adapter does |
 | `ui_class`'s tests | a code type on an `Application` gets `surfaces: Children`; a struct field named `surfaces` is an error there |
 | the compiler's tests | `Root` and `Members` in the snapshots of views with a code type; an `Application` root with a code type compiles |
 
