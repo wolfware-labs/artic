@@ -122,7 +122,7 @@ Changing the title at runtime needs app code that runs after the tree is built (
 | `run_returns_the_host_error` | a fake host whose loop fails: `Err(Error::Host)` with its error |
 | `run_returns_ok` | a fake host that starts, draws a frame and ends: `Ok(())`, and the frame drew the app's surface |
 | `app_accepts_a_code_type` | `App::new(HelloApp::create)`, through the fixture app, runs like a plain `Application` |
-| the facade's tests | rewritten on `artic::…` paths only, with `artic-registry` the one dev-dependency left |
+| the facade's tests | rewritten on `artic::…` paths only, except those that check the crates' roots and the registry |
 | `ui_class`'s tests | a code type on an `Application` gets `surfaces: Children`; a struct field named `surfaces` is an error there |
 | the compiler's tests | `Root` and `Members` in the snapshots of views with a code type; an `Application` root with a code type compiles |
 
@@ -137,7 +137,7 @@ Changing the title at runtime needs app code that runs after the tree is built (
 | Where | Change |
 | --- | --- |
 | Spec §2 | the `artic-platform` row points here; with PR 2, the `artic` row lists `App` and `run` as present |
-| `architecture.md` | with PR 2, the facade's dependencies gain `artic-platform` and `artic-text`; with PR 4, `hello` is one of `artic-examples`' examples |
+| `architecture.md` | with PR 2, the facade's dependencies gain `artic-platform`, `artic-text` and `artic-registry`, and the facade may depend on a crate to run the app as well as to re-export it; with PR 4, `hello` is one of `artic-examples`' examples |
 | `ui-class.md` | a code type's root is a type with `code_type_root`, `UserControl` or `Application`; the compiled file's `Root` and `Members`; "`App` opening its first window from a code type" points here |
 | `surface.md` | the sample's `Application` can have an `x:Class`; the facade row points here |
 | `host.md`, `frame.md` | the facade rows point here |
@@ -151,6 +151,6 @@ Changing the title at runtime needs app code that runs after the tree is built (
 | PR | Contents |
 | --- | --- |
 | 1 | this document and the changes above that aren't marked for a later PR |
-| 2 | the root re-exports, the prelude, `App`, `run` and its hooks function, `Runner::new` without the type check, the facade's tests on `artic::` paths |
-| 3 | `ElementKind`, `Root` and `Members` in compiled views, `#[ui_class]` reading them, `code_type_root` on `Application` |
+| 2 | `ElementKind`, written by `#[element]`; the root re-exports, the prelude, `App`, `run` and its hooks function, `Runner::new` without the type check, the facade's tests on `artic::` paths |
+| 3 | `Root` and `Members` in compiled views, `#[ui_class]` reading them and writing `ElementKind`, `code_type_root` on `Application` |
 | 4 | `examples/hello`, `hello_view_tree_shape` and CI; closes #55 |
