@@ -52,7 +52,7 @@ LoginView { layout, appearance, interaction, identity, child, ui, attempts }
 
 - `#[ui_class]` adds `#[element]` and a `#[ui(content)] pub child: Child` field; like any element, the struct derives `Debug` itself. So beside its own fields, the struct has every member `UserControl` has: the four groups and one child. The root's attributes (`Margin="16"`) set those members on `LoginView`.
 - A handler (#82) gets `&mut LoginView` from the tree, typed, with no downcast and no second node.
-- The root element of a view with a code type must be a `UserControl` for now. Another root, such as a `Surface` for a window, is a later issue: the code type would take that element's members instead.
+- The root element of a view with a code type must be a type with `code_type_root`: a `UserControl`, and an `Application` with #55 ([facade design](facade.md#3-a-code-type-on-an-application)). Another root, such as a `Surface` for a window, is a later issue: the code type would take that element's members instead.
 
 The layout `UserControl` writes by hand today, "the children share my box and fill it", becomes `ElementImpl`'s default, as in Avalonia:
 
@@ -156,7 +156,7 @@ Two checks keep the struct and the file together:
 
 ## Where each piece lives
 
-`#[ui_class]` doesn't know XAML. It includes a compiled file, adds the `ui` field and the element, and checks `CODE_TYPE`, so any UI language whose compiler writes the same `View` and `build` shape works with it.
+`#[ui_class]` doesn't know XAML. It includes a compiled file, adds the `ui` field and the element, and checks `CODE_TYPE`, so any UI language whose compiler writes the same `View` and `build` shape works with it. With #55 the compiled file also writes `Root` and `Members`, and the macro takes the root's content from them ([facade design](facade.md#3-a-code-type-on-an-application)).
 
 | Piece | Crate |
 | --- | --- |
@@ -173,7 +173,7 @@ Two checks keep the struct and the file together:
 | Problem | Reported by | Where |
 | --- | --- | --- |
 | `x:Class` on an element other than the root | compiler | the attribute |
-| A code type whose root isn't a `UserControl` | compiler | the root element |
+| A code type on a root without `code_type_root` | compiler | the root element |
 | `x:Name` on the root of a view with a code type | compiler | the attribute |
 | A field visibility other than `pub` or `pub(crate)` | compiler | the attribute |
 | A field visibility on an element without a name | compiler | the attribute |
@@ -188,7 +188,7 @@ Two checks keep the struct and the file together:
 - Event handlers, the handler table and `view_model::<T>()`: #82.
 - Building a code type from a file at run time: #59, which gives the loader a way to construct a type whose `TypeInfo::new` is `None`.
 - A code type as an element in another compiled view: a compiled view uses only build-dependency types (D1 of the compiler), so a library's code type in an app's view is the case, and the compiler would emit `create` for it. A later issue.
-- `App` opening its first window from a code type: #55.
+- `App` opening its first window from a code type: #55, in the [facade design](facade.md).
 
 ## Testing
 
