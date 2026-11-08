@@ -1,5 +1,6 @@
 //! The traits an element implements: [`Element`] for the frame pipeline, [`ElementImpl`] for the
-//! control author, and [`HasState`] for the state structs a control embeds.
+//! control author, [`ElementKind`] for which element type it is, and [`HasState`] for the state
+//! structs a control embeds.
 
 use crate::context::{AccessCx, EventCx, Handled, HitTestCx, HitTestResult, RenderCx};
 use artic_core::Object;
@@ -39,6 +40,13 @@ pub trait Element: Object + Layoutable {
     let _ = size;
     Layers::default()
   }
+}
+
+/// Which element type a type is: itself for an element, its root's type for a code type.
+/// `#[element]` writes it.
+pub trait ElementKind: Element {
+  /// The element type.
+  type Kind: Element;
 }
 
 /// What a control writes: only what is special about it. Every method has a default.

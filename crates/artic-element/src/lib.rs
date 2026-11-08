@@ -32,7 +32,7 @@ pub use artic_registry::OverrideDefaults;
 pub use children::{Child, Children};
 pub use classes::Classes;
 pub use context::{AccessCx, EventCx, Handled, HitTestCx, HitTestResult, RenderCx};
-pub use element::{Element, ElementImpl, HasState};
+pub use element::{Element, ElementImpl, ElementKind, HasState};
 pub use nodes::ElementNodes;
 pub use properties::{
   Appearance, AppearanceMethods, Identity, IdentityMethods, Interaction, InteractionMethods, Layout, LayoutMethods,
@@ -46,8 +46,8 @@ pub use visibility::{Cursor, Visibility};
 #[doc(hidden)]
 pub mod __private {
   pub use crate::{
-    AccessCx, Appearance, Child, ELEMENT_TYPES, Element, ElementImpl, ElementType, EventCx, Handled, HasState, HitTestCx,
-    HitTestResult, Identity, Interaction, Layout, RenderCx, Visibility, element_type,
+    AccessCx, Appearance, Child, ELEMENT_TYPES, Element, ElementImpl, ElementKind, ElementType, EventCx, Handled, HasState,
+    HitTestCx, HitTestResult, Identity, Interaction, Layout, RenderCx, Visibility, element_type,
   };
   pub use accesskit;
   pub use artic_core::input::InputEvent;
