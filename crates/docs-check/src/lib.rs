@@ -40,6 +40,9 @@ pub mod docs_design_dsl_neutral {}
 #[doc = include_str!("../../../docs/design/element.md")]
 pub mod docs_design_element {}
 
+#[doc = include_str!("../../../docs/design/facade.md")]
+pub mod docs_design_facade {}
+
 #[doc = include_str!("../../../docs/design/frame.md")]
 pub mod docs_design_frame {}
 

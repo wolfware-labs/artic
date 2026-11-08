@@ -23,14 +23,14 @@ A **surface** is a root the app asks the host to present: an OS window on a desk
 </Application>
 ```
 
-`Application.Resources` arrives with #122, and views such as `local:NotesView` used as elements come after #52 ([code type design](ui-class.md#not-in-this-design)); the rest is this design.
+`Application.Resources` arrives with #122, and views such as `local:NotesView` used as elements come after #52 ([code type design](ui-class.md#not-in-this-design)), and an `x:Class` on the `Application` comes with #55 ([facade design](facade.md#3-a-code-type-on-an-application)); the rest is this design.
 
 ## 1. Who sees what
 
 | Who | Writes | Sees |
 | --- | --- | --- |
 | App code | an `Application` holding `Surface`s, each holding a view, usually a `UserControl`; `IsOpen` to open and close one | `Application`, `Surface`, `Desktop`, `UserControl` |
-| The facade (#55) | builds the tree from the views, then `Runner::new(tree, renderer, engine, application)` (the engine is `artic_text::Engine::system()`, [text design](text.md)) and `artic_platform::run(host, runner)` | `Runner`, `run` |
+| The facade ([facade design](facade.md), #55) | builds the tree from the views, then `Runner::new(tree, renderer, engine, application)` (the engine is `artic_text::Engine::system()`, [text design](text.md)) and `artic_platform::run(host, runner)` | `Runner`, `run` |
 | Control authors | `measure_override(&mut MeasureCx, …)` and `arrange_override(&mut ArrangeCx, …)` | `MeasureCx`, `ArrangeCx` |
 | Host adapters | `Windows::open`, `update` and `close` | `WindowDesc`, `Windows` |
 

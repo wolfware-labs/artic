@@ -8,7 +8,7 @@ A **host** drives the screen: it owns the event loop, reports surfaces and event
 
 | Who | Writes | Sees |
 | --- | --- | --- |
-| App authors | `pub fn app() -> artic::App`, and a launcher: `artic::run(artic_winit::Host::new()?, artic_vello::Renderer::new()?, my_app::app())`, from a `main` that returns a `Result` | `artic::App`, `artic::run`, a host and a renderer |
+| App authors | `pub fn app() -> artic::App`, and a launcher: `artic::run(artic_winit::Host::new()?, artic_vello::Renderer::new()?, my_app::app())`, from a `main` that returns a `Result` ([facade design](facade.md)) | `artic::App`, `artic::run`, a host and a renderer |
 | Host adapter authors (winit, SDL, a framebuffer, a browser) | `impl Host for MyHost`, calling an `AppHandler` from their loop | `Host`, `AppHandler`, `HostContext`, `SurfaceInfo`, `HostEvent`, `Waker` |
 | artic (#40) | `Runner`, the frame pipeline's `impl AppHandler` ([frame design](frame.md)) | the same seam, from the other side |
 
