@@ -149,8 +149,14 @@ impl Settings {
 impl<R: Renderer> Runner<R> {
   /// A runner for `tree`, drawing with `renderer` the surfaces of `application`, the app's root,
   /// and shaping text with `text`, which every surface shares.
+  ///
+  /// # Panics
+  ///
+  /// Panics if `application` isn't a node of `tree`.
   #[must_use]
+  #[track_caller]
   pub fn new(tree: UiTree, renderer: R, text: Box<dyn TextEngine>, application: NodeId) -> Self {
+    assert!(tree.get(application).is_some(), "node {application:?} isn't in the tree");
     Runner {
       tree,
       renderer,

@@ -20,6 +20,8 @@
 //! - `xaml-compiler`: `xaml::compile_dir`, the short form for XAML views. Turns `xaml` and
 //!   `view-compiler` on.
 
+#![deny(unused_crate_dependencies)]
+
 #[doc(hidden)]
 pub use artic_element::__private;
 
