@@ -7,6 +7,7 @@ An app depends on one crate, `artic`. Its views and its code import nothing else
 ```rust,ignore
 // The app crate (a library), the same for every target.
 #[artic::ui_class("app.xaml")]
+#[derive(Debug)]
 pub struct HelloApp;
 
 pub fn app() -> artic::App {
@@ -58,7 +59,7 @@ pub struct Members {
 }
 ```
 
-- **The compiler writes both** for a view with a code type. It has the root's `TypeInfo`, whose `content` names the field and its `Child` or `Children` method. A root whose content is a property, or a collection that is neither, can't be a code type's root.
+- **The compiler writes both** for a view with a code type. It has the root's `TypeInfo`, whose `content` names the field and its `Child` or `Children` method. It writes the paths through `CratePaths`, as it writes every other path, so `::artic::element` above is the facade's default. A root whose content is a property, or a collection that is neither, can't be a code type's root.
 - **`#[ui_class]` parses the compiled file** it already finds in `OUT_DIR`, and adds `Members`' fields to the struct, marked `#[ui(content)]`, in place of the hardcoded `child`. A `UserControl` code type gets `child: Child` as before. The field names it adds are reserved as `ui` and `child` are today: a struct field with the same name is an error at that field.
 - **`ElementKind`** is a trait in `artic-element`: `trait ElementKind { type Kind: Element; }`. `#[element]` writes `type Kind = Self`, and `#[ui_class]` writes `type Kind = <module>::Root`.
 - **`Application` gets `#[ui(code_type_root)]`,** the flag `UserControl` has. The flag's contract is unchanged: the type's behavior is the default `ElementImpl`, since the code type's own `impl ElementImpl` is empty.
@@ -78,7 +79,7 @@ The crates stay modules, as they are today: `controls`, `core`, `element`, `layo
 | `element`, `Element`, `ElementImpl`, `ElementKind` | `artic-macros`, `artic-element` | an app's own elements |
 | `UiType`, `UiEnum` | the derives from `artic-macros`; `UiType`'s trait from `artic-registry` | `UiType` names the derive and the trait it implements at one path, as serde's `Serialize` does; `UiEnum` is a derive only |
 
-`artic-platform` and `artic-text` become dependencies of the facade but not modules of it: an app sees neither, and host and renderer adapters depend on `artic-platform` directly.
+`artic-platform` and `artic-text` become dependencies of the facade but not modules of it: an app sees neither. Host adapters depend on `artic-platform` directly, and renderer adapters on `artic-render`.
 
 **The prelude holds the traits whose methods a view's code calls,** as `std::prelude` holds mostly traits: the property groups' builder methods (`AppearanceMethods`, `IdentityMethods`, `InteractionMethods`, `LayoutMethods`, `PanelMethods`), with `Handle` and `UiTree`, which every builder call names. Types an app names, such as `Signal` or `App`, are imported by name from the root, so a glob import of the prelude never shadows an app's own `Signal` or `App`.
 
