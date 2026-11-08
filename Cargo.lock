@@ -127,6 +127,7 @@ dependencies = [
  "artic-element",
  "artic-layout",
  "artic-macros",
+ "artic-platform",
  "artic-registry",
  "artic-render",
  "artic-view-compiler",

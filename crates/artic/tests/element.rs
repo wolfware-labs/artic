@@ -1,9 +1,8 @@
 // With the artic facade among its dependencies, a crate's #[element] code reaches artic through
 // `artic::__private`, and its type reaches the cast table.
 
-use artic_core::tree::UiTree;
-use artic_element::{ElementImpl, ElementTypes};
-use artic_macros::element;
+use artic::element::ElementTypes;
+use artic::{ElementImpl, UiTree, element};
 
 /// A control made through the facade.
 #[element]
