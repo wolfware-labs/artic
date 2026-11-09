@@ -14,7 +14,8 @@ type Root<Q> = (Q, TreeKind, NodeId);
 pub(super) struct Outside<Q> {
   /// The structure generation the rest holds for.
   generation: u64,
-  /// Each root asked for since `generation`, with the queued nodes it found outside it.
+  /// Each root asked for since `generation`, with the queued nodes it found outside it, except the one
+  /// taking its queue, which [`Take`] holds until [`Outside::end`].
   roots: Vec<(Root<Q>, NodeMap<()>)>,
   /// The nodes every root of their queue found outside it, off that queue.
   parked: Vec<(Q, NodeId)>,
@@ -73,19 +74,15 @@ impl<Q: Copy + Eq> Outside<Q> {
         found
       }));
     }
-    let mut requeue = Vec::new();
-    let found = match self.roots.iter_mut().find(|(seen, _)| *seen == root) {
-      Some((_, found)) => std::mem::take(found),
+    let (requeue, found) = match self.roots.iter().position(|(seen, _)| *seen == root) {
+      Some(index) => (Vec::new(), self.roots.swap_remove(index).1),
       None => {
-        self.roots.push((root, NodeMap::new()));
-        self.parked.retain(|(queue, node)| {
-          if *queue == root.0 {
-            requeue.push(*node);
-            return false;
-          }
-          true
-        });
-        self.spare.pop().unwrap_or_default()
+        let requeue = self
+          .parked
+          .extract_if(.., |(queue, _)| *queue == root.0)
+          .map(|(_, node)| node)
+          .collect();
+        (requeue, self.spare.pop().unwrap_or_default())
       }
     };
     let take = Take {
@@ -105,7 +102,7 @@ impl<Q: Copy + Eq> Outside<Q> {
       }
       take.found.insert(node, ());
     }
-    if self.outside_the_others(take.root, node) {
+    if self.outside_the_others(take.root.0, node) {
       take.parked.push(node);
       return Place::Parked;
     }
@@ -115,18 +112,16 @@ impl<Q: Copy + Eq> Outside<Q> {
   /// Ends `take`: keeps what its root found outside it, and sets aside what it parked.
   pub(super) fn end(&mut self, take: Take<Q>) {
     let Take { root, found, parked } = take;
-    if let Some((_, slot)) = self.roots.iter_mut().find(|(seen, _)| *seen == root) {
-      *slot = found;
-    }
+    self.roots.push((root, found));
     self.parked.extend(parked.into_iter().map(|node| (root.0, node)));
   }
 
-  /// Whether every root of `root`'s queue other than `root` found `node` outside it.
-  fn outside_the_others(&self, root: Root<Q>, node: NodeId) -> bool {
+  /// Whether every root of `queue` other than the one taking it found `node` outside it.
+  fn outside_the_others(&self, queue: Q, node: NodeId) -> bool {
     self
       .roots
       .iter()
-      .filter(|(seen, _)| *seen != root && seen.0 == root.0)
+      .filter(|(seen, _)| seen.0 == queue)
       .all(|(_, found)| found.get(node).is_some())
   }
 }
