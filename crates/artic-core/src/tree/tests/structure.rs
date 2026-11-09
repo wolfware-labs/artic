@@ -133,12 +133,7 @@ fn take_relinked_parks_a_link_under_no_root() {
 
   assert!(!tree.take_relinked(TreeKind::Visual, root));
 
-  let mut held = 0;
-  tree.relinked[TreeKind::Visual as usize].retain(|_, ()| {
-    held += 1;
-    true
-  });
-  assert_eq!(held, 0);
+  assert_eq!(tree.relinked[TreeKind::Visual as usize].iter_mut().count(), 0);
 }
 
 // A root asking for the first time since the structure changed is told of the links other roots

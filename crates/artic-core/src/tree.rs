@@ -24,6 +24,8 @@
 //! - `attached`: attached property values, stored per node.
 //! - `inheritance`: how inheritable properties follow the logical tree, as functions over the
 //!   objects and the logical links.
+//! - `outside`: the queued nodes `take_dirty` and `take_relinked` found under no root, set aside so
+//!   frames stop visiting them.
 //!
 //! The other parts keep their data under the same `NodeId`, in a `SlotMap` each; only `objects`
 //! knows whether an id is live, so `UiTree` checks an id there before it reaches them. `UiTree`
@@ -57,7 +59,7 @@ pub use handle::Handle;
 use hierarchy::Tree;
 pub use node_map::NodeMap;
 use objects::Objects;
-use outside::Outside;
+use outside::{Outside, Place};
 use std::any::Any;
 #[cfg(debug_assertions)]
 use std::cell::RefCell;
@@ -442,29 +444,26 @@ impl UiTree {
       TreeKind::Logical => &self.logical,
       TreeKind::Visual => &self.visual,
     };
-    let key = (tree, tree, root);
-    let (requeue, mut outside) = self.relinked_outside.begin(self.structure_generation, key);
+    let (requeue, mut take) = self.relinked_outside.begin(self.structure_generation, (tree, tree, root));
     let relinked = &mut self.relinked[tree as usize];
     for parent in requeue {
       relinked.insert(parent, ());
     }
     let mut found = false;
-    let mut parked = Vec::new();
     relinked.retain(|parent, ()| {
-      if outside.get(parent).is_none() {
-        if links.is_within(parent, root) {
+      match self
+        .relinked_outside
+        .place(&mut take, parent, || links.is_within(parent, root))
+      {
+        Place::Within => {
           found = true;
-          return false;
+          false
         }
-        outside.insert(parent, ());
+        Place::Queued => true,
+        Place::Parked => false,
       }
-      if self.relinked_outside.outside_the_others(key, parent) {
-        parked.push(parent);
-        return false;
-      }
-      true
     });
-    self.relinked_outside.end(key, outside, parked);
+    self.relinked_outside.end(take);
     found
   }
 
@@ -797,30 +796,24 @@ impl UiTree {
   #[track_caller]
   pub fn take_dirty(&mut self, stage: Affects, tree: TreeKind, root: NodeId) -> Vec<NodeId> {
     self.check(root);
-    let key = (stage, tree, root);
-    let (requeue, mut found) = self.outside.begin(self.structure_generation, key);
+    let (requeue, mut take) = self.outside.begin(self.structure_generation, (stage, tree, root));
     self.dirty_flags.requeue(stage, requeue);
     let mut taken = Vec::new();
-    let mut parked = Vec::new();
     self.dirty_flags.retain_queued(stage, |node| {
       if !self.dirty_flags.get(node).contains(stage) {
         return false;
       }
-      if found.get(node).is_none() {
-        if self.is_within(tree, node, root) {
+      match self.outside.place(&mut take, node, || self.is_within(tree, node, root)) {
+        Place::Within => {
           self.dirty_flags.clear(node, stage);
           taken.push(node);
-          return false;
+          false
         }
-        found.insert(node, ());
+        Place::Queued => true,
+        Place::Parked => false,
       }
-      if self.outside.outside_the_others(key, node) {
-        parked.push(node);
-        return false;
-      }
-      true
     });
-    self.outside.end(key, found, parked);
+    self.outside.end(take);
     taken
   }
 
