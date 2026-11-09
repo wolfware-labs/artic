@@ -10,13 +10,16 @@ use artic_examples::Report;
 use std::fmt::{self, Display, Formatter};
 use std::time::Duration;
 
+/// The variable that says how many seconds to run.
+const SECONDS_VARIABLE: &str = "ARTIC_HELLO_SECONDS";
+
 /// The app every launcher of it runs.
 fn app() -> artic::App {
   artic::App::new(app::HelloApp::create)
 }
 
 fn main() -> Result<(), Report> {
-  if let Some(after) = seconds(std::env::var("ARTIC_HELLO_SECONDS").ok().as_deref())? {
+  if let Some(after) = seconds(std::env::var(SECONDS_VARIABLE).ok().as_deref())? {
     std::thread::spawn(move || {
       std::thread::sleep(after);
       std::process::exit(0);
@@ -34,12 +37,12 @@ fn seconds(value: Option<&str>) -> Result<Option<Duration>, BadSeconds> {
 }
 
 /// `ARTIC_HELLO_SECONDS` set to something other than a whole number of seconds.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 struct BadSeconds(String);
 
 impl Display for BadSeconds {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    write!(f, "`ARTIC_HELLO_SECONDS` is `{}`, not a whole number of seconds", self.0)
+    write!(f, "`{SECONDS_VARIABLE}` is `{}`, not a whole number of seconds", self.0)
   }
 }
 
@@ -47,8 +50,7 @@ impl std::error::Error for BadSeconds {}
 
 #[cfg(test)]
 mod tests {
-  use super::app::HelloApp;
-  use super::seconds;
+  use super::*;
   use artic::UiTree;
   use artic::controls::{Border, StackPanel, TextBlock};
   use artic::core::tree::TreeKind;
@@ -58,22 +60,22 @@ mod tests {
   #[test]
   fn hello_view_tree_shape() {
     let mut tree = UiTree::new();
-    let app = HelloApp::create(&mut tree);
-    let children = |tree: &UiTree, node| tree.children(TreeKind::Logical, node).collect::<Vec<_>>();
+    let app = app::HelloApp::create(&mut tree);
+    let children = |node| tree.children(TreeKind::Logical, node).collect::<Vec<_>>();
 
-    let surfaces = children(&tree, app.id());
-    assert_eq!(surfaces.len(), 1);
-    let surface = tree.get_as::<Surface>(surfaces[0]).expect("a surface");
-    assert_eq!(surface.title.get(), "Hello");
-    let [border] = children(&tree, surfaces[0])[..] else {
+    let [surface] = children(app.id())[..] else {
+      panic!("the app holds one surface");
+    };
+    assert_eq!(tree.get_as::<Surface>(surface).expect("a surface").title.get(), "Hello");
+    let [border] = children(surface)[..] else {
       panic!("the surface holds one child");
     };
     assert!(tree.get_as::<Border>(border).is_some());
-    let [panel] = children(&tree, border)[..] else {
+    let [panel] = children(border)[..] else {
       panic!("the border holds one child");
     };
     assert!(tree.get_as::<StackPanel>(panel).is_some());
-    let lines: Vec<String> = children(&tree, panel)
+    let lines: Vec<String> = children(panel)
       .into_iter()
       .map(|node| tree.get_as::<TextBlock>(node).expect("a text block").text.get())
       .collect();
@@ -83,8 +85,8 @@ mod tests {
   // Without the variable the app runs until its window is closed; with it, for that many seconds.
   #[test]
   fn seconds_reads_a_whole_number() {
-    assert_eq!(seconds(None).ok(), Some(None));
-    assert_eq!(seconds(Some("3")).ok(), Some(Some(std::time::Duration::from_secs(3))));
+    assert_eq!(seconds(None), Ok(None));
+    assert_eq!(seconds(Some("3")), Ok(Some(Duration::from_secs(3))));
   }
 
   // A value that isn't a whole number of seconds is reported with the variable's name.
