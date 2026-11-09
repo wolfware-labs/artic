@@ -124,6 +124,38 @@ fn take_relinked_leaves_other_roots_links() {
   assert!(tree.take_relinked(TreeKind::Visual, second));
 }
 
+// A link under no root, found by every root, is set aside, so later frames don't look at it.
+#[test]
+fn take_relinked_parks_a_link_under_no_root() {
+  let mut tree = UiTree::new();
+  let [root, parent, child] = nodes(&mut tree);
+  tree.add_child(TreeKind::Visual, parent, child);
+
+  assert!(!tree.take_relinked(TreeKind::Visual, root));
+
+  let mut held = 0;
+  tree.relinked[TreeKind::Visual as usize].retain(|_, ()| {
+    held += 1;
+    true
+  });
+  assert_eq!(held, 0);
+}
+
+// A root asking for the first time since the structure changed is told of the links other roots
+// set aside.
+#[test]
+fn take_relinked_tells_a_new_root_what_others_set_aside() {
+  let mut tree = UiTree::new();
+  let [first, second, child, extra] = nodes(&mut tree);
+  assert!(!tree.take_relinked(TreeKind::Visual, second));
+  assert!(!tree.take_relinked(TreeKind::Visual, first));
+  tree.add_child(TreeKind::Visual, second, child);
+  tree.add_child(TreeKind::Visual, first, extra);
+
+  assert!(tree.take_relinked(TreeKind::Visual, first));
+  assert!(tree.take_relinked(TreeKind::Visual, second));
+}
+
 // Links in the other tree, new nodes and freeing a detached one aren't visual links.
 #[test]
 fn take_relinked_counts_only_its_trees_links() {

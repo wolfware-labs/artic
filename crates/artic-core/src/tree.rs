@@ -115,7 +115,9 @@ pub struct UiTree {
   /// took them.
   relinked: [NodeMap<()>; 2],
   /// The queued nodes under no root that `take_dirty` found, and those it set aside off the queue.
-  outside: Outside,
+  outside: Outside<Affects>,
+  /// The relinked parents under no root that `take_relinked` found, and those it set aside.
+  relinked_outside: Outside<TreeKind>,
   #[cfg(debug_assertions)]
   touched: RefCell<HashMap<NodeId, Vec<SignalId>, BuildHasherDefault<DefaultHasher>>>,
 }
@@ -216,6 +218,7 @@ impl UiTree {
       structure_generation: 0,
       relinked: [NodeMap::new(), NodeMap::new()],
       outside: Outside::new(),
+      relinked_outside: Outside::new(),
       #[cfg(debug_assertions)]
       touched: RefCell::new(HashMap::with_hasher(BuildHasherDefault::new())),
     }
@@ -439,14 +442,29 @@ impl UiTree {
       TreeKind::Logical => &self.logical,
       TreeKind::Visual => &self.visual,
     };
+    let key = (tree, tree, root);
+    let (requeue, mut outside) = self.relinked_outside.begin(self.structure_generation, key);
+    let relinked = &mut self.relinked[tree as usize];
+    for parent in requeue {
+      relinked.insert(parent, ());
+    }
     let mut found = false;
-    self.relinked[tree as usize].retain(|parent, ()| {
-      let within = links.is_within(parent, root);
-      if within {
-        found = true;
+    let mut parked = Vec::new();
+    relinked.retain(|parent, ()| {
+      if outside.get(parent).is_none() {
+        if links.is_within(parent, root) {
+          found = true;
+          return false;
+        }
+        outside.insert(parent, ());
       }
-      !within
+      if self.relinked_outside.outside_the_others(key, parent) {
+        parked.push(parent);
+        return false;
+      }
+      true
     });
+    self.relinked_outside.end(key, outside, parked);
     found
   }
 
