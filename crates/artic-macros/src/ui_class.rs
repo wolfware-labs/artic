@@ -72,6 +72,15 @@ pub fn expand(argument: TokenStream, item: TokenStream, site: &Site) -> syn::Res
     Some(members) => (Some(quote!(#module::Root)), members),
     None => (None, Vec::new()),
   };
+  if members
+    .iter()
+    .any(|member| member.ident.as_ref().is_some_and(|name| name == "ui"))
+  {
+    return Err(Error::new_spanned(
+      &ident,
+      format!("the root of `{view}` takes its content as `ui`, the field `#[ui_class]` adds for the named nodes"),
+    ));
+  }
   for field in &fields.named {
     let name = field.ident.as_ref().expect("named fields have names");
     if members.iter().any(|member| member.ident.as_ref() == Some(name)) {
@@ -562,6 +571,30 @@ mod tests {
 
       assert_eq!(error, format!("`{field}` is added by `#[ui_class]`; rename this field"));
     }
+  }
+
+  // A root whose content field is `ui` can't have a code type, since `ui` holds the named nodes:
+  // it's reported at the struct, before the two fields would collide.
+  #[test]
+  fn root_content_named_ui_is_refused() {
+    let site = site("content-ui", true);
+    site.write_compiled(
+      "src/views/login.rs",
+      "pub type Root = ::app::Pane; pub struct Members { pub ui: ::artic::element::Child, }",
+    );
+
+    let error = error(
+      quote!("login.ui"),
+      quote!(
+        struct LoginView;
+      ),
+      &site,
+    );
+
+    assert_eq!(
+      error,
+      "the root of `src/views/login.ui` takes its content as `ui`, the field `#[ui_class]` adds for the named nodes"
+    );
   }
 
   // A view without a code type has no `Members`: the struct gets no content and is its own kind,
