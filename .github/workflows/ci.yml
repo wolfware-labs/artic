@@ -326,6 +326,12 @@ jobs:
       - name: Idle
         run: cargo run -p artic-examples --example frames
         timeout-minutes: 5
+      # Windows' runners have only WARP, where vello refuses to start, and Ubuntu's have no display.
+      - name: Hello
+        run: cargo run -p artic-examples --example hello
+        timeout-minutes: 5
+        env:
+          ARTIC_HELLO_SECONDS: "3"
 
   lint:
     name: Lint

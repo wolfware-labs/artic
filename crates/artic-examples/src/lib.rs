@@ -1,4 +1,4 @@
-//! Examples that open a window: each file in `examples/` runs artic through the `winit` host and the `vello` renderer.
+//! Examples that open a window: each example in `examples/` runs artic through the `winit` host and the `vello` renderer.
 
 use artic_core::error::Chain;
 use std::fmt::{self, Debug, Display, Formatter};

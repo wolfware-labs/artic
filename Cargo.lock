@@ -200,6 +200,7 @@ name = "artic-examples"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "artic",
  "artic-core",
  "artic-element",
  "artic-layout",
