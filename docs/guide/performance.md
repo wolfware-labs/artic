@@ -6,7 +6,7 @@ How to measure an artic app's startup, memory and CPU, and what to change when t
 
 - **Use a release build.** `cargo run --release` or the binary in `target/release`. A debug build is several times slower and larger.
 - **Measure a warm run.** The first run on a machine, after a GPU driver update or after the driver's shader cache is cleared, compiles the renderer's shaders (see [Shaders](#shaders)); rebuilding the app doesn't clear that cache. Report both, but tune against the warm run.
-- **Read PSS, not only RSS.** RSS counts every page of every shared library the process maps, including GPU driver code that other processes share. PSS splits shared pages between the processes that use them, so it is closer to what the app adds. `RssAnon` is the app's own heap and buffers; `RssFile` is mapped code. On Linux:
+- **Read PSS, not only RSS.** RSS counts every page of every shared library the process maps, including GPU driver code that other processes share. PSS splits shared pages between the processes that use them, so it is closer to what the app adds. `RssAnon` is the resident anonymous memory: every heap, stack and buffer in the process, including those the GPU driver allocates. `RssFile` is the resident memory backed by files: code and data of the binary and the libraries, the drivers' among them. On Linux:
 
   ```sh
   pid=$(pgrep -x my-app)
