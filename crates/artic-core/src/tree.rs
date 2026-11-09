@@ -42,6 +42,7 @@ mod hierarchy;
 mod inheritance;
 mod node_map;
 mod objects;
+mod outside;
 
 use crate::Object;
 use crate::arena::SlotId;
@@ -56,6 +57,7 @@ pub use handle::Handle;
 use hierarchy::Tree;
 pub use node_map::NodeMap;
 use objects::Objects;
+use outside::Outside;
 use std::any::Any;
 #[cfg(debug_assertions)]
 use std::cell::RefCell;
@@ -112,6 +114,8 @@ pub struct UiTree {
   /// The parents each tree, logical first, made or cut a link under since a root above them last
   /// took them.
   relinked: [NodeMap<()>; 2],
+  /// The queued nodes under no root that `take_dirty` found, and those it set aside off the queue.
+  outside: Outside,
   #[cfg(debug_assertions)]
   touched: RefCell<HashMap<NodeId, Vec<SignalId>, BuildHasherDefault<DefaultHasher>>>,
 }
@@ -211,6 +215,7 @@ impl UiTree {
       listed: SlotMap::new(),
       structure_generation: 0,
       relinked: [NodeMap::new(), NodeMap::new()],
+      outside: Outside::new(),
       #[cfg(debug_assertions)]
       touched: RefCell::new(HashMap::with_hasher(BuildHasherDefault::new())),
     }
@@ -764,7 +769,9 @@ impl UiTree {
   /// another surface's.
   ///
   /// The tree queues a node when a mark adds `stage` to it, so this costs what was marked, not the
-  /// size of the tree. Only [`Affects::LAYOUT`] is queued.
+  /// size of the tree. A queued node every root asking for `stage` has found outside it leaves the
+  /// queue, and comes back when the structure of a tree changes or a root asks for the first time
+  /// since it did. Only [`Affects::LAYOUT`] is queued.
   ///
   /// # Panics
   ///
@@ -772,18 +779,30 @@ impl UiTree {
   #[track_caller]
   pub fn take_dirty(&mut self, stage: Affects, tree: TreeKind, root: NodeId) -> Vec<NodeId> {
     self.check(root);
+    let key = (stage, tree, root);
+    let (requeue, mut found) = self.outside.begin(self.structure_generation, key);
+    self.dirty_flags.requeue(stage, requeue);
     let mut taken = Vec::new();
+    let mut parked = Vec::new();
     self.dirty_flags.retain_queued(stage, |node| {
       if !self.dirty_flags.get(node).contains(stage) {
         return false;
       }
-      if !self.is_within(tree, node, root) {
-        return true;
+      if found.get(node).is_none() {
+        if self.is_within(tree, node, root) {
+          self.dirty_flags.clear(node, stage);
+          taken.push(node);
+          return false;
+        }
+        found.insert(node, ());
       }
-      self.dirty_flags.clear(node, stage);
-      taken.push(node);
-      false
+      if self.outside.outside_the_others(key, node) {
+        parked.push(node);
+        return false;
+      }
+      true
     });
+    self.outside.end(key, found, parked);
     taken
   }
 

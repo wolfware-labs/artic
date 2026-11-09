@@ -267,6 +267,99 @@ fn take_dirty_leaves_nodes_under_other_roots() {
   assert_eq!(take_layout(&mut tree, second), [second, child].into());
 }
 
+// A dirty node found outside a root, frame after frame, is handed over once it's linked under it.
+#[test]
+fn take_dirty_takes_an_outside_node_once_linked_under_the_root() {
+  let mut tree = UiTree::new();
+  let (root, _, _) = clean_label(&mut tree);
+  let (node, _, _) = clean_label(&mut tree);
+  tree.mark_dirty(node, Affects::LAYOUT);
+  assert_eq!(take_layout(&mut tree, root), [].into());
+  assert_eq!(take_layout(&mut tree, root), [].into());
+
+  tree.add_child(TreeKind::Visual, root, node);
+
+  assert!(take_layout(&mut tree, root).contains(&node));
+}
+
+// A node one root keeps finding outside it is still handed over to the root it's under.
+#[test]
+fn take_dirty_outside_one_root_is_inside_another() {
+  let mut tree = UiTree::new();
+  let (first, _, _) = clean_label(&mut tree);
+  let (second, _, _) = clean_label(&mut tree);
+  let (child, _, _) = clean_label(&mut tree);
+  tree.add_child(TreeKind::Visual, second, child);
+  let _ = take_layout(&mut tree, second);
+  tree.mark_dirty(child, Affects::LAYOUT);
+
+  assert_eq!(take_layout(&mut tree, first), [].into());
+  assert_eq!(take_layout(&mut tree, first), [].into());
+  assert_eq!(take_layout(&mut tree, second), [child].into());
+}
+
+// A node found outside a root and then freed doesn't hide the node that reuses its slot under it.
+#[test]
+fn take_dirty_takes_a_node_reusing_an_outside_node_slot() {
+  let mut tree = UiTree::new();
+  let (root, _, _) = clean_label(&mut tree);
+  let (outside, _, _) = clean_label(&mut tree);
+  tree.mark_dirty(outside, Affects::LAYOUT);
+  assert_eq!(take_layout(&mut tree, root), [].into());
+  tree.free(outside);
+
+  let (reused, _, _) = clean_label(&mut tree);
+  tree.add_child(TreeKind::Visual, root, reused);
+  tree.mark_dirty(reused, Affects::LAYOUT);
+
+  assert!(take_layout(&mut tree, root).contains(&reused));
+}
+
+/// How many nodes `stage`'s queue holds.
+fn queued(tree: &UiTree, stage: Affects) -> usize {
+  let mut count = 0;
+  tree.dirty_flags.retain_queued(stage, |_| {
+    count += 1;
+    true
+  });
+  count
+}
+
+// A dirty node every root has found outside it leaves the queue, so later frames don't visit it.
+#[test]
+fn take_dirty_parks_a_node_outside_every_root() {
+  let mut tree = UiTree::new();
+  let (first, _, _) = clean_label(&mut tree);
+  let (second, _, _) = clean_label(&mut tree);
+  let (detached, _, _) = clean_label(&mut tree);
+  tree.mark_dirty(detached, Affects::LAYOUT);
+
+  assert_eq!(take_layout(&mut tree, first), [].into());
+  assert_eq!(take_layout(&mut tree, second), [].into());
+
+  assert_eq!(queued(&tree, Affects::LAYOUT), 0);
+  assert!(tree.dirty(detached).contains(Affects::LAYOUT));
+}
+
+// A root that asks for the first time since the structure changed gets the nodes the other
+// roots set aside, since the node may be under it.
+#[test]
+fn take_dirty_gives_a_new_root_what_others_set_aside() {
+  let mut tree = UiTree::new();
+  let (first, _, _) = clean_label(&mut tree);
+  let (second, _, _) = clean_label(&mut tree);
+  let (child, _, _) = clean_label(&mut tree);
+  tree.add_child(TreeKind::Visual, second, child);
+  let _ = take_layout(&mut tree, second);
+  let _ = take_layout(&mut tree, first);
+  let (extra, _, _) = clean_label(&mut tree);
+  tree.add_child(TreeKind::Visual, first, extra);
+  tree.mark_dirty(child, Affects::LAYOUT);
+
+  assert!(!take_layout(&mut tree, first).contains(&child));
+  assert_eq!(take_layout(&mut tree, second), [child].into());
+}
+
 // Nodes are found under the root through the tree asked for, not the other one.
 #[test]
 fn take_dirty_follows_the_tree_kind() {
