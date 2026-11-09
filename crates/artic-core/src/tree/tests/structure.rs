@@ -151,6 +151,18 @@ fn take_relinked_tells_a_new_root_what_others_set_aside() {
   assert!(tree.take_relinked(TreeKind::Visual, second));
 }
 
+// A root asking in one tree leaves the links set aside in the other for that tree's roots.
+#[test]
+fn take_relinked_keeps_what_the_other_tree_set_aside() {
+  let mut tree = UiTree::new();
+  let [first, second, child] = nodes(&mut tree);
+  tree.add_child(TreeKind::Logical, second, child);
+  assert!(!tree.take_relinked(TreeKind::Logical, first));
+
+  assert!(!tree.take_relinked(TreeKind::Visual, second));
+  assert!(tree.take_relinked(TreeKind::Logical, second));
+}
+
 // Links in the other tree, new nodes and freeing a detached one aren't visual links.
 #[test]
 fn take_relinked_counts_only_its_trees_links() {

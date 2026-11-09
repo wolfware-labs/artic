@@ -451,17 +451,11 @@ impl UiTree {
     }
     let mut found = false;
     relinked.retain(|parent, ()| {
-      match self
+      let place = self
         .relinked_outside
-        .place(&mut take, parent, || links.is_within(parent, root))
-      {
-        Place::Within => {
-          found = true;
-          false
-        }
-        Place::Queued => true,
-        Place::Parked => false,
-      }
+        .place(&mut take, parent, || links.is_within(parent, root));
+      found |= place == Place::Within;
+      place == Place::Queued
     });
     self.relinked_outside.end(take);
     found
