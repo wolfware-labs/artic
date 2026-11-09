@@ -136,8 +136,9 @@ fn added_by_ui_class(name: &Ident) -> Error {
 }
 
 /// The fields of `Members` in the compiled view at `compiled`, the root's content, which the code
-/// type takes in the root's place; `None` for a view without a code type, which has no `Members`,
-/// and which the assertion `expand` writes reports. The error points at `ident`.
+/// type takes in the root's place, without their attributes, since `expand` writes their doc;
+/// `None` for a view without a code type, which has no `Members`, and which the assertion `expand`
+/// writes reports. The error points at `ident`.
 fn compiled_members(compiled: &Path, view: &str, ident: &Ident) -> syn::Result<Option<Vec<syn::Field>>> {
   let file = fs::read_to_string(compiled)
     .ok()

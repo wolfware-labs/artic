@@ -460,8 +460,8 @@ fn code_type_named_twice_points_at_both() {
   assert_eq!(view.code_type.map(|code_type| code_type.text).as_deref(), Some("app::One"));
 }
 
-// A code type takes its root's content as a child or children field, so a root whose content
-// is a property, or a collection no builder method fills, is reported at the root.
+// A code type takes its root's content as a `Child` or `Children` field, so a root whose content
+// is a property, or a collection no builder method fills, is reported at the root, with that help.
 #[test]
 fn code_type_root_content_is_a_child_or_children() {
   for (root, name) in [(&CAPTION, "Caption"), (&BAG, "Bag")] {
@@ -477,6 +477,11 @@ fn code_type_root_content_is_a_child_or_children() {
         &format!("`{name}` can't be the root of a view with a code type: its content isn't a child or children"),
         0
       )]
+    );
+    let help = diagnostics.iter().next().and_then(|diagnostic| diagnostic.help.clone());
+    assert_eq!(
+      help.as_deref(),
+      Some("a code type takes its root's content as a `Child` or `Children` field")
     );
   }
 }
