@@ -117,3 +117,21 @@ fn removals_keep_the_other_values_found() {
     [None, Some(1), None, Some(3)]
   );
 }
+
+// drain hands over every value with its node and leaves the map empty.
+#[test]
+fn drain_empties_the_map() {
+  let mut tree = UiTree::new();
+  let [a, b] = nodes(&mut tree);
+  let mut map = NodeMap::new();
+  map.insert(a, 1);
+  map.insert(b, 2);
+
+  assert_eq!(map.drain().collect::<Vec<_>>(), [(a, 1), (b, 2)]);
+  assert_eq!(map.get(a), None);
+  map.insert(b, 3);
+  assert_eq!(
+    map.iter_mut().map(|(node, value)| (node, *value)).collect::<Vec<_>>(),
+    [(b, 3)]
+  );
+}

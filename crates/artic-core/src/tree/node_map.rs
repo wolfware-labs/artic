@@ -91,6 +91,14 @@ impl<T> NodeMap<T> {
     }
   }
 
+  /// Takes every value out with its node, leaving the map empty and its size as it was.
+  pub fn drain(&mut self) -> impl Iterator<Item = (NodeId, T)> {
+    for (node, _) in &self.entries {
+      self.positions[node.0.index()] = EMPTY;
+    }
+    self.entries.drain(..)
+  }
+
   pub fn iter_mut(&mut self) -> impl Iterator<Item = (NodeId, &mut T)> {
     self.entries.iter_mut().map(|(node, value)| (*node, value))
   }

@@ -17,8 +17,8 @@ pub(super) struct Outside<Q> {
   /// Each root asked for since `generation`, with the queued nodes it found outside it, except the one
   /// taking its queue, which [`Take`] holds until [`Outside::end`].
   roots: Vec<(Root<Q>, NodeMap<()>)>,
-  /// The nodes every root of their queue found outside it, off that queue.
-  parked: Vec<(Q, NodeId)>,
+  /// For each queue, the nodes every root of it found outside it, off the queue.
+  parked: Vec<(Q, NodeMap<()>)>,
   /// Emptied maps of roots from earlier generations, which keep their size for the next roots.
   spare: Vec<NodeMap<()>>,
 }
@@ -77,11 +77,7 @@ impl<Q: Copy + Eq> Outside<Q> {
     let (requeue, found) = match self.roots.iter().position(|(seen, _)| *seen == root) {
       Some(index) => (Vec::new(), self.roots.swap_remove(index).1),
       None => {
-        let requeue = self
-          .parked
-          .extract_if(.., |(queue, _)| *queue == root.0)
-          .map(|(_, node)| node)
-          .collect();
+        let requeue = self.parked(root.0).drain().map(|(node, ())| node).collect();
         (requeue, self.spare.pop().unwrap_or_default())
       }
     };
@@ -113,7 +109,22 @@ impl<Q: Copy + Eq> Outside<Q> {
   pub(super) fn end(&mut self, take: Take<Q>) {
     let Take { root, found, parked } = take;
     self.roots.push((root, found));
-    self.parked.extend(parked.into_iter().map(|node| (root.0, node)));
+    let queue = self.parked(root.0);
+    for node in parked {
+      queue.insert(node, ());
+    }
+  }
+
+  /// The nodes parked off `queue`.
+  fn parked(&mut self, queue: Q) -> &mut NodeMap<()> {
+    let index = match self.parked.iter().position(|(parked, _)| *parked == queue) {
+      Some(index) => index,
+      None => {
+        self.parked.push((queue, NodeMap::new()));
+        self.parked.len() - 1
+      }
+    };
+    &mut self.parked[index].1
   }
 
   /// Whether every root of `queue` other than the one taking it found `node` outside it.
