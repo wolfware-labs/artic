@@ -14,6 +14,7 @@ artic-core.workspace = true
 
 [dev-dependencies]
 accesskit.workspace = true
+artic.workspace = true
 artic-element.workspace = true
 artic-layout.workspace = true
 artic-platform.workspace = true
@@ -24,6 +25,14 @@ artic-vello.workspace = true
 artic-winit.workspace = true
 raw-window-handle.workspace = true
 x11rb.workspace = true
+
+[build-dependencies]
+artic = { workspace = true, features = ["xaml-compiler"] }
+
+[[example]]
+name = "hello"
+path = "examples/hello/main.rs"
+test = true
 
 [[test]]
 name = "window"

@@ -12,7 +12,7 @@ An app picks three things. Each sits behind an interface no layer below it knows
 | Renderer | `Renderer` in `artic-render` | `artic-vello` |
 | UI language | `Document` and `Language` in `artic-view`, over the registry and the tree, as [the contract](spec/dsl.md) states | XAML: `artic-xaml`, `artic-xaml-lang`, `artic-xaml-runtime` |
 
-No crate below a UI language depends on it or names it. Only the XAML crates (`artic-xaml`, `artic-xaml-lang`, `artic-xaml-runtime`), `artic-lsp`, `artic-cli`, the facade's `xaml` module and its tests, the lines of the facade root that declare and document its `xaml` and `xaml-compiler` features, and `docs-check`'s list of documents say XAML or write its `x:` directives; `scripts/check-ui-neutral.sh` checks this in CI.
+No crate below a UI language depends on it or names it. Only the XAML crates (`artic-xaml`, `artic-xaml-lang`, `artic-xaml-runtime`), `artic-lsp`, `artic-cli`, the facade's `xaml` module and its tests, the lines of the facade root that declare and document its `xaml` and `xaml-compiler` features, `docs-check`'s list of documents, and the `hello` example in `artic-examples` (its view, its build script and the build-dependency line that turns on `xaml-compiler`), since an app is free to use XAML, say XAML or write its `x:` directives; `scripts/check-ui-neutral.sh` checks this in CI.
 
 ## Layers
 
@@ -131,7 +131,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 - Code that needs concrete controls but serves the runtime or tooling (hot-reload overlay and state restore, debug overlay) lives in the facade.
 - Test data that a crate below `artic-test` needs too, such as the test font, lives in a data-only crate with no dependencies (`artic-test-fonts`), not in `artic-test`, so the crate's tests can use it without a cycle.
 - The crates under `crates/artic-registry/fixtures/` are test-only (`publish = false`) and sit outside the layers. Two register two UI types each (`Alpha` or `Beta`, and `Twin`); `artic-registry-linking` holds the tests that check which of them reach the registry.
-- `crates/artic-examples` is test-only (`publish = false`) and sits outside the layers: its examples (`frames`, `smoke`, `primitives`) run artic through the `winit` host and the `vello` renderer, which no crate in the layers may depend on. `examples/hello` joins it with #55.
+- `crates/artic-examples` is test-only (`publish = false`) and sits outside the layers: its examples (`frames`, `smoke`, `primitives`, `hello`) run artic through the `winit` host and the `vello` renderer, which no crate in the layers may depend on.
 - The crates under `crates/artic-xaml-lang/fixtures/` are test-only (`publish = false`) and sit outside the layers: `app` compiles its views from its build script through the facade, and `controls` is a control crate its map names and no view uses.
 - `artic-macros` is a proc-macro crate that depends only on `artic-ident`. The code it generates names `artic::__private`, `artic_registry::__private` or, for `UiEnum`, `artic_core::__private`, whichever the calling crate depends on.
 - Dev-dependencies follow the layers too, except the edges in the table below.

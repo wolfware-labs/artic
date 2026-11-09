@@ -1,0 +1,11 @@
+<!-- The hello app: one window, its code type `HelloApp` in `app.rs` beside it. -->
+<Application xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup" x:Class="hello::app::HelloApp">
+  <Surface Title="Hello">
+    <Border Padding="24" BorderThickness="2" BorderBrush="#3a6ea5" Background="#f4f6f8">
+      <StackPanel Spacing="8">
+        <TextBlock Text="Hello from artic" FontSize="28"/>
+        <TextBlock Text="A view written in XAML, with its code in Rust"/>
+      </StackPanel>
+    </Border>
+  </Surface>
+</Application>
