@@ -191,5 +191,23 @@ fn one_leaf(c: &mut Criterion) {
   group.finish();
 }
 
-criterion_group!(benches, cold, unchanged, relayout, one_leaf);
+// A pass over a laid-out tree beside a detached subtree whose nodes are all queued dirty, as a
+// cached page or a node not yet attached is: nothing under the root is measured.
+fn detached(c: &mut Criterion) {
+  let mut group = c.benchmark_group("floor/detached");
+  for leaves in [1000, 10_000] {
+    let mut tree = UiTree::new();
+    let root = build(&mut tree, 1000)[0];
+    let mut layout = LayoutManager::default();
+    run(&mut layout, &mut tree, root);
+    build(&mut tree, leaves);
+    assert_eq!(run(&mut layout, &mut tree, root).measured, 0);
+    group.bench_function(BenchmarkId::from_parameter(leaves), |b| {
+      b.iter(|| run(&mut layout, &mut tree, root));
+    });
+  }
+  group.finish();
+}
+
+criterion_group!(benches, cold, unchanged, relayout, one_leaf, detached);
 criterion_main!(benches);
