@@ -188,7 +188,7 @@ fn code_type_view_names_its_root_and_members() {
   let rust = squashed(&rust);
   for expected in [
     "pubtypeRoot=::ui::Host;",
-    "#[allow(dead_code,reason=\"onlyacodetype'smacroreadsit\")]pubstructMembers{pubchild:::facade::element::Child,}",
+    "#[allow(dead_code,reason=\"onlyacodetype'smacroreadsit\")]#[derive(Debug)]pubstructMembers{pubchild:::facade::element::Child,}",
   ] {
     assert!(rust.contains(expected), "{expected} in {rust}");
   }

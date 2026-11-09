@@ -1,11 +1,13 @@
 // The compiled card builds the tree its markup describes, its handles reach the named nodes, and
 // a control crate the map names keeps its types in the registry though no view uses it.
 
+use artic::element::Surface;
 use artic::layout::Thickness;
 use artic::prelude::UiTree;
 use artic_core::tree::TreeKind;
 use artic_registry::Registry;
 use artic_xaml_compiler_fixture_app::email;
+use artic_xaml_compiler_fixture_app::views::app::FixtureApp;
 use artic_xaml_compiler_fixture_app::views::card;
 use artic_xaml_compiler_fixture_app::views::login::LoginView;
 
@@ -87,4 +89,20 @@ fn code_type_has_no_new() {
     .expect("registered");
 
   assert!(info.new.is_none());
+}
+
+// A code type on an Application is one by kind, so App::new takes its `create`, and it builds with
+// the surface as its child in both trees.
+#[test]
+fn app_accepts_a_code_type() {
+  let _ = artic::App::new(FixtureApp::create);
+  let mut tree = UiTree::new();
+
+  let app = FixtureApp::create(&mut tree);
+
+  for kind in TreeKind::ALL {
+    let children: Vec<_> = tree.children(kind, app.id()).collect();
+    assert_eq!(children.len(), 1);
+    assert!(tree.get_as::<Surface>(children[0]).is_some());
+  }
 }

@@ -52,6 +52,7 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
 
       /// The members of `Root` the code type has: its content.
       #[allow(dead_code, reason = "only a code type's macro reads it")]
+      #[derive(Debug)]
       pub struct Members {
         #(#content)*
       }

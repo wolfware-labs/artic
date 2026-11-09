@@ -54,6 +54,7 @@ ui-class.md allowed a code type only on a `UserControl`, and `#[ui_class]` write
 pub type Root = ::artic::element::Application;
 /// The members of `Root` the code type has: its content.
 #[allow(dead_code, reason = "only a code type's macro reads it")]
+#[derive(Debug)]
 pub struct Members {
   pub surfaces: ::artic::element::Children,
 }

@@ -6,6 +6,7 @@ use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{AccessCx, Application, Chrome, Desktop, ElementTypes, SizeToContent, Surface};
 use artic_layout::geometry::{Rect, Size};
 use artic_layout::{LayoutManager, PixelGrid};
+use artic_registry::UiType;
 use artic_text::Engine;
 use pretty_assertions::assert_eq;
 
@@ -140,4 +141,11 @@ fn surface_builder_takes_one_child() {
   for kind in TreeKind::ALL {
     assert_eq!(tree.children(kind, surface.id()).collect::<Vec<NodeId>>(), [content.id()]);
   }
+}
+
+// A view's code type can take an Application's place at the root, and not a Surface's.
+#[test]
+fn application_can_be_a_code_type_root() {
+  assert!(<Application as UiType>::TYPE_INFO.code_type_root);
+  assert!(!<Surface as UiType>::TYPE_INFO.code_type_root);
 }

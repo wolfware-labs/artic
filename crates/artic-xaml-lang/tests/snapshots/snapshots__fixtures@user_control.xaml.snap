@@ -19,6 +19,7 @@ pub const CODE_TYPE: Option<&str> = Some("app::views::LoginView");
 pub type Root = ::artic::controls::UserControl;
 /// The members of `Root` the code type has: its content.
 #[allow(dead_code, reason = "only a code type's macro reads it")]
+#[derive(Debug)]
 pub struct Members {
     pub child: ::artic::element::Child,
 }

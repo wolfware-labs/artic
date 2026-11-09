@@ -1,0 +1,7 @@
+<!-- An app with a code type and two windows: the code type takes the Application's surfaces. -->
+<Application xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup" x:Class="app::HelloApp">
+  <Surface Title="Main">
+    <TextBlock x:Name="greeting" Text="Hello"/>
+  </Surface>
+  <Surface Title="Tools"/>
+</Application>

@@ -9,6 +9,7 @@ use artic_macros::{UiEnum, UiType, element};
 /// [`Desktop`] setting on it reaches every one of them. The host lays out each surface on its own,
 /// so the application itself is never laid out.
 #[element]
+#[ui(code_type_root)]
 #[derive(Debug)]
 pub struct Application {
   /// The surfaces, in order.
