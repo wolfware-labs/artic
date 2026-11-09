@@ -161,3 +161,9 @@ fn run_returns_the_host_error() {
   assert_eq!(error.to_string(), "the display went away");
   assert!(log.ran);
 }
+
+// An app prints without its build closure, which has no `Debug` of its own.
+#[test]
+fn app_debug_hides_the_closure() {
+  assert_eq!(format!("{:?}", hello()), "App { .. }");
+}
