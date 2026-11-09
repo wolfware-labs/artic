@@ -88,6 +88,9 @@ pub mod docs_design_view_pipeline {}
 #[doc = include_str!("../../../docs/design/xaml-compiler.md")]
 pub mod docs_design_xaml_compiler {}
 
+#[doc = include_str!("../../../docs/guide/performance.md")]
+pub mod docs_guide_performance {}
+
 #[doc = include_str!("../../../docs/spec/dsl.md")]
 pub mod docs_spec_dsl {}
 
