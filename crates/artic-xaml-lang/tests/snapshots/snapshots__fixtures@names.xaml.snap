@@ -17,9 +17,13 @@ pub const CODE_TYPE: Option<&str> = None;
 /// The nodes of `names.xaml`: its root and one handle per named element.
 #[derive(Clone, Copy, Debug)]
 pub struct View {
+    /// The view's root.
     pub root: Handle<::artic::controls::StackPanel>,
+    /// The element named `empty`.
     pub empty: Handle<::artic::controls::StackPanel>,
+    /// The element named `email`.
     pub email: Handle<::artic::controls::TextBlock>,
+    /// The element named `panel`.
     pub panel: Handle<::artic::controls::StackPanel>,
 }
 /// Builds `names.xaml` in `tree` and returns its nodes.

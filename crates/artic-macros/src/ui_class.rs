@@ -143,9 +143,20 @@ fn compiled_members(compiled: &Path, view: &str, ident: &Ident) -> syn::Result<O
     .ok()
     .and_then(|rust| syn::parse_file(&rust).ok())
     .ok_or_else(|| Error::new_spanned(ident, format!("`{view}`'s compiled file isn't Rust; rebuild the crate")))?;
-  Ok(file.items.into_iter().find_map(|item| match item {
-    syn::Item::Struct(item) if item.ident == "Members" => Some(item.fields.into_iter().collect()),
-    _ => None,
+  Ok(file.items.into_iter().find_map(|item| {
+    match item {
+      syn::Item::Struct(item) if item.ident == "Members" => Some(
+        item
+          .fields
+          .into_iter()
+          .map(|field| syn::Field {
+            attrs: Vec::new(),
+            ..field
+          })
+          .collect(),
+      ),
+      _ => None,
+    }
   }))
 }
 
@@ -359,7 +370,10 @@ mod tests {
 
   /// What the compiler writes for the code type's items of a view whose root is an `Application`.
   const APPLICATION: &str = "pub type Root = ::artic::element::Application;
-    pub struct Members { pub surfaces: ::artic::element::Children, }";
+    pub struct Members {
+      /// The root's content, which the code type takes in the root's place.
+      pub surfaces: ::artic::element::Children,
+    }";
 
   impl Deref for TestSite {
     type Target = Site;
@@ -530,6 +544,10 @@ mod tests {
     );
     assert!(!rust.contains("pubchild"), "{rust}");
     assert!(rust.contains("typeKind=login_view::Root;"), "{rust}");
+    assert!(
+      !rust.contains("takesintheroot'splace"),
+      "the compiler's doc isn't copied: {rust}"
+    );
   }
 
   // A field of the struct named like one of `Members`' is reported at it, for any root.

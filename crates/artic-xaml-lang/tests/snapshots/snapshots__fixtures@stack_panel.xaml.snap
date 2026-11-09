@@ -18,6 +18,7 @@ pub const CODE_TYPE: Option<&str> = None;
 /// The nodes of `stack_panel.xaml`: its root and one handle per named element.
 #[derive(Clone, Copy, Debug)]
 pub struct View {
+    /// The view's root.
     pub root: Handle<::artic::controls::StackPanel>,
 }
 /// Builds `stack_panel.xaml` in `tree` and returns its nodes.

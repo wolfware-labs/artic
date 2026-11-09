@@ -195,7 +195,7 @@ impl Check {
               ty.info.name
             ),
           )
-          .with_help("a code type takes its root's content as a `child` or `children` field"),
+          .with_help("a code type takes its root's content as a `Child` or `Children` field"),
         );
       }
     }

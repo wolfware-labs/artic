@@ -164,7 +164,7 @@ fn code_type_is_the_root() {
   let rust = squashed(&rust);
   for expected in [
     "#[allow(dead_code,reason=\"onlyacodetype'smacroreadsit\")]pubconstCODE_TYPE:Option<&str>=Some(\"app::views::login::Login\");",
-    "pubstructView{pub(super)title:Handle<::ui::Label>,pub(crate)subtitle:Handle<::ui::Label>,pubbody:Handle<::ui::Label>,}",
+    "pubstructView{///Theelementnamed`title`.pub(super)title:Handle<::ui::Label>,///Theelementnamed`subtitle`.pub(crate)subtitle:Handle<::ui::Label>,///Theelementnamed`body`.pubbody:Handle<::ui::Label>,}",
     "pubfnbuild(tree:&mutUiTree)->Handle<crate::views::login::Login>{",
     "crate::views::login::Login::new(View{title:__e0,subtitle:__e1,body:__e2,}).margin(",
     ".child(__e3).build(tree)}",
@@ -188,7 +188,7 @@ fn code_type_view_names_its_root_and_members() {
   let rust = squashed(&rust);
   for expected in [
     "pubtypeRoot=::ui::Host;",
-    "#[allow(dead_code,reason=\"onlyacodetype'smacroreadsit\")]#[derive(Debug)]pubstructMembers{pubchild:::facade::element::Child,}",
+    "#[allow(dead_code,reason=\"onlyacodetype'smacroreadsit\")]#[derive(Debug)]pubstructMembers{///Theroot'scontent,whichthecodetypetakesintheroot'splace.pubchild:::facade::element::Child,}",
   ] {
     assert!(rust.contains(expected), "{expected} in {rust}");
   }
@@ -224,7 +224,7 @@ fn view_without_a_code_type_keeps_its_root() {
 
   for expected in [
     "pubconstCODE_TYPE:Option<&str>=None;",
-    "pubstructView{pubroot:Handle<::ui::Panel>,pub(crate)title:Handle<::ui::Label>,pubbody:Handle<::ui::Label>,}",
+    "pubstructView{///Theview'sroot.pubroot:Handle<::ui::Panel>,///Theelementnamed`title`.pub(crate)title:Handle<::ui::Label>,///Theelementnamed`body`.pubbody:Handle<::ui::Label>,}",
     "pubfnbuild(tree:&mutUiTree)->View{",
   ] {
     assert!(rust.contains(expected), "{expected} in {rust}");

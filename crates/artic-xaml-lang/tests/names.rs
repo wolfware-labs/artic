@@ -112,7 +112,9 @@ fn class_names_the_code_type() {
   assert!(joined.contains("pub(super)card:Handle<::artic::controls::Border>,"), "{rust}");
   assert!(joined.contains("pubtypeRoot=::artic::controls::UserControl;"), "{rust}");
   assert!(
-    joined.contains("pubstructMembers{pubchild:::artic::element::Child,}"),
+    joined.contains(
+      "pubstructMembers{///Theroot'scontent,whichthecodetypetakesintheroot'splace.pubchild:::artic::element::Child,}"
+    ),
     "{rust}"
   );
 }

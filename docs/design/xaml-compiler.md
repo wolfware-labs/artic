@@ -93,7 +93,9 @@ pub const CODE_TYPE: Option<&str> = None;
 /// The nodes of `login_view.xaml`: its root and one handle per named element.
 #[derive(Clone, Copy, Debug)]
 pub struct View {
+  /// The view's root.
   pub root: Handle<::artic::controls::UserControl>,
+  /// The element named `email`.
   pub email: Handle<::artic::controls::TextBox>,
 }
 

@@ -56,6 +56,7 @@ pub type Root = ::artic::element::Application;
 #[allow(dead_code, reason = "only a code type's macro reads it")]
 #[derive(Debug)]
 pub struct Members {
+  /// The root's content, which the code type takes in the root's place.
   pub surfaces: ::artic::element::Children,
 }
 ```

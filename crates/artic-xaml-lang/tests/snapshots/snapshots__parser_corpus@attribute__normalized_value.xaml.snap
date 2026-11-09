@@ -17,6 +17,7 @@ pub const CODE_TYPE: Option<&str> = None;
 /// The nodes of `valid/attribute/normalized_value.xaml`: its root and one handle per named element.
 #[derive(Clone, Copy, Debug)]
 pub struct View {
+    /// The view's root.
     pub root: Handle<::artic::controls::TextBlock>,
 }
 /// Builds `valid/attribute/normalized_value.xaml` in `tree` and returns its nodes.

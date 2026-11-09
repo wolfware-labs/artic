@@ -21,12 +21,15 @@ pub type Root = ::artic::controls::UserControl;
 #[allow(dead_code, reason = "only a code type's macro reads it")]
 #[derive(Debug)]
 pub struct Members {
+    /// The root's content, which the code type takes in the root's place.
     pub child: ::artic::element::Child,
 }
 /// The named nodes of `user_control.xaml`, one handle each.
 #[derive(Clone, Copy, Debug)]
 pub struct View {
+    /// The element named `email`.
     pub(super) email: Handle<::artic::controls::TextBlock>,
+    /// The element named `type`.
     pub(super) r#type: Handle<::artic::controls::TextBlock>,
 }
 /// Builds `user_control.xaml` in `tree`, with its code type at the root.

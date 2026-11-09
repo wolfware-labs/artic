@@ -20,11 +20,13 @@ pub type Root = ::artic::element::Application;
 #[allow(dead_code, reason = "only a code type's macro reads it")]
 #[derive(Debug)]
 pub struct Members {
+    /// The root's content, which the code type takes in the root's place.
     pub surfaces: ::artic::element::Children,
 }
 /// The named nodes of `application.xaml`, one handle each.
 #[derive(Clone, Copy, Debug)]
 pub struct View {
+    /// The element named `greeting`.
     pub(super) greeting: Handle<::artic::controls::TextBlock>,
 }
 /// Builds `application.xaml` in `tree`, with its code type at the root.
