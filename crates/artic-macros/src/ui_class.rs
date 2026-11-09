@@ -51,10 +51,7 @@ pub fn expand(argument: TokenStream, item: TokenStream, site: &Site) -> syn::Res
   for field in &fields.named {
     let name = field.ident.as_ref().expect("named fields have names");
     if name == "ui" {
-      return Err(Error::new_spanned(
-        name,
-        format!("`{name}` is added by `#[ui_class]`; rename this field"),
-      ));
+      return Err(added_by_ui_class(name));
     }
     if let Some(span) = parse_field_attributes(field)?.and_then(|attributes| attributes.required) {
       return Err(Error::new(
@@ -67,22 +64,18 @@ pub fn expand(argument: TokenStream, item: TokenStream, site: &Site) -> syn::Res
   let ident = item.ident.clone();
   let module = module_ident(&ident)?;
   let view = view_path(site, &path)?;
-  let compiled_file = site
+  let out_dir = site
     .out_dir
     .as_ref()
-    .expect("`view_path` found the compiled view in `OUT_DIR`")
-    .join("views")
-    .join(with_rs_extension(&view));
-  let compiled_members = members(&compiled_file, &view, &ident)?;
-  let kind = compiled_members.as_ref().map(|_| quote!(#module::Root));
-  let members = compiled_members.unwrap_or_default();
+    .expect("`view_path` found the compiled view in `OUT_DIR`");
+  let (kind, members) = match compiled_members(&compiled_file(out_dir, &view), &view, &ident)? {
+    Some(members) => (Some(quote!(#module::Root)), members),
+    None => (None, Vec::new()),
+  };
   for field in &fields.named {
     let name = field.ident.as_ref().expect("named fields have names");
     if members.iter().any(|member| member.ident.as_ref() == Some(name)) {
-      return Err(Error::new_spanned(
-        name,
-        format!("`{name}` is added by `#[ui_class]`; rename this field"),
-      ));
+      return Err(added_by_ui_class(name));
     }
   }
 
@@ -137,10 +130,15 @@ pub fn expand(argument: TokenStream, item: TokenStream, site: &Site) -> syn::Res
   })
 }
 
+/// The error for a field of the struct that `#[ui_class]` adds itself, at `name`.
+fn added_by_ui_class(name: &Ident) -> Error {
+  Error::new_spanned(name, format!("`{name}` is added by `#[ui_class]`; rename this field"))
+}
+
 /// The fields of `Members` in the compiled view at `compiled`, the root's content, which the code
 /// type takes in the root's place; `None` for a view without a code type, which has no `Members`,
 /// and which the assertion `expand` writes reports. The error points at `ident`.
-fn members(compiled: &Path, view: &str, ident: &Ident) -> syn::Result<Option<Vec<syn::Field>>> {
+fn compiled_members(compiled: &Path, view: &str, ident: &Ident) -> syn::Result<Option<Vec<syn::Field>>> {
   let file = fs::read_to_string(compiled)
     .ok()
     .and_then(|rust| syn::parse_file(&rust).ok())
@@ -235,7 +233,7 @@ fn view_path(site: &Site, path: &LitStr) -> syn::Result<String> {
   )
   .ok_or_else(|| outside(&argument))?;
   let out_dir = site.out_dir.as_ref().ok_or_else(no_views)?;
-  if !out_dir.join("views").join(with_rs_extension(&view)).is_file() {
+  if !compiled_file(out_dir, &view).is_file() {
     return Err(not_compiled(&view));
   }
   Ok(view)
@@ -259,6 +257,11 @@ fn compiled_views(dir: &Path, prefix: &str) -> Vec<String> {
   }
   views.sort();
   views
+}
+
+/// The compiled file of the crate-relative `view` under `out_dir`, where `compile_dir` writes it.
+fn compiled_file(out_dir: &Path, view: &str) -> PathBuf {
+  out_dir.join("views").join(with_rs_extension(view))
 }
 
 /// `path` with its last segment's extension replaced by `rs`, as `compile_dir` names its output.
@@ -345,7 +348,7 @@ mod tests {
     }
 
     /// Replaces the compiled view at `path`, under `views/`, with `rust`.
-    fn compiled(&self, path: &str, rust: &str) {
+    fn write_compiled(&self, path: &str, rust: &str) {
       fs::write(self.dir.join("views").join(path), rust).expect("a compiled view");
     }
   }
@@ -509,7 +512,7 @@ mod tests {
   #[test]
   fn members_and_kind_come_from_the_compiled_view() {
     let site = site("members", true);
-    site.compiled("src/views/login.rs", APPLICATION);
+    site.write_compiled("src/views/login.rs", APPLICATION);
 
     let expanded = expand(
       quote!("login.ui"),
@@ -534,7 +537,7 @@ mod tests {
   fn member_names_are_reserved() {
     for (rust, field) in [(USER_CONTROL, quote!(child)), (APPLICATION, quote!(surfaces))] {
       let site = site("reserved", true);
-      site.compiled("src/views/login.rs", rust);
+      site.write_compiled("src/views/login.rs", rust);
 
       let error = error(quote!("login.ui"), quote!(struct LoginView { #field: u8 }), &site);
 
@@ -547,7 +550,7 @@ mod tests {
   #[test]
   fn view_without_a_code_type_adds_no_content() {
     let site = site("no-members", true);
-    site.compiled("src/views/login.rs", "pub const CODE_TYPE: Option<&str> = None;");
+    site.write_compiled("src/views/login.rs", "pub const CODE_TYPE: Option<&str> = None;");
 
     let expanded = expand(
       quote!("login.ui"),
@@ -566,9 +569,9 @@ mod tests {
 
   // A compiled view that isn't Rust, cut short or written by hand, asks for a rebuild.
   #[test]
-  fn compiled_view_that_isnt_rust() {
+  fn compiled_view_that_isnt_rust_asks_for_a_rebuild() {
     let site = site("not-rust", true);
-    site.compiled("src/views/login.rs", "pub struct Members {");
+    site.write_compiled("src/views/login.rs", "pub struct Members {");
 
     let error = error(
       quote!("login.ui"),

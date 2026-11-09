@@ -174,35 +174,30 @@ impl Check {
     if root
       && self.code_type.is_some()
       && let Some(ty) = ty
-      && !ty.info.code_type_root
     {
-      self.diagnostics.push(
-        Diagnostic::error(
-          element.span,
-          format!("`{}` can't be the root of a view with a code type", ty.info.name),
-        )
-        .with_help("the code type takes the root's place, so the root's type must allow it"),
-      );
-    }
-    if root
-      && self.code_type.is_some()
-      && let Some(ty) = ty
-      && ty.info.code_type_root
-      && matches!(
+      if !ty.info.code_type_root {
+        self.diagnostics.push(
+          Diagnostic::error(
+            element.span,
+            format!("`{}` can't be the root of a view with a code type", ty.info.name),
+          )
+          .with_help("the code type takes the root's place, so the root's type must allow it"),
+        );
+      } else if matches!(
         ty.info.content,
         Some(ContentInfo::Property(_) | ContentInfo::Collection { method: None, .. })
-      )
-    {
-      self.diagnostics.push(
-        Diagnostic::error(
-          element.span,
-          format!(
-            "`{}` can't be the root of a view with a code type: its content isn't a child or children",
-            ty.info.name
-          ),
-        )
-        .with_help("a code type takes its root's content as a `child` or `children` field"),
-      );
+      ) {
+        self.diagnostics.push(
+          Diagnostic::error(
+            element.span,
+            format!(
+              "`{}` can't be the root of a view with a code type: its content isn't a child or children",
+              ty.info.name
+            ),
+          )
+          .with_help("a code type takes its root's content as a `child` or `children` field"),
+        );
+      }
     }
     if let Some(ty) = ty
       && ty.info.new.is_none()

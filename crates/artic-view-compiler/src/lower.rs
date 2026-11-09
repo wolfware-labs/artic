@@ -91,11 +91,15 @@ pub(crate) fn lower(view: &CheckedView, paths: &CratePaths, crates: &[&str]) -> 
     .into_iter()
     .map(|krate| parse_path(&paths.path_of(krate), view.span, &mut lower.diagnostics))
     .collect();
-  let code_type = view.code_type.as_ref().map(|code_type| {
+  let code_type = view.code_type.as_ref().map(|written| {
     let content = view
       .root
       .and_then(|root| root_content(view.elements[root].ty.info, paths, view.span, &mut lower.diagnostics));
-    code_type_path(code_type, &mut lower.diagnostics).map(|found| CodeType { content, ..found })
+    code_type_path(written, &mut lower.diagnostics).map(|path| CodeType {
+      path,
+      written: written.text.clone(),
+      content,
+    })
   });
   let names = view.names.iter().map(|name| field(name, code_type.is_some())).collect();
   let elements: Option<Vec<Element>> = elements.into_iter().collect();
@@ -134,9 +138,9 @@ fn field(name: &CheckedName, has_code_type: bool) -> Name {
   }
 }
 
-/// The code type `written` names, at `crate` in place of its crate, or `None` after reporting
-/// text that isn't a type's full path.
-fn code_type_path(written: &Text, diagnostics: &mut Diagnostics) -> Option<CodeType> {
+/// The path of the code type `written` names, at `crate` in place of its crate, or `None` after
+/// reporting text that isn't a type's full path.
+fn code_type_path(written: &Text, diagnostics: &mut Diagnostics) -> Option<Path> {
   let parsed = Path::parse_mod_style.parse_str(&written.text).ok().filter(|path| {
     !written.text.contains(char::is_whitespace)
       && path.leading_colon.is_none()
@@ -154,11 +158,7 @@ fn code_type_path(written: &Text, diagnostics: &mut Diagnostics) -> Option<CodeT
     return None;
   };
   path.segments[0] = PathSegment::from(Ident::new("crate", proc_macro2::Span::call_site()));
-  Some(CodeType {
-    path,
-    written: written.text.clone(),
-    content: None,
-  })
+  Some(path)
 }
 
 /// The content field of a code type's root `info`, with its type at `paths`: the check let only a
