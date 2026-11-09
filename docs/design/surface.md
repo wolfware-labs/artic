@@ -23,7 +23,7 @@ A **surface** is a root the app asks the host to present: an OS window on a desk
 </Application>
 ```
 
-`Application.Resources` arrives with #122, and views such as `local:NotesView` used as elements come after #52 ([code type design](ui-class.md#not-in-this-design)), and an `x:Class` on the `Application` comes with #55 ([facade design](facade.md#3-a-code-type-on-an-application)); the rest is this design.
+`Application.Resources` arrives with #122, and views such as `local:NotesView` used as elements come after #52 ([code type design](ui-class.md#not-in-this-design)); an `x:Class` on the `Application` is in the [facade design](facade.md#3-a-code-type-on-an-application); the rest is this design.
 
 ## 1. Who sees what
 

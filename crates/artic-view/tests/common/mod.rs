@@ -106,6 +106,29 @@ pub static HOST: TypeInfo = TypeInfo {
   ..info("Host", "test_ui::Host")
 };
 
+/// Its content sets `Text`; a view's code type can take its place at the root.
+pub static CAPTION: TypeInfo = TypeInfo {
+  content: Some(ContentInfo::Property(PropertyRef {
+    group: None,
+    info: &TEXT[0],
+  })),
+  properties: &TEXT,
+  code_type_root: true,
+  ..info("Caption", "test_ui::Caption")
+};
+
+/// A collection of values, which no builder method fills; a view's code type can take its place
+/// at the root.
+pub static BAG: TypeInfo = TypeInfo {
+  content: Some(ContentInfo::Collection {
+    field: "items",
+    method: None,
+    add_child,
+  }),
+  code_type_root: true,
+  ..info("Bag", "test_ui::Bag")
+};
+
 /// Takes no content and has a required field, so it can't be created from markup.
 pub static LOGIN: TypeInfo = TypeInfo {
   new: None,

@@ -6,6 +6,7 @@ use artic_view::CheckedContent;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::path::{Component, Path};
+use syn::ext::IdentExt;
 
 /// The module body for `view`, compiled from the file at `path`.
 pub(crate) fn emit(view: &View, path: &Path) -> String {
@@ -21,7 +22,8 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
        visibility,
      }| {
       let ty = &view.elements[*element].ty;
-      quote!(#visibility #field: Handle<#ty>)
+      let doc = format!(" The element named `{}`.", field.unraw());
+      quote!(#[doc = #doc] #visibility #field: Handle<#ty>)
     },
   );
   let names: Vec<TokenStream> = view
@@ -43,6 +45,26 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
       quote!(let #local = #built;)
     });
   let root_element = &view.elements[root];
+  let members = view.code_type.as_ref().map(|code_type| {
+    let root_ty = &root_element.ty;
+    let content = code_type.content.iter().map(|(field, ty)| {
+      quote! {
+        /// The root's content, which the code type takes in the root's place.
+        pub #field: #ty,
+      }
+    });
+    quote! {
+      /// The element type the code type takes the place of.
+      pub type Root = #root_ty;
+
+      /// The members of `Root` the code type has: its content.
+      #[allow(dead_code, reason = "only a code type's macro reads it")]
+      #[derive(Debug)]
+      pub struct Members {
+        #(#content)*
+      }
+    }
+  });
   let (code_type, root_field, returns, tail, view_doc, build_doc) = match &view.code_type {
     Some(code_type) => {
       let (path, written) = (&code_type.path, &code_type.written);
@@ -59,7 +81,10 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
       let (root_ty, root_local) = (&root_element.ty, local(root));
       (
         quote!(None),
-        quote!(pub root: Handle<#root_ty>,),
+        quote!(
+          /// The view's root.
+          pub root: Handle<#root_ty>,
+        ),
         quote!(View),
         quote!(View { root: #root_local, #(#names,)* }),
         format!(" The nodes of `{file}`: its root and one handle per named element."),
@@ -75,6 +100,8 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
     /// The type the view's code is, which takes the root's place, as the view names it.
     #[allow(dead_code, reason = "only a code type's macro reads it")]
     pub const CODE_TYPE: Option<&str> = #code_type;
+
+    #members
 
     #[doc = #view_doc]
     #[derive(Clone, Copy, Debug)]

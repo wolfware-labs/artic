@@ -1,7 +1,12 @@
-//! An app whose views its build script compiles, for the compiler's integration tests.
+//! An app whose views its build script compiles, for the compiler's integration tests. It denies
+//! `missing_docs`, as an app may, so the compiled views and code types must document what they make
+//! public.
+
+#![deny(missing_docs)]
 
 /// The compiled views.
 pub mod views {
+  pub mod app;
   /// `src/views/card.xaml`.
   pub mod card {
     include!(concat!(env!("OUT_DIR"), "/views/src/views/card.rs"));

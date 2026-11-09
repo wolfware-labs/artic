@@ -1,0 +1,47 @@
+---
+source: crates/artic-xaml-lang/tests/snapshots.rs
+expression: rust
+input_file: crates/artic-xaml-lang/tests/fixtures/application.xaml
+---
+// Generated from application.xaml.
+
+use ::artic::core::tree::{Handle, UiTree};
+use ::artic::controls as _;
+use ::artic::core as _;
+use ::artic::element as _;
+use ::artic::layout as _;
+use ::artic::render as _;
+/// The type the view's code is, which takes the root's place, as the view names it.
+#[allow(dead_code, reason = "only a code type's macro reads it")]
+pub const CODE_TYPE: Option<&str> = Some("app::HelloApp");
+/// The element type the code type takes the place of.
+pub type Root = ::artic::element::Application;
+/// The members of `Root` the code type has: its content.
+#[allow(dead_code, reason = "only a code type's macro reads it")]
+#[derive(Debug)]
+pub struct Members {
+    /// The root's content, which the code type takes in the root's place.
+    pub surfaces: ::artic::element::Children,
+}
+/// The named nodes of `application.xaml`, one handle each.
+#[derive(Clone, Copy, Debug)]
+pub struct View {
+    /// The element named `greeting`.
+    pub(super) greeting: Handle<::artic::controls::TextBlock>,
+}
+/// Builds `application.xaml` in `tree`, with its code type at the root.
+pub fn build(tree: &mut UiTree) -> Handle<crate::HelloApp> {
+    let __e0 = ::artic::controls::TextBlock::new()
+        .text(::std::string::String::from("Hello"))
+        .build(tree);
+    let __e1 = ::artic::element::Surface::new()
+        .title(::std::string::String::from("Main"))
+        .child(__e0)
+        .build(tree);
+    let __e2 = ::artic::element::Surface::new()
+        .title(::std::string::String::from("Tools"))
+        .build(tree);
+    crate::HelloApp::new(View { greeting: __e0 })
+        .children([__e1.id(), __e2.id()])
+        .build(tree)
+}

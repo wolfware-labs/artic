@@ -4,7 +4,7 @@
 use crate::CratePaths;
 use artic_diagnostics::{Diagnostic, Diagnostics, Span};
 use artic_ident::is_path_keyword;
-use artic_registry::{PropertyInfo, PropertyRef, RustExpr, TypeInfo};
+use artic_registry::{ContentInfo, ContentMethod, PropertyInfo, PropertyRef, RustExpr, TypeInfo};
 use artic_view::document::{Text, TypeUse};
 use artic_view::{CheckedContent, CheckedElement, CheckedName, CheckedView, FieldVisibility};
 use std::collections::{BTreeMap, BTreeSet};
@@ -45,6 +45,9 @@ pub(crate) struct CodeType {
   pub path: Path,
   /// Its path as the view writes it, which `CODE_TYPE` states.
   pub written: String,
+  /// The root's content field, which the code type takes in the root's place: its name and its
+  /// `Child` or `Children` type. `None` for a root with no content.
+  pub content: Option<(Ident, Path)>,
 }
 
 /// One element: its type, the builder methods that set its properties, and its children.
@@ -88,10 +91,16 @@ pub(crate) fn lower(view: &CheckedView, paths: &CratePaths, crates: &[&str]) -> 
     .into_iter()
     .map(|krate| parse_path(&paths.path_of(krate), view.span, &mut lower.diagnostics))
     .collect();
-  let code_type = view
-    .code_type
-    .as_ref()
-    .map(|code_type| code_type_path(code_type, &mut lower.diagnostics));
+  let code_type = view.code_type.as_ref().map(|written| {
+    let content = view
+      .root
+      .and_then(|root| root_content(view.elements[root].ty.info, paths, view.span, &mut lower.diagnostics));
+    code_type_path(written, &mut lower.diagnostics).map(|path| CodeType {
+      path,
+      written: written.text.clone(),
+      content,
+    })
+  });
   let names = view.names.iter().map(|name| field(name, code_type.is_some())).collect();
   let elements: Option<Vec<Element>> = elements.into_iter().collect();
   let links: Option<Vec<Path>> = links.into_iter().collect();
@@ -129,9 +138,9 @@ fn field(name: &CheckedName, has_code_type: bool) -> Name {
   }
 }
 
-/// The code type `written` names, at `crate` in place of its crate, or `None` after reporting
-/// text that isn't a type's full path.
-fn code_type_path(written: &Text, diagnostics: &mut Diagnostics) -> Option<CodeType> {
+/// The path of the code type `written` names, at `crate` in place of its crate, or `None` after
+/// reporting text that isn't a type's full path.
+fn code_type_path(written: &Text, diagnostics: &mut Diagnostics) -> Option<Path> {
   let parsed = Path::parse_mod_style.parse_str(&written.text).ok().filter(|path| {
     !written.text.contains(char::is_whitespace)
       && path.leading_colon.is_none()
@@ -149,10 +158,26 @@ fn code_type_path(written: &Text, diagnostics: &mut Diagnostics) -> Option<CodeT
     return None;
   };
   path.segments[0] = PathSegment::from(Ident::new("crate", proc_macro2::Span::call_site()));
-  Some(CodeType {
-    path,
-    written: written.text.clone(),
-  })
+  Some(path)
+}
+
+/// The content field of a code type's root `info`, with its type at `paths`: the check let only a
+/// `Child` or `Children` collection through.
+fn root_content(info: &TypeInfo, paths: &CratePaths, span: Span, diagnostics: &mut Diagnostics) -> Option<(Ident, Path)> {
+  let Some(ContentInfo::Collection {
+    field,
+    method: Some(method),
+    ..
+  }) = info.content
+  else {
+    return None;
+  };
+  let ty = match method {
+    ContentMethod::Child => "artic_element::Child",
+    ContentMethod::Children => "artic_element::Children",
+  };
+  let ty = parse_path(&paths.item(ty), span, diagnostics)?;
+  Some((syn::parse_str(field).expect("a content field is an identifier"), ty))
 }
 
 /// Parses `text`, built from the crates' paths, as the path of an item, or records that

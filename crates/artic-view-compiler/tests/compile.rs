@@ -6,7 +6,7 @@ mod common;
 use artic_diagnostics::{SourceId, SourceMap};
 use artic_view::document::Document;
 use artic_view_compiler::{CratePaths, compile_str};
-use common::{Built, HOST, LABEL, PANEL, children, code_type, element, name, property, registry, unknown, visibility};
+use common::{BADGE, Built, HOST, LABEL, PANEL, children, code_type, element, name, property, registry, unknown, visibility};
 
 /// Compiles the document `build` makes, with `test_ui` reached as `::ui` and the paths `edit`
 /// adds.
@@ -164,7 +164,7 @@ fn code_type_is_the_root() {
   let rust = squashed(&rust);
   for expected in [
     "#[allow(dead_code,reason=\"onlyacodetype'smacroreadsit\")]pubconstCODE_TYPE:Option<&str>=Some(\"app::views::login::Login\");",
-    "pubstructView{pub(super)title:Handle<::ui::Label>,pub(crate)subtitle:Handle<::ui::Label>,pubbody:Handle<::ui::Label>,}",
+    "pubstructView{///Theelementnamed`title`.pub(super)title:Handle<::ui::Label>,///Theelementnamed`subtitle`.pub(crate)subtitle:Handle<::ui::Label>,///Theelementnamed`body`.pubbody:Handle<::ui::Label>,}",
     "pubfnbuild(tree:&mutUiTree)->Handle<crate::views::login::Login>{",
     "crate::views::login::Login::new(View{title:__e0,subtitle:__e1,body:__e2,}).margin(",
     ".child(__e3).build(tree)}",
@@ -173,6 +173,51 @@ fn code_type_is_the_root() {
   }
   assert!(!rust.contains("root:"), "no root field in {rust}");
   assert!(!rust.contains("::ui::Host::new()"), "the root is the code type in {rust}");
+}
+
+// A view with a code type names the root's type as `Root` and its content as `Members`, the field
+// the code type takes in the root's place, with the crates' paths.
+#[test]
+fn code_type_view_names_its_root_and_members() {
+  let rust = compile(
+    |file| login(file, "app::views::login::Login"),
+    |paths| paths.path("artic_element", "::facade::element"),
+  )
+  .expect("a valid view");
+
+  let rust = squashed(&rust);
+  for expected in [
+    "pubtypeRoot=::ui::Host;",
+    "#[allow(dead_code,reason=\"onlyacodetype'smacroreadsit\")]#[derive(Debug)]pubstructMembers{///Theroot'scontent,whichthecodetypetakesintheroot'splace.pubchild:::facade::element::Child,}",
+  ] {
+    assert!(rust.contains(expected), "{expected} in {rust}");
+  }
+}
+
+// A code type on a root that takes no content has no members: it takes nothing in the root's place.
+#[test]
+fn code_type_on_a_root_without_content_has_no_members() {
+  let rust = compile(
+    |file| Document {
+      root: element(file, &BADGE, 0, vec![code_type(file, "app::Tag", 1)]),
+    },
+    |_| {},
+  )
+  .expect("a valid view");
+
+  let rust = squashed(&rust);
+  for expected in ["pubtypeRoot=::ui::Badge;", "pubstructMembers{}"] {
+    assert!(rust.contains(expected), "{expected} in {rust}");
+  }
+}
+
+// A view without a code type has no `Root` or `Members`, since no code type reads them.
+#[test]
+fn view_without_a_code_type_has_no_members() {
+  let rust = squashed(&compile(form, |_| {}).expect("a valid view"));
+
+  assert!(!rust.contains("typeRoot"), "no Root in {rust}");
+  assert!(!rust.contains("structMembers"), "no Members in {rust}");
 }
 
 // A view without a code type keeps its root in `View`, every field `pub` unless it writes
@@ -196,7 +241,7 @@ fn view_without_a_code_type_keeps_its_root() {
 
   for expected in [
     "pubconstCODE_TYPE:Option<&str>=None;",
-    "pubstructView{pubroot:Handle<::ui::Panel>,pub(crate)title:Handle<::ui::Label>,pubbody:Handle<::ui::Label>,}",
+    "pubstructView{///Theview'sroot.pubroot:Handle<::ui::Panel>,///Theelementnamed`title`.pub(crate)title:Handle<::ui::Label>,///Theelementnamed`body`.pubbody:Handle<::ui::Label>,}",
     "pubfnbuild(tree:&mutUiTree)->View{",
   ] {
     assert!(rust.contains(expected), "{expected} in {rust}");

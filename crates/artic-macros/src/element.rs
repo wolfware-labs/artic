@@ -20,11 +20,12 @@ pub fn expand(attribute: TokenStream, item: TokenStream) -> syn::Result<TokenStr
   if !attribute.is_empty() {
     return Err(Error::new_spanned(attribute, "`#[element]` takes no settings"));
   }
-  expand_struct(syn::parse2(item)?)
+  expand_struct(syn::parse2(item)?, None)
 }
 
-/// What `#[element]` writes for `item`, for it and for the macros that make a struct an element.
-pub fn expand_struct(mut item: ItemStruct) -> syn::Result<TokenStream> {
+/// What `#[element]` writes for `item`, for it and for the macros that make a struct an element;
+/// `kind` is the element type it is, itself when `None`.
+pub fn expand_struct(mut item: ItemStruct, kind: Option<TokenStream>) -> syn::Result<TokenStream> {
   let ident = item.ident.clone();
   if !item.generics.params.is_empty() {
     return Err(Error::new_spanned(
@@ -53,6 +54,7 @@ pub fn expand_struct(mut item: ItemStruct) -> syn::Result<TokenStream> {
     }
   }
   let states = state_fields(&fields)?;
+  let kind = kind.unwrap_or_else(|| quote!(Self));
 
   let probe: DeriveInput = syn::parse2(quote!(#item))?;
   let crate_path = parse_type_attributes(&probe)?.crate_path;
@@ -143,7 +145,7 @@ pub fn expand_struct(mut item: ItemStruct) -> syn::Result<TokenStream> {
       }
 
       impl __artic::ElementKind for #ident {
-        type Kind = Self;
+        type Kind = #kind;
       }
 
       #(#state_impls)*

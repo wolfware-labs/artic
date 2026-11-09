@@ -41,6 +41,7 @@ fn bare_element_builds_its_root() {
   /// The nodes of `view.xaml`: its root and one handle per named element.
   #[derive(Clone, Copy, Debug)]
   pub struct View {
+      /// The view's root.
       pub root: Handle<::artic::controls::Border>,
   }
   /// Builds `view.xaml` in `tree` and returns its nodes.

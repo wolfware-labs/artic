@@ -29,7 +29,7 @@ pub struct LoginView {
     pub ui: login_view::View,
     /// The content of the view's root.
     #[ui(content)]
-    pub child: ::artic_element::__private::Child,
+    pub child: ::artic::element::Child,
     attempts: u32,
 }
 const _: () = {
@@ -103,7 +103,7 @@ const _: () = {
         }
     }
     impl __artic::ElementKind for LoginView {
-        type Kind = Self;
+        type Kind = login_view::Root;
     }
     __artic::element_type!(LoginView);
 };

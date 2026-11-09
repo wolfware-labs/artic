@@ -100,6 +100,12 @@ pub static HOST: TypeInfo = TypeInfo {
   ..info("Host", "test_ui::host::Host")
 };
 
+/// Takes no content; a code type can take its place.
+pub static BADGE: TypeInfo = TypeInfo {
+  code_type_root: true,
+  ..info("Badge", "test_ui::badge::Badge")
+};
+
 /// Has `Text`.
 pub static LABEL: TypeInfo = TypeInfo {
   properties: &TEXT,
@@ -108,7 +114,7 @@ pub static LABEL: TypeInfo = TypeInfo {
 
 /// The registry of the hand-built types.
 pub fn registry() -> Registry {
-  Registry::from_types(&[&PANEL, &LABEL, &HOST]).expect("no duplicate types")
+  Registry::from_types(&[&PANEL, &LABEL, &HOST, &BADGE]).expect("no duplicate types")
 }
 
 /// The language's crates.

@@ -18,7 +18,9 @@ impl CratePaths {
   }
 
   /// Generated code reaches `krate` as `path`, such as `artic_controls` as `::artic::controls`.
-  /// A second call for the same crate replaces the first.
+  /// The path is absolute, starting with `::` or `crate::`, since `#[ui_class]` copies some of the
+  /// generated code into the module above the compiled view. A second call for the same crate
+  /// replaces the first.
   pub fn path(&mut self, krate: &str, path: &str) {
     self.paths.insert(krate.to_owned(), path.to_owned());
   }

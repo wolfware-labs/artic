@@ -1,0 +1,7 @@
+<!-- An app whose code type is `FixtureApp`, in `app.rs` beside it, with one window. -->
+<Application xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup"
+             x:Class="artic_xaml_compiler_fixture_app::views::app::FixtureApp">
+  <Surface Title="Fixture">
+    <TextBlock Text="Hello"/>
+  </Surface>
+</Application>

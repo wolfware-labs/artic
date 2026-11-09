@@ -52,7 +52,7 @@ LoginView { layout, appearance, interaction, identity, child, ui, attempts }
 
 - `#[ui_class]` adds `#[element]` and the root's content fields, marked `#[ui(content)]`: `pub child: Child` for a `UserControl`, `pub surfaces: Children` for an `Application` ([facade design](facade.md#3-a-code-type-on-an-application)). Like any element, the struct derives `Debug` itself. So beside its own fields, the struct has every member its root has: for `LoginView`, the four groups and one child. The root's attributes (`Margin="16"`) set those members on `LoginView`.
 - A handler (#82) gets `&mut LoginView` from the tree, typed, with no downcast and no second node.
-- The root element of a view with a code type must be a type with `code_type_root`: a `UserControl`, and an `Application` with #55 ([facade design](facade.md#3-a-code-type-on-an-application)). Another root, such as a `Surface` for a window, is a later issue: the code type would take that element's members instead.
+- The root element of a view with a code type must be a type with `code_type_root`: a `UserControl` or an `Application` ([facade design](facade.md#3-a-code-type-on-an-application)). Another root, such as a `Surface` for a window, is a later issue: the code type would take that element's members instead.
 
 The layout `UserControl` writes by hand today, "the children share my box and fill it", becomes `ElementImpl`'s default, as in Avalonia:
 
@@ -156,7 +156,7 @@ Two checks keep the struct and the file together:
 
 ## Where each piece lives
 
-`#[ui_class]` doesn't know XAML. It includes a compiled file, adds the `ui` field and the element, and checks `CODE_TYPE`, so any UI language whose compiler writes the same `View` and `build` shape works with it. With #55 the compiled file also writes `Root` and `Members`, and the macro takes the root's content from them ([facade design](facade.md#3-a-code-type-on-an-application)).
+`#[ui_class]` doesn't know XAML. It includes a compiled file, adds the `ui` field and the element, and checks `CODE_TYPE`, so any UI language whose compiler writes the same `View` and `build` shape works with it. The compiled file also writes `Root` and `Members`, and the macro takes the root's content and kind from them ([facade design](facade.md#3-a-code-type-on-an-application)).
 
 | Piece | Crate |
 | --- | --- |

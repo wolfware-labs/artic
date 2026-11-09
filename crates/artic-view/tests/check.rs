@@ -460,6 +460,44 @@ fn code_type_named_twice_points_at_both() {
   assert_eq!(view.code_type.map(|code_type| code_type.text).as_deref(), Some("app::One"));
 }
 
+// A code type takes its root's content as a `Child` or `Children` field, so a root whose content
+// is a property, or a collection no builder method fills, is reported at the root, with that help.
+#[test]
+fn code_type_root_content_is_a_child_or_children() {
+  for (root, name) in [(&CAPTION, "Caption"), (&BAG, "Bag")] {
+    let document = Document {
+      root: element(root, 0, vec![code_type("app::views::Login", 5)]),
+    };
+
+    let (_, diagnostics) = check(&document);
+
+    assert_eq!(
+      reported(&diagnostics),
+      [at(
+        &format!("`{name}` can't be the root of a view with a code type: its content isn't a child or children"),
+        0
+      )]
+    );
+    let help = diagnostics.iter().next().and_then(|diagnostic| diagnostic.help.clone());
+    assert_eq!(
+      help.as_deref(),
+      Some("a code type takes its root's content as a `Child` or `Children` field")
+    );
+  }
+}
+
+// A root that takes one child can be a code type's root.
+#[test]
+fn code_type_root_with_a_child_is_accepted() {
+  let document = Document {
+    root: element(&HOST, 0, vec![code_type("app::views::Login", 5)]),
+  };
+
+  let (_, diagnostics) = check(&document);
+
+  assert_eq!(reported(&diagnostics), []);
+}
+
 // A root whose type a code type can't take the place of is reported at the root.
 #[test]
 fn root_type_must_allow_a_code_type() {
