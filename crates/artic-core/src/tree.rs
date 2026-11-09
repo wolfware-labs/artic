@@ -446,7 +446,7 @@ impl UiTree {
     };
     let (requeue, mut take) = self.relinked_outside.begin(self.structure_generation, (tree, tree, root));
     let relinked = &mut self.relinked[tree as usize];
-    for parent in requeue {
+    for parent in requeue.into_iter().filter(|&parent| self.objects.contains(parent)) {
       relinked.insert(parent, ());
     }
     let mut found = false;
@@ -775,9 +775,9 @@ impl UiTree {
     self.dirty_flags.clear(id, stages);
   }
 
-  /// Hands over the nodes marked `stage` that are `root` or under it in `tree`, each once, and clears
-  /// `stage` from them. Nodes marked `stage` elsewhere stay for the stage's other roots, such as
-  /// another surface's.
+  /// Hands over the nodes marked `stage` that are `root` or under it in `tree`, each once and in no
+  /// particular order, and clears `stage` from them. Nodes marked `stage` elsewhere stay for the
+  /// stage's other roots, such as another surface's.
   ///
   /// The tree queues a node when a mark adds `stage` to it, so this costs what was marked, not the
   /// size of the tree. A queued node every root asking for `stage` has found outside it leaves the

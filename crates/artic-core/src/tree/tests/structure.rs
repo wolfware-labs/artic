@@ -151,6 +151,25 @@ fn take_relinked_tells_a_new_root_what_others_set_aside() {
   assert!(tree.take_relinked(TreeKind::Visual, second));
 }
 
+// A parent set aside and then freed doesn't hide the links of the node that reuses its slot.
+#[test]
+fn take_relinked_tells_of_a_link_under_a_node_in_a_freed_parents_slot() {
+  let mut tree = UiTree::new();
+  let [root, parent, child] = nodes(&mut tree);
+  tree.add_child(TreeKind::Visual, parent, child);
+  assert!(!tree.take_relinked(TreeKind::Visual, root));
+  tree.detach(TreeKind::Visual, child);
+  tree.free(child);
+  tree.free(parent);
+  let [reused] = nodes(&mut tree);
+  tree.add_child(TreeKind::Visual, root, reused);
+  assert!(tree.take_relinked(TreeKind::Visual, root));
+  let [grandchild] = nodes(&mut tree);
+  tree.add_child(TreeKind::Visual, reused, grandchild);
+
+  assert!(tree.take_relinked(TreeKind::Visual, root));
+}
+
 // A root asking in one tree leaves the links set aside in the other for that tree's roots.
 #[test]
 fn take_relinked_keeps_what_the_other_tree_set_aside() {
