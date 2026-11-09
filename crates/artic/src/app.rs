@@ -14,7 +14,7 @@ pub struct App {
 }
 
 impl App {
-  /// The app whose tree `build` creates, with an `Application`, or a code type of one, at its root.
+  /// The app whose tree `build` creates, with an `Application` at its root.
   ///
   /// A root of another type doesn't compile:
   ///

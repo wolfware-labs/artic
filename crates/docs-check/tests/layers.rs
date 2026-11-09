@@ -560,7 +560,7 @@ fn nothing_depends_on_an_adapter() {
 }
 
 // The facade depends without a feature on no seam's crate, and its default features add none.
-// That it uses every crate it depends on, by re-exporting it or to run the app, is rustc's
+// That it uses every crate it depends on, by re-exporting it or in its own code, is rustc's
 // `unused_crate_dependencies`, which its library denies.
 #[test]
 fn the_facade_adds_no_seam_by_default() {
