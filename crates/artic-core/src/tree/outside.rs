@@ -18,6 +18,8 @@ pub(super) struct Outside<Q> {
   roots: Vec<(Root<Q>, NodeMap<()>)>,
   /// The nodes every root of their queue found outside it, off that queue.
   parked: Vec<(Q, NodeId)>,
+  /// Emptied maps of roots from earlier generations, which keep their size for the next roots.
+  spare: Vec<NodeMap<()>>,
 }
 
 /// One root's pass over its queue, from [`Outside::begin`] to [`Outside::end`].
@@ -55,6 +57,7 @@ impl<Q> Outside<Q> {
       generation: 0,
       roots: Vec::new(),
       parked: Vec::new(),
+      spare: Vec::new(),
     }
   }
 }
@@ -65,7 +68,10 @@ impl<Q: Copy + Eq> Outside<Q> {
   pub(super) fn begin(&mut self, generation: u64, root: Root<Q>) -> (Vec<NodeId>, Take<Q>) {
     if self.generation != generation {
       self.generation = generation;
-      self.roots.clear();
+      self.spare.extend(self.roots.drain(..).map(|(_, mut found)| {
+        found.retain(|_, ()| false);
+        found
+      }));
     }
     let mut requeue = Vec::new();
     let found = match self.roots.iter_mut().find(|(seen, _)| *seen == root) {
@@ -79,7 +85,7 @@ impl<Q: Copy + Eq> Outside<Q> {
           }
           true
         });
-        NodeMap::new()
+        self.spare.pop().unwrap_or_default()
       }
     };
     let take = Take {
