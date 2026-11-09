@@ -6,7 +6,7 @@ How to measure an artic app's startup, memory and CPU, and what to change when t
 
 - **Use a release build.** `cargo run --release` or the binary in `target/release`. A debug build is several times slower and larger.
 - **Measure a warm run.** The first run on a machine, after a GPU driver update or after the driver's shader cache is cleared, compiles the renderer's shaders (see [Shaders](#shaders)); rebuilding the app doesn't clear that cache. Report both, but tune against the warm run.
-- **Read PSS, not only RSS.** RSS counts every page of every shared library the process maps, including GPU driver code that other processes share. PSS splits shared pages between the processes that use them, so it is closer to what the app adds. `RssAnon` is the resident anonymous memory: every heap, stack and buffer in the process, including those the GPU driver allocates. `RssFile` is the resident memory backed by files: code and data of the binary and the libraries, the drivers' among them. On Linux:
+- **Read PSS, not only RSS.** RSS counts every page of the process that is in memory, including the pages of shared libraries, such as GPU driver code, that other processes share. PSS splits shared pages between the processes that use them, so it is closer to what the app adds. `RssAnon` is the resident anonymous memory: every heap, stack and buffer in the process, including those the GPU driver allocates. `RssFile` is the resident memory backed by files: code and data of the binary and the libraries, the drivers' among them. On Linux:
 
   ```sh
   pid=$(pgrep -x my-app)
@@ -31,7 +31,7 @@ Idle CPU was 0% in every case.
 The `vello` renderer draws on the GPU through wgpu, which on Linux uses Vulkan.
 
 - **Which GPU.** Today `artic_vello::Renderer::new()` sets no preference, so wgpu takes the first adapter the driver lists. On a machine with a discrete GPU that can be the discrete one, which costs about 1.5 s of startup when it has to wake, and battery life. Asking for the low-power GPU by default, and honoring `WGPU_POWER_PREF` and `WGPU_ADAPTER_NAME`, is #390; choosing the GPU by the window it draws to is #391.
-- **Which backend.** `WGPU_BACKEND` (`vulkan`, `gl`, `metal`, `dx12`) overrides the backend the renderer picks for the platform.
+- **Which backend.** The renderer uses Vulkan on Linux, Metal on macOS and iOS, and DX12 on Windows. `WGPU_BACKEND` overrides that choice, as in other wgpu apps, but only a backend the platform has and that runs compute shaders can draw.
 
 ## GPU drivers
 
