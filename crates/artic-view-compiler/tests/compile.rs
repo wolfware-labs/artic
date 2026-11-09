@@ -6,7 +6,7 @@ mod common;
 use artic_diagnostics::{SourceId, SourceMap};
 use artic_view::document::Document;
 use artic_view_compiler::{CratePaths, compile_str};
-use common::{Built, HOST, LABEL, PANEL, children, code_type, element, name, property, registry, unknown, visibility};
+use common::{BADGE, Built, HOST, LABEL, PANEL, children, code_type, element, name, property, registry, unknown, visibility};
 
 /// Compiles the document `build` makes, with `test_ui` reached as `::ui` and the paths `edit`
 /// adds.
@@ -192,6 +192,22 @@ fn code_type_view_names_its_root_and_members() {
   ] {
     assert!(rust.contains(expected), "{expected} in {rust}");
   }
+}
+
+// A code type on a root that takes no content has no members: it takes nothing in the root's place.
+#[test]
+fn code_type_on_a_root_without_content_has_no_members() {
+  let rust = compile(
+    |file| Document {
+      root: element(file, &BADGE, 0, vec![code_type(file, "app::Tag", 1)]),
+    },
+    |_| {},
+  )
+  .expect("a valid view");
+
+  let rust = squashed(&rust);
+  assert!(rust.contains("pubtypeRoot=::ui::Badge;"), "{rust}");
+  assert!(rust.contains("pubstructMembers{}"), "{rust}");
 }
 
 // A view without a code type has no `Root` or `Members`, since no code type reads them.
