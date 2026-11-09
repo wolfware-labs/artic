@@ -64,6 +64,19 @@ impl<Q> Outside<Q> {
 }
 
 impl<Q: Copy + Eq> Outside<Q> {
+  /// Whether a pass for `root` at `generation` over an empty queue would change nothing: `root` was
+  /// seen since the structure last changed, or nothing is parked off its queue. A root that skips
+  /// its pass stays unseen, so it gets the parked nodes when its queue next holds any.
+  pub(super) fn idle(&self, generation: u64, root: Root<Q>) -> bool {
+    let seen = self.generation == generation && self.roots.iter().any(|(seen, _)| *seen == root);
+    seen
+      || self
+        .parked
+        .iter()
+        .find(|(queue, _)| *queue == root.0)
+        .is_none_or(|(_, parked)| parked.is_empty())
+  }
+
   /// Starts `root`'s pass at `generation`: returns the nodes that go back on its queue, every one
   /// parked there when the structure changed or `root` is new since it did, and the pass.
   pub(super) fn begin(&mut self, generation: u64, root: Root<Q>) -> (Vec<NodeId>, Take<Q>) {

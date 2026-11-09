@@ -444,7 +444,11 @@ impl UiTree {
       TreeKind::Logical => &self.logical,
       TreeKind::Visual => &self.visual,
     };
-    let (requeue, mut take) = self.relinked_outside.begin(self.structure_generation, (tree, tree, root));
+    let key = (tree, tree, root);
+    if self.relinked[tree as usize].is_empty() && self.relinked_outside.idle(self.structure_generation, key) {
+      return false;
+    }
+    let (requeue, mut take) = self.relinked_outside.begin(self.structure_generation, key);
     let relinked = &mut self.relinked[tree as usize];
     for parent in requeue.into_iter().filter(|&parent| self.objects.contains(parent)) {
       relinked.insert(parent, ());
@@ -790,7 +794,11 @@ impl UiTree {
   #[track_caller]
   pub fn take_dirty(&mut self, stage: Affects, tree: TreeKind, root: NodeId) -> Vec<NodeId> {
     self.check(root);
-    let (requeue, mut take) = self.outside.begin(self.structure_generation, (stage, tree, root));
+    let key = (stage, tree, root);
+    if self.dirty_flags.is_queue_empty(stage) && self.outside.idle(self.structure_generation, key) {
+      return Vec::new();
+    }
+    let (requeue, mut take) = self.outside.begin(self.structure_generation, key);
     self.dirty_flags.requeue(stage, requeue);
     let mut taken = Vec::new();
     self.dirty_flags.retain_queued(stage, |node| {

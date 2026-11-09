@@ -91,6 +91,11 @@ impl<T> NodeMap<T> {
     }
   }
 
+  #[must_use]
+  pub fn is_empty(&self) -> bool {
+    self.entries.is_empty()
+  }
+
   /// Takes every value out with its node, leaving the map empty and its size as it was.
   pub fn drain(&mut self) -> impl Iterator<Item = (NodeId, T)> {
     for (node, _) in &self.entries {

@@ -360,6 +360,37 @@ fn take_dirty_gives_a_new_root_what_others_set_aside() {
   assert_eq!(take_layout(&mut tree, second), [child].into());
 }
 
+// A root that asked while nothing was queued still gets a node marked under it after, which
+// another root set aside first.
+#[test]
+fn take_dirty_gives_a_root_that_found_nothing_what_others_set_aside() {
+  let mut tree = UiTree::new();
+  let (first, _, _) = clean_label(&mut tree);
+  let (second, _, _) = clean_label(&mut tree);
+  let (child, _, _) = clean_label(&mut tree);
+  tree.add_child(TreeKind::Visual, second, child);
+  let _ = take_layout(&mut tree, first);
+  let _ = take_layout(&mut tree, second);
+  assert!(take_layout(&mut tree, second).is_empty());
+  tree.mark_dirty(child, Affects::LAYOUT);
+
+  assert!(take_layout(&mut tree, first).is_empty());
+  assert_eq!(take_layout(&mut tree, second), [child].into());
+}
+
+// A node set aside comes back to a root it was linked under, even when nothing else is queued.
+#[test]
+fn take_dirty_takes_a_set_aside_node_linked_under_the_root_with_nothing_queued() {
+  let mut tree = UiTree::new();
+  let [root, node] = super::nodes(&mut tree);
+  tree.clear_dirty(root, Affects::LAYOUT);
+  tree.mark_dirty(node, Affects::LAYOUT);
+  assert!(tree.take_dirty(Affects::LAYOUT, TreeKind::Logical, root).is_empty());
+  tree.add_child(TreeKind::Logical, root, node);
+
+  assert_eq!(tree.take_dirty(Affects::LAYOUT, TreeKind::Logical, root), [node]);
+}
+
 // Nodes are found under the root through the tree asked for, not the other one.
 #[test]
 fn take_dirty_follows_the_tree_kind() {
