@@ -5,9 +5,16 @@ How to measure an artic app's startup, memory and CPU, and what to change when t
 ## Measure first
 
 - **Use a release build.** `cargo run --release` or the binary in `target/release`. A debug build is several times slower and larger.
-- **Measure the second run.** The first run after a build, or after a GPU driver update, compiles the renderer's shaders (see [Shaders](#shaders)). Report both, but tune against the warm run.
-- **Read PSS, not only RSS.** RSS counts every page of every shared library the process maps, including GPU driver code that other processes share. PSS splits shared pages between the processes that use them, so it is closer to what the app adds. On Linux: `grep -E 'VmRSS|RssAnon|RssFile' /proc/<pid>/status` and `grep Pss /proc/<pid>/smaps_rollup`. `RssAnon` is the app's own heap and buffers; `RssFile` is mapped code.
-- **Idle CPU should be zero.** artic draws a frame only when something changed, so a window that sits still uses no CPU. Sample it over a few seconds after startup, for example from `/proc/<pid>/stat`.
+- **Measure a warm run.** The first run on a machine, after a GPU driver update or after the driver's shader cache is cleared, compiles the renderer's shaders (see [Shaders](#shaders)); rebuilding the app doesn't clear that cache. Report both, but tune against the warm run.
+- **Read PSS, not only RSS.** RSS counts every page of every shared library the process maps, including GPU driver code that other processes share. PSS splits shared pages between the processes that use them, so it is closer to what the app adds. `RssAnon` is the app's own heap and buffers; `RssFile` is mapped code. On Linux:
+
+  ```sh
+  pid=$(pgrep -x my-app)
+  grep -E 'VmRSS|RssAnon|RssFile' /proc/$pid/status
+  grep Pss /proc/$pid/smaps_rollup
+  ```
+
+- **Idle CPU should be zero for a still window.** artic draws a frame only when something changed, so a window whose content doesn't move uses no CPU between the frames the system asks for, such as after a resize. A `wants_frame` hook that asks for frames, for an animation, keeps it drawing. Sample it over a few seconds after startup, for example from `/proc/$pid/stat`.
 
 A reference point, `examples/hello` in release on a laptop with an Intel and an NVIDIA GPU (Linux, KDE Plasma on Wayland):
 
@@ -42,4 +49,8 @@ The pattern matches the driver's manifest file name in `/usr/share/vulkan/icd.d/
 
 The renderer builds its compute pipelines when it starts. The first run compiles them for the GPU, which took about 3.5 s and 110 MB of extra memory in the table above; later runs read them from the driver's cache (Mesa's in `~/.cache/mesa_shader_cache`, NVIDIA's in `~/.cache/nvidia/GLCache`). Clearing that cache, or a driver update, brings the cost back once.
 
-To see the cold cost on purpose, turn the caches off for one run: `MESA_SHADER_CACHE_DISABLE=true __GL_SHADER_DISK_CACHE=0`.
+To see the cold cost on purpose, turn the caches off for one run:
+
+```sh
+MESA_SHADER_CACHE_DISABLE=true __GL_SHADER_DISK_CACHE=0 ./my-app
+```
