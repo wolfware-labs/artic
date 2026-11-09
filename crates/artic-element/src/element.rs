@@ -42,8 +42,7 @@ pub trait Element: Object + Layoutable {
   }
 }
 
-/// Which element type a type is: itself for an element, its root's type for a code type.
-/// `#[element]` writes it.
+/// Which element type a type is. `#[element]` writes it as the type itself.
 pub trait ElementKind: Element {
   /// The element type.
   type Kind: Element;
