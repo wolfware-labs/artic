@@ -1,6 +1,6 @@
 // Hello world: an app built from one view, `app.xaml`, with its code type `HelloApp`, run through
 // `artic::run` with the winit host and the vello renderer. With `ARTIC_HELLO_SECONDS` set, it ends
-// with code 0 after that many seconds, as CI runs it.
+// with code 0 that many seconds after the host and the renderer start, as CI runs it.
 //
 // Run with `cargo run -p artic-examples --example hello`.
 
@@ -19,13 +19,16 @@ fn app() -> artic::App {
 }
 
 fn main() -> Result<(), Report> {
-  if let Some(after) = seconds(std::env::var(SECONDS_VARIABLE).ok().as_deref())? {
+  let value = std::env::var_os(SECONDS_VARIABLE).map(|value| value.to_string_lossy().into_owned());
+  let limit = seconds(value.as_deref())?;
+  let (host, renderer) = (artic_winit::Host::new()?, artic_vello::Renderer::new()?);
+  if let Some(after) = limit {
     std::thread::spawn(move || {
       std::thread::sleep(after);
       std::process::exit(0);
     });
   }
-  artic::run(artic_winit::Host::new()?, artic_vello::Renderer::new()?, app())?;
+  artic::run(host, renderer, app())?;
   Ok(())
 }
 

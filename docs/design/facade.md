@@ -108,7 +108,7 @@ A multi-file example in `crates/artic-examples`, so it compiles against the faca
 | `examples/hello/app.xaml`, `app.rs` | `HelloApp`: an `Application` with one `Surface` titled "Hello", holding a `Border` around a `StackPanel` of `TextBlock`s |
 | `build.rs` | `artic::xaml::compile_dir("examples/hello", &artic::xaml::namespaces())` |
 
-- `artic-examples` gains `artic` as a dependency and, with `xaml-compiler`, a build-dependency. `hello` imports only `artic` and, in `main`, the two adapters.
+- `artic-examples` gains `artic` as a dependency and, with `xaml-compiler`, a build-dependency. `hello` imports only `artic` and, in `main`, the two adapters and the `Report` every example's `main` returns.
 - The surface's content is written inline, not as a `UserControl` view of its own, since a code type can't be an element of another view yet (ui-class.md, "Not in this design").
 - `hello_view_tree_shape` is a `#[test]` in the example, run by `cargo test -p artic-examples` with `test = true` on its `[[example]]`: it builds `HelloApp` into a tree with no window and checks the element types down the tree.
 - `check-ui-neutral.sh` allows `crates/artic-examples/examples/hello/` and the build script's line: an app is free to use XAML.
