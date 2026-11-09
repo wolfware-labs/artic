@@ -110,6 +110,11 @@ fn class_names_the_code_type() {
   );
   assert!(joined.contains("->Handle<crate::views::login::LoginView>{"), "{rust}");
   assert!(joined.contains("pub(super)card:Handle<::artic::controls::Border>,"), "{rust}");
+  assert!(joined.contains("pubtypeRoot=::artic::controls::UserControl;"), "{rust}");
+  assert!(
+    joined.contains("pubstructMembers{pubchild:::artic::element::Child,}"),
+    "{rust}"
+  );
 }
 
 // `x:Class` below the root is reported at its value.

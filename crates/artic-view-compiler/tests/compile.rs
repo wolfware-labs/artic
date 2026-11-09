@@ -175,6 +175,34 @@ fn code_type_is_the_root() {
   assert!(!rust.contains("::ui::Host::new()"), "the root is the code type in {rust}");
 }
 
+// A view with a code type names the root's type as `Root` and its content as `Members`, the field
+// the code type takes in the root's place, with the crates' paths.
+#[test]
+fn code_type_view_names_its_root_and_members() {
+  let rust = compile(
+    |file| login(file, "app::views::login::Login"),
+    |paths| paths.path("artic_element", "::facade::element"),
+  )
+  .expect("a valid view");
+
+  let rust = squashed(&rust);
+  for expected in [
+    "pubtypeRoot=::ui::Host;",
+    "#[allow(dead_code,reason=\"onlyacodetype'smacroreadsit\")]pubstructMembers{pubchild:::facade::element::Child,}",
+  ] {
+    assert!(rust.contains(expected), "{expected} in {rust}");
+  }
+}
+
+// A view without a code type has no `Root` or `Members`, since no code type reads them.
+#[test]
+fn view_without_a_code_type_has_no_members() {
+  let rust = squashed(&compile(form, |_| {}).expect("a valid view"));
+
+  assert!(!rust.contains("typeRoot"), "no Root in {rust}");
+  assert!(!rust.contains("structMembers"), "no Members in {rust}");
+}
+
 // A view without a code type keeps its root in `View`, every field `pub` unless it writes
 // another, and says it has no code type.
 #[test]

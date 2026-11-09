@@ -1,13 +1,13 @@
 error[E0433]: cannot find `SignupView` in `crate`
-  --> $OUT_DIR/views/src/bin/wrong_code_type.rs:20:12
+  --> $OUT_DIR/views/src/bin/wrong_code_type.rs:27:12
    |
-20 |     crate::SignupView::new(View {}).child(__e0).build(tree)
+27 |     crate::SignupView::new(View {}).child(__e0).build(tree)
    |            ^^^^^^^^^^ could not find `SignupView` in the crate root
 
 error[E0425]: cannot find type `SignupView` in the crate root
-  --> $OUT_DIR/views/src/bin/wrong_code_type.rs:16:50
+  --> $OUT_DIR/views/src/bin/wrong_code_type.rs:23:50
    |
-16 | pub fn build(tree: &mut UiTree) -> Handle<crate::SignupView> {
+23 | pub fn build(tree: &mut UiTree) -> Handle<crate::SignupView> {
    |                                                  ^^^^^^^^^^ not found in the crate root
 
 error[E0080]: evaluation panicked: `src/bin/wrong_code_type.xaml` must name `wrong_code_type::LoginView` as its code type

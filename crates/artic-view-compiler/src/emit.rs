@@ -43,6 +43,20 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
       quote!(let #local = #built;)
     });
   let root_element = &view.elements[root];
+  let members = view.code_type.as_ref().map(|code_type| {
+    let root_ty = &root_element.ty;
+    let content = code_type.content.iter().map(|(field, ty)| quote!(pub #field: #ty,));
+    quote! {
+      /// The element type the code type takes the place of.
+      pub type Root = #root_ty;
+
+      /// The members of `Root` the code type has: its content.
+      #[allow(dead_code, reason = "only a code type's macro reads it")]
+      pub struct Members {
+        #(#content)*
+      }
+    }
+  });
   let (code_type, root_field, returns, tail, view_doc, build_doc) = match &view.code_type {
     Some(code_type) => {
       let (path, written) = (&code_type.path, &code_type.written);
@@ -75,6 +89,8 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
     /// The type the view's code is, which takes the root's place, as the view names it.
     #[allow(dead_code, reason = "only a code type's macro reads it")]
     pub const CODE_TYPE: Option<&str> = #code_type;
+
+    #members
 
     #[doc = #view_doc]
     #[derive(Clone, Copy, Debug)]

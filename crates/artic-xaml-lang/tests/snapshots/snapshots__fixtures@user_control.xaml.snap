@@ -15,6 +15,13 @@ use ::artic::render as _;
 /// The type the view's code is, which takes the root's place, as the view names it.
 #[allow(dead_code, reason = "only a code type's macro reads it")]
 pub const CODE_TYPE: Option<&str> = Some("app::views::LoginView");
+/// The element type the code type takes the place of.
+pub type Root = ::artic::controls::UserControl;
+/// The members of `Root` the code type has: its content.
+#[allow(dead_code, reason = "only a code type's macro reads it")]
+pub struct Members {
+    pub child: ::artic::element::Child,
+}
 /// The named nodes of `user_control.xaml`, one handle each.
 #[derive(Clone, Copy, Debug)]
 pub struct View {
