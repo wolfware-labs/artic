@@ -206,8 +206,9 @@ fn code_type_on_a_root_without_content_has_no_members() {
   .expect("a valid view");
 
   let rust = squashed(&rust);
-  assert!(rust.contains("pubtypeRoot=::ui::Badge;"), "{rust}");
-  assert!(rust.contains("pubstructMembers{}"), "{rust}");
+  for expected in ["pubtypeRoot=::ui::Badge;", "pubstructMembers{}"] {
+    assert!(rust.contains(expected), "{expected} in {rust}");
+  }
 }
 
 // A view without a code type has no `Root` or `Members`, since no code type reads them.
