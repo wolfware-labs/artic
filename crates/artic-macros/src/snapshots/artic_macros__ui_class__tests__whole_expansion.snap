@@ -102,6 +102,9 @@ const _: () = {
                 .layers(size, <Self as __artic::ElementImpl>::clip(self, size))
         }
     }
+    impl __artic::ElementKind for LoginView {
+        type Kind = Self;
+    }
     __artic::element_type!(LoginView);
 };
 impl ::artic_element::__private::ElementImpl for LoginView {}

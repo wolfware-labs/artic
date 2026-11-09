@@ -987,6 +987,15 @@ fn empty_application_exits() {
   assert!(cx.exited);
 }
 
+// The root a runner presents must be a node of its tree: an id with no live node there is refused.
+#[test]
+#[should_panic(expected = "isn't in the tree")]
+fn application_must_be_in_the_tree() {
+  let (_, application, _) = titled(&["main"]);
+
+  let _ = Runner::new(UiTree::new(), Counter::default(), Box::new(engine()), application);
+}
+
 // Only Surfaces may be an Application's children.
 #[test]
 #[should_panic(expected = "isn't a Surface")]

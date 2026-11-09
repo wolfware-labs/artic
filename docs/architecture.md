@@ -38,8 +38,8 @@ Arrows point from a crate to its dependency. A dotted arrow is optional (named b
 flowchart TD
   artic -. planned .-> theme[artic-theme]
   artic --> controls[artic-controls]
-  artic -. planned .-> platform[artic-platform]
-  artic -. planned .-> text[artic-text]
+  artic --> platform[artic-platform]
+  artic --> text[artic-text]
   artic -. planned: xaml-runtime / xaml-hot-reload .-> runtime[artic-xaml-runtime]
   artic -. xaml .-> xaml
   artic -. view-compiler .-> viewc[artic-view-compiler]
@@ -118,11 +118,11 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-test` | `artic-core`, `artic-layout`, `artic-render`, `artic-text`, `artic-test-fonts`, `artic-element`, `artic-platform`, `artic-registry` (planned), `artic-style` (planned) | none |
 | `artic-winit` | `artic-render`, `artic-platform` | none |
 | `artic-vello` | `artic-layout`, `artic-render` | `artic-controls`, `artic-core`, `artic-element`, `artic-test`, `artic-test-fonts`, `artic-text` |
-| `artic` | `artic-core`, `artic-element`, `artic-layout`, `artic-render`, `artic-controls`, `artic-macros`, `artic-platform` (planned #55), `artic-text` (planned #55), `artic-style` (planned #106), `artic-theme` (planned #106), `artic-xaml` (feature `xaml`), `artic-view-compiler` (feature `view-compiler`), `artic-xaml-lang` (feature `xaml-compiler`), `artic-xaml-runtime` (planned #66, feature `xaml-runtime`) | `artic-registry` |
+| `artic` | `artic-core`, `artic-element`, `artic-layout`, `artic-render`, `artic-controls`, `artic-macros`, `artic-registry`, `artic-platform`, `artic-text`, `artic-style` (planned #106), `artic-theme` (planned #106), `artic-xaml` (feature `xaml`), `artic-view-compiler` (feature `view-compiler`), `artic-xaml-lang` (feature `xaml-compiler`), `artic-xaml-runtime` (planned #66, feature `xaml-runtime`) | none |
 
 ## Rules
 
-- `artic-controls` does not depend on `artic-platform`. Input event types live in `artic-core`, and the facade will connect the platform host to the tree (#55). Controls stay testable without a window and portable to future targets.
+- `artic-controls` does not depend on `artic-platform`. Input event types live in `artic-core`, and the facade connects the platform host to the tree in `artic::run`. Controls stay testable without a window and portable to future targets.
 - The `Element` trait and its contexts (`RenderCx`, `HitTestCx`, `EventCx`, `AccessCx`) live in `artic-element`, together with gesture recognizers. `Application` and `Surface`, the roots the host presents, live there too, with the `Desktop` attached properties, so `artic-platform` reads them directly ([surface design](design/surface.md)). Controls implement `Element`; the platform host drives any `dyn Element` without knowing the concrete controls. The property groups every control has (`Layout`, `Appearance`, `Interaction`, `Identity`) live there too, so a control library outside artic doesn't need `artic-controls` and its built-in controls; `#[element]` stays with the macros.
 - `artic-layout` defines `Layoutable`, `MeasureCx`, `ArrangeCx` and `LayoutManager` over `Layoutable`; `Element` extends `Layoutable`, so layout never names `Element`. Text measurement reaches layout through `TextEngine`, a trait defined in `artic-layout` and implemented by `artic-text` with `parley`, the same for every renderer. The shaped `Paragraph` is an `artic-layout` type too, so the scene carries it and renderers draw it without depending on `artic-text` ([text design](design/text.md)).
 - `artic-platform` owns the frame pipeline: the dispatcher, layout, scene build and render today, and the style pass (a hook the facade registers, #110) and accesskit (#54) to come. Stages that need crates the platform cannot see, such as the style pass or OS theme → root pseudo-classes, will be registered as hooks by the facade. The platform never depends on `artic-style`, `artic-controls` or `artic-theme`.
@@ -140,7 +140,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 - `crates/docs-check` is test-only (`publish = false`) and sits outside the layers, like the registry fixtures. It compiles the Rust code in the documents.
 - `artic-xaml` does not depend on the registry. Type references stay unresolved in the infoset, so parser tests need no registry.
 - Release builds will link `artic-xaml-runtime` only when the app enables `xaml-runtime`; `xaml-hot-reload` is for development builds. Compiled views never touch the loader.
-- The facade's default features add no UI language, host or renderer. Each one comes with an opt-in feature named after it, such as `xaml`, so adding a language or a renderer never costs an app that doesn't use it. The facade depends on a crate only to re-export it.
+- The facade's default features add no UI language, host or renderer. Each one comes with an opt-in feature named after it, such as `xaml`, so adding a language or a renderer never costs an app that doesn't use it. The facade depends on a crate only to re-export it or to use it in its own code, `artic::run`, which builds the `Runner` of `artic-platform` with the text engine of `artic-text`; an app never names either.
 - App-facing crates stay free of native-only dependencies, so a web target can be added later without app changes (D24 in the spec).
 - Backend adapters (`artic-winit`, `artic-vello`, and any third-party adapter) depend only on the public API of `artic-render` and `artic-platform`. Nothing in artic depends on an adapter: each target's launcher names its host and renderer ([backend design](design/backends.md)). `artic-render` and `artic-platform` have no backend dependencies (`wgpu`, `vello`, `winit` and the OS crates live in adapters). Examples that need both a host and a renderer live in `artic-examples`, so no adapter depends on another.
 
@@ -164,4 +164,4 @@ The first version of the spec drew `artic-core -> artic-layout -> artic-controls
 cargo test -p docs-check --test layers
 ```
 
-The test reads `cargo metadata` and the tables above, and fails on an edge one side has that the other lacks, a crate whose layer isn't its depth, a dev-dependency against the layers that the exceptions table doesn't list, a crate in the layers that depends on an adapter, and a facade dependency it doesn't re-export or that adds a seam's crate by default. It also checks the README's table of crates and layers. `cargo deny check bans` keeps `winit`, `vello` and `wgpu` in their adapters. A pull request that adds an edge updates this document in the same change.
+The test reads `cargo metadata` and the tables above, and fails on an edge one side has that the other lacks, a crate whose layer isn't its depth, a dev-dependency against the layers that the exceptions table doesn't list, a crate in the layers that depends on an adapter, and a facade dependency that adds a seam's crate by default; the facade's library denies rustc's `unused_crate_dependencies`, so a dependency it neither re-exports nor uses fails its build. It also checks the README's table of crates and layers. `cargo deny check bans` keeps `winit`, `vello` and `wgpu` in their adapters. A pull request that adds an edge updates this document in the same change.

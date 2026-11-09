@@ -1,11 +1,10 @@
 // The prelude alone brings the group methods into scope, so a view builds controls with the
 // properties every element has.
 
+use artic::controls::{Border, StackPanel};
+use artic::layout::geometry::Thickness;
 use artic::prelude::*;
-use artic_controls::{Border, StackPanel};
-use artic_core::tree::UiTree;
-use artic_layout::geometry::Thickness;
-use artic_render::Color;
+use artic::render::Color;
 
 // Group methods from the prelude set the shared properties, beside a control's own.
 #[test]

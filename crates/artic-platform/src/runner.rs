@@ -8,7 +8,7 @@ use crate::{
 use artic_core::dispatcher::Dispatcher;
 use artic_core::reactive::flush_effects;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
-use artic_element::{Application, Chrome, Desktop, ElementTypes, Surface};
+use artic_element::{Chrome, Desktop, ElementTypes, Surface};
 use artic_layout::geometry::Size;
 use artic_layout::text::TextEngine;
 use artic_render::{RenderError, Renderer, SurfaceId, Target, TargetKind};
@@ -17,12 +17,13 @@ use std::fmt::{self, Debug, Formatter};
 use std::time::Duration;
 
 /// Drives a tree's frames from a host: it presents the open [`Surface`]s of the tree's
-/// [`Application`], asks for a frame when something changed, and runs each frame's stages.
+/// [`Application`](artic_element::Application), asks for a frame when something changed, and runs
+/// each frame's stages.
 ///
-/// Build it with the tree, a renderer, a text engine and the `Application` node, register hooks, and hand it to
-/// [`run`](crate::run). After every call from the host it reconciles the surfaces with the host: a surface
-/// opened is presented, one closed or taken out of the tree is taken down, and one whose title,
-/// size or chrome changed is updated.
+/// Build it with the tree, a renderer, a text engine and the `Application` node, register hooks,
+/// and hand it to [`run`](crate::run). After every call from the host it reconciles the surfaces
+/// with the host: a surface opened is presented, one closed or taken out of the tree is taken down,
+/// and one whose title, size or chrome changed is updated.
 pub struct Runner<R> {
   tree: UiTree,
   renderer: R,
@@ -146,19 +147,16 @@ impl Settings {
 }
 
 impl<R: Renderer> Runner<R> {
-  /// A runner for `tree`, drawing with `renderer` the surfaces of `application`, and shaping text
-  /// with `text`, which every surface shares.
+  /// A runner for `tree`, drawing with `renderer` the surfaces of `application`, the app's root,
+  /// and shaping text with `text`, which every surface shares.
   ///
   /// # Panics
   ///
-  /// Panics if `application` isn't an [`Application`] in `tree`.
+  /// Panics if `application` isn't a node of `tree`.
   #[must_use]
   #[track_caller]
   pub fn new(tree: UiTree, renderer: R, text: Box<dyn TextEngine>, application: NodeId) -> Self {
-    assert!(
-      tree.get_as::<Application>(application).is_some(),
-      "node {application:?} isn't an Application"
-    );
+    assert!(tree.contains(application), "node {application:?} isn't in the tree");
     Runner {
       tree,
       renderer,

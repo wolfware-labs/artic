@@ -15,7 +15,7 @@ const GROUPS: [(&str, &str, &str); 4] = [
 
 /// Makes the struct an element: adds the four property groups and `#[derive(UiType)]`, with the
 /// crate it found as `#[ui(crate = ...)]` unless the struct names one, and writes `Layoutable`,
-/// `Element`, `HasState` for its state fields and its cast-table entry.
+/// `Element`, `ElementKind`, `HasState` for its state fields and its cast-table entry.
 pub fn expand(attribute: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
   if !attribute.is_empty() {
     return Err(Error::new_spanned(attribute, "`#[element]` takes no settings"));
@@ -140,6 +140,10 @@ pub fn expand_struct(mut item: ItemStruct) -> syn::Result<TokenStream> {
         fn layers(&self, size: __artic::Size) -> __artic::Layers {
           self.appearance.layers(size, <Self as __artic::ElementImpl>::clip(self, size))
         }
+      }
+
+      impl __artic::ElementKind for #ident {
+        type Kind = Self;
       }
 
       #(#state_impls)*
