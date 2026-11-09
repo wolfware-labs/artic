@@ -1,10 +1,54 @@
+// Hello world: an app built from one view, `app.xaml`, with its code type `HelloApp`, run through
+// `artic::run` with the winit host and the vello renderer. With `ARTIC_HELLO_SECONDS` set, it ends
+// with code 0 after that many seconds, as CI runs it.
+//
+// Run with `cargo run -p artic-examples --example hello`.
+
 mod app;
 
-fn main() {}
+use artic_examples::Report;
+use std::fmt::{self, Display, Formatter};
+use std::time::Duration;
+
+/// The app every launcher of it runs.
+fn app() -> artic::App {
+  artic::App::new(app::HelloApp::create)
+}
+
+fn main() -> Result<(), Report> {
+  if let Some(after) = seconds(std::env::var("ARTIC_HELLO_SECONDS").ok().as_deref())? {
+    std::thread::spawn(move || {
+      std::thread::sleep(after);
+      std::process::exit(0);
+    });
+  }
+  artic::run(artic_winit::Host::new()?, artic_vello::Renderer::new()?, app())?;
+  Ok(())
+}
+
+/// How long to run, from `ARTIC_HELLO_SECONDS`: until the window is closed when it isn't set.
+fn seconds(value: Option<&str>) -> Result<Option<Duration>, BadSeconds> {
+  value
+    .map(|text| text.parse().map(Duration::from_secs).map_err(|_| BadSeconds(text.to_owned())))
+    .transpose()
+}
+
+/// `ARTIC_HELLO_SECONDS` set to something other than a whole number of seconds.
+#[derive(Debug)]
+struct BadSeconds(String);
+
+impl Display for BadSeconds {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    write!(f, "`ARTIC_HELLO_SECONDS` is `{}`, not a whole number of seconds", self.0)
+  }
+}
+
+impl std::error::Error for BadSeconds {}
 
 #[cfg(test)]
 mod tests {
   use super::app::HelloApp;
+  use super::seconds;
   use artic::UiTree;
   use artic::controls::{Border, StackPanel, TextBlock};
   use artic::core::tree::TreeKind;
@@ -34,5 +78,23 @@ mod tests {
       .map(|node| tree.get_as::<TextBlock>(node).expect("a text block").text.get())
       .collect();
     assert_eq!(lines, ["Hello from artic", "A view written in XAML, with its code in Rust"]);
+  }
+
+  // Without the variable the app runs until its window is closed; with it, for that many seconds.
+  #[test]
+  fn seconds_reads_a_whole_number() {
+    assert_eq!(seconds(None).ok(), Some(None));
+    assert_eq!(seconds(Some("3")).ok(), Some(Some(std::time::Duration::from_secs(3))));
+  }
+
+  // A value that isn't a whole number of seconds is reported with the variable's name.
+  #[test]
+  fn seconds_rejects_other_text() {
+    let error = seconds(Some("3s")).expect_err("not a number");
+
+    assert_eq!(
+      error.to_string(),
+      "`ARTIC_HELLO_SECONDS` is `3s`, not a whole number of seconds"
+    );
   }
 }
