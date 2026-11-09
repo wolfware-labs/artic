@@ -360,22 +360,38 @@ fn take_dirty_gives_a_new_root_what_others_set_aside() {
   assert_eq!(take_layout(&mut tree, second), [child].into());
 }
 
-// A root that asked while nothing was queued still gets a node marked under it after, which
-// another root set aside first.
+// A root that asked while nothing was queued, first since the structure changed, still gets a node
+// marked under it after, which another root set aside first.
 #[test]
 fn take_dirty_gives_a_root_that_found_nothing_what_others_set_aside() {
   let mut tree = UiTree::new();
   let (first, _, _) = clean_label(&mut tree);
   let (second, _, _) = clean_label(&mut tree);
   let (child, _, _) = clean_label(&mut tree);
+  let (freed, _, _) = clean_label(&mut tree);
   tree.add_child(TreeKind::Visual, second, child);
   let _ = take_layout(&mut tree, first);
   let _ = take_layout(&mut tree, second);
+  tree.free(freed);
   assert!(take_layout(&mut tree, second).is_empty());
   tree.mark_dirty(child, Affects::LAYOUT);
 
   assert!(take_layout(&mut tree, first).is_empty());
+  assert_eq!(queued(&tree, Affects::LAYOUT), 0);
   assert_eq!(take_layout(&mut tree, second), [child].into());
+}
+
+// The queue is empty once taken, and holds a node again when a mark adds the stage to it.
+#[test]
+fn is_queue_empty_follows_the_marks() {
+  let mut tree = UiTree::new();
+  let (root, _, _) = clean_label(&mut tree);
+  let _ = take_layout(&mut tree, root);
+  assert!(tree.dirty_flags.is_queue_empty(Affects::LAYOUT));
+
+  tree.mark_dirty(root, Affects::LAYOUT);
+
+  assert!(!tree.dirty_flags.is_queue_empty(Affects::LAYOUT));
 }
 
 // A node set aside comes back to a root it was linked under, even when nothing else is queued.

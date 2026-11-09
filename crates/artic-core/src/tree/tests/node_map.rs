@@ -135,3 +135,18 @@ fn drain_empties_the_map() {
     [(b, 3)]
   );
 }
+
+// is_empty holds until a value goes in, and again once the last one is out.
+#[test]
+fn is_empty_follows_the_values() {
+  let mut tree = UiTree::new();
+  let [node] = nodes(&mut tree);
+  let mut map = NodeMap::new();
+  assert!(map.is_empty());
+  map.insert(node, 1);
+  assert!(!map.is_empty());
+
+  map.remove(node);
+
+  assert!(map.is_empty());
+}
