@@ -1,5 +1,5 @@
 use crate::Error;
-use crate::backend::{ADAPTER_NAME_VARIABLE, backends_for, is_warp, named, power_for};
+use crate::backend::{ADAPTER_NAME_VARIABLE, adapter_name, backends_for, is_warp, named, power_for};
 use crate::translate::translate;
 use artic_render::{
   PhysicalSize, PixelBuffer, PixelFormat, RawHandles, RenderError, Scene, SurfaceId, SurfaceView, Target, TargetKind,
@@ -42,7 +42,8 @@ impl Renderer {
   ///
   /// It asks for the low-power GPU, which is plenty for a 2D UI. As in other wgpu apps,
   /// `WGPU_BACKEND` picks the GPU API, `WGPU_POWER_PREF` (`low`, `high` or `none`) the preference,
-  /// and `WGPU_ADAPTER_NAME` the adapter whose name contains it, ignoring case.
+  /// and `WGPU_ADAPTER_NAME` the first adapter whose name contains it, ignoring case, whatever the
+  /// preference. A blank `WGPU_ADAPTER_NAME` counts as unset.
   ///
   /// # Errors
   ///
@@ -338,7 +339,7 @@ fn backend(error: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> Render
 /// The adapter `WGPU_ADAPTER_NAME` names among those on `backends`, or else the one wgpu picks for
 /// [`power_for`]'s preference.
 async fn adapter(instance: &Instance, backends: Backends) -> Result<Adapter, Error> {
-  let Ok(wanted) = std::env::var(ADAPTER_NAME_VARIABLE) else {
+  let Some(wanted) = adapter_name(std::env::var(ADAPTER_NAME_VARIABLE).ok()) else {
     let options = wgpu::RequestAdapterOptions {
       power_preference: power_for(wgpu::PowerPreference::from_env()),
       ..wgpu::RequestAdapterOptions::default()

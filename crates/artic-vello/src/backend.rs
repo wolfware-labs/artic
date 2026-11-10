@@ -19,6 +19,12 @@ pub(crate) fn power_for(from_env: Option<PowerPreference>) -> PowerPreference {
 /// The variable that names the adapter to use, as in other wgpu apps.
 pub(crate) const ADAPTER_NAME_VARIABLE: &str = "WGPU_ADAPTER_NAME";
 
+/// The adapter name `value`, the variable's value, asks for: none when it's unset or blank, since a
+/// blank name would match every adapter and skip the power preference.
+pub(crate) fn adapter_name(value: Option<String>) -> Option<String> {
+  value.filter(|name| !name.trim().is_empty())
+}
+
 /// The first of `names` that contains `wanted`, ignoring case, as wgpu matches `WGPU_ADAPTER_NAME`.
 pub(crate) fn named<'a>(wanted: &str, names: impl IntoIterator<Item = &'a str>) -> Option<usize> {
   let wanted = wanted.to_lowercase();
@@ -63,6 +69,15 @@ mod tests {
     assert_eq!(named("intel", names), Some(1));
     assert_eq!(named("GEFORCE", names), Some(0));
     assert_eq!(named("radeon", names), None);
+  }
+
+  // A blank `WGPU_ADAPTER_NAME` names no adapter, so the power preference decides, as when unset.
+  #[test]
+  fn blank_adapter_name_is_unset() {
+    assert_eq!(adapter_name(None), None);
+    assert_eq!(adapter_name(Some(String::new())), None);
+    assert_eq!(adapter_name(Some("  ".to_owned())), None);
+    assert_eq!(adapter_name(Some("intel".to_owned())), Some("intel".to_owned()));
   }
 
   // WARP is a CPU adapter on DX12; lavapipe, a CPU adapter on Vulkan, and real GPUs are usable.

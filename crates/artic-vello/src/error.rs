@@ -12,7 +12,10 @@ pub enum Error {
   #[error("vello can't run on the {0} adapter")]
   UnsupportedAdapter(String),
   /// `WGPU_ADAPTER_NAME` names no adapter.
-  #[error("`{ADAPTER_NAME_VARIABLE}` is `{wanted}`, which names no GPU adapter; the adapters are: {}", available.join(", "))]
+  #[error(
+    "`{ADAPTER_NAME_VARIABLE}` is `{wanted}`, which names no GPU adapter; {}",
+    listed(available)
+  )]
   NoAdapterNamed {
     /// The text the adapter's name had to contain.
     wanted: String,
@@ -25,6 +28,15 @@ pub enum Error {
   /// vello couldn't build its GPU pipelines.
   #[error("couldn't prepare vello")]
   Vello(#[from] vello::Error),
+}
+
+/// The adapters there are, for the message of [`Error::NoAdapterNamed`].
+fn listed(available: &[String]) -> String {
+  if available.is_empty() {
+    "there are no adapters".to_owned()
+  } else {
+    format!("the adapters are: {}", available.join(", "))
+  }
 }
 
 #[cfg(test)]
@@ -53,6 +65,20 @@ mod tests {
       error.to_string(),
       "`WGPU_ADAPTER_NAME` is `radeon`, which names no GPU adapter; the adapters are: NVIDIA GeForce RTX 3050, \
        Intel(R) UHD Graphics"
+    );
+  }
+
+  // With no adapter at all, the message says so instead of an empty list.
+  #[test]
+  fn no_adapter_named_without_adapters_says_so() {
+    let error = Error::NoAdapterNamed {
+      wanted: "radeon".to_owned(),
+      available: Vec::new(),
+    };
+
+    assert_eq!(
+      error.to_string(),
+      "`WGPU_ADAPTER_NAME` is `radeon`, which names no GPU adapter; there are no adapters"
     );
   }
 }
