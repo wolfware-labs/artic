@@ -10,6 +10,14 @@ pub enum Error {
   /// which Windows offers only when there's no usable GPU.
   #[error("vello can't run on the {0} adapter")]
   UnsupportedAdapter(String),
+  /// `WGPU_ADAPTER_NAME` names no adapter.
+  #[error("no GPU adapter's name contains \"{wanted}\"; the adapters are: {}", available.join(", "))]
+  NoAdapterNamed {
+    /// The text the adapter's name had to contain.
+    wanted: String,
+    /// The names of the adapters there are.
+    available: Vec<String>,
+  },
   /// The adapter refused to open a device.
   #[error("couldn't open the GPU device")]
   Device(#[from] RequestDeviceError),
@@ -30,5 +38,19 @@ mod tests {
 
     assert_eq!(error.to_string(), "no GPU adapter is available");
     assert!(error.source().is_some());
+  }
+
+  // No adapter named as asked lists the adapters there are.
+  #[test]
+  fn no_adapter_named_lists_the_adapters() {
+    let error = Error::NoAdapterNamed {
+      wanted: "radeon".to_owned(),
+      available: vec!["NVIDIA GeForce RTX 3050".to_owned(), "Intel(R) UHD Graphics".to_owned()],
+    };
+
+    assert_eq!(
+      error.to_string(),
+      "no GPU adapter's name contains \"radeon\"; the adapters are: NVIDIA GeForce RTX 3050, Intel(R) UHD Graphics"
+    );
   }
 }

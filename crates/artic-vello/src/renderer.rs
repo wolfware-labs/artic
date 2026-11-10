@@ -1,5 +1,5 @@
 use crate::Error;
-use crate::backend::{backends_for, is_warp};
+use crate::backend::{backends_for, is_warp, named, power_for};
 use crate::translate::translate;
 use artic_render::{
   PhysicalSize, PixelBuffer, PixelFormat, RawHandles, RenderError, Scene, SurfaceId, SurfaceView, Target, TargetKind,
@@ -8,9 +8,9 @@ use std::collections::HashMap;
 use std::sync::mpsc;
 use vello::wgpu::util::TextureBlitter;
 use vello::wgpu::{
-  self, Backends, CompositeAlphaMode, CurrentSurfaceTexture, Device, DeviceDescriptor, Extent3d, Instance, InstanceDescriptor,
-  PresentMode, Queue, SurfaceConfiguration, SurfaceTargetUnsafe, TexelCopyBufferInfo, TexelCopyBufferLayout,
-  TexelCopyTextureInfo, Texture, TextureFormat, TextureUsages, TextureView,
+  self, Adapter, Backends, CompositeAlphaMode, CurrentSurfaceTexture, Device, DeviceDescriptor, Extent3d, Instance,
+  InstanceDescriptor, PresentMode, Queue, SurfaceConfiguration, SurfaceTargetUnsafe, TexelCopyBufferInfo,
+  TexelCopyBufferLayout, TexelCopyTextureInfo, Texture, TextureFormat, TextureUsages, TextureView,
 };
 use vello::{AaConfig, AaSupport, RenderParams, RendererOptions};
 
@@ -40,15 +40,21 @@ struct Swapchain {
 impl Renderer {
   /// Opens the GPU and prepares vello's pipelines. It blocks until they're ready.
   ///
+  /// It asks for the low-power GPU, which is plenty for a 2D UI. As in other wgpu apps,
+  /// `WGPU_BACKEND` picks the GPU API, `WGPU_POWER_PREF` (`low`, `high` or `none`) the preference,
+  /// and `WGPU_ADAPTER_NAME` the adapter whose name contains it, ignoring case.
+  ///
   /// # Errors
   ///
-  /// Returns a [`Error`] when no adapter supports the platform's GPU API, the one found is WARP,
-  /// the device can't be opened, or vello's pipelines can't be built.
+  /// Returns a [`Error`] when no adapter supports the platform's GPU API, no adapter's name contains
+  /// `WGPU_ADAPTER_NAME`, the one found is WARP, the device can't be opened, or vello's pipelines
+  /// can't be built.
   pub fn new() -> Result<Renderer, Error> {
     let mut descriptor = InstanceDescriptor::new_without_display_handle();
-    descriptor.backends = Backends::from_env().unwrap_or_else(|| backends_for(std::env::consts::OS));
+    let backends = Backends::from_env().unwrap_or_else(|| backends_for(std::env::consts::OS));
+    descriptor.backends = backends;
     let instance = Instance::new(descriptor);
-    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))?;
+    let adapter = pollster::block_on(adapter(&instance, backends))?;
     let info = adapter.get_info();
     if is_warp(info.backend, info.device_type) {
       return Err(Error::UnsupportedAdapter(info.name));
@@ -327,6 +333,27 @@ fn storage_view(device: &Device, size: PhysicalSize) -> TextureView {
 /// A library failure, as the `RenderError` the renderer seam reports.
 fn backend(error: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> RenderError {
   RenderError::Backend(error.into())
+}
+
+/// The adapter `WGPU_ADAPTER_NAME` names among those on `backends`, or else the one wgpu picks for
+/// [`power_for`]'s preference.
+async fn adapter(instance: &Instance, backends: Backends) -> Result<Adapter, Error> {
+  let Ok(wanted) = std::env::var("WGPU_ADAPTER_NAME") else {
+    let options = wgpu::RequestAdapterOptions {
+      power_preference: power_for(wgpu::PowerPreference::from_env()),
+      ..wgpu::RequestAdapterOptions::default()
+    };
+    return Ok(instance.request_adapter(&options).await?);
+  };
+  let mut adapters = instance.enumerate_adapters(backends).await;
+  let names: Vec<String> = adapters.iter().map(|adapter| adapter.get_info().name).collect();
+  match named(&wanted, names.iter().map(String::as_str)) {
+    Some(index) => Ok(adapters.swap_remove(index)),
+    None => Err(Error::NoAdapterNamed {
+      wanted,
+      available: names,
+    }),
+  }
 }
 
 #[cfg(test)]

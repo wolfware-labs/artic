@@ -1,4 +1,4 @@
-use vello::wgpu::{Backend, Backends, DeviceType};
+use vello::wgpu::{Backend, Backends, DeviceType, PowerPreference};
 
 /// The GPU API to use on `os`, as [`std::env::consts::OS`] names it: DX12 on Windows, Metal on
 /// macOS and iOS, Vulkan elsewhere.
@@ -8,6 +8,18 @@ pub(crate) fn backends_for(os: &str) -> Backends {
     "macos" | "ios" => Backends::METAL,
     _ => Backends::VULKAN,
   }
+}
+
+/// The GPU to ask for: the one `WGPU_POWER_PREF` names, read by wgpu into `from_env`, or else the
+/// low-power one, which is plenty for a 2D UI and saves battery.
+pub(crate) fn power_for(from_env: Option<PowerPreference>) -> PowerPreference {
+  from_env.unwrap_or(PowerPreference::LowPower)
+}
+
+/// The first of `names` that contains `wanted`, ignoring case, as wgpu matches `WGPU_ADAPTER_NAME`.
+pub(crate) fn named<'a>(wanted: &str, names: impl IntoIterator<Item = &'a str>) -> Option<usize> {
+  let wanted = wanted.to_lowercase();
+  names.into_iter().position(|name| name.to_lowercase().contains(&wanted))
 }
 
 /// Whether an adapter on `backend` of type `device` is WARP, Windows' software DX12 adapter, on
@@ -27,6 +39,27 @@ mod tests {
     let chosen: Vec<Backends> = ["windows", "macos", "linux"].into_iter().map(backends_for).collect();
 
     assert_eq!(chosen, [Backends::DX12, Backends::METAL, Backends::VULKAN]);
+  }
+
+  // Without `WGPU_POWER_PREF` the low-power GPU is asked for; a set preference wins.
+  #[test]
+  fn power_defaults_to_low() {
+    assert_eq!(power_for(None), PowerPreference::LowPower);
+    assert_eq!(
+      power_for(Some(PowerPreference::HighPerformance)),
+      PowerPreference::HighPerformance
+    );
+    assert_eq!(power_for(Some(PowerPreference::None)), PowerPreference::None);
+  }
+
+  // `WGPU_ADAPTER_NAME` picks the first adapter whose name contains it, ignoring case.
+  #[test]
+  fn adapter_is_named_by_part_of_its_name() {
+    let names = ["NVIDIA GeForce RTX 3050", "Intel(R) UHD Graphics", "Intel(R) Arc"];
+
+    assert_eq!(named("intel", names), Some(1));
+    assert_eq!(named("GEFORCE", names), Some(0));
+    assert_eq!(named("radeon", names), None);
   }
 
   // WARP is a CPU adapter on DX12; lavapipe, a CPU adapter on Vulkan, and real GPUs are usable.
