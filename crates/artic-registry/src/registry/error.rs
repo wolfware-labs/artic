@@ -38,3 +38,28 @@ pub enum Duplicate {
 fn lines(duplicates: &[Duplicate]) -> String {
   duplicates.iter().map(Duplicate::to_string).collect::<Vec<_>>().join("\n")
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  // The error's message lists each duplicate on a line of its own.
+  #[test]
+  fn message_has_a_line_per_duplicate() {
+    let error = RegistryError {
+      duplicates: vec![
+        Duplicate::RustPath { path: "app::Page" },
+        Duplicate::Property {
+          owner: "app::Page",
+          name: "Title",
+        },
+      ],
+    };
+
+    assert_eq!(
+      error.to_string(),
+      "two types are registered for the Rust path `app::Page`\n\
+       `app::Page` has two properties named `Title`, counting the groups it flattens"
+    );
+  }
+}

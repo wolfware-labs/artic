@@ -113,9 +113,9 @@ impl Registry {
       .and_then(|names| names.get(name))
       .map(Vec::as_slice)
     {
+      None | Some([]) => Lookup::Missing,
       Some([one]) => Lookup::Found(one),
-      Some(many) if !many.is_empty() => Lookup::Ambiguous(many.to_vec()),
-      _ => Lookup::Missing,
+      Some(many) => Lookup::Ambiguous(many.to_vec()),
     }
   }
 

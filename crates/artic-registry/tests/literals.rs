@@ -7,12 +7,17 @@ use artic_core::tree::NodeId;
 use artic_macros::UiType;
 use artic_registry::UiType;
 
+#[derive(Debug, Clone, PartialEq, UiType)]
+struct Needle;
+
 #[derive(Debug, UiType)]
 struct Gauge {
   #[ui]
   width: Property<f32>,
   #[ui]
   label: Property<Option<String>>,
+  #[ui]
+  needle: Property<Option<Needle>>,
   #[ui(content)]
   child: Property<Option<NodeId>>,
 }
@@ -56,6 +61,16 @@ fn bad_text_returns_the_parse_error() {
 fn element_property_refuses_text() {
   assert_eq!(
     literal("Child", "x"),
+    Err("this property takes an element, not text".to_owned())
+  );
+}
+
+// A property whose value is itself a UI type refuses text too: the value is written as an object.
+#[cfg(feature = "literals")]
+#[test]
+fn ui_type_property_refuses_text() {
+  assert_eq!(
+    literal("Needle", "x"),
     Err("this property takes an element, not text".to_owned())
   );
 }
