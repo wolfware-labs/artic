@@ -167,6 +167,23 @@ fn one_child_counts_every_element() {
   assert_eq!(view.elements[1].content, CheckedContent::Child(0));
 }
 
+// Two found children of a one-child element are reported, and the element keeps neither.
+#[test]
+fn one_child_with_two_keeps_none() {
+  let nodes = vec![
+    Content::Element(element(&IMAGE, 21, Vec::new())),
+    Content::Element(element(&IMAGE, 30, Vec::new())),
+  ];
+  let document = Document {
+    root: element(&FRAME, 0, vec![content(20, nodes)]),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  assert_eq!(reported(&diagnostics), [at("`Frame` takes one child", 30)]);
+  assert_eq!(view.elements[2].content, CheckedContent::None);
+}
+
 // Text among children is reported with a hint, and blank text is ignored.
 #[test]
 fn text_among_children_is_reported_with_help() {
