@@ -39,7 +39,7 @@ pub fn snake_case(name: &str) -> String {
   let trailing = characters.iter().rev().take_while(|&&character| character == '_').count();
   let mut snake = String::with_capacity(name.len() + 4);
   for (index, &character) in characters.iter().enumerate() {
-    let inside = index >= leading && index < characters.len() - trailing;
+    let inside = (leading..characters.len() - trailing).contains(&index);
     if character == '_' && inside && snake.ends_with('_') {
       continue;
     }
