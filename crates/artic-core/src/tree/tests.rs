@@ -7,6 +7,7 @@ mod inheritance;
 mod links;
 mod node_map;
 mod objects;
+mod outside;
 mod structure;
 mod wiring;
 

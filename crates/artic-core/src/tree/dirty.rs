@@ -128,6 +128,18 @@ impl DirtyFlags {
     self.shared.get().is_some_and(|shared| shared.pending.replace(false))
   }
 
+  /// Puts `nodes` back at the end of `stage`'s queue.
+  pub(super) fn requeue(&self, stage: Affects, nodes: Vec<NodeId>) {
+    if let Some(shared) = self.shared.get() {
+      shared.queue(stage).borrow_mut().extend(nodes);
+    }
+  }
+
+  /// Whether `stage`'s queue holds no node.
+  pub(super) fn is_queue_empty(&self, stage: Affects) -> bool {
+    self.shared.get().is_none_or(|shared| shared.queue(stage).borrow().is_empty())
+  }
+
   /// Keeps in `stage`'s queue only the nodes `keep` accepts, in the order they were queued. A node
   /// may be in it twice, or no longer marked, or freed.
   pub(super) fn retain_queued(&self, stage: Affects, mut keep: impl FnMut(NodeId) -> bool) {

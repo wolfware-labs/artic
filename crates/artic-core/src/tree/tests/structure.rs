@@ -124,6 +124,64 @@ fn take_relinked_leaves_other_roots_links() {
   assert!(tree.take_relinked(TreeKind::Visual, second));
 }
 
+// A link under no root, found by every root, is set aside, so later frames don't look at it.
+#[test]
+fn take_relinked_parks_a_link_under_no_root() {
+  let mut tree = UiTree::new();
+  let [root, parent, child] = nodes(&mut tree);
+  tree.add_child(TreeKind::Visual, parent, child);
+
+  assert!(!tree.take_relinked(TreeKind::Visual, root));
+
+  assert_eq!(tree.relinked[TreeKind::Visual as usize].iter_mut().count(), 0);
+}
+
+// A root asking for the first time since the structure changed is told of the links other roots
+// set aside.
+#[test]
+fn take_relinked_tells_a_new_root_what_others_set_aside() {
+  let mut tree = UiTree::new();
+  let [first, second, child, extra] = nodes(&mut tree);
+  assert!(!tree.take_relinked(TreeKind::Visual, second));
+  assert!(!tree.take_relinked(TreeKind::Visual, first));
+  tree.add_child(TreeKind::Visual, second, child);
+  tree.add_child(TreeKind::Visual, first, extra);
+
+  assert!(tree.take_relinked(TreeKind::Visual, first));
+  assert!(tree.take_relinked(TreeKind::Visual, second));
+}
+
+// A parent set aside and then freed doesn't hide the links of the node that reuses its slot.
+#[test]
+fn take_relinked_tells_of_a_link_under_a_node_in_a_freed_parents_slot() {
+  let mut tree = UiTree::new();
+  let [root, parent, child] = nodes(&mut tree);
+  tree.add_child(TreeKind::Visual, parent, child);
+  assert!(!tree.take_relinked(TreeKind::Visual, root));
+  tree.detach(TreeKind::Visual, child);
+  tree.free(child);
+  tree.free(parent);
+  let [reused] = nodes(&mut tree);
+  tree.add_child(TreeKind::Visual, root, reused);
+  assert!(tree.take_relinked(TreeKind::Visual, root));
+  let [grandchild] = nodes(&mut tree);
+  tree.add_child(TreeKind::Visual, reused, grandchild);
+
+  assert!(tree.take_relinked(TreeKind::Visual, root));
+}
+
+// A root asking in one tree leaves the links set aside in the other for that tree's roots.
+#[test]
+fn take_relinked_keeps_what_the_other_tree_set_aside() {
+  let mut tree = UiTree::new();
+  let [first, second, child] = nodes(&mut tree);
+  tree.add_child(TreeKind::Logical, second, child);
+  assert!(!tree.take_relinked(TreeKind::Logical, first));
+
+  assert!(!tree.take_relinked(TreeKind::Visual, second));
+  assert!(tree.take_relinked(TreeKind::Logical, second));
+}
+
 // Links in the other tree, new nodes and freeing a detached one aren't visual links.
 #[test]
 fn take_relinked_counts_only_its_trees_links() {

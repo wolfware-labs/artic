@@ -24,6 +24,8 @@
 //! - `attached`: attached property values, stored per node.
 //! - `inheritance`: how inheritable properties follow the logical tree, as functions over the
 //!   objects and the logical links.
+//! - `outside`: the queued nodes `take_dirty` and `take_relinked` found under no root, set aside so
+//!   frames stop visiting them.
 //!
 //! The other parts keep their data under the same `NodeId`, in a `SlotMap` each; only `objects`
 //! knows whether an id is live, so `UiTree` checks an id there before it reaches them. `UiTree`
@@ -42,6 +44,7 @@ mod hierarchy;
 mod inheritance;
 mod node_map;
 mod objects;
+mod outside;
 
 use crate::Object;
 use crate::arena::SlotId;
@@ -56,6 +59,7 @@ pub use handle::Handle;
 use hierarchy::Tree;
 pub use node_map::NodeMap;
 use objects::Objects;
+use outside::{Outside, Place};
 use std::any::Any;
 #[cfg(debug_assertions)]
 use std::cell::RefCell;
@@ -112,6 +116,10 @@ pub struct UiTree {
   /// The parents each tree, logical first, made or cut a link under since a root above them last
   /// took them.
   relinked: [NodeMap<()>; 2],
+  /// The queued nodes under no root that `take_dirty` found, and those it set aside off the queue.
+  outside: Outside<Affects>,
+  /// The relinked parents under no root that `take_relinked` found, and those it set aside.
+  relinked_outside: Outside<TreeKind>,
   #[cfg(debug_assertions)]
   touched: RefCell<HashMap<NodeId, Vec<SignalId>, BuildHasherDefault<DefaultHasher>>>,
 }
@@ -211,6 +219,8 @@ impl UiTree {
       listed: SlotMap::new(),
       structure_generation: 0,
       relinked: [NodeMap::new(), NodeMap::new()],
+      outside: Outside::new(),
+      relinked_outside: Outside::new(),
       #[cfg(debug_assertions)]
       touched: RefCell::new(HashMap::with_hasher(BuildHasherDefault::new())),
     }
@@ -434,14 +444,24 @@ impl UiTree {
       TreeKind::Logical => &self.logical,
       TreeKind::Visual => &self.visual,
     };
+    let key = (tree, tree, root);
+    if self.relinked[tree as usize].is_empty() && self.relinked_outside.idle(self.structure_generation, key) {
+      return false;
+    }
+    let (requeue, mut take) = self.relinked_outside.begin(self.structure_generation, key);
+    let relinked = &mut self.relinked[tree as usize];
+    for parent in requeue.into_iter().filter(|&parent| self.objects.contains(parent)) {
+      relinked.insert(parent, ());
+    }
     let mut found = false;
-    self.relinked[tree as usize].retain(|parent, ()| {
-      let within = links.is_within(parent, root);
-      if within {
-        found = true;
-      }
-      !within
+    relinked.retain(|parent, ()| {
+      let place = self
+        .relinked_outside
+        .place(&mut take, parent, || links.is_within(parent, root));
+      found |= place == Place::Within;
+      place == Place::Queued
     });
+    self.relinked_outside.end(take);
     found
   }
 
@@ -759,12 +779,14 @@ impl UiTree {
     self.dirty_flags.clear(id, stages);
   }
 
-  /// Hands over the nodes marked `stage` that are `root` or under it in `tree`, each once, and clears
-  /// `stage` from them. Nodes marked `stage` elsewhere stay for the stage's other roots, such as
-  /// another surface's.
+  /// Hands over the nodes marked `stage` that are `root` or under it in `tree`, each once and in no
+  /// particular order, and clears `stage` from them. Nodes marked `stage` elsewhere stay for the
+  /// stage's other roots, such as another surface's.
   ///
   /// The tree queues a node when a mark adds `stage` to it, so this costs what was marked, not the
-  /// size of the tree. Only [`Affects::LAYOUT`] is queued.
+  /// size of the tree. A queued node every root asking for `stage` has found outside it leaves the
+  /// queue, and comes back when the structure of a tree changes or a root asks for the first time
+  /// since it did. Only [`Affects::LAYOUT`] is queued.
   ///
   /// # Panics
   ///
@@ -772,18 +794,28 @@ impl UiTree {
   #[track_caller]
   pub fn take_dirty(&mut self, stage: Affects, tree: TreeKind, root: NodeId) -> Vec<NodeId> {
     self.check(root);
+    let key = (stage, tree, root);
+    if self.dirty_flags.is_queue_empty(stage) && self.outside.idle(self.structure_generation, key) {
+      return Vec::new();
+    }
+    let (requeue, mut take) = self.outside.begin(self.structure_generation, key);
+    self.dirty_flags.requeue(stage, requeue);
     let mut taken = Vec::new();
     self.dirty_flags.retain_queued(stage, |node| {
       if !self.dirty_flags.get(node).contains(stage) {
         return false;
       }
-      if !self.is_within(tree, node, root) {
-        return true;
+      match self.outside.place(&mut take, node, || self.is_within(tree, node, root)) {
+        Place::Within => {
+          self.dirty_flags.clear(node, stage);
+          taken.push(node);
+          false
+        }
+        Place::Queued => true,
+        Place::Parked => false,
       }
-      self.dirty_flags.clear(node, stage);
-      taken.push(node);
-      false
     });
+    self.outside.end(take);
     taken
   }
 
