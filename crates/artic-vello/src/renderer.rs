@@ -1,5 +1,5 @@
 use crate::Error;
-use crate::backend::{backends_for, is_warp, named, power_for};
+use crate::backend::{ADAPTER_NAME_VARIABLE, backends_for, is_warp, named, power_for};
 use crate::translate::translate;
 use artic_render::{
   PhysicalSize, PixelBuffer, PixelFormat, RawHandles, RenderError, Scene, SurfaceId, SurfaceView, Target, TargetKind,
@@ -338,7 +338,7 @@ fn backend(error: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> Render
 /// The adapter `WGPU_ADAPTER_NAME` names among those on `backends`, or else the one wgpu picks for
 /// [`power_for`]'s preference.
 async fn adapter(instance: &Instance, backends: Backends) -> Result<Adapter, Error> {
-  let Ok(wanted) = std::env::var("WGPU_ADAPTER_NAME") else {
+  let Ok(wanted) = std::env::var(ADAPTER_NAME_VARIABLE) else {
     let options = wgpu::RequestAdapterOptions {
       power_preference: power_for(wgpu::PowerPreference::from_env()),
       ..wgpu::RequestAdapterOptions::default()

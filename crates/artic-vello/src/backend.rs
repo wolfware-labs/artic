@@ -16,6 +16,9 @@ pub(crate) fn power_for(from_env: Option<PowerPreference>) -> PowerPreference {
   from_env.unwrap_or(PowerPreference::LowPower)
 }
 
+/// The variable that names the adapter to use, as in other wgpu apps.
+pub(crate) const ADAPTER_NAME_VARIABLE: &str = "WGPU_ADAPTER_NAME";
+
 /// The first of `names` that contains `wanted`, ignoring case, as wgpu matches `WGPU_ADAPTER_NAME`.
 pub(crate) fn named<'a>(wanted: &str, names: impl IntoIterator<Item = &'a str>) -> Option<usize> {
   let wanted = wanted.to_lowercase();

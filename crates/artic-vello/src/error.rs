@@ -1,3 +1,4 @@
+use crate::backend::ADAPTER_NAME_VARIABLE;
 use vello::wgpu::{RequestAdapterError, RequestDeviceError};
 
 /// Why a [`Renderer`](crate::Renderer) couldn't start.
@@ -11,7 +12,7 @@ pub enum Error {
   #[error("vello can't run on the {0} adapter")]
   UnsupportedAdapter(String),
   /// `WGPU_ADAPTER_NAME` names no adapter.
-  #[error("no GPU adapter's name contains \"{wanted}\"; the adapters are: {}", available.join(", "))]
+  #[error("`{ADAPTER_NAME_VARIABLE}` is `{wanted}`, which names no GPU adapter; the adapters are: {}", available.join(", "))]
   NoAdapterNamed {
     /// The text the adapter's name had to contain.
     wanted: String,
@@ -50,7 +51,8 @@ mod tests {
 
     assert_eq!(
       error.to_string(),
-      "no GPU adapter's name contains \"radeon\"; the adapters are: NVIDIA GeForce RTX 3050, Intel(R) UHD Graphics"
+      "`WGPU_ADAPTER_NAME` is `radeon`, which names no GPU adapter; the adapters are: NVIDIA GeForce RTX 3050, \
+       Intel(R) UHD Graphics"
     );
   }
 }
