@@ -403,23 +403,27 @@ mod tests {
     ));
   }
 
-  // An adapter's name, in another case, picks that adapter.
+  // Each adapter's name, in another case, picks the first adapter with that name, which isn't
+  // the one the power preference would pick when the machine has more than one.
   #[test]
   fn an_adapter_name_picks_that_adapter() {
     let (instance, backends, names) = platform();
-    let Some(first) = names.first() else {
+    if names.is_empty() {
       require::no_gpu("no adapter to name");
       return;
-    };
+    }
 
-    let chosen = pollster::block_on(adapter(
-      &instance,
-      backends,
-      Some(first.to_uppercase()),
-      wgpu::PowerPreference::LowPower,
-    ));
+    for name in &names {
+      let chosen = pollster::block_on(adapter(
+        &instance,
+        backends,
+        Some(name.to_uppercase()),
+        wgpu::PowerPreference::LowPower,
+      ));
 
-    assert_eq!(chosen.ok().map(|adapter| adapter.get_info().name), Some(first.clone()));
+      let first = names.iter().find(|other| other.to_lowercase().contains(&name.to_lowercase()));
+      assert_eq!(chosen.ok().map(|adapter| adapter.get_info().name).as_ref(), first, "{name}");
+    }
   }
 
   // The first outdated answer reconfigures the surface and the first lost one recreates it; on the
