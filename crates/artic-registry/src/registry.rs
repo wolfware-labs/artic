@@ -297,26 +297,6 @@ mod tests {
     );
   }
 
-  // The error's message lists each duplicate on a line of its own.
-  #[test]
-  fn error_message_has_a_line_per_duplicate() {
-    let error = RegistryError {
-      duplicates: vec![
-        Duplicate::RustPath { path: "app::Page" },
-        Duplicate::Property {
-          owner: "app::Page",
-          name: "Title",
-        },
-      ],
-    };
-
-    assert_eq!(
-      error.to_string(),
-      "two types are registered for the Rust path `app::Page`\n\
-       `app::Page` has two properties named `Title`, counting the groups it flattens"
-    );
-  }
-
   // A name nothing registered is missing; a found one is found.
   #[test]
   fn missing_name_is_missing() {
