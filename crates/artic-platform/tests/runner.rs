@@ -656,6 +656,7 @@ fn lost_surface_isnt_returned_from_run() {
 struct Scripted {
   cx: Rc<RefCell<Context>>,
   height: Property<f32>,
+  frames_when_woken: Rc<RefCell<Vec<SurfaceId>>>,
 }
 
 impl Host for Scripted {
@@ -674,6 +675,7 @@ impl Host for Scripted {
     app.frame(cx, FIRST, target(&mut buffer), Duration::ZERO);
     self.height.set(40.0);
     app.woken(cx);
+    self.frames_when_woken.replace(cx.frames.clone());
     app.event(cx, HostEvent::CloseRequested { surface: FIRST });
     app.surface_lost(cx, FIRST, SurfaceLoss::Gone);
     Ok(())
@@ -691,11 +693,13 @@ fn run_passes_every_host_call_to_the_runner() {
   let renderer = Counter::default();
   let runner = Runner::new(tree, renderer.clone(), Box::new(engine()), application);
   let cx = Rc::new(RefCell::new(Context::default()));
+  let frames_when_woken = Rc::default();
 
   let result = run(
     Scripted {
       cx: Rc::clone(&cx),
       height: content.height,
+      frames_when_woken: Rc::clone(&frames_when_woken),
     },
     runner,
   );
@@ -703,6 +707,7 @@ fn run_passes_every_host_call_to_the_runner() {
   assert!(result.is_ok(), "{result:?}");
   let cx = cx.borrow();
   assert_eq!(cx.opened.len(), 1);
+  assert_eq!(*frames_when_woken.borrow(), [FIRST, FIRST]);
   assert_eq!(cx.frames, [FIRST, FIRST]);
   assert_eq!(renderer.rendered.get(), 1);
   assert_eq!(cx.closed, [FIRST]);
