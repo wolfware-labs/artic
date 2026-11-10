@@ -203,6 +203,13 @@ mod tests {
     assert_eq!(format!("{:#?}", Span::new(SourceId(2), 4, 9)), "Span(2, 4..9)");
   }
 
+  // A span is empty only when it starts where it ends.
+  #[test]
+  fn span_is_empty_only_without_bytes() {
+    assert!(Span::new(SourceId(0), 3, 3).is_empty());
+    assert!(!Span::new(SourceId(0), 3, 5).is_empty());
+  }
+
   // ASCII offsets map to lines and columns from 1.
   #[test]
   fn ascii_positions() {

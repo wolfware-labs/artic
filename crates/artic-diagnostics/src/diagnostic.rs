@@ -258,4 +258,21 @@ mod tests {
       "error: unknown element 'Buton'\nwarning: unused namespace 'x'"
     );
   }
+
+  // `len` counts every diagnostic, and iterating a borrowed collection sees each in order.
+  #[test]
+  fn len_and_borrowed_iteration() {
+    let mut diagnostics = Diagnostics::new();
+    assert_eq!(diagnostics.len(), 0);
+
+    diagnostics.push(Diagnostic::error(span(), "first"));
+    diagnostics.push(Diagnostic::warning(span(), "second"));
+
+    assert_eq!(diagnostics.len(), 2);
+    let messages: Vec<&str> = (&diagnostics)
+      .into_iter()
+      .map(|diagnostic| diagnostic.message.as_str())
+      .collect();
+    assert_eq!(messages, ["first", "second"]);
+  }
 }
