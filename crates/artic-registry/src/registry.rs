@@ -113,9 +113,9 @@ impl Registry {
       .and_then(|names| names.get(name))
       .map(Vec::as_slice)
     {
+      None | Some([]) => Lookup::Missing,
       Some([one]) => Lookup::Found(one),
-      Some(many) if !many.is_empty() => Lookup::Ambiguous(many.to_vec()),
-      _ => Lookup::Missing,
+      Some(many) => Lookup::Ambiguous(many.to_vec()),
     }
   }
 
@@ -294,6 +294,26 @@ mod tests {
       [Duplicate::RustPath {
         path: "my_app::home::Page"
       }]
+    );
+  }
+
+  // The error's message lists each duplicate on a line of its own.
+  #[test]
+  fn error_message_has_a_line_per_duplicate() {
+    let error = RegistryError {
+      duplicates: vec![
+        Duplicate::RustPath { path: "app::Page" },
+        Duplicate::Property {
+          owner: "app::Page",
+          name: "Title",
+        },
+      ],
+    };
+
+    assert_eq!(
+      error.to_string(),
+      "two types are registered for the Rust path `app::Page`\n\
+       `app::Page` has two properties named `Title`, counting the groups it flattens"
     );
   }
 
