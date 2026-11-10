@@ -3,7 +3,7 @@
 
 mod common;
 
-use artic_view_compiler::{CompileError, CratePaths, compile_into};
+use artic_view_compiler::{CompileError, CratePaths, compile_dir, compile_into};
 use common::{Named, registry};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -133,4 +133,17 @@ fn directory_symlink_is_not_followed() {
   std::os::unix::fs::symlink(root.join("views"), root.join("views/loop")).expect("a symlink");
   let read = run(&root, &root.join("views")).expect("a valid view");
   assert_eq!(read, [root.join("views/a.view")]);
+}
+
+// Outside a build script there is no `OUT_DIR` to write to, and `compile_dir` says so.
+#[test]
+fn compile_dir_needs_out_dir() {
+  assert!(
+    std::env::var_os("OUT_DIR").is_none(),
+    "Cargo sets OUT_DIR only for build scripts"
+  );
+
+  let result = compile_dir("views", &Named, &CratePaths::new());
+
+  assert!(matches!(result, Err(CompileError::NoOutDir)), "{result:?}");
 }
