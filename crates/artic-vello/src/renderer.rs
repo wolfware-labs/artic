@@ -1,5 +1,5 @@
 use crate::Error;
-use crate::backend::{ADAPTER_NAME_VARIABLE, adapter_name, backends_for, is_warp, named, power_for};
+use crate::backend::{ADAPTER_NAME_VARIABLE, adapter_name, backends_for, is_warp, named, options, power_for};
 use crate::translate::translate;
 use artic_render::{
   PhysicalSize, PixelBuffer, PixelFormat, RawHandles, RenderError, Scene, SurfaceId, SurfaceView, Target, TargetKind,
@@ -352,11 +352,7 @@ async fn adapter(
   power: wgpu::PowerPreference,
 ) -> Result<Adapter, Error> {
   let Some(wanted) = wanted else {
-    let options = wgpu::RequestAdapterOptions {
-      power_preference: power,
-      ..wgpu::RequestAdapterOptions::default()
-    };
-    return Ok(instance.request_adapter(&options).await?);
+    return Ok(instance.request_adapter(&options(power)).await?);
   };
   let mut adapters = instance.enumerate_adapters(backends).await;
   let names: Vec<String> = adapters.iter().map(|adapter| adapter.get_info().name).collect();
@@ -414,14 +410,17 @@ mod tests {
     }
 
     for name in &names {
+      let wanted = name.to_uppercase();
       let chosen = pollster::block_on(adapter(
         &instance,
         backends,
-        Some(name.to_uppercase()),
+        Some(wanted.clone()),
         wgpu::PowerPreference::LowPower,
       ));
 
-      let first = names.iter().find(|other| other.to_lowercase().contains(&name.to_lowercase()));
+      let first = names
+        .iter()
+        .find(|other| other.to_lowercase().contains(&wanted.to_lowercase()));
       assert_eq!(chosen.ok().map(|adapter| adapter.get_info().name).as_ref(), first, "{name}");
     }
   }

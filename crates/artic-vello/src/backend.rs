@@ -1,4 +1,4 @@
-use vello::wgpu::{Backend, Backends, DeviceType, PowerPreference};
+use vello::wgpu::{Backend, Backends, DeviceType, PowerPreference, RequestAdapterOptions};
 
 /// The GPU API to use on `os`, as [`std::env::consts::OS`] names it: DX12 on Windows, Metal on
 /// macOS and iOS, Vulkan elsewhere.
@@ -14,6 +14,14 @@ pub(crate) fn backends_for(os: &str) -> Backends {
 /// low-power one, which is plenty for a 2D UI and saves battery.
 pub(crate) fn power_for(from_env: Option<PowerPreference>) -> PowerPreference {
   from_env.unwrap_or(PowerPreference::LowPower)
+}
+
+/// What to ask wgpu for when no adapter is named: the adapter `power` prefers, with no surface yet.
+pub(crate) fn options(power: PowerPreference) -> RequestAdapterOptions<'static, 'static> {
+  RequestAdapterOptions {
+    power_preference: power,
+    ..RequestAdapterOptions::default()
+  }
 }
 
 /// The variable that names the adapter to use, as in other wgpu apps.
@@ -59,6 +67,18 @@ mod tests {
       PowerPreference::HighPerformance
     );
     assert_eq!(power_for(Some(PowerPreference::None)), PowerPreference::None);
+  }
+
+  // The request asks for the preference it's given, on any surface and without a fallback adapter.
+  #[test]
+  fn options_ask_for_the_preference() {
+    for power in [PowerPreference::LowPower, PowerPreference::HighPerformance] {
+      let options = options(power);
+
+      assert_eq!(options.power_preference, power);
+      assert!(options.compatible_surface.is_none());
+      assert!(!options.force_fallback_adapter);
+    }
   }
 
   // `WGPU_ADAPTER_NAME` picks the first adapter whose name contains it, ignoring case.
