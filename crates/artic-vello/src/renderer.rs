@@ -51,11 +51,11 @@ impl Renderer {
   /// `WGPU_ADAPTER_NAME`, the one found is WARP, the device can't be opened, or vello's pipelines
   /// can't be built.
   pub fn new() -> Result<Renderer, Error> {
-    let mut descriptor = InstanceDescriptor::new_without_display_handle();
     let backends = Backends::from_env().unwrap_or_else(|| backends_for(std::env::consts::OS));
-    descriptor.backends = backends;
-    let instance = Instance::new(descriptor);
-    let adapter = pollster::block_on(adapter(&instance, backends))?;
+    let instance = instance(backends);
+    let wanted = adapter_name(std::env::var(ADAPTER_NAME_VARIABLE).ok());
+    let power = power_for(wgpu::PowerPreference::from_env());
+    let adapter = pollster::block_on(adapter(&instance, backends, wanted, power))?;
     let info = adapter.get_info();
     if is_warp(info.backend, info.device_type) {
       return Err(Error::UnsupportedAdapter(info.name));
@@ -336,12 +336,24 @@ fn backend(error: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> Render
   RenderError::Backend(error.into())
 }
 
-/// The adapter `WGPU_ADAPTER_NAME` names among those on `backends`, or else the one wgpu picks for
-/// [`power_for`]'s preference.
-async fn adapter(instance: &Instance, backends: Backends) -> Result<Adapter, Error> {
-  let Some(wanted) = adapter_name(std::env::var(ADAPTER_NAME_VARIABLE).ok()) else {
+/// A wgpu instance on `backends`.
+fn instance(backends: Backends) -> Instance {
+  let mut descriptor = InstanceDescriptor::new_without_display_handle();
+  descriptor.backends = backends;
+  Instance::new(descriptor)
+}
+
+/// The first adapter on `backends` whose name contains `wanted`, or without `wanted` the one wgpu
+/// picks for `power`.
+async fn adapter(
+  instance: &Instance,
+  backends: Backends,
+  wanted: Option<String>,
+  power: wgpu::PowerPreference,
+) -> Result<Adapter, Error> {
+  let Some(wanted) = wanted else {
     let options = wgpu::RequestAdapterOptions {
-      power_preference: power_for(wgpu::PowerPreference::from_env()),
+      power_preference: power,
       ..wgpu::RequestAdapterOptions::default()
     };
     return Ok(instance.request_adapter(&options).await?);
@@ -360,6 +372,55 @@ async fn adapter(instance: &Instance, backends: Backends) -> Result<Adapter, Err
 #[cfg(test)]
 mod tests {
   use super::*;
+  use artic_test::require;
+
+  /// An instance on the platform's GPU API, its backends, and the names of its adapters.
+  fn platform() -> (Instance, Backends, Vec<String>) {
+    let backends = backends_for(std::env::consts::OS);
+    let instance = instance(backends);
+    let adapters = pollster::block_on(instance.enumerate_adapters(backends));
+    let names = adapters.iter().map(|adapter| adapter.get_info().name).collect();
+    (instance, backends, names)
+  }
+
+  // A name no adapter has is refused with the adapters there are, rather than falling back to the
+  // power preference.
+  #[test]
+  fn an_unknown_adapter_name_lists_the_adapters() {
+    let (instance, backends, names) = platform();
+    let wanted = "no adapter has this name".to_owned();
+
+    let chosen = pollster::block_on(adapter(
+      &instance,
+      backends,
+      Some(wanted.clone()),
+      wgpu::PowerPreference::LowPower,
+    ));
+
+    assert!(matches!(
+      chosen,
+      Err(Error::NoAdapterNamed { wanted: asked, available }) if asked == wanted && available == names
+    ));
+  }
+
+  // An adapter's name, in another case, picks that adapter.
+  #[test]
+  fn an_adapter_name_picks_that_adapter() {
+    let (instance, backends, names) = platform();
+    let Some(first) = names.first() else {
+      require::no_gpu("no adapter to name");
+      return;
+    };
+
+    let chosen = pollster::block_on(adapter(
+      &instance,
+      backends,
+      Some(first.to_uppercase()),
+      wgpu::PowerPreference::LowPower,
+    ));
+
+    assert_eq!(chosen.ok().map(|adapter| adapter.get_info().name), Some(first.clone()));
+  }
 
   // The first outdated answer reconfigures the surface and the first lost one recreates it; on the
   // retry either fails.
