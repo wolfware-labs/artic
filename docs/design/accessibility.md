@@ -68,7 +68,7 @@ pub(crate) struct AccessTree {
 }
 ```
 
-Each frame the pass walks the surface's visible subtree from the root. The surface node is always described, visible or not: an accesskit tree must contain its root, so a `Hidden` or `Collapsed` surface is a `Window` with no children. For each visible node:
+Each frame the pass walks the surface's visible subtree from the root. The surface node is always described, visible or not: an accesskit tree must contain its root, so a `Hidden` or `Collapsed` surface is a `Window` with no children, at zero size when it is `Collapsed`, since layout gives a collapsed root no rectangle. For each visible node:
 
 1. It collects the ids of the node's visible children.
 2. If the node may describe itself differently, it calls `Element::accessibility`, sets the children and the transform, and compares the new node with the cached one. That is when the cache has no entry for it, the compositor records it again this frame (it is render-dirty, or in the pipeline's stale set: the nodes layout resized or gave a new result), its layout rect differs from the cached one, or it is the surface node and the scale changed.
@@ -149,7 +149,7 @@ A surface lent to a `Surface` node and given back to the spare list keeps the la
 | Test | Where | What it shows |
 | --- | --- | --- |
 | `to_bits` round trips, reused slot gives other bits | `artic-core` | section 2 |
-| walk: hidden subtree left out, and shown again with its unchanged descendants; visual order and a reorder; a node moved between parents; cache reuse; described again on render-dirty, a layout result with the same rect, a new rect or a new scale; freed and hidden nodes leave their parent's list; a non-element node as a container; a hidden surface as a `Window` with no children; full update clears the cache; `RenderTransform` placed in the node's transform; a new pipeline's first update is full; `AccessibilityRequested` gives an idle surface a frame with a full update | `artic-platform`, with its hand-written test elements | sections 3 to 5 |
+| walk: hidden subtree left out, and shown again with its unchanged descendants; visual order and a reorder; a node moved between parents; cache reuse; described again on render-dirty, a layout result with the same rect, a new rect or a new scale; freed and hidden nodes leave their parent's list; a non-element node as a container; a hidden surface as a `Window` with no children, and a collapsed one at zero size; full update clears the cache; `RenderTransform` placed in the node's transform; a new pipeline's first update is full; `AccessibilityRequested` gives an idle surface a frame with a full update | `artic-platform`, with its hand-written test elements | sections 3 to 5 |
 | `initial_tree_update_covers_all_nodes`, `text_change_updates_only_that_node`, `clean_frame_pushes_no_update`, `stack_panel_children_in_visual_order`, `freed_node_removed_from_tree` | `artic` (the facade crate's tests), with the real `Surface`, `Border`, `TextBlock` and `StackPanel`, a fake host whose `Accessibility` records updates, and headless frames | #54's acceptance criteria |
 | adapter made before the window shows, events reach the adapter, activation reports `AccessibilityRequested`, a window is not active before that report, a deactivation between the report and the move leaves it inactive, a stop and start during a frame turns an incremental update into the root alone, and a later activation is reported again | `artic-winit`, with its fake `Loop` and `Window` | section 6 |
 
