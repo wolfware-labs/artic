@@ -68,9 +68,9 @@ pub(crate) struct AccessTree {
 }
 ```
 
-Each frame the pass walks the surface's visible subtree from the root. The surface node is always described, visible or not: an accesskit tree must contain its root, so a `Hidden` or `Collapsed` surface is a `Window` with no children, at zero size when it is `Collapsed`, since layout gives a collapsed root no rectangle. For each visible node:
+Each frame the pass walks the surface's visible subtree from the root. The surface node is always described, visible or not: an accesskit tree must contain its root, so a `Hidden` or `Collapsed` surface is a `Window` with no children, at zero size when it is `Collapsed`, since layout gives a collapsed root no rectangle. For the surface node and each visible node below it:
 
-1. It collects the ids of the node's visible children.
+1. It collects the ids of the node's visible children, none for a surface that is not visible.
 2. If the node may describe itself differently, it calls `Element::accessibility`, sets the children and the transform, and compares the new node with the cached one. That is when the cache has no entry for it, the compositor records it again this frame (it is render-dirty, or in the pipeline's stale set: the nodes layout resized or gave a new result), its layout rect differs from the cached one, or it is the surface node and the scale changed.
 3. Otherwise, if the cached node lists the same children, the node is unchanged and costs nothing more: no call, no clone. If its children differ, the pass clones the cached node and sets the new children.
 4. A node that came out different from the cached one replaces it and goes into the update.
@@ -120,7 +120,7 @@ A screen reader that starts reading is an event like any other the host reports,
 
 A host counts a surface active only from the moment it reports `AccessibilityRequested`, not from the moment the screen reader starts. accesskit takes the first update after a start as the whole tree and panics on one without `tree`, and a frame can run between the start and the event; an incremental update in that frame would be the first.
 
-`Runner` passes the capability to `Pipeline::prepare` with the frame. The pass:
+`Runner` lends the capability to `Pipeline::prepare` in `FrameServices`, with the element types and the text engine. The pass:
 
 - does nothing when there is no capability or the surface is not active;
 - builds a full update after `AccessibilityRequested`;
@@ -140,7 +140,7 @@ A surface lent to a `Surface` node and given back to the spare list keeps the la
 - **Handlers.** The adapter is built with direct handlers. Each window has one atomic state, `Inactive`, `Requested` or `Active`. The activation handler returns `None`, so accesskit waits for the tree, stores `Requested`, and wakes the loop with a clone of the host's `Waker`, which the driver keeps since it hands its own to `started`. Woken, the driver reports `AccessibilityRequested` for each `Requested` window, then moves it to `Active` with a compare-exchange from `Requested`, and calls `woken`. The deactivation handler stores `Inactive`. A deactivation that lands between the report and the move leaves the window `Inactive`, where one flag per state would have let the loop mark it active again. The action handler ignores every action until #102.
 - **Events.** `Driver::handle` passes each `WindowEvent` of a known window to its adapter's `process_event` before translating it, through a method on the driver's `Window` trait, so the fake window records what reached it.
 - **Threads.** The handlers may run on another thread, so the flags they share with the loop are atomics. The tree itself is built only on the loop's thread, in the frame.
-- **Checking again on hand-over.** A screen reader can stop and start again between the pass's `is_active` and its `update`, which leaves the adapter waiting for a whole tree while the pass hands it an incremental one, and accesskit panics on that. `update` calls the adapter's `update_if_active`, whose closure runs under the same lock as the activation handler, and checks the window's state again inside it. When the window is no longer `Active` and the update has no `tree`, it hands over a tree of the root alone instead; the full update after the new `AccessibilityRequested` replaces it.
+- **Checking again on hand-over.** A screen reader can stop and start again between the pass's `is_active` and its `update`, which leaves the adapter waiting for a whole tree while the pass hands it an incremental one, and accesskit panics on that. `update` calls the adapter's `update_if_active`, whose closure runs under the same lock as the activation handler, and checks the window's state again inside it. When the window is no longer `Active` and the update has no `tree`, it hands over a tree of the root alone instead: a `Window` with the root id the adapter kept from the last update it handed over that had `tree` set; the full update after the new `AccessibilityRequested` replaces it.
 
 `accesskit_winit` 0.34 is the line built on `accesskit` 0.25, the version the workspace uses; 0.33 would bring a second `accesskit`. `deny.toml` lets `winit` in only through wrappers; `accesskit_winit` joins `artic-winit` in that list.
 
