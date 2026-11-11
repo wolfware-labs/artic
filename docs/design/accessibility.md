@@ -33,7 +33,7 @@ The accesskit id of a node is `accesskit::NodeId(node.to_bits())`. No side table
 
 Each surface is its own accesskit tree, one per window, and the surface's node is its root. `Surface` already describes itself as `Role::Window` labeled with its `Title` (#48).
 
-A node is in the tree when it is visible: when `ElementNodes::layers` says `visible`, that is, layout placed it and its `Visibility` is `Visible`. A `Hidden` or `Collapsed` node and its whole subtree are left out, as the [element design](element.md) section 7 requires. A node's accesskit children are its visible visual children, in visual order (`UiTree::children(TreeKind::Visual, node)`).
+A node is in the tree when it is visible: when `ElementNodes::layers` says `visible`, that is, layout placed it and its `Visibility` is `Visible`. A `Hidden` or `Collapsed` node and its whole subtree are left out, as the [element design](element.md) section 7 requires, except the surface node: the tree's root stays, with no children (section 4). A node's accesskit children are its visible visual children, in visual order (`UiTree::children(TreeKind::Visual, node)`).
 
 A visual node that is not an element gets default layers from the [frame design](frame.md) and records nothing; it gets a `Role::GenericContainer` node with its size as bounds and, like every node, the transform `ElementNodes::layers` gives it, here its layout offset alone, so its descendants stay where they are drawn.
 
