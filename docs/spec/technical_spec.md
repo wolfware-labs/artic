@@ -120,7 +120,7 @@ flowchart LR
   R --> V[vello render]
 ```
 
-A frame runs only when something is dirty; a frame with no dirty nodes is skipped and the loop waits on the OS event queue. Within a frame, layout and the scene build work only on dirty nodes. The accesskit update walks the visible nodes to compare their child lists, while a screen reader reads the window, but calls `accessibility()` only on nodes that changed.
+A frame runs only when its surface is marked: a dirty node, a resize or scale change, a hook that wants a frame, a screen reader's request. Otherwise the frame is skipped and the loop waits on the OS event queue. Within a frame, layout and the scene build work only on what changed. While a screen reader reads the window, the accesskit update walks the visible nodes to compare their child lists, and calls `accessibility()` only on nodes it has no current description of: every node when a screen reader asks for the whole tree.
 
 ## 3. Type system and registry
 
@@ -750,7 +750,7 @@ Accessibility, text editing, and input are cross-cutting: every control implemen
 
 ### Accessibility
 
-- `accesskit` on all five targets (Windows UIA, macOS/iOS NSAccessibility/UIAccessibility, Linux AT-SPI, Android via `accesskit_android`). Each visible element's `accessibility()` returns a node with role, name, value, state, bounds, and actions; an element that isn't `Visible` gets no node (only the window's root keeps one, with no children), and neither do its descendants, whose nodes are rebuilt when it becomes `Visible` again; the tree is rebuilt incrementally from the nodes the compositor records again (render-dirty, resized, or given a new layout result), nodes whose arranged rectangle changed and nodes whose visible children changed, each placed by a transform in its parent's coordinates, and pushed at most once per frame, only when the tree changed, while a screen reader reads the window.
+- `accesskit` on all five targets (Windows UIA, macOS/iOS NSAccessibility/UIAccessibility, Linux AT-SPI, Android via `accesskit_android`). Each visible element's `accessibility()` returns a node with role, name, value, state, bounds, and actions; an element that isn't `Visible` gets no node (only the window's root keeps one, with no children), and neither do its descendants, whose nodes are rebuilt when it becomes `Visible` again; the tree is rebuilt incrementally from the nodes the compositor records again (render-dirty, resized, or given a new layout result), nodes whose arranged rectangle changed and nodes whose visible children changed, each placed by a transform in its parent's coordinates, and pushed at most once per frame, only when the tree changed or a screen reader asked for the whole tree, while a screen reader reads the window.
 - Attached properties: `Accessibility.Name`, `.HelpText`, `.LabeledBy`, `.LiveRegion`, `.Role` override (D20, renamed from the WPF `AutomationProperties`).
 - Actions (`Click`, `Focus`, `SetValue`, `ScrollIntoView`) arrive through the host's `accessibility` capability and are routed to the element like input.
 - Reduced-motion and high-contrast OS settings surface as root pseudo-classes (`:reduced-motion`, `:high-contrast`) so themes react through selectors.
