@@ -37,8 +37,9 @@ A node is in the tree when it is visible: when `ElementNodes::layers` says `visi
 
 accesskit measures a node's `bounds` in the space that the node's own `transform` and its ancestors' transforms combine to; `bounds` itself moves nothing, and with no transform anywhere every node's bounds are in the window's space. So a node is placed by its transform, and its bounds start at its own origin:
 
-- `Interaction::accessibility` turns `AccessCx::bounds`, the layout rect in the parent's coordinates, into a translation by the rect's origin (left out when it is zero, since accesskit wants no transform rather than an identity one) and bounds of the rect's size at `(0, 0)`. Today it puts the parent-relative rect in `bounds`, which places every nested node wrong; this design fixes that.
-- The surface node is scaled instead: `Affine::scale(info.scale)`, since layout works in logical units and accesskit wants physical pixels from the window's origin. A window moved to a display with another scale can keep its logical rect, so the pass also keeps the scale it built the surface node with and describes that node again when `info.scale` changes.
+- The pass sets each node's `transform` from `ElementNodes::layers`, the transform the compositor draws the node with: its `RenderTransform`, then the offset layout placed it at. It sets none when that is the identity, as accesskit asks. A rotated or scaled control is reported where it is drawn, the geometry is computed in one place, and a change of `RenderTransform`, which affects render, describes the node again.
+- `Interaction::accessibility` sets `bounds` to the node's size at `(0, 0)`. Today it puts the layout rect, in the parent's coordinates, in `bounds`, which places every nested node wrong; this design fixes that.
+- The surface node is also scaled: `Affine::scale(info.scale)` before its own transform, since layout works in logical units and accesskit wants physical pixels from the window's origin. A window moved to a display with another scale can keep its logical rect, so the pass also keeps the scale it built the surface node with and describes that node again when `info.scale` changes.
 
 A node that layout only moved changes only its own transform, so it alone goes into the update; its descendants' nodes stay the same.
 
@@ -91,18 +92,26 @@ pub trait HostContext {
 pub trait Accessibility {
   /// Whether a screen reader is reading the surface. While it isn't, artic builds nothing.
   fn is_active(&self, surface: SurfaceId) -> bool;
-  /// Whether the next update must be the whole tree: true once after a screen reader started
-  /// reading the surface, and false after that until it starts again.
-  fn take_full_request(&mut self, surface: SurfaceId) -> bool;
   /// Hands an update to the OS.
   fn update(&mut self, surface: SurfaceId, update: accesskit::TreeUpdate);
 }
+
+pub enum HostEvent {
+  // …
+  /// A screen reader started reading the surface. The next frame sends it the whole tree.
+  AccessibilityRequested {
+    /// The window's surface.
+    surface: SurfaceId,
+  },
+}
 ```
+
+A screen reader that starts reading is an event like any other the host reports, so it arrives as a `HostEvent`, the [frame design](frame.md)'s rule for features that react to the host. A wake would not do: it only settles posted work, and a surface with nothing to draw gets no `prepare`, so the pass would never run in an idle app. On `AccessibilityRequested`, the runner marks the surface as needing a frame, requests one, and tells its `Pipeline` that the next update is full.
 
 `Runner` passes the capability to `Pipeline::prepare` with the frame. The pass:
 
 - does nothing when there is no capability or the surface is not active;
-- builds a full update when `take_full_request` says so;
+- builds a full update after `AccessibilityRequested`;
 - otherwise builds an incremental one, and calls `update` only when it holds at least one node.
 
 The cache is valid only while a screen reader reads the surface. Whenever one starts, the host asks for a full tree, so the frames in between need no bookkeeping.
@@ -114,7 +123,7 @@ The cache is valid only while a screen reader reads the surface. Whenever one st
 `artic-winit` depends on `accesskit_winit` and keeps one `accesskit_winit::Adapter` per window.
 
 - **Creating the window.** `accesskit_winit` needs its adapter made before the window is first shown. `Windows::open` creates windows through the driver's `Loop::create_window`, so `ActiveEventLoop`'s implementation (`host.rs`) creates the window invisible (`attributes` with `with_visible(false)`), makes the adapter, then shows the window, and the fake `Loop` records the same order.
-- **Handlers.** The adapter is built with direct handlers. The activation handler returns `None`, so accesskit waits for the tree, then sets the window's full-request flag and wakes the loop with a clone of the host's `Waker`, which the driver keeps since it hands its own to `started`, so the next frame sends the full tree. The deactivation handler marks the window inactive. The action handler ignores every action until #102.
+- **Handlers.** The adapter is built with direct handlers. The activation handler returns `None`, so accesskit waits for the tree, marks the window as requested and active, and wakes the loop with a clone of the host's `Waker`, which the driver keeps since it hands its own to `started`. Woken, the driver reports `AccessibilityRequested` for each requested window before it calls `woken`. The deactivation handler marks the window inactive. The action handler ignores every action until #102.
 - **Events.** `Driver::handle` passes each `WindowEvent` of a known window to its adapter's `process_event` before translating it, through a method on the driver's `Window` trait, so the fake window records what reached it.
 - **Threads.** The handlers may run on another thread, so the flags they share with the loop are atomics. The tree itself is built only on the loop's thread, in the frame.
 
@@ -125,9 +134,9 @@ The cache is valid only while a screen reader reads the surface. Whenever one st
 | Test | Where | What it shows |
 | --- | --- | --- |
 | `to_bits` round trips, reused slot gives other bits | `artic-core` | section 2 |
-| walk: hidden subtree left out, visual order, cache reuse, re-described on render-dirty, new rect or new scale, freed and hidden nodes leave their parent's list, full update clears the cache | `artic-platform`, with its hand-written test elements | section 4 |
+| walk: hidden subtree left out, visual order, cache reuse, re-described on render-dirty, new rect or new scale, freed and hidden nodes leave their parent's list, full update clears the cache, `RenderTransform` placed in the node's transform; `AccessibilityRequested` gives an idle surface a frame with a full update | `artic-platform`, with its hand-written test elements | sections 3 to 5 |
 | `initial_tree_update_covers_all_nodes`, `text_change_updates_only_that_node`, `clean_frame_pushes_no_update`, `stack_panel_children_in_visual_order`, `freed_node_removed_from_tree` | `artic` (the facade crate's tests), with the real `Surface`, `Border`, `TextBlock` and `StackPanel`, a fake host whose `Accessibility` records updates, and headless frames | #54's acceptance criteria |
-| adapter made before the window shows, events reach the adapter, activation requests a full tree | `artic-winit`, with its fake `Loop` and `Window` | section 6 |
+| adapter made before the window shows, events reach the adapter, activation reports `AccessibilityRequested` | `artic-winit`, with its fake `Loop` and `Window` | section 6 |
 
 The facade crate already depends on every layer, so these tests add no dependency edge and no exception to the [layering rules](../architecture.md#rules). `text_change_updates_only_that_node` keeps the `TextBlock` in a fixed-size parent, so the new text resizes nothing else.
 
@@ -137,5 +146,5 @@ The pull request that adds the adapter records a manual check with NVDA on Windo
 
 1. This document, and the documents it changes: the [frame design](frame.md) (the pass is a `Pipeline` stage in section 4's `prepare`, not a `Hooks` closure), the [host design](host.md) (the `accessibility` capability), [technical spec](../spec/technical_spec.md) section 2 (the accesskit update runs between layout and scene build) and section 12 (child lists compared, not only render-dirty and moved nodes), the [element design](element.md) section 7 and the [architecture](../architecture.md) rule for the frame pipeline.
 2. `NodeId::to_bits`, and the pass in `artic-platform` with its unit tests.
-3. The `Accessibility` capability, the pass wired into `Runner` and `Pipeline`, and the facade's acceptance tests.
+3. The `Accessibility` capability, `HostEvent::AccessibilityRequested`, the pass wired into `Runner` and `Pipeline`, and the facade's acceptance tests.
 4. `accesskit_winit` in `artic-winit`, and the manual screen reader checks. Closes #54.
