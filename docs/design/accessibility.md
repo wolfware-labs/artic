@@ -35,7 +35,7 @@ Each surface is its own accesskit tree, one per window, and the surface's node i
 
 A node is in the tree when it is visible: when `ElementNodes::layers` says `visible`, that is, layout placed it and its `Visibility` is `Visible`. A `Hidden` or `Collapsed` node and its whole subtree are left out, as the [element design](element.md) section 7 requires. A node's accesskit children are its visible visual children, in visual order (`UiTree::children(TreeKind::Visual, node)`).
 
-A visual node that is not an element gets default layers from the [frame design](frame.md) and records nothing; it gets a `Role::GenericContainer` node with its size as bounds and the same transform, so its descendants stay where they are drawn.
+A visual node that is not an element gets default layers from the [frame design](frame.md) and records nothing; it gets a `Role::GenericContainer` node with its size as bounds and, like every node, the transform `ElementNodes::layers` gives it, here its layout offset alone, so its descendants stay where they are drawn.
 
 A node describes only itself. `ElementImpl::accessibility` may read the node's own properties and nothing else through `AccessCx::tree()`, because the cache in section 4 notices changes of the node, not of its neighbors. A name made from a child's text is left to accesskit, which computes it from the children; `Accessibility.LabeledBy` (#161) names another node by id and follows the same rule.
 
@@ -51,7 +51,7 @@ Until focus lands (#78), every update names the root as focused.
 
 ## 4. The pass
 
-The pass lives in `artic-platform`, in `Pipeline`, and runs in `prepare` between layout and composition. Two reasons put it there and not in a `Hooks` closure: the pass needs the surface's `LayoutManager` for bounds and visibility, which `Pipeline` owns, and it needs the render-dirty flags, which the compositor clears while it records.
+The pass lives in `artic-platform`, in `Pipeline`, and runs in `prepare` between layout and composition. Two reasons put it there and not in a `Hooks` closure: the pass needs the surface's `LayoutManager` for bounds and visibility, which `Pipeline` owns, and it needs the render-dirty flags and the pipeline's stale set, which composition clears while it records.
 
 Per surface, the pass keeps a cache: for each node it described last time, the accesskit node it sent, children included, and the rect it was built with. `accesskit::Node` is `Clone` and `PartialEq`, so the pass compares what it builds with what it sent.
 
@@ -71,7 +71,7 @@ pub(crate) struct AccessTree {
 Each frame the pass walks the surface's visible subtree from the root. For each visible node:
 
 1. It collects the ids of the node's visible children.
-2. If the compositor would record it again this frame, it calls `Element::accessibility`, sets the children and the transform, and compares the new node with the cached one. That is when the cache has no entry for it, it is render-dirty, it is in the pipeline's stale set (the nodes layout resized or gave a new result, which the compositor records again too), its layout rect differs from the cached one, or it is the surface node and the scale changed.
+2. If the node may describe itself differently, it calls `Element::accessibility`, sets the children and the transform, and compares the new node with the cached one. That is when the cache has no entry for it, the compositor records it again this frame (it is render-dirty, or in the pipeline's stale set: the nodes layout resized or gave a new result), its layout rect differs from the cached one, or it is the surface node and the scale changed.
 3. Otherwise, if the cached node lists the same children, the node is unchanged and costs nothing more: no call, no clone. If its children differ, the pass clones the cached node and sets the new children.
 4. A node that came out different from the cached one replaces it and goes into the update.
 
@@ -79,7 +79,7 @@ After the walk, entries the walk did not reach are dropped. That handles every w
 
 The pass reads the render-dirty flags and the stale set and changes neither; the compositor still clears them while it records. It needs no new signal from `artic-core` or `artic-layout`: no render queue, no list of moved nodes, no list of freed nodes.
 
-So a node is described again exactly when it is drawn again. A property that `ElementImpl::accessibility` reads must therefore affect render or layout, as every property it reads today does: `TextBlock.Text` affects layout, so a new text gives the node a new layout result, and `IsEnabled` and `Surface.Title` affect render. A property that affected neither would change the description without the pass noticing, and #161's attached properties follow the same rule.
+So a node is described again whenever the compositor records it again, and also when it only moved. A property that `ElementImpl::accessibility` reads must therefore affect render or layout, as every property it reads today does: `TextBlock.Text` affects layout, so a new text gives the node a new layout result, and `IsEnabled` and `Surface.Title` affect render. A property that affected neither would change the description without the pass noticing, and #161's attached properties follow the same rule.
 
 The pass runs only in `prepare`, and the runner calls `prepare` only for a surface that needs a frame. An idle app runs no pass at all. A frame where layout or a property changed something no screen reader sees, such as a background color, walks the tree and pushes nothing, so `clean_frame_pushes_no_update` holds.
 
