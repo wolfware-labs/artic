@@ -68,7 +68,7 @@ pub(crate) struct AccessTree {
 }
 ```
 
-Each frame the pass walks the surface's visible subtree from the root. For each visible node:
+Each frame the pass walks the surface's visible subtree from the root. The surface node is always described, visible or not: an accesskit tree must contain its root, so a `Hidden` or `Collapsed` surface is a `Window` with no children. For each visible node:
 
 1. It collects the ids of the node's visible children.
 2. If the node may describe itself differently, it calls `Element::accessibility`, sets the children and the transform, and compares the new node with the cached one. That is when the cache has no entry for it, the compositor records it again this frame (it is render-dirty, or in the pipeline's stale set: the nodes layout resized or gave a new result), its layout rect differs from the cached one, or it is the surface node and the scale changed.
@@ -79,7 +79,7 @@ After the walk, entries the walk did not reach are dropped. That handles every w
 
 The pass reads the render-dirty flags and the stale set and changes neither; the compositor still clears them while it records. It needs no new signal from `artic-core` or `artic-layout`: no render queue, no list of moved nodes, no list of freed nodes.
 
-So a node is described again whenever the compositor records it again, and also when it only moved. A property that `ElementImpl::accessibility` reads must therefore affect render or layout, as every property it reads today does: `TextBlock.Text` affects layout, so a new text gives the node a new layout result, and `IsEnabled` and `Surface.Title` affect render. A property that affected neither would change the description without the pass noticing, and #161's attached properties follow the same rule.
+So a node is described again whenever the compositor records it again, and also when it only moved. A property that `ElementImpl::accessibility` reads must therefore affect render, or affect layout on an element whose measure always sets a layout result. Every property it reads today does: `IsEnabled` and `Surface.Title` affect render, and `TextBlock.Text` affects layout on an element whose `measure_override` always calls `set_measured`, so a new text gives the node a new layout result. Layout alone is not enough on an element that keeps no layout result and keeps its size: layout then reports nothing about it. #161's attached properties affect render.
 
 The pass runs only in `prepare`, and the runner calls `prepare` only for a surface that needs a frame. An idle app runs no pass at all. A frame where layout or a property changed something no screen reader sees, such as a background color, walks the tree and pushes nothing, so `clean_frame_pushes_no_update` holds.
 
@@ -128,6 +128,8 @@ A host counts a surface active only from the moment it reports `AccessibilityReq
 
 The cache is valid only while a screen reader reads the surface. Whenever one starts, the host reports `AccessibilityRequested` before it counts the surface active, so the first update is full and the frames in between need no bookkeeping.
 
+A surface lent to a `Surface` node and given back to the spare list keeps the last tree it was sent until a new `Surface` takes it. Only hosts that lend surfaces, the mobile ones (#159, #160), meet this, and they decide what a spare surface tells a screen reader.
+
 `artic-platform` gains `accesskit` as a dependency. It is a description format, not a backend: it draws nothing and talks to no OS, so the crate still has no backend dependencies.
 
 ## 6. `artic-winit`
@@ -138,6 +140,7 @@ The cache is valid only while a screen reader reads the surface. Whenever one st
 - **Handlers.** The adapter is built with direct handlers. Each window has one atomic state, `Inactive`, `Requested` or `Active`. The activation handler returns `None`, so accesskit waits for the tree, stores `Requested`, and wakes the loop with a clone of the host's `Waker`, which the driver keeps since it hands its own to `started`. Woken, the driver reports `AccessibilityRequested` for each `Requested` window, then moves it to `Active` with a compare-exchange from `Requested`, and calls `woken`. The deactivation handler stores `Inactive`. A deactivation that lands between the report and the move leaves the window `Inactive`, where one flag per state would have let the loop mark it active again. The action handler ignores every action until #102.
 - **Events.** `Driver::handle` passes each `WindowEvent` of a known window to its adapter's `process_event` before translating it, through a method on the driver's `Window` trait, so the fake window records what reached it.
 - **Threads.** The handlers may run on another thread, so the flags they share with the loop are atomics. The tree itself is built only on the loop's thread, in the frame.
+- **Checking again on hand-over.** A screen reader can stop and start again between the pass's `is_active` and its `update`, which leaves the adapter waiting for a whole tree while the pass hands it an incremental one, and accesskit panics on that. `update` calls the adapter's `update_if_active`, whose closure runs under the same lock as the activation handler, and checks the window's state again inside it. When the window is no longer `Active` and the update has no `tree`, it hands over a tree of the root alone instead; the full update after the new `AccessibilityRequested` replaces it.
 
 `accesskit_winit` 0.34 is the line built on `accesskit` 0.25, the version the workspace uses; 0.33 would bring a second `accesskit`. `deny.toml` lets `winit` in only through wrappers; `accesskit_winit` joins `artic-winit` in that list.
 
@@ -146,15 +149,15 @@ The cache is valid only while a screen reader reads the surface. Whenever one st
 | Test | Where | What it shows |
 | --- | --- | --- |
 | `to_bits` round trips, reused slot gives other bits | `artic-core` | section 2 |
-| walk: hidden subtree left out, and shown again with its unchanged descendants; visual order and a reorder; a node moved between parents; cache reuse; described again on render-dirty, a layout result with the same rect, a new rect or a new scale; freed and hidden nodes leave their parent's list; a non-element node as a container; full update clears the cache; `RenderTransform` placed in the node's transform; a new pipeline's first update is full; `AccessibilityRequested` gives an idle surface a frame with a full update | `artic-platform`, with its hand-written test elements | sections 3 to 5 |
+| walk: hidden subtree left out, and shown again with its unchanged descendants; visual order and a reorder; a node moved between parents; cache reuse; described again on render-dirty, a layout result with the same rect, a new rect or a new scale; freed and hidden nodes leave their parent's list; a non-element node as a container; a hidden surface as a `Window` with no children; full update clears the cache; `RenderTransform` placed in the node's transform; a new pipeline's first update is full; `AccessibilityRequested` gives an idle surface a frame with a full update | `artic-platform`, with its hand-written test elements | sections 3 to 5 |
 | `initial_tree_update_covers_all_nodes`, `text_change_updates_only_that_node`, `clean_frame_pushes_no_update`, `stack_panel_children_in_visual_order`, `freed_node_removed_from_tree` | `artic` (the facade crate's tests), with the real `Surface`, `Border`, `TextBlock` and `StackPanel`, a fake host whose `Accessibility` records updates, and headless frames | #54's acceptance criteria |
-| adapter made before the window shows, events reach the adapter, activation reports `AccessibilityRequested`, a window is not active before that report, a deactivation between the report and the move leaves it inactive, and a later activation is reported again | `artic-winit`, with its fake `Loop` and `Window` | section 6 |
+| adapter made before the window shows, events reach the adapter, activation reports `AccessibilityRequested`, a window is not active before that report, a deactivation between the report and the move leaves it inactive, a stop and start during a frame turns an incremental update into the root alone, and a later activation is reported again | `artic-winit`, with its fake `Loop` and `Window` | section 6 |
 
 The facade crate already depends on every layer, so these tests add no dependency edge and no exception to the [layering rules](../architecture.md#rules).
 
 - `text_change_updates_only_that_node` keeps the `TextBlock`'s own rect the same, in a fixed-size parent with the default `Stretch`, so the new text resizes nothing and the test shows the node is described again because layout gave it a new result, not because its rect changed.
 - `clean_frame_pushes_no_update` changes something no screen reader sees, a `Border`'s background, so the frame runs `prepare` and the pass, and the pass pushes nothing. A frame with nothing to do would skip the pass and prove nothing.
-- The platform and facade tests apply every update they record to an `accesskit_consumer::Tree`, a dev-dependency. It checks what the OS adapters check and panics on the same invalid updates: a first update without `tree`, a node no parent lists, a child listed twice.
+- The platform and facade tests apply every update they record to an `accesskit_consumer::Tree`, a dev-dependency. It checks what the OS adapters check and panics on the same invalid updates: a first update without `tree`, a full update without its root, a new node no parent lists, a child listed twice.
 
 The pull request that adds the adapter records a manual check with NVDA on Windows, VoiceOver on macOS and Orca on Linux reading the hello example.
 
