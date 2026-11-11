@@ -78,7 +78,7 @@ pub trait Windows {
 
 `SurfaceId`, `PhysicalSize`, `Target` and `TargetKind` are `artic-render`'s, shared with the renderer seam.
 
-`HostEvent` holds only what a desktop host reports today. Raw input takes the same path: #73 adds its variants to `HostEvent`, so `event` carries pointer, key and gamepad input too, with payload types in `artic-core` so controls see them without the platform; until then a host reports none. `ColorSchemeChanged` arrives with #118, and `Back` and `MemoryWarning` with the mobile hosts. `#[non_exhaustive]` lets each land without breaking an adapter or a handler. Surface facts (size, scale, display, refresh rate) aren't events: they arrive through `surface_changed`.
+`HostEvent` holds only what a desktop host reports today. Raw input takes the same path: #73 adds its variants to `HostEvent`, so `event` carries pointer, key and gamepad input too, with payload types in `artic-core` so controls see them without the platform; until then a host reports none. `AccessibilityRequested { surface }` arrives with #54 ([accessibility design](accessibility.md) §5), `ColorSchemeChanged` with #118, and `Back` and `MemoryWarning` with the mobile hosts. `#[non_exhaustive]` lets each land without breaking an adapter or a handler. Surface facts (size, scale, display, refresh rate) aren't events: they arrive through `surface_changed`.
 
 `CloseRequested` asks; it doesn't close. artic decides, by closing the window through `Windows::close` (then `surface_lost` follows) or by exiting.
 
@@ -99,7 +99,7 @@ The desktop adapter, at layer 6, depending on `artic-platform`, `artic-render` a
 | `WindowEvent::CloseRequested` | | `event(CloseRequested { surface })` |
 | `WindowEvent::Destroyed` (the OS destroyed the window without a close request) | forgets the window | `surface_lost(…, Gone)` |
 | `WindowEvent::RedrawRequested` | reads the current monitor again, then lends the window as `Target::Handles`, with the time since `run` started (winit doesn't expose present times) | `surface_changed` if any fact changed, then `frame(cx, surface, target, time)`, unless the handler closed the window in that `surface_changed` |
-| `user_event` (a `Waker` fired) | | `woken` |
+| `user_event` (a `Waker` fired) | | `event(AccessibilityRequested { surface })` for each window a screen reader started reading (#54, [accessibility design](accessibility.md) §6), then `woken` |
 | `about_to_wait` | `ControlFlow::Wait`: sleep until the next event or wake-up | |
 
 - `cx.request_frame(id)` calls the window's `request_redraw()`, which schedules one `RedrawRequested` for that window; winit merges repeated requests. Scheduling isn't pacing: a handler that asks for the next frame from inside `frame` runs as fast as rendering allows unless something waits for the display. Pacing each surface to its display's refresh (§10) comes from the renderer's vsync'd presentation and the platform's frame callbacks ([frame design](frame.md) §4).
