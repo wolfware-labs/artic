@@ -1,5 +1,5 @@
 use crate::Error;
-use crate::backend::{backends_for, is_warp};
+use crate::backend::{ADAPTER_NAME_VARIABLE, adapter_name, backends_for, is_warp, named, options, power_for};
 use crate::translate::translate;
 use artic_render::{
   PhysicalSize, PixelBuffer, PixelFormat, RawHandles, RenderError, Scene, SurfaceId, SurfaceView, Target, TargetKind,
@@ -8,9 +8,9 @@ use std::collections::HashMap;
 use std::sync::mpsc;
 use vello::wgpu::util::TextureBlitter;
 use vello::wgpu::{
-  self, Backends, CompositeAlphaMode, CurrentSurfaceTexture, Device, DeviceDescriptor, Extent3d, Instance, InstanceDescriptor,
-  PresentMode, Queue, SurfaceConfiguration, SurfaceTargetUnsafe, TexelCopyBufferInfo, TexelCopyBufferLayout,
-  TexelCopyTextureInfo, Texture, TextureFormat, TextureUsages, TextureView,
+  self, Adapter, Backends, CompositeAlphaMode, CurrentSurfaceTexture, Device, DeviceDescriptor, Extent3d, Instance,
+  InstanceDescriptor, PresentMode, Queue, SurfaceConfiguration, SurfaceTargetUnsafe, TexelCopyBufferInfo,
+  TexelCopyBufferLayout, TexelCopyTextureInfo, Texture, TextureFormat, TextureUsages, TextureView,
 };
 use vello::{AaConfig, AaSupport, RenderParams, RendererOptions};
 
@@ -40,15 +40,22 @@ struct Swapchain {
 impl Renderer {
   /// Opens the GPU and prepares vello's pipelines. It blocks until they're ready.
   ///
+  /// It asks for the low-power GPU, which is plenty for a 2D UI. As in other wgpu apps,
+  /// `WGPU_BACKEND` picks the GPU API, `WGPU_POWER_PREF` (`low`, `high` or `none`) the preference,
+  /// and `WGPU_ADAPTER_NAME` the first adapter whose name contains it, ignoring case, whatever the
+  /// preference. A blank `WGPU_ADAPTER_NAME` counts as unset.
+  ///
   /// # Errors
   ///
-  /// Returns a [`Error`] when no adapter supports the platform's GPU API, the one found is WARP,
-  /// the device can't be opened, or vello's pipelines can't be built.
+  /// Returns a [`Error`] when no adapter supports the platform's GPU API, no adapter's name contains
+  /// `WGPU_ADAPTER_NAME`, the one found is WARP, the device can't be opened, or vello's pipelines
+  /// can't be built.
   pub fn new() -> Result<Renderer, Error> {
-    let mut descriptor = InstanceDescriptor::new_without_display_handle();
-    descriptor.backends = Backends::from_env().unwrap_or_else(|| backends_for(std::env::consts::OS));
-    let instance = Instance::new(descriptor);
-    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))?;
+    let backends = Backends::from_env().unwrap_or_else(|| backends_for(std::env::consts::OS));
+    let instance = instance(backends);
+    let wanted = adapter_name(std::env::var(ADAPTER_NAME_VARIABLE).ok());
+    let power = power_for(wgpu::PowerPreference::from_env());
+    let adapter = pollster::block_on(adapter(&instance, backends, wanted, power))?;
     let info = adapter.get_info();
     if is_warp(info.backend, info.device_type) {
       return Err(Error::UnsupportedAdapter(info.name));
@@ -329,9 +336,112 @@ fn backend(error: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> Render
   RenderError::Backend(error.into())
 }
 
+/// A wgpu instance on `backends`.
+fn instance(backends: Backends) -> Instance {
+  let mut descriptor = InstanceDescriptor::new_without_display_handle();
+  descriptor.backends = backends;
+  Instance::new(descriptor)
+}
+
+/// The first adapter on `backends` whose name contains `wanted`, or without `wanted` the one wgpu
+/// picks for `power`.
+async fn adapter(
+  instance: &Instance,
+  backends: Backends,
+  wanted: Option<String>,
+  power: wgpu::PowerPreference,
+) -> Result<Adapter, Error> {
+  let Some(wanted) = wanted else {
+    return Ok(instance.request_adapter(&options(power)).await?);
+  };
+  let mut adapters = instance.enumerate_adapters(backends).await;
+  let names: Vec<String> = adapters.iter().map(|adapter| adapter.get_info().name).collect();
+  match named(&wanted, names.iter().map(String::as_str)) {
+    Some(index) => Ok(adapters.swap_remove(index)),
+    None => Err(Error::NoAdapterNamed {
+      wanted,
+      available: names,
+    }),
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
+  use artic_test::require;
+
+  /// An instance on the platform's GPU API, its backends, and the names of its adapters.
+  fn platform() -> (Instance, Backends, Vec<String>) {
+    let backends = backends_for(std::env::consts::OS);
+    let instance = instance(backends);
+    let adapters = pollster::block_on(instance.enumerate_adapters(backends));
+    let names = adapters.iter().map(|adapter| adapter.get_info().name).collect();
+    (instance, backends, names)
+  }
+
+  /// Runs `test` with [`platform`]'s instance, backends and adapter names, or skips it through
+  /// [`require::no_gpu`] with `reason` when there is no adapter.
+  fn with_adapters(reason: &str, test: impl FnOnce(&Instance, Backends, &[String])) {
+    let (instance, backends, names) = platform();
+    if names.is_empty() {
+      require::no_gpu(reason);
+    } else {
+      test(&instance, backends, &names);
+    }
+  }
+
+  // A name no adapter has is refused with the adapters there are, rather than falling back to the
+  // power preference.
+  #[test]
+  fn an_unknown_adapter_name_lists_the_adapters() {
+    let (instance, backends, names) = platform();
+    let wanted = "no adapter has this name".to_owned();
+
+    let chosen = pollster::block_on(adapter(
+      &instance,
+      backends,
+      Some(wanted.clone()),
+      wgpu::PowerPreference::LowPower,
+    ));
+
+    assert!(matches!(
+      chosen,
+      Err(Error::NoAdapterNamed { wanted: asked, available }) if asked == wanted && available == names
+    ));
+  }
+
+  // Each adapter's name, in another case, picks the first adapter with that name, which isn't
+  // the one the power preference would pick when the machine has more than one.
+  #[test]
+  fn an_adapter_name_picks_that_adapter() {
+    with_adapters("no adapter to name", |instance, backends, names| {
+      for name in names {
+        let wanted = name.to_uppercase();
+        let chosen = pollster::block_on(adapter(
+          instance,
+          backends,
+          Some(wanted.clone()),
+          wgpu::PowerPreference::LowPower,
+        ));
+
+        let first = names
+          .iter()
+          .find(|other| other.to_lowercase().contains(&wanted.to_lowercase()));
+        assert_eq!(chosen.ok().map(|adapter| adapter.get_info().name).as_ref(), first, "{name}");
+      }
+    });
+  }
+
+  // An instance turns on only the backends it is given, so one with none lists no adapter even on
+  // a machine with some.
+  #[test]
+  fn an_instance_has_only_its_backends() {
+    with_adapters("no adapter to tell backends apart", |_, _, _| {
+      let none = instance(Backends::empty());
+
+      assert!(pollster::block_on(none.enumerate_adapters(Backends::all())).is_empty());
+    });
+  }
 
   // The first outdated answer reconfigures the surface and the first lost one recreates it; on the
   // retry either fails.

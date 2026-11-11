@@ -30,7 +30,8 @@ Idle CPU was 0% in every case.
 
 The `vello` renderer draws on the GPU through wgpu, which on Linux uses Vulkan.
 
-- **Which GPU.** Today `artic_vello::Renderer::new()` sets no preference, so wgpu takes the first adapter the driver lists. On a machine with a discrete GPU that can be the discrete one, which costs about 1.5 s of startup when it has to wake, and battery life. Asking for the low-power GPU by default, and honoring `WGPU_POWER_PREF` and `WGPU_ADAPTER_NAME`, is #390; choosing the GPU by the window it draws to is #391.
+- **Which GPU.** `artic_vello::Renderer::new()` asks for the low-power GPU, which is plenty for a 2D UI and saves battery. `WGPU_POWER_PREF=high` asks for the fast one instead (an unknown value keeps the low-power one), and `WGPU_ADAPTER_NAME` picks the adapter whose name contains it. Choosing the GPU by the window it draws to is #391.
+- **Waking a sleeping GPU.** On Linux, the Vulkan loader loads every installed driver to list the adapters, whichever one is then picked. On a laptop whose NVIDIA GPU is asleep, loading NVIDIA's driver wakes it, which costs about 1.5 s of startup in `examples/hello`. `VK_LOADER_DRIVERS_SELECT='*intel_icd*'` (a pattern over the file names in `/usr/share/vulkan/icd.d/`) loads only the drivers it matches (Vulkan loader 1.3.234 or later), and the GPU stays asleep.
 - **Which backend.** The renderer uses Vulkan on Linux, Metal on macOS and iOS, and DX12 on Windows. `WGPU_BACKEND` overrides that choice, as in other wgpu apps, but only a backend the platform has and that runs compute shaders can draw.
 
 ## GPU drivers
