@@ -9,7 +9,7 @@ A **frame** turns changed state into pixels on one surface: posted work runs, th
 | Who | Writes | Sees |
 | --- | --- | --- |
 | The facade ([facade design](facade.md), #55) | builds the tree from the views, then `Runner::new(tree, renderer, engine, application)` with the engine it creates, `artic_text::Engine::system()` ([surface design](surface.md), [text design](text.md)) and `artic_platform::run(host, runner)` | `Runner`, `run`, `Hooks`, `Error` |
-| Features that run inside a frame (style pass, size classes, accesskit, transitions) | a closure registered on `Hooks` | `Hooks`, `UiTree`, `SurfaceInfo`, `FrameStats` |
+| Features that run inside a frame (style pass, size classes, transitions) | a closure registered on `Hooks` | `Hooks`, `UiTree`, `SurfaceInfo`, `FrameStats` |
 | Tests and the debug overlay (#165) | | `FrameStats`, per frame and per surface |
 | Host adapters | nothing new | `Runner` is an ordinary `AppHandler` |
 
@@ -19,7 +19,7 @@ All in `artic-platform`, which depends on `artic-element` to drive the tree as `
 
 | Type | Role |
 | --- | --- |
-| `Pipeline` | One surface, no host: `prepare` runs layout and composition for the surface's root and returns a `Frame`; `present` hands it to the renderer. Owns the surface's `LayoutManager` and `Compositor`, and the last `Scene` it presented |
+| `Pipeline` | One surface, no host: `prepare` runs layout, the accessibility pass ([accessibility design](accessibility.md), #54) and composition for the surface's root and returns a `Frame`; `present` hands it to the renderer. Owns the surface's `LayoutManager` and `Compositor`, and the last `Scene` it presented |
 | `Frame` | The surface's `SurfaceId`, size and scale, the owned `Scene`, and the stats so far. `Send` |
 | `FrameStats` | `{ measured: u32, arranged: u32, recorded: u32, rendered: bool }`, `Copy + Eq + Default` |
 | `Hooks` | Per-stage lists of boxed closures: `before_layout`, `after_present`, `wants_frame`, and `on_error` for a frame that failed |
@@ -73,8 +73,9 @@ Pending work never keeps the loop awake by itself: the queue is empty after each
 2. Drain, then run the `before_layout` hooks with this surface's root, `SurfaceInfo` and the frame's `time`, the host's monotonic estimate of when the frame reaches the display, so animations tick from the display's timing rather than a clock of their own.
 3. Drain again, so the effects of the hooks' writes land, then `take_pending()`; if true, mark every surface and request frames for the others. Writes from step 2, such as the style pass's, count for this frame. If the hooks changed the tree's structure, the `Application`'s shape is checked again here, so a hook that breaks it is caught before anything renders. If the surface is now closed or out of the `Application`, the runner settles and returns.
 4. If this surface isn't marked, nothing changed for it, but the host still asked for pixels: an OS redraw, such as a window uncovered or restored, reaches `frame` like a requested one, and a host can't always tell them apart (winit can't). The pipeline presents the last `Scene` again, with nothing measured or recorded; the `after_present` hooks and `wants_frame` run as in step 6, then the runner settles and the loop goes back to sleep. A surface with no scene yet has nothing to present again, so the frame returns at once.
-5. Clear the mark and `pipeline.prepare(tree, root, info, &mut services)`, lending the runner's `ElementTypes` and text engine as `FrameServices`, from which the pipeline builds the `LayoutNodes` and render `Nodes` for this frame:
+5. Clear the mark and `pipeline.prepare(tree, root, info, &mut services)`, lending the runner's `ElementTypes`, text engine and the host's `accessibility` capability, if it has one, as `FrameServices`, from which the pipeline builds the `LayoutNodes` and render `Nodes` for this frame:
    - `LayoutManager::run` at `size / scale` in logical units, with pixel snapping and the runner's text engine ([text design](text.md)). It measures only layout-dirty nodes and those whose desired size a change reached, and reports the nodes whose arranged size changed and the nodes whose layout result was set or dropped, including by a `measure` call since the last run.
+   - The accessibility pass, while a screen reader reads the surface ([accessibility design](accessibility.md) section 4). It reads the render flags, the pipeline's stale set and layout's rectangles and clears nothing.
    - `Compositor::compose` through the pipeline's render `Nodes` (section 5). It records only render-dirty nodes and the nodes layout resized or changed the layout result of, and reuses every other fragment.
 6. `pipeline.present(renderer, frame, target)` builds the renderer's `SurfaceView` from the frame's id, size and scale and the lent target, and renders; then the `after_present` hooks run with the stats.
 7. If any `wants_frame` hook returns true, mark the surface and request its next frame.
@@ -109,6 +110,7 @@ A node that isn't an element gets default layers and records nothing. A node lay
 | `surface_lost` | calls `renderer.surface_lost`. A `Suspended` loss flags the surface lost and keeps its root, since a resume reports it again; a `Gone` loss forgets it, and when no window but closing ones is left, the runner exits |
 | `event(CloseRequested)` | closes the window and flags the surface closing, so it gets no more frames; the `Gone` loss the host reports after a close releases the renderer's resources and forgets it. The last window closing exits |
 | `event(Suspended)`, `event(Resumed)` | nothing beyond settling; the surfaces come and go through `surface_lost` and `surface_changed` |
+| `event(AccessibilityRequested)` | marks the surface and requests a frame for it, and tells its pipeline that the next accessibility update is full ([accessibility design](accessibility.md) §5) |
 | `woken` | settles; #79 connects the dispatcher's cross-thread `post` here |
 
 `AppHandler` calls can't return errors. On `RenderError::SurfaceLost` the runner calls `renderer.surface_lost(id)`, which drops what the renderer kept for the surface (`artic-vello`'s swapchain), then marks the surface and asks for a frame, so the next one rebuilds it. Any other render error is passed to every `on_error` hook, and the runner calls `cx.exit()`. `Host::run` returns the host's own error, such as a lost connection to the display server, so `run` hands the host a small private handler around the runner that passes every call on and keeps the first frame error. When the host's `run` returns, `run` returns that error as `Error::Render`, or else the host's error as `Error::Host`, or `Ok(())`: the frame's error wins because it ended the loop. A host whose `run` returns at once, such as a browser's, returns `Ok(())`, so `on_error` is how an app on it learns of a failure. A launcher that wraps the runner in its own handler and calls `Host::run` itself, as the `frames` example does, gets the host's error from it and frame errors through `on_error`.
