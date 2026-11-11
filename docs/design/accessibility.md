@@ -22,7 +22,8 @@ artic's `NodeId` is an arena slot index and the slot's generation, two `u32`s. `
 ```rust,ignore
 impl NodeId {
   /// The id as one number: the generation in the high 32 bits, the slot index in the low 32. Stable
-  /// for the node's life; a node that later reuses the slot has another generation, so other bits.
+  /// for the node's life; a node that later reuses the slot has another generation, so its bits
+  /// differ from the old node's.
   pub fn to_bits(self) -> u64;
 }
 ```
