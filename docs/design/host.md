@@ -46,7 +46,8 @@ pub trait HostContext {
   fn request_frame(&mut self, surface: SurfaceId);
   fn exit(&mut self);
   fn windows(&mut self) -> Option<&mut dyn Windows> { None }
-  // clipboard, text input, cursor, accessibility, …: added by their issues, each defaulting to None
+  fn accessibility(&mut self) -> Option<&mut dyn Accessibility> { None } // accessibility design, #54
+  // clipboard, text input, cursor, …: added by their issues, each defaulting to None
 }
 
 pub trait Windows {

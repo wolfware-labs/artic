@@ -9,7 +9,7 @@ A **frame** turns changed state into pixels on one surface: posted work runs, th
 | Who | Writes | Sees |
 | --- | --- | --- |
 | The facade ([facade design](facade.md), #55) | builds the tree from the views, then `Runner::new(tree, renderer, engine, application)` with the engine it creates, `artic_text::Engine::system()` ([surface design](surface.md), [text design](text.md)) and `artic_platform::run(host, runner)` | `Runner`, `run`, `Hooks`, `Error` |
-| Features that run inside a frame (style pass, size classes, accesskit, transitions) | a closure registered on `Hooks` | `Hooks`, `UiTree`, `SurfaceInfo`, `FrameStats` |
+| Features that run inside a frame (style pass, size classes, transitions) | a closure registered on `Hooks` | `Hooks`, `UiTree`, `SurfaceInfo`, `FrameStats` |
 | Tests and the debug overlay (#165) | | `FrameStats`, per frame and per surface |
 | Host adapters | nothing new | `Runner` is an ordinary `AppHandler` |
 
@@ -19,7 +19,7 @@ All in `artic-platform`, which depends on `artic-element` to drive the tree as `
 
 | Type | Role |
 | --- | --- |
-| `Pipeline` | One surface, no host: `prepare` runs layout and composition for the surface's root and returns a `Frame`; `present` hands it to the renderer. Owns the surface's `LayoutManager` and `Compositor`, and the last `Scene` it presented |
+| `Pipeline` | One surface, no host: `prepare` runs layout, the accessibility pass ([accessibility design](accessibility.md), #54) and composition for the surface's root and returns a `Frame`; `present` hands it to the renderer. Owns the surface's `LayoutManager` and `Compositor`, and the last `Scene` it presented |
 | `Frame` | The surface's `SurfaceId`, size and scale, the owned `Scene`, and the stats so far. `Send` |
 | `FrameStats` | `{ measured: u32, arranged: u32, recorded: u32, rendered: bool }`, `Copy + Eq + Default` |
 | `Hooks` | Per-stage lists of boxed closures: `before_layout`, `after_present`, `wants_frame`, and `on_error` for a frame that failed |
