@@ -22,6 +22,9 @@ pub mod security {}
 #[doc = include_str!("../../../docs/architecture.md")]
 pub mod docs_architecture {}
 
+#[doc = include_str!("../../../docs/design/accessibility.md")]
+pub mod docs_design_accessibility {}
+
 #[doc = include_str!("../../../docs/design/backends.md")]
 pub mod docs_design_backends {}
 

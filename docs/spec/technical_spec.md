@@ -115,9 +115,9 @@ flowchart LR
   E[platform events] --> D[Dispatcher<br/>run tasks + effects]
   D --> S[Style pass<br/>dirty selectors]
   S --> M[Measure/Arrange<br/>dirty subtrees]
-  M --> R[Build Scene<br/>retained per node]
+  M --> A[accesskit update]
+  A --> R[Build Scene<br/>retained per node]
   R --> V[vello render]
-  V --> A[accesskit update]
 ```
 
 Each stage runs only on nodes marked dirty by the previous one; a frame with no dirty nodes is skipped and the loop waits on the OS event queue.

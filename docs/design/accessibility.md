@@ -35,10 +35,10 @@ Each surface is its own accesskit tree, one per window, and the surface's node i
 
 A node is in the tree when it is visible: when `ElementNodes::layers` says `visible`, that is, layout placed it and its `Visibility` is `Visible`. A `Hidden` or `Collapsed` node and its whole subtree are left out, as the [element design](element.md) section 7 requires. A node's accesskit children are its visible visual children, in visual order (`UiTree::children(TreeKind::Visual, node)`).
 
-accesskit measures a node's `bounds` in the space of its nearest ancestor that has a `transform`; `bounds` itself moves nothing. So a node is placed by its transform, and its bounds start at its own origin:
+accesskit measures a node's `bounds` in the space that the node's own `transform` and its ancestors' transforms combine to; `bounds` itself moves nothing, and with no transform anywhere every node's bounds are in the window's space. So a node is placed by its transform, and its bounds start at its own origin:
 
-- `Interaction::accessibility` turns `AccessCx::bounds`, the layout rect in the parent's coordinates, into a translation by the rect's origin (left out when it is zero, as accesskit asks for identity transforms) and bounds of the rect's size at `(0, 0)`. Today it puts the parent-relative rect in `bounds`, which places every nested node wrong; this design fixes that.
-- The surface node is scaled instead: `Affine::scale(info.scale)`, since layout works in logical units and accesskit wants physical pixels from the window's origin.
+- `Interaction::accessibility` turns `AccessCx::bounds`, the layout rect in the parent's coordinates, into a translation by the rect's origin (left out when it is zero, since accesskit wants no transform rather than an identity one) and bounds of the rect's size at `(0, 0)`. Today it puts the parent-relative rect in `bounds`, which places every nested node wrong; this design fixes that.
+- The surface node is scaled instead: `Affine::scale(info.scale)`, since layout works in logical units and accesskit wants physical pixels from the window's origin. A window moved to a display with another scale can keep its logical rect, so the pass also keeps the scale it built the surface node with and describes that node again when `info.scale` changes.
 
 A node that layout only moved changes only its own transform, so it alone goes into the update; its descendants' nodes stay the same.
 
@@ -58,13 +58,14 @@ struct Described {
 
 pub(crate) struct AccessTree {
   described: HashMap<NodeId, Described>,
+  scale: f32,
 }
 ```
 
 Each frame the pass walks the surface's visible subtree from the root. For each visible node:
 
 1. It collects the ids of the node's visible children.
-2. If the cache has no entry for it, or it is render-dirty, or its layout rect differs from the cached one, it calls `Element::accessibility`, sets the children, and compares the new node with the cached one.
+2. If the cache has no entry for it, or it is render-dirty, or its layout rect differs from the cached one, or it is the surface node and the scale changed, it calls `Element::accessibility`, sets the children, and compares the new node with the cached one.
 3. Otherwise, if the cached node lists the same children, the node is unchanged and costs nothing more: no call, no clone. If its children differ, the pass clones the cached node and sets the new children.
 4. A node that came out different from the cached one replaces it and goes into the update.
 
@@ -112,19 +113,19 @@ The cache is valid only while a screen reader reads the surface. Whenever one st
 
 `artic-winit` depends on `accesskit_winit` and keeps one `accesskit_winit::Adapter` per window.
 
-- **Creating the window.** `accesskit_winit` needs its adapter made before the window is first shown. `Windows::open` creates the window invisible (`with_visible(false)`), makes the adapter, then shows the window.
-- **Handlers.** The adapter is built with direct handlers. The activation handler returns `None`, so accesskit waits for the tree, then sets the window's full-request flag and wakes the loop with the host's `Waker`, so the next frame sends the full tree. The deactivation handler marks the window inactive. The action handler ignores every action until #102.
-- **Events.** `Driver::handle` passes each `WindowEvent` of a known window to its adapter's `process_event` before translating it.
+- **Creating the window.** `accesskit_winit` needs its adapter made before the window is first shown. `Windows::open` creates windows through the driver's `Loop::create_window`, so `ActiveEventLoop`'s implementation (`host.rs`) creates the window invisible (`attributes` with `with_visible(false)`), makes the adapter, then shows the window, and the fake `Loop` records the same order.
+- **Handlers.** The adapter is built with direct handlers. The activation handler returns `None`, so accesskit waits for the tree, then sets the window's full-request flag and wakes the loop with a clone of the host's `Waker`, which the driver keeps since it hands its own to `started`, so the next frame sends the full tree. The deactivation handler marks the window inactive. The action handler ignores every action until #102.
+- **Events.** `Driver::handle` passes each `WindowEvent` of a known window to its adapter's `process_event` before translating it, through a method on the driver's `Window` trait, so the fake window records what reached it.
 - **Threads.** The handlers may run on another thread, so the flags they share with the loop are atomics. The tree itself is built only on the loop's thread, in the frame.
 
 `deny.toml` lets `winit` in only through wrappers; `accesskit_winit` joins `artic-winit` in that list.
 
-## 7. Tests
+## 7. Testing
 
 | Test | Where | What it shows |
 | --- | --- | --- |
 | `to_bits` round trips, reused slot gives other bits | `artic-core` | section 2 |
-| walk: hidden subtree left out, visual order, cache reuse, re-described on render-dirty or new rect, freed and hidden nodes leave their parent's list, full update clears the cache | `artic-platform`, with its hand-written test elements | section 4 |
+| walk: hidden subtree left out, visual order, cache reuse, re-described on render-dirty, new rect or new scale, freed and hidden nodes leave their parent's list, full update clears the cache | `artic-platform`, with its hand-written test elements | section 4 |
 | `initial_tree_update_covers_all_nodes`, `text_change_updates_only_that_node`, `clean_frame_pushes_no_update`, `stack_panel_children_in_visual_order`, `freed_node_removed_from_tree` | `artic` (the facade crate's tests), with the real `Surface`, `Border`, `TextBlock` and `StackPanel`, a fake host whose `Accessibility` records updates, and headless frames | #54's acceptance criteria |
 | adapter made before the window shows, events reach the adapter, activation requests a full tree | `artic-winit`, with its fake `Loop` and `Window` | section 6 |
 
@@ -134,7 +135,7 @@ The pull request that adds the adapter records a manual check with NVDA on Windo
 
 ## 8. Pull requests
 
-1. This document, and the documents it changes: the [frame design](frame.md) (the pass is a `Pipeline` stage, not a `Hooks` closure), the [host design](host.md) (the `accessibility` capability), [technical spec](../spec/technical_spec.md) section 12 (child lists compared, not only render-dirty and moved nodes), the [element design](element.md) section 7 and the [architecture](../architecture.md) rule for the frame pipeline.
+1. This document, and the documents it changes: the [frame design](frame.md) (the pass is a `Pipeline` stage in section 4's `prepare`, not a `Hooks` closure), the [host design](host.md) (the `accessibility` capability), [technical spec](../spec/technical_spec.md) section 2 (the accesskit update runs between layout and scene build) and section 12 (child lists compared, not only render-dirty and moved nodes), the [element design](element.md) section 7 and the [architecture](../architecture.md) rule for the frame pipeline.
 2. `NodeId::to_bits`, and the pass in `artic-platform` with its unit tests.
 3. The `Accessibility` capability, the pass wired into `Runner` and `Pipeline`, and the facade's acceptance tests.
 4. `accesskit_winit` in `artic-winit`, and the manual screen reader checks. Closes #54.
