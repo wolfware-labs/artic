@@ -120,7 +120,7 @@ flowchart LR
   R --> V[vello render]
 ```
 
-A frame runs only when its surface is marked: a dirty node, a resize or scale change, a hook that wants a frame, a screen reader's request. Otherwise the frame is skipped and the loop waits on the OS event queue. Within a frame, layout and the scene build work only on what changed. While a screen reader reads the window, the accesskit update walks the visible nodes to compare their child lists, and calls `accessibility()` only on nodes it has no current description of: every node when a screen reader asks for the whole tree.
+A frame runs only when its surface is marked, such as by a dirty node, a surface the host reports (opened, resized, rescaled or resumed) or loses, a hook that wants a frame, or a screen reader's request. Otherwise the frame is skipped and the loop waits on the OS event queue. Within a frame, layout and the scene build work only on what changed. While a screen reader reads the window, the accesskit update walks the visible nodes to compare their child lists, and calls `accessibility()` only on nodes it has no current description of: every node when a screen reader asks for the whole tree.
 
 ## 3. Type system and registry
 
