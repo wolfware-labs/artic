@@ -425,6 +425,21 @@ mod tests {
     }
   }
 
+  // An instance turns on only the backends it is given, so one with none lists no adapter even on
+  // a machine with some.
+  #[test]
+  fn an_instance_has_only_its_backends() {
+    let (_, _, names) = platform();
+    if names.is_empty() {
+      require::no_gpu("no adapter to tell backends apart");
+      return;
+    }
+
+    let none = instance(Backends::empty());
+
+    assert!(pollster::block_on(none.enumerate_adapters(Backends::all())).is_empty());
+  }
+
   // The first outdated answer reconfigures the surface and the first lost one recreates it; on the
   // retry either fails.
   #[test]
