@@ -1,4 +1,4 @@
-error[E0433]: cannot find `SignupView` in `crate`
+error[E0433]: cannot find `SignupView` in the crate root
   --> $OUT_DIR/views/src/bin/wrong_code_type.rs:29:12
    |
 29 |     crate::SignupView::new(View {}).child(__e0).build(tree)
