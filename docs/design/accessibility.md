@@ -9,7 +9,7 @@ A screen reader reads an app through the OS accessibility API: UI Automation on 
 | Who | Writes | Sees |
 | --- | --- | --- |
 | App authors | nothing: every app is readable by a screen reader on a host that supports it | |
-| Control authors | `ElementImpl::accessibility(&self, cx, node)`, filling in the role, name and value of the node `Interaction` started ([element design](element.md)) | `AccessCx`, `accesskit::Node` |
+| Control authors | `ElementImpl::accessibility(&self, cx, node)`, adding the role, name and value to the default node `Interaction::accessibility` builds ([element design](element.md)) | `AccessCx`, `accesskit::Node` |
 | Host adapter authors | `HostContext::accessibility`, returning their per-window `Accessibility` | `Accessibility`, `accesskit::TreeUpdate` |
 | artic (`artic-platform`) | the accessibility pass in `Pipeline` | the `UiTree`, the surface's layout, the host's `Accessibility` |
 
