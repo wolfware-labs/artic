@@ -379,6 +379,17 @@ mod tests {
     (instance, backends, names)
   }
 
+  /// Runs `test` with [`platform`]'s instance, backends and adapter names, or skips it through
+  /// [`require::no_gpu`] with `reason` when there is no adapter.
+  fn with_adapters(reason: &str, test: impl FnOnce(&Instance, Backends, &[String])) {
+    let (instance, backends, names) = platform();
+    if names.is_empty() {
+      require::no_gpu(reason);
+    } else {
+      test(&instance, backends, &names);
+    }
+  }
+
   // A name no adapter has is refused with the adapters there are, rather than falling back to the
   // power preference.
   #[test]
@@ -403,41 +414,33 @@ mod tests {
   // the one the power preference would pick when the machine has more than one.
   #[test]
   fn an_adapter_name_picks_that_adapter() {
-    let (instance, backends, names) = platform();
-    if names.is_empty() {
-      require::no_gpu("no adapter to name");
-      return;
-    }
+    with_adapters("no adapter to name", |instance, backends, names| {
+      for name in names {
+        let wanted = name.to_uppercase();
+        let chosen = pollster::block_on(adapter(
+          instance,
+          backends,
+          Some(wanted.clone()),
+          wgpu::PowerPreference::LowPower,
+        ));
 
-    for name in &names {
-      let wanted = name.to_uppercase();
-      let chosen = pollster::block_on(adapter(
-        &instance,
-        backends,
-        Some(wanted.clone()),
-        wgpu::PowerPreference::LowPower,
-      ));
-
-      let first = names
-        .iter()
-        .find(|other| other.to_lowercase().contains(&wanted.to_lowercase()));
-      assert_eq!(chosen.ok().map(|adapter| adapter.get_info().name).as_ref(), first, "{name}");
-    }
+        let first = names
+          .iter()
+          .find(|other| other.to_lowercase().contains(&wanted.to_lowercase()));
+        assert_eq!(chosen.ok().map(|adapter| adapter.get_info().name).as_ref(), first, "{name}");
+      }
+    });
   }
 
   // An instance turns on only the backends it is given, so one with none lists no adapter even on
   // a machine with some.
   #[test]
   fn an_instance_has_only_its_backends() {
-    let (_, _, names) = platform();
-    if names.is_empty() {
-      require::no_gpu("no adapter to tell backends apart");
-      return;
-    }
+    with_adapters("no adapter to tell backends apart", |_, _, _| {
+      let none = instance(Backends::empty());
 
-    let none = instance(Backends::empty());
-
-    assert!(pollster::block_on(none.enumerate_adapters(Backends::all())).is_empty());
+      assert!(pollster::block_on(none.enumerate_adapters(Backends::all())).is_empty());
+    });
   }
 
   // The first outdated answer reconfigures the surface and the first lost one recreates it; on the
