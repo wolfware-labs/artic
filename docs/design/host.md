@@ -73,7 +73,7 @@ pub trait Windows {
 | `SurfaceInfo` | `artic-platform` | `size: PhysicalSize`, `scale: f32` (device pixels per logical unit), `display: DisplayId`, `refresh_rate: Option<f32>` (some platforms don't report it) |
 | `SurfaceLoss` | `artic-platform` | why a surface went away: `Suspended`, reported again after `Resumed`, or `Gone`, closed, destroyed, never created or the loop exiting |
 | `DisplayId` | `artic-platform` | an opaque id the host assigns per display |
-| `HostEvent` | `artic-platform` | `#[non_exhaustive]`: `CloseRequested { surface }`, `Suspended`, `Resumed` |
+| `HostEvent` | `artic-platform` | `#[non_exhaustive]`: `CloseRequested { surface }`, `Suspended`, `Resumed`, `AccessibilityRequested { surface }` (#54) |
 | `Waker` | `artic-platform` | `Clone + Send + Sync`; `wake()` makes the host call `AppHandler::woken` on its loop. An adapter builds one with `Waker::new(hook)`, where `hook` is any `Fn() + Send + Sync + 'static` that wakes its loop. |
 
 `SurfaceId`, `PhysicalSize`, `Target` and `TargetKind` are `artic-render`'s, shared with the renderer seam.
