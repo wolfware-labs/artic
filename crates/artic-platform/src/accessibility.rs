@@ -9,11 +9,13 @@ use artic_layout::geometry::{Rect, Transform};
 use artic_render::{Layers, Nodes};
 use std::collections::{HashMap, HashSet};
 
-/// What the pass last sent for a node, and the layout rect it built it with.
+/// What the pass last sent for a node, the layout rect it built it with, and the last update whose
+/// walk reached it.
 #[derive(Debug)]
 struct Described {
   node: Node,
   rect: Option<Rect>,
+  seen: u64,
 }
 
 /// One surface's accessibility tree: the accesskit nodes it last handed over, so each frame sends only
@@ -25,11 +27,15 @@ struct Described {
 /// scale changed. Every other node costs a comparison of its child list. A node that leaves the tree,
 /// freed, detached or hidden, leaves its parent's child list, which is how accesskit learns of it.
 ///
-/// A new `AccessTree`, and one after [`request_full`](Self::request_full), sends the whole tree next.
+/// A new `AccessTree`, one after [`request_full`](Self::request_full), and one given another root
+/// sends the whole tree next.
 #[derive(Debug)]
 pub struct AccessTree {
   described: HashMap<NodeId, Described>,
+  walk: Vec<(NodeId, Layers)>,
+  root: Option<NodeId>,
   scale: f32,
+  updates: u64,
   full: bool,
 }
 
@@ -45,7 +51,10 @@ impl AccessTree {
   pub fn new() -> Self {
     Self {
       described: HashMap::new(),
+      walk: Vec::new(),
+      root: None,
       scale: 1.0,
+      updates: 0,
       full: true,
     }
   }
@@ -62,7 +71,8 @@ impl AccessTree {
   /// The root is always described, with no children while it isn't visible, since an accesskit tree
   /// must hold its root; below it only visible nodes are, children in visual order. Each node is
   /// placed by its layers' transform, its `RenderTransform` and then its layout offset, and the root's
-  /// transform ends with the scale. A full update sets the tree and clears the request.
+  /// transform ends with the scale. A full update sets the tree and clears the request; a root other
+  /// than the last one is a new tree, so its update is full.
   pub fn update(
     &mut self,
     tree: &UiTree,
@@ -71,27 +81,31 @@ impl AccessTree {
     stale: &HashSet<NodeId>,
     scale: f32,
   ) -> Option<TreeUpdate> {
+    if self.root != Some(root) {
+      self.root = Some(root);
+      self.full = true;
+    }
     if self.full {
       self.described.clear();
     }
     let rescaled = scale.to_bits() != self.scale.to_bits();
     self.scale = scale;
-    let mut reached = HashSet::new();
+    self.updates = self.updates.wrapping_add(1);
+    let seen = self.updates;
     let mut changed = Vec::new();
-    let mut walk = vec![(root, nodes.layers(tree, root))];
+    let mut walk = std::mem::take(&mut self.walk);
+    walk.push((root, nodes.layers(tree, root)));
     while let Some((node, layers)) = walk.pop() {
-      reached.insert(node);
-      let shown = node != root || layers.visible;
-      let children: Vec<(NodeId, Layers)> = if shown {
-        tree
-          .children(TreeKind::Visual, node)
-          .map(|child| (child, nodes.layers(tree, child)))
-          .filter(|(_, layers)| layers.visible)
-          .collect()
-      } else {
-        Vec::new()
-      };
-      let ids: Vec<accesskit::NodeId> = children.iter().map(|(child, _)| id(*child)).collect();
+      let start = walk.len();
+      if node != root || layers.visible {
+        walk.extend(
+          tree
+            .children(TreeKind::Visual, node)
+            .map(|child| (child, nodes.layers(tree, child)))
+            .filter(|(_, layers)| layers.visible),
+        );
+      }
+      let children = &walk[start..];
       let rect = nodes.layout.rect(node);
       let cached = self.described.get(&node);
       let fresh = cached.is_none_or(|cached| {
@@ -100,28 +114,31 @@ impl AccessTree {
       let next = if fresh {
         let mut built = describe(tree, node, nodes, rect);
         place(&mut built, layers.transform, (node == root).then_some(scale));
-        built.set_children(ids);
+        built.set_children(ids(children));
         Some(built)
       } else {
-        cached
-          .filter(|cached| cached.node.children() != ids.as_slice())
-          .map(|cached| {
-            let mut moved = cached.node.clone();
-            moved.set_children(ids);
-            moved
-          })
+        cached.filter(|cached| !lists(&cached.node, children)).map(|cached| {
+          let mut relisted = cached.node.clone();
+          relisted.set_children(ids(children));
+          relisted
+        })
       };
-      if let Some(next) = next
-        && cached.is_none_or(|cached| cached.node != next)
-      {
-        changed.push((id(node), next.clone()));
-        self.described.insert(node, Described { node: next, rect });
-      } else if let Some(described) = self.described.get_mut(&node) {
-        described.rect = rect;
+      match next {
+        Some(next) if cached.is_none_or(|cached| cached.node != next) => {
+          changed.push((id(node), next.clone()));
+          self.described.insert(node, Described { node: next, rect, seen });
+        }
+        _ => {
+          if let Some(described) = self.described.get_mut(&node) {
+            described.rect = rect;
+            described.seen = seen;
+          }
+        }
       }
-      walk.extend(children.into_iter().rev());
+      walk[start..].reverse();
     }
-    self.described.retain(|node, _| reached.contains(node));
+    self.walk = walk;
+    self.described.retain(|_, described| described.seen == seen);
     let full = std::mem::take(&mut self.full);
     if !full && changed.is_empty() {
       return None;
@@ -133,6 +150,20 @@ impl AccessTree {
       focus: id(root),
     })
   }
+}
+
+/// The accesskit ids of `children`.
+fn ids(children: &[(NodeId, Layers)]) -> Vec<accesskit::NodeId> {
+  children.iter().map(|(child, _)| id(*child)).collect()
+}
+
+/// Whether `node` lists exactly `children`, in order.
+fn lists(node: &Node, children: &[(NodeId, Layers)]) -> bool {
+  node
+    .children()
+    .iter()
+    .copied()
+    .eq(children.iter().map(|(child, _)| id(*child)))
 }
 
 /// The accesskit id of `node`.

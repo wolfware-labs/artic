@@ -10,12 +10,12 @@ use artic_core::Object;
 use artic_core::property::{Affects, Inheritance, Property, PropertyKey, PropertyVisitor};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{AccessCx, Element, ElementNodes, ElementTypes, RenderCx};
-use artic_layout::geometry::{Rect, Size};
+use artic_layout::geometry::{Rect, Size, Transform};
 use artic_layout::{ArrangeCx, LayoutManager, Layoutable, MeasureCx, PixelGrid};
 use artic_platform::AccessTree;
-use artic_render::{Compositor, SceneBuilder};
+use artic_render::{Compositor, Layers, SceneBuilder};
 use common::{column, label, leaf};
-use pretty_assertions::assert_eq;
+use pretty_assertions::{assert_eq, assert_ne};
 use std::collections::HashSet;
 
 static NAME: PropertyKey<String> = PropertyKey::new("Name", Affects::RENDER, Inheritance::None);
@@ -64,6 +64,39 @@ fn named(tree: &mut UiTree, name: &str) -> (NodeId, Property<String>) {
   let name = Property::new(&NAME, name.to_owned());
   (tree.alloc(Box::new(Named { name, collapsed: false })), name)
 }
+
+/// An empty element its own `RenderTransform` moves by (5, 7).
+#[derive(Debug)]
+struct Shifted;
+
+impl Object for Shifted {
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+}
+
+impl Layoutable for Shifted {
+  fn measure(&self, _cx: &mut MeasureCx<'_>, _available: Size) -> Size {
+    Size::new(10.0, 10.0)
+  }
+
+  fn arrange(&self, _cx: &mut ArrangeCx<'_>, _rect: Rect) {}
+}
+
+impl Element for Shifted {
+  fn render(&self, _cx: &mut RenderCx<'_>, _scene: &mut SceneBuilder) {}
+
+  fn accessibility(&self, cx: &AccessCx<'_>) -> Node {
+    cx.container()
+  }
+
+  fn layers(&self, _size: Size) -> Layers {
+    Layers {
+      transform: Some(Transform::translate(5.0, 7.0)),
+      ..Layers::default()
+    }
+  }
+}
+
+artic_element::element_type!(Shifted);
 
 /// A node that isn't an element.
 #[derive(Debug)]
@@ -343,7 +376,8 @@ fn reorder_and_reparent_send_the_parents() {
   assert!(!sent(&update).contains(&id(root)));
 }
 
-// A freed node leaves its parent's list, and is described anew if its slot is reused.
+// A freed node leaves its parent's list, and the node that reuses its slot is a new node to
+// accesskit, with other bits.
 #[test]
 fn freed_node_leaves_its_parent() {
   let mut tree = UiTree::new();
@@ -354,9 +388,63 @@ fn freed_node_leaves_its_parent() {
   window.frame();
 
   window.tree.free(b);
-  let update = window.frame().expect("an update");
+  let freed = window.frame().expect("an update");
+  let (reused, _) = named(&mut window.tree, "c");
+  window.tree.add_child(TreeKind::Visual, root, reused);
+  let added = window.frame().expect("an update");
 
-  assert_eq!(node(&update, root).children(), [id(a)]);
+  assert_eq!(node(&freed, root).children(), [id(a)]);
+  assert_ne!(id(reused), id(b));
+  assert_eq!(sent(&added), ids(&[root, reused]));
+}
+
+// Another root on the same pass is a new tree, so its first update is the whole of it.
+#[test]
+fn new_root_sends_the_whole_tree() {
+  let mut tree = UiTree::new();
+  let (first, _) = column(&mut tree, &[]);
+  let (button, _) = named(&mut tree, "b");
+  let (second, _) = column(&mut tree, &[button]);
+  let mut window = Window::new(tree, first);
+  window.frame();
+
+  window.root = second;
+  window.oracle = None;
+  let update = window.frame().expect("a full update");
+
+  assert_eq!(update.tree, Some(TreeInfo::new(id(second))));
+  assert_eq!(sent(&update), ids(&[second, button]));
+}
+
+// Only the root is scaled to device pixels: its descendants are placed in its logical space.
+#[test]
+fn only_the_root_is_scaled() {
+  let mut tree = UiTree::new();
+  let (button, _) = named(&mut tree, "b");
+  let (root, _) = column(&mut tree, &[button]);
+  let mut window = Window::new(tree, root);
+  window.scale = 2.0;
+
+  let update = window.frame().expect("a full update");
+
+  assert_eq!(node(&update, root).transform(), Some(&Affine::scale(2.0)));
+  assert_eq!(node(&update, button).transform(), None);
+}
+
+// The root's own transform applies before the scale.
+#[test]
+fn root_transform_applies_before_the_scale() {
+  let mut tree = UiTree::new();
+  let root = tree.alloc(Box::new(Shifted));
+  let mut window = Window::new(tree, root);
+  window.scale = 2.0;
+
+  let update = window.frame().expect("a full update");
+
+  assert_eq!(
+    node(&update, root).transform(),
+    Some(&(Affine::scale(2.0) * Affine::translate((5.0, 7.0))))
+  );
 }
 
 // A hidden root is still described, with no children, since a tree must hold its root.
