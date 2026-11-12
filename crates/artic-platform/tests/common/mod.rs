@@ -380,7 +380,9 @@ impl Element for Label {
   }
 
   fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
-    accesskit::Node::new(accesskit::Role::Label)
+    let mut node = accesskit::Node::new(accesskit::Role::Label);
+    node.set_value(self.text.get());
+    node
   }
 }
 

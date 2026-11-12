@@ -12,6 +12,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "accesskit_consumer"
+version = "0.39.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3da8f27636015191b2264ee1df681503170a632cafd832fdc1edfdd4e3a2fd3"
+dependencies = [
+ "accesskit",
+ "hashbrown 0.17.1",
+]
+
+[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -273,6 +283,7 @@ name = "artic-platform"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "accesskit_consumer",
  "artic-core",
  "artic-element",
  "artic-layout",

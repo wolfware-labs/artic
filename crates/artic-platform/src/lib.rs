@@ -13,6 +13,7 @@
 //! This crate has no backend dependencies; adapter crates such as `artic-winit` implement it. The
 //! design is `docs/design/host.md`.
 
+mod accessibility;
 mod error;
 mod event;
 mod hooks;
@@ -24,6 +25,7 @@ mod surface;
 mod waker;
 mod window;
 
+pub use accessibility::AccessTree;
 pub use artic_element::Chrome;
 pub use error::Error;
 pub use event::HostEvent;

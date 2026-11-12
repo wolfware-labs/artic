@@ -9,6 +9,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+accesskit.workspace = true
 artic-core.workspace = true
 artic-element.workspace = true
 artic-layout.workspace = true
@@ -16,7 +17,7 @@ artic-render.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-accesskit.workspace = true
+accesskit_consumer.workspace = true
 artic-text.workspace = true
 artic-test-fonts.workspace = true
 pretty_assertions.workspace = true
