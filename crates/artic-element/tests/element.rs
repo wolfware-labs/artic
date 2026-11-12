@@ -186,7 +186,7 @@ fn control_hooks_add_to_default_node_and_layers() {
   let mut tree = UiTree::new();
   let node = tree.alloc(Box::new(Tile::default()));
   let tile = tree.get_as::<Tile>(node).unwrap();
-  let cx = AccessCx::new(&tree, node, Rect::new(0.0, 0.0, 8.0, 4.0));
+  let cx = AccessCx::new(&tree, node, Size::new(8.0, 4.0));
 
   let built = Element::accessibility(tile, &cx);
   let layers = Element::layers(tile, Size::new(8.0, 4.0));

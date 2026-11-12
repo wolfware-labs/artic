@@ -19,7 +19,7 @@ fn user_control_accesskit_node() {
   let element = types
     .element(tree.get(node).expect("live"))
     .expect("UserControl is an element");
-  let described = element.accessibility(&AccessCx::new(&tree, node, Rect::new(0.0, 0.0, 10.0, 10.0)));
+  let described = element.accessibility(&AccessCx::new(&tree, node, Size::new(10.0, 10.0)));
 
   assert_eq!(described.role(), accesskit::Role::GenericContainer);
 }

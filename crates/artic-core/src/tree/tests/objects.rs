@@ -82,6 +82,21 @@ fn stale_id_returns_none_from_every_accessor() {
   assert_eq!(tree.len(), 1);
 }
 
+// A node's bits stay the same for every copy of its id, and the node that reuses its slot gets other
+// bits, so an accessibility tree never takes the new node for the old one.
+#[test]
+fn bits_name_one_node_for_its_life() {
+  let mut tree = UiTree::new();
+  let first = tree.alloc(Box::new(Control));
+  let copy = first;
+  tree.free(first);
+  let reused = tree.alloc(Box::new(Control));
+
+  assert_eq!(first.to_bits(), copy.to_bits());
+  assert_ne!(first.to_bits(), reused.to_bits());
+  assert_eq!(first.to_bits() as u32, reused.to_bits() as u32);
+}
+
 #[test]
 fn copied_node_ids_are_equal_and_distinct_nodes_are_not() {
   let mut tree = UiTree::new();

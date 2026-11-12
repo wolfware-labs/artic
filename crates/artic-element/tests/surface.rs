@@ -32,7 +32,7 @@ fn surface_accesskit_node() {
     let element = types
       .element(tree.get(surface).expect("live"))
       .expect("Surface is an element");
-    element.accessibility(&AccessCx::new(tree, surface, Rect::new(0.0, 0.0, 100.0, 50.0)))
+    element.accessibility(&AccessCx::new(tree, surface, Size::new(100.0, 50.0)))
   };
 
   let first = describe(&tree);

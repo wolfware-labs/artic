@@ -34,6 +34,11 @@ impl SlotId {
   pub(crate) const fn index(self) -> usize {
     self.index as usize
   }
+
+  /// The generation in the high 32 bits and the index in the low 32.
+  pub(crate) const fn to_bits(self) -> u64 {
+    ((self.generation.get() as u64) << 32) | self.index as u64
+  }
 }
 
 impl<TValue> Default for Arena<TValue> {

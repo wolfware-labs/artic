@@ -9,10 +9,12 @@
 //! - [`Pipeline`] draws one surface's frames, and [`Runner`] presents an `Application`'s surfaces
 //!   and drives their frames from a host through [`run`], with [`Hooks`] for the stages above the
 //!   platform.
+//! - [`AccessTree`] builds one surface's accessibility tree, and each frame only what changed in it.
 //!
 //! This crate has no backend dependencies; adapter crates such as `artic-winit` implement it. The
 //! design is `docs/design/host.md`.
 
+mod accessibility;
 mod error;
 mod event;
 mod hooks;
@@ -24,6 +26,7 @@ mod surface;
 mod waker;
 mod window;
 
+pub use accessibility::AccessTree;
 pub use artic_element::Chrome;
 pub use error::Error;
 pub use event::HostEvent;
