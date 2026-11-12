@@ -343,9 +343,10 @@ fn accepts_input_until_disabled() {
   assert!(!accepts(&tree));
 }
 
-// The default accessibility node is a generic container at the element's bounds.
+// The default accessibility node is a generic container of the element's size at its own origin; the
+// node's transform, not its bounds, places it in its parent.
 #[test]
-fn accessibility_node_has_bounds() {
+fn accessibility_node_has_its_size_at_its_origin() {
   let mut tree = UiTree::new();
   let node = tree.alloc(Box::new(Probe::default()));
   let cx = AccessCx::new(&tree, node, Rect::new(10.0, 20.0, 30.0, 40.0));
@@ -353,7 +354,7 @@ fn accessibility_node_has_bounds() {
   let built = Interaction::default().accessibility(&cx);
 
   assert_eq!(built.role(), accesskit::Role::GenericContainer);
-  assert_eq!(built.bounds(), Some(accesskit::Rect::new(10.0, 20.0, 40.0, 60.0)));
+  assert_eq!(built.bounds(), Some(accesskit::Rect::new(0.0, 0.0, 30.0, 40.0)));
 }
 
 // The layers carry the control's clip, and otherwise the defaults.
