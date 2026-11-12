@@ -24,6 +24,9 @@ exclude_re = [
     # Which list a new read is checked against, the reader's few sources or the source's readers,
     # only changes how long the check takes.
     'artic-core/src/reactive/runtime/nodes\.rs:\d+:\d+: replace <= with > in Nodes::add_edge$',
+    # A node whose child list is unchanged is still relisted when `lists` says otherwise, which
+    # comes out equal to the cached node and isn't sent: it only costs a clone.
+    'artic-platform/src/accessibility\.rs:\d+:\d+: replace lists -> bool with false$',
     # Hand-written Debug output is for a person reading a panic; no behavior depends on its text.
     '<impl (std::)?(fmt::)?Debug for ',
     # It returns `T::default()`, the expression the mutant writes.
