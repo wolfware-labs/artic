@@ -172,7 +172,7 @@ fn id(node: NodeId) -> accesskit::NodeId {
 }
 
 /// `node`'s element's description at `rect`'s size, or a generic container for a node that isn't an
-/// element. A node layout didn't place is described at zero size.
+/// element. A node that layout didn't place is described at zero size.
 fn describe(tree: &UiTree, node: NodeId, nodes: &ElementNodes<'_>, rect: Option<Rect>) -> Node {
   let cx = AccessCx::new(tree, node, rect.unwrap_or_default());
   match tree.get(node).and_then(|object| nodes.types.element(object)) {

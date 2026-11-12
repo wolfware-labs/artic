@@ -1,6 +1,6 @@
 // The accessibility pass over headless frames: layout, the pass, then composition, in the order
-// the pipeline runs them. Every update goes through accesskit_consumer, which panics on one the OS
-// adapters would reject.
+// the pipeline runs them. Every update goes through accesskit_consumer, which panics on an update the
+// OS adapters would reject.
 
 mod common;
 
