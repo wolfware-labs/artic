@@ -59,15 +59,17 @@ Per surface, the pass keeps a cache: for each node it described last time, the a
 ```rust,ignore
 struct Described {
   node: accesskit::Node,
-  rect: Rect,
+  rect: Option<Rect>,
 }
 
-pub(crate) struct AccessTree {
+pub struct AccessTree {
   described: HashMap<NodeId, Described>,
   scale: f32,
   full: bool,
 }
 ```
+
+The rect is `None` for a node layout didn't place, a collapsed surface. `AccessTree` is public, as `artic_platform::AccessTree`, so a host outside the crate, such as the `TestHost` of #101, builds a surface's tree the way `Pipeline` does.
 
 Each frame the pass walks the surface's visible subtree from the root. The surface node is always described, visible or not: an accesskit tree must contain its root, so a `Hidden` or `Collapsed` surface is a `Window` with no children, at zero size when it is `Collapsed`, since layout gives a collapsed root no rectangle. For the surface node and each visible node below it:
 

@@ -1,5 +1,5 @@
-// Elements, a renderer and a host context shared by the pipeline and runner tests.
-#![allow(dead_code)]
+// Elements, a renderer and a host context shared by the pipeline, runner and accessibility tests.
+#![allow(dead_code, reason = "each test binary uses part of it")]
 
 use artic_core::Object;
 use artic_core::property::{Affects, Inheritance, Property, PropertyKey, PropertyVisitor};
@@ -347,7 +347,8 @@ impl TextEngine for Recorder {
 }
 
 /// A line of text, as wide and tall as the paragraph the engine makes of it, which it keeps as its
-/// layout result and notes the size of when it draws.
+/// layout result and notes the size of when it draws. Its accessibility node is a label with the
+/// text as its value.
 #[derive(Debug)]
 pub struct Label {
   text: Property<String>,

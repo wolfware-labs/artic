@@ -172,19 +172,12 @@ impl Interaction {
   }
 
   /// The element's default accessibility node, which the control's `ElementImpl::accessibility`
-  /// adds to: a generic container of the element's size at its own origin, disabled when
-  /// `IsEnabled` is false. The tree walk places the node with its transform and leaves out elements
-  /// that aren't visible.
+  /// adds to: [`AccessCx::container`], a generic container of the element's size at its own origin,
+  /// disabled when `IsEnabled` is false. The tree walk places the node with its transform and leaves
+  /// out elements that aren't visible.
   #[must_use]
   pub fn accessibility(&self, cx: &AccessCx<'_>) -> accesskit::Node {
-    let bounds = cx.bounds();
-    let mut node = accesskit::Node::new(accesskit::Role::GenericContainer);
-    node.set_bounds(accesskit::Rect::new(
-      0.0,
-      0.0,
-      f64::from(bounds.width),
-      f64::from(bounds.height),
-    ));
+    let mut node = cx.container();
     if !self.is_enabled.get() {
       node.set_disabled();
     }

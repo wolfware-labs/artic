@@ -174,6 +174,20 @@ impl<'a> AccessCx<'a> {
   pub fn bounds(&self) -> Rect {
     self.bounds
   }
+
+  /// A generic container of the node's size at its own origin, the node every description starts
+  /// from: the tree walk places it with the node's transform.
+  #[must_use]
+  pub fn container(&self) -> accesskit::Node {
+    let mut node = accesskit::Node::new(accesskit::Role::GenericContainer);
+    node.set_bounds(accesskit::Rect::new(
+      0.0,
+      0.0,
+      f64::from(self.bounds.width),
+      f64::from(self.bounds.height),
+    ));
+    node
+  }
 }
 
 #[cfg(test)]
@@ -229,5 +243,16 @@ mod tests {
       AccessCx::new(&tree, node, Rect::new(0.0, 0.0, 30.0, 20.0)).tree(),
       &tree
     ));
+  }
+
+  // The container an access context starts from has the node's size at its own origin, wherever
+  // layout placed the node.
+  #[test]
+  fn container_has_the_size_at_the_origin() {
+    let (tree, node) = one_node();
+    let container = AccessCx::new(&tree, node, Rect::new(10.0, 20.0, 30.0, 40.0)).container();
+
+    assert_eq!(container.role(), accesskit::Role::GenericContainer);
+    assert_eq!(container.bounds(), Some(accesskit::Rect::new(0.0, 0.0, 30.0, 40.0)));
   }
 }

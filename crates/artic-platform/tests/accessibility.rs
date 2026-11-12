@@ -50,16 +50,16 @@ impl Element for Named {
   fn render(&self, _cx: &mut RenderCx<'_>, _scene: &mut SceneBuilder) {}
 
   fn accessibility(&self, cx: &AccessCx<'_>) -> Node {
-    let mut node = Node::new(Role::Button);
+    let mut node = cx.container();
+    node.set_role(Role::Button);
     node.set_label(self.name.get());
-    let size = cx.bounds().size();
-    node.set_bounds(accesskit::Rect::new(0.0, 0.0, f64::from(size.width), f64::from(size.height)));
     node
   }
 }
 
 artic_element::element_type!(Named);
 
+/// Allocates a button named `name`, and returns it with its name.
 fn named(tree: &mut UiTree, name: &str) -> (NodeId, Property<String>) {
   let name = Property::new(&NAME, name.to_owned());
   (tree.alloc(Box::new(Named { name, collapsed: false })), name)
@@ -73,6 +73,8 @@ impl Object for Plain {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
+/// Takes the consumer's change notices and does nothing with them: the consumer's own checks are
+/// what the tests want.
 struct Ignore;
 
 impl TreeChangeHandler for Ignore {
@@ -145,22 +147,26 @@ impl Window {
   }
 }
 
+/// The accesskit id of `node`, written out here rather than taken from the pass.
 fn id(node: NodeId) -> accesskit::NodeId {
   accesskit::NodeId(node.to_bits())
 }
 
+/// The ids of the nodes `update` sends, sorted.
 fn sent(update: &TreeUpdate) -> Vec<accesskit::NodeId> {
   let mut ids: Vec<_> = update.nodes.iter().map(|(id, _)| *id).collect();
   ids.sort();
   ids
 }
 
+/// The accesskit ids of `nodes`, sorted, to compare with [`sent`].
 fn ids(nodes: &[NodeId]) -> Vec<accesskit::NodeId> {
   let mut ids: Vec<_> = nodes.iter().copied().map(id).collect();
   ids.sort();
   ids
 }
 
+/// What `update` sends for `node`; panics when it doesn't send it.
 fn node(update: &TreeUpdate, node: NodeId) -> &Node {
   &update
     .nodes

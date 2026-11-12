@@ -1,7 +1,7 @@
 //! The accessibility pass: one surface's accesskit tree, built from the `UiTree` and sent again only
 //! where it changed.
 
-use accesskit::{Affine, Node, Role, TreeId, TreeInfo, TreeUpdate};
+use accesskit::{Affine, Node, TreeId, TreeInfo, TreeUpdate};
 use artic_core::property::Affects;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{AccessCx, ElementNodes};
@@ -143,22 +143,16 @@ fn id(node: NodeId) -> accesskit::NodeId {
 /// `node`'s element's description at `rect`'s size, or a generic container for a node that isn't an
 /// element. A node layout didn't place is described at zero size.
 fn describe(tree: &UiTree, node: NodeId, nodes: &ElementNodes<'_>, rect: Option<Rect>) -> Node {
-  let rect = rect.unwrap_or_default();
+  let cx = AccessCx::new(tree, node, rect.unwrap_or_default());
   match tree.get(node).and_then(|object| nodes.types.element(object)) {
-    Some(element) => element.accessibility(&AccessCx::new(tree, node, rect)),
-    None => {
-      let mut node = Node::new(Role::GenericContainer);
-      node.set_bounds(accesskit::Rect::new(0.0, 0.0, f64::from(rect.width), f64::from(rect.height)));
-      node
-    }
+    Some(element) => element.accessibility(&cx),
+    None => cx.container(),
   }
 }
 
 /// Sets `node`'s transform to `own`, then `scale` when it is the root; none when that is the identity.
 fn place(node: &mut Node, own: Option<Transform>, scale: Option<f32>) {
-  let own = own.map_or(Affine::IDENTITY, |t| {
-    Affine::new([t.xx, t.yx, t.xy, t.yy, t.dx, t.dy].map(f64::from))
-  });
+  let own = own.map_or(Affine::IDENTITY, |own| Affine::new(own.coefficients().map(f64::from)));
   let placed = scale.map_or(own, |scale| Affine::scale(f64::from(scale)) * own);
   if placed == Affine::IDENTITY {
     node.clear_transform();
