@@ -64,10 +64,13 @@ struct Described {
 
 pub struct AccessTree {
   described: HashMap<NodeId, Described>,
+  root: Option<NodeId>,
   scale: f32,
   full: bool,
 }
 ```
+
+The sketch leaves out what only makes a frame cheaper: a counter that stamps the nodes each walk reaches, and the walk's stack, kept between frames.
 
 The rect is `None` for a node that layout didn't place, a collapsed surface. `AccessTree` is public, as `artic_platform::AccessTree`, so a host outside the crate, such as the `TestHost` of #101, builds a surface's tree the way `Pipeline` does.
 
@@ -88,7 +91,7 @@ The pass runs only in `prepare`, and the runner calls `prepare` only for a surfa
 
 A full update clears the cache first and walks the same way, so every visible node goes in, with `TreeUpdate::tree` set to the surface's root. An incremental update sets `tree` to `None`. Every update sets `tree_id` to `TreeId::ROOT` and `focus` to the root.
 
-A new `AccessTree` starts with `full` set, and `full` is cleared only when an update is handed to the host, not when a frame runs. So the first update a pipeline sends is always full, also for a surface whose screen reader was already reading, such as a spare surface a new `Surface` node takes over.
+A new `AccessTree` starts with `full` set, and `update` clears it when it builds the full update, so the caller hands every update it gets to the host and asks for one only while a screen reader is reading. So the first update a pipeline sends is always full, also for a surface whose screen reader was already reading, such as a spare surface a new `Surface` node takes over. An update for another root than the last one is full too, since the cached nodes belong to the old tree.
 
 ## 5. The host seam
 

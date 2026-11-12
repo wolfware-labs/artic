@@ -349,7 +349,7 @@ fn accepts_input_until_disabled() {
 fn accessibility_node_has_its_size_at_its_origin() {
   let mut tree = UiTree::new();
   let node = tree.alloc(Box::new(Probe::default()));
-  let cx = AccessCx::new(&tree, node, Rect::new(10.0, 20.0, 30.0, 40.0));
+  let cx = AccessCx::new(&tree, node, Size::new(30.0, 40.0));
 
   let built = Interaction::default().accessibility(&cx);
 
@@ -443,7 +443,7 @@ fn layers_carry_visibility_and_z_index() {
 fn accessibility_node_is_disabled_with_the_element() {
   let mut tree = UiTree::new();
   let node = tree.alloc(Box::new(Probe::default()));
-  let cx = AccessCx::new(&tree, node, Rect::new(0.0, 0.0, 1.0, 1.0));
+  let cx = AccessCx::new(&tree, node, Size::new(1.0, 1.0));
   let interaction = Interaction::default();
 
   assert!(!interaction.accessibility(&cx).is_disabled());
@@ -460,7 +460,7 @@ fn accessibility_node_is_disabled_under_a_disabled_ancestor() {
   tree.add_child(TreeKind::Logical, parent, child);
   tree.get_as::<Probe>(child).unwrap().interaction.is_enabled.set(true);
   tree.get_as::<Probe>(parent).unwrap().interaction.is_enabled.set(false);
-  let cx = AccessCx::new(&tree, child, Rect::new(0.0, 0.0, 1.0, 1.0));
+  let cx = AccessCx::new(&tree, child, Size::new(1.0, 1.0));
 
   assert!(
     tree

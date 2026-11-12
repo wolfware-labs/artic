@@ -72,7 +72,8 @@ impl AccessTree {
   /// must hold its root; below it only visible nodes are, children in visual order. Each node is
   /// placed by its layers' transform, its `RenderTransform` and then its layout offset, and the root's
   /// transform ends with the scale. A full update sets the tree and clears the request; a root other
-  /// than the last one is a new tree, so its update is full.
+  /// than the last one is a new tree, so its update is full. Hand every update to the host: one
+  /// dropped leaves the screen reader's tree behind what the cache says it holds.
   pub fn update(
     &mut self,
     tree: &UiTree,
@@ -174,7 +175,7 @@ fn id(node: NodeId) -> accesskit::NodeId {
 /// `node`'s element's description at `rect`'s size, or a generic container for a node that isn't an
 /// element. A node that layout didn't place is described at zero size.
 fn describe(tree: &UiTree, node: NodeId, nodes: &ElementNodes<'_>, rect: Option<Rect>) -> Node {
-  let cx = AccessCx::new(tree, node, rect.unwrap_or_default());
+  let cx = AccessCx::new(tree, node, rect.map(Rect::size).unwrap_or_default());
   match tree.get(node).and_then(|object| nodes.types.element(object)) {
     Some(element) => element.accessibility(&cx),
     None => cx.container(),
