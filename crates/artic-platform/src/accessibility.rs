@@ -28,7 +28,7 @@ struct Described {
 /// freed, detached or hidden, leaves its parent's child list, which is how accesskit learns of it.
 ///
 /// A new `AccessTree`, one after [`request_full`](Self::request_full), and one given another root
-/// sends the whole tree next.
+/// send the whole tree next.
 #[derive(Debug)]
 pub struct AccessTree {
   described: HashMap<NodeId, Described>,

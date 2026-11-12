@@ -16,6 +16,7 @@ use artic_platform::AccessTree;
 use artic_render::{Compositor, Layers, SceneBuilder};
 use common::{column, label, leaf};
 use pretty_assertions::{assert_eq, assert_ne};
+use std::cell::Cell;
 use std::collections::HashSet;
 
 static NAME: PropertyKey<String> = PropertyKey::new("Name", Affects::RENDER, Inheritance::None);
@@ -97,6 +98,35 @@ impl Element for Shifted {
 }
 
 artic_element::element_type!(Shifted);
+
+/// A 10 by 10 element that counts how often it is asked for its description.
+#[derive(Debug, Default)]
+struct Counted {
+  calls: Cell<u32>,
+}
+
+impl Object for Counted {
+  fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+}
+
+impl Layoutable for Counted {
+  fn measure(&self, _cx: &mut MeasureCx<'_>, _available: Size) -> Size {
+    Size::new(10.0, 10.0)
+  }
+
+  fn arrange(&self, _cx: &mut ArrangeCx<'_>, _rect: Rect) {}
+}
+
+impl Element for Counted {
+  fn render(&self, _cx: &mut RenderCx<'_>, _scene: &mut SceneBuilder) {}
+
+  fn accessibility(&self, cx: &AccessCx<'_>) -> Node {
+    self.calls.set(self.calls.get() + 1);
+    cx.container()
+  }
+}
+
+artic_element::element_type!(Counted);
 
 /// A node that isn't an element.
 #[derive(Debug)]
@@ -409,7 +439,6 @@ fn new_root_sends_the_whole_tree() {
   window.frame();
 
   window.root = second;
-  window.oracle = None;
   let update = window.frame().expect("a full update");
 
   assert_eq!(update.tree, Some(TreeInfo::new(id(second))));
@@ -540,4 +569,18 @@ fn new_pass_starts_full() {
   let update = window.frame().expect("a full update");
 
   assert_eq!(update.tree, Some(TreeInfo::new(id(root))));
+}
+
+// A frame with nothing changed asks no element for its description, the root included.
+#[test]
+fn unchanged_frame_describes_nothing() {
+  let mut tree = UiTree::new();
+  let root = tree.alloc(Box::<Counted>::default());
+  let mut window = Window::new(tree, root);
+  window.frame();
+
+  window.frame();
+
+  let calls = window.tree.get_as::<Counted>(root).expect("the root").calls.get();
+  assert_eq!(calls, 1);
 }
