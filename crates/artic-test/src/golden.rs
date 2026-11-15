@@ -89,7 +89,7 @@ pub fn render_tree(
   };
   let mut pipeline = Pipeline::new();
   let mut text = crate::text::engine();
-  let mut services = FrameServices { types, text: &mut text };
+  let mut services = FrameServices::new(types, &mut text);
   let frame = pipeline.prepare(tree, root, SURFACE, &info, &mut services, Axes::NONE);
   pixels(size, |target| pipeline.present(renderer, frame, target).map(|_| ()))
 }

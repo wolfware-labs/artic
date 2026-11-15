@@ -29,10 +29,7 @@ fn layout_offset_applies_after_render_transform() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &mut FrameServices {
-      types: &ElementTypes::from_link_time(),
-      text: &mut engine(),
-    },
+    &mut FrameServices::new(&ElementTypes::from_link_time(), &mut engine()),
     Axes::NONE,
   );
 
@@ -52,10 +49,7 @@ fn render_cx_has_the_arranged_size() {
     root,
     SURFACE,
     &info(128, 128, 2.0),
-    &mut FrameServices {
-      types: &ElementTypes::from_link_time(),
-      text: &mut engine(),
-    },
+    &mut FrameServices::new(&ElementTypes::from_link_time(), &mut engine()),
     Axes::NONE,
   );
 
@@ -77,10 +71,7 @@ fn first_frame_does_all_the_work() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &mut FrameServices {
-      types: &ElementTypes::from_link_time(),
-      text: &mut engine(),
-    },
+    &mut FrameServices::new(&ElementTypes::from_link_time(), &mut engine()),
     Axes::NONE,
   );
   let stats = pipeline.present(&mut Counter::default(), frame, target(&mut buffer)).unwrap();
@@ -115,10 +106,7 @@ fn redraw_presents_the_last_scene() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &mut FrameServices {
-      types: &ElementTypes::from_link_time(),
-      text: &mut engine(),
-    },
+    &mut FrameServices::new(&ElementTypes::from_link_time(), &mut engine()),
     Axes::NONE,
   );
   pipeline.present(&mut renderer, frame, target(&mut buffer)).unwrap();
@@ -152,10 +140,7 @@ fn failed_present_keeps_no_scene() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &mut FrameServices {
-      types: &ElementTypes::from_link_time(),
-      text: &mut engine(),
-    },
+    &mut FrameServices::new(&ElementTypes::from_link_time(), &mut engine()),
     Axes::NONE,
   );
 
@@ -177,10 +162,7 @@ fn measure_before_open_serves_the_first_frame() {
   let (root, _) = column(&mut tree, &[child.id]);
   let types = ElementTypes::from_link_time();
   let mut text = engine();
-  let mut services = FrameServices {
-    types: &types,
-    text: &mut text,
-  };
+  let mut services = FrameServices::new(&types, &mut text);
   let mut pipeline = Pipeline::new();
 
   let desired = pipeline.measure(&mut tree, root, Size::new(f32::INFINITY, f32::INFINITY), &mut services);
@@ -220,10 +202,7 @@ fn nodes_not_laid_out_are_not_drawn() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &mut FrameServices {
-      types: &ElementTypes::from_link_time(),
-      text: &mut engine(),
-    },
+    &mut FrameServices::new(&ElementTypes::from_link_time(), &mut engine()),
     Axes::NONE,
   );
 
@@ -248,10 +227,7 @@ fn replaced_result_is_recorded_again() {
     root,
     SURFACE,
     &info(256, 64, 1.0),
-    &mut FrameServices {
-      types: &types,
-      text: &mut engine,
-    },
+    &mut FrameServices::new(&types, &mut engine),
     Axes::NONE,
   );
   tree.get_as::<Label>(node).unwrap().drawn.set(None);
@@ -263,10 +239,7 @@ fn replaced_result_is_recorded_again() {
       root,
       SURFACE,
       &info(256, 64, 1.0),
-      &mut FrameServices {
-        types: &types,
-        text: &mut engine,
-      },
+      &mut FrameServices::new(&types, &mut engine),
       Axes::NONE,
     )
     .stats();

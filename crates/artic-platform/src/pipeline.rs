@@ -1,6 +1,6 @@
 //! One surface's frames: layout, composition and presenting, without a host.
 
-use crate::{Axes, SurfaceInfo};
+use crate::{Accessibility, Axes, SurfaceInfo};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{ElementNodes, ElementTypes};
 use artic_layout::geometry::Size;
@@ -52,22 +52,40 @@ impl Frame {
   }
 }
 
-/// What a frame's layout and composition borrow from the runner: the table it finds a node's
-/// element in, and the text engine layout shapes with. Every surface's pipeline borrows the same
-/// ones, so elements resolve the same way and a font keeps one identity in every window.
+/// What a frame borrows from the runner: the table it finds a node's element in, the text engine
+/// layout shapes with, and the host's accessibility connection. Every surface's pipeline borrows the
+/// same ones, so elements resolve the same way and a font keeps one identity in every window.
+#[non_exhaustive]
 pub struct FrameServices<'a> {
   /// The element table.
   pub types: &'a ElementTypes,
   /// The text engine.
   pub text: &'a mut dyn TextEngine,
+  /// The host's accessibility connection, when it has one; the frame builds no accessibility tree
+  /// without it.
+  pub accessibility: Option<&'a mut dyn Accessibility>,
+}
+
+impl<'a> FrameServices<'a> {
+  /// The services of a frame with no accessibility connection.
+  #[must_use]
+  pub fn new(types: &'a ElementTypes, text: &'a mut dyn TextEngine) -> Self {
+    Self {
+      types,
+      text,
+      accessibility: None,
+    }
+  }
 }
 
 impl Debug for FrameServices<'_> {
-  /// Shows the element table; the engine needn't implement `Debug`.
+  /// Shows the element table and whether a connection is lent; neither the engine nor the
+  /// connection need implement `Debug`.
   fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
     formatter
       .debug_struct("FrameServices")
       .field("types", &self.types)
+      .field("accessibility", &self.accessibility.is_some())
       .finish_non_exhaustive()
   }
 }

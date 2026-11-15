@@ -45,10 +45,7 @@ struct Services {
 
 impl Services {
   fn borrow(&mut self) -> FrameServices<'_> {
-    FrameServices {
-      types: &self.types,
-      text: &mut *self.text,
-    }
+    FrameServices::new(&self.types, &mut *self.text)
   }
 }
 
