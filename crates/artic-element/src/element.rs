@@ -35,7 +35,8 @@ pub trait Element: Object + Layoutable {
   fn accessibility(&self, cx: &AccessCx<'_>) -> accesskit::Node;
 
   /// The element's layers in composition, for its arranged `size`: transform, opacity, visibility
-  /// and z-index. The clip comes from [`clip`](Self::clip). By default, none.
+  /// and z-index. The clip comes from [`clip`](Self::clip); a clip returned here panics in debug
+  /// builds. By default, none.
   fn layers(&self, size: Size) -> Layers {
     let _ = size;
     Layers::default()

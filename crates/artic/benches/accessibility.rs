@@ -1,5 +1,6 @@
 // What the accessibility pass costs a frame through real controls, while a screen reader reads the
-// window: a StackPanel of rows, each a StackPanel of ten Borders holding a TextBlock, laid out once.
+// window: a StackPanel of rows, each a StackPanel of ten Borders holding a TextBlock, laid out and
+// composed once.
 //
 // The whole tree is what a screen reader gets when it starts; a frame with nothing it sees changed
 // walks the tree and compares child lists; a frame where one text got a new layout result describes
@@ -23,6 +24,7 @@ use artic_platform::AccessTree;
 use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
 use std::collections::HashSet;
 use std::hint::black_box;
+use std::iter::once;
 
 const LEAVES: [usize; 2] = [100, 1000];
 
@@ -33,14 +35,12 @@ const LEAVES: [usize; 2] = [100, 1000];
 fn laid_out(leaves: usize) -> (UiTree, NodeId, Vec<NodeId>, LayoutManager, ElementTypes) {
   let mut tree = UiTree::new();
   let root = tree.alloc(Box::new(StackPanel::default()));
-  let mut all = vec![root];
   let mut texts = Vec::with_capacity(leaves);
   for _ in 0..leaves / 10 {
     let row = StackPanel::default();
     row.orientation.set(Orientation::Horizontal);
     let row = tree.alloc(Box::new(row));
     tree.add_child(TreeKind::Visual, root, row);
-    all.push(row);
     for _ in 0..10 {
       let border = Border::default();
       border.layout.width.set(Some(20.0));
@@ -51,7 +51,6 @@ fn laid_out(leaves: usize) -> (UiTree, NodeId, Vec<NodeId>, LayoutManager, Eleme
       text.text.set("cell".to_owned());
       let text = tree.alloc(Box::new(text));
       tree.add_child(TreeKind::Visual, border, text);
-      all.extend([border, text]);
       texts.push(text);
     }
   }
@@ -66,7 +65,9 @@ fn laid_out(leaves: usize) -> (UiTree, NodeId, Vec<NodeId>, LayoutManager, Eleme
   };
   Compositor::default().compose(&mut tree, root, &mut elements);
   assert!(
-    all.iter().all(|node| !tree.dirty(*node).contains(Affects::RENDER)),
+    once(root)
+      .chain(tree.descendants(TreeKind::Visual, root))
+      .all(|node| !tree.dirty(node).contains(Affects::RENDER)),
     "composition leaves no node render-dirty"
   );
   (tree, root, texts, layout, types)

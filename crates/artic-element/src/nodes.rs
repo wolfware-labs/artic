@@ -218,6 +218,23 @@ mod tests {
     (tree, spot, unreached, layout)
   }
 
+  /// `element` alone, laid out in 10 by 10: the tree, its node and the layout.
+  fn laid_out_alone(element: Box<dyn Object>) -> (UiTree, NodeId, LayoutManager) {
+    let mut tree = UiTree::new();
+    let node = tree.alloc(element);
+    let mut layout = LayoutManager::default();
+    let grid = PixelGrid { scale: 1.0, snap: false };
+    layout.run(
+      &mut tree,
+      &ElementTypes::from_link_time(),
+      node,
+      Size::new(10.0, 10.0),
+      grid,
+      &mut artic_text::Engine::without_fonts(),
+    );
+    (tree, node, layout)
+  }
+
   // A node layout never arranged isn't drawn.
   #[test]
   fn an_unarranged_node_is_invisible() {
@@ -320,19 +337,8 @@ mod tests {
   #[test]
   #[should_panic(expected = "Element::layers returned a clip")]
   fn a_clip_in_layers_is_refused() {
-    let mut tree = UiTree::new();
-    let node = tree.alloc(Box::new(ClipInLayers));
-    let mut layout = LayoutManager::default();
+    let (tree, node, layout) = laid_out_alone(Box::new(ClipInLayers));
     let types = ElementTypes::from_link_time();
-    let grid = PixelGrid { scale: 1.0, snap: false };
-    layout.run(
-      &mut tree,
-      &types,
-      node,
-      Size::new(10.0, 10.0),
-      grid,
-      &mut artic_text::Engine::without_fonts(),
-    );
 
     ElementNodes {
       types: &types,
@@ -394,19 +400,8 @@ mod tests {
   // An element draws with what its layout kept, such as a shaped paragraph.
   #[test]
   fn record_passes_the_layout_result() {
-    let mut tree = UiTree::new();
-    let node = tree.alloc(Box::new(Shaped));
-    let mut layout = LayoutManager::default();
+    let (tree, node, layout) = laid_out_alone(Box::new(Shaped));
     let types = ElementTypes::from_link_time();
-    let grid = PixelGrid { scale: 1.0, snap: false };
-    layout.run(
-      &mut tree,
-      &types,
-      node,
-      Size::new(10.0, 10.0),
-      grid,
-      &mut artic_text::Engine::without_fonts(),
-    );
     let mut builder = SceneBuilder::default();
 
     ElementNodes {
