@@ -508,7 +508,9 @@ impl<R: Renderer> AppHandler for Runner<R> {
       HostEvent::AccessibilityRequested { surface } => {
         if let Some(bound) = self.bound.iter_mut().find(|bound| bound.id == surface) {
           bound.pipeline.request_full_accessibility();
-          bound.mark(cx);
+          if !bound.suspended {
+            bound.mark(cx);
+          }
         }
       }
       HostEvent::Suspended | HostEvent::Resumed => {}

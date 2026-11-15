@@ -13,10 +13,12 @@
 // Each bench checks once, before it's timed, that the pass hands over what it says it does.
 
 use artic::controls::{Border, StackPanel, TextBlock};
+use artic::core::property::Affects;
 use artic::core::tree::{NodeId, TreeKind, UiTree};
 use artic::element::{ElementNodes, ElementTypes};
 use artic::layout::geometry::Size;
 use artic::layout::{LayoutManager, Orientation, PixelGrid};
+use artic::render::Compositor;
 use artic_platform::AccessTree;
 use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
 use std::collections::HashSet;
@@ -25,17 +27,20 @@ use std::hint::black_box;
 const LEAVES: [usize; 2] = [100, 1000];
 
 /// A column of rows, each of ten 20 by 10 borders holding a text: `leaves` borders under
-/// `leaves / 10` rows under one root, laid out in 800 by 600. Returns the tree, the root, the
-/// texts, the layout and the element table.
+/// `leaves / 10` rows under one root, laid out in 800 by 600 and composed once, as a frame leaves
+/// it: no node render-dirty. Returns the tree, the root, the texts, the layout and the element
+/// table.
 fn laid_out(leaves: usize) -> (UiTree, NodeId, Vec<NodeId>, LayoutManager, ElementTypes) {
   let mut tree = UiTree::new();
   let root = tree.alloc(Box::new(StackPanel::default()));
+  let mut all = vec![root];
   let mut texts = Vec::with_capacity(leaves);
   for _ in 0..leaves / 10 {
     let row = StackPanel::default();
     row.orientation.set(Orientation::Horizontal);
     let row = tree.alloc(Box::new(row));
     tree.add_child(TreeKind::Visual, root, row);
+    all.push(row);
     for _ in 0..10 {
       let border = Border::default();
       border.layout.width.set(Some(20.0));
@@ -46,6 +51,7 @@ fn laid_out(leaves: usize) -> (UiTree, NodeId, Vec<NodeId>, LayoutManager, Eleme
       text.text.set("cell".to_owned());
       let text = tree.alloc(Box::new(text));
       tree.add_child(TreeKind::Visual, border, text);
+      all.extend([border, text]);
       texts.push(text);
     }
   }
@@ -54,6 +60,15 @@ fn laid_out(leaves: usize) -> (UiTree, NodeId, Vec<NodeId>, LayoutManager, Eleme
   let grid = PixelGrid { scale: 1.0, snap: true };
   let mut engine = artic_text::Engine::without_fonts();
   layout.run(&mut tree, &types, root, Size::new(800.0, 600.0), grid, &mut engine);
+  let mut elements = ElementNodes {
+    types: &types,
+    layout: &layout,
+  };
+  Compositor::default().compose(&mut tree, root, &mut elements);
+  assert!(
+    all.iter().all(|node| !tree.dirty(*node).contains(Affects::RENDER)),
+    "composition leaves no node render-dirty"
+  );
   (tree, root, texts, layout, types)
 }
 

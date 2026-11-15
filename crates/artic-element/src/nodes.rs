@@ -34,9 +34,16 @@ impl ElementNodes<'_> {
     let mut layers = tree
       .get(node)
       .and_then(|object| self.types.element(object))
-      .map_or_else(Layers::default, |element| Layers {
-        clip: clip(element, rect.size()),
-        ..element.layers(rect.size())
+      .map_or_else(Layers::default, |element| {
+        let own = element.layers(rect.size());
+        debug_assert!(
+          own.clip.is_none(),
+          "Element::layers returned a clip; return it from Element::clip"
+        );
+        Layers {
+          clip: clip(element, rect.size()),
+          ..own
+        }
       });
     let offset = (rect.x != 0.0 || rect.y != 0.0).then(|| Transform::translate(rect.x, rect.y));
     layers.transform = match (layers.transform, offset) {
@@ -273,6 +280,65 @@ mod tests {
     let layers = nodes.layers(&tree, spot);
     assert_eq!(placement.clip, None);
     assert_eq!((placement.transform, placement.visible), (layers.transform, layers.visible));
+  }
+
+  /// A 10 by 10 leaf that wrongly returns its clip from `layers`.
+  #[derive(Debug)]
+  struct ClipInLayers;
+
+  impl Object for ClipInLayers {
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+  }
+
+  impl Layoutable for ClipInLayers {
+    fn measure(&self, _cx: &mut MeasureCx<'_>, _available: Size) -> Size {
+      Size::new(10.0, 10.0)
+    }
+
+    fn arrange(&self, _cx: &mut ArrangeCx<'_>, _rect: Rect) {}
+  }
+
+  impl Element for ClipInLayers {
+    fn render(&self, _cx: &mut RenderCx<'_>, _scene: &mut SceneBuilder) {}
+
+    fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
+      accesskit::Node::new(accesskit::Role::GenericContainer)
+    }
+
+    fn layers(&self, size: Size) -> artic_render::Layers {
+      artic_render::Layers {
+        clip: Some(bounds(size)),
+        ..artic_render::Layers::default()
+      }
+    }
+  }
+
+  crate::element_type!(ClipInLayers);
+
+  // A clip returned from `layers` would be dropped for `clip`'s, so debug builds stop on it.
+  #[cfg(debug_assertions)]
+  #[test]
+  #[should_panic(expected = "Element::layers returned a clip")]
+  fn a_clip_in_layers_is_refused() {
+    let mut tree = UiTree::new();
+    let node = tree.alloc(Box::new(ClipInLayers));
+    let mut layout = LayoutManager::default();
+    let types = ElementTypes::from_link_time();
+    let grid = PixelGrid { scale: 1.0, snap: false };
+    layout.run(
+      &mut tree,
+      &types,
+      node,
+      Size::new(10.0, 10.0),
+      grid,
+      &mut artic_text::Engine::without_fonts(),
+    );
+
+    ElementNodes {
+      types: &types,
+      layout: &layout,
+    }
+    .layers(&tree, node);
   }
 
   // At the origin there is no offset, so only the element's own transform is left.

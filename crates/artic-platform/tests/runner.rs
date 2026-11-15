@@ -1665,3 +1665,23 @@ fn accessibility_request_draws_the_whole_tree() {
 
   assert_eq!(wholes, [(FIRST, true, 4); 2]);
 }
+
+// A screen reader that starts on a suspended window asks for no frame; the window's first frame
+// after it comes back hands over the whole tree.
+#[test]
+fn accessibility_request_waits_for_a_suspended_window() {
+  let mut fixture = Fixture::new(|_| {});
+  fixture.cx.reading.push(FIRST);
+  fixture.runner.surface_lost(&mut fixture.cx, FIRST, SurfaceLoss::Suspended);
+  fixture.cx.clear();
+
+  fixture
+    .runner
+    .event(&mut fixture.cx, HostEvent::AccessibilityRequested { surface: FIRST });
+  let asked = std::mem::take(&mut fixture.cx.frames);
+  fixture.runner.surface_changed(&mut fixture.cx, FIRST, info(64, 64, 1.0));
+  fixture.frame();
+
+  let (_, update) = fixture.cx.accessibility_updates.pop().expect("an update");
+  assert_eq!((asked, update.tree.is_some()), (vec![], true));
+}
