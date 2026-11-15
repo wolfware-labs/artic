@@ -1,6 +1,7 @@
 // Elements, a renderer and a host context shared by the pipeline, runner and accessibility tests.
 #![allow(dead_code, reason = "each test binary uses part of it")]
 
+use accesskit::TreeUpdate;
 use artic_core::Object;
 use artic_core::property::{Affects, Inheritance, Property, PropertyKey, PropertyVisitor};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
@@ -8,7 +9,7 @@ use artic_element::{AccessCx, Application, Element, RenderCx, Surface};
 use artic_layout::geometry::{Rect, Size, Transform};
 use artic_layout::text::{FontFamily, GlyphRun, Line, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
 use artic_layout::{ArrangeCx, Layoutable, MeasureCx};
-use artic_platform::{DisplayId, HostContext, SurfaceInfo, WindowDesc, Windows};
+use artic_platform::{Accessibility, DisplayId, HostContext, SurfaceInfo, WindowDesc, Windows};
 use artic_render::{
   Color, Layers, PhysicalSize, PixelBuffer, PixelFormat, RenderError, Renderer, Scene, SceneBuilder, SurfaceId, SurfaceView,
   Target, TargetKind,
@@ -225,7 +226,8 @@ impl Renderer for Counter {
   }
 }
 
-/// A host context that logs what the runner asks for and opens windows numbered from 1.
+/// A host context that logs what the runner asks for and opens windows numbered from 1. A screen
+/// reader reads the surfaces in `reading`, and the accessibility updates it is handed are kept.
 #[derive(Debug, Default)]
 pub struct Context {
   pub frames: Vec<SurfaceId>,
@@ -234,6 +236,8 @@ pub struct Context {
   pub updated: Vec<(SurfaceId, WindowDesc)>,
   pub closed: Vec<SurfaceId>,
   pub windowless: bool,
+  pub reading: Vec<SurfaceId>,
+  pub accessibility_updates: Vec<(SurfaceId, TreeUpdate)>,
 }
 
 impl Context {
@@ -254,6 +258,20 @@ impl HostContext for Context {
 
   fn windows(&mut self) -> Option<&mut dyn Windows> {
     if self.windowless { None } else { Some(self) }
+  }
+
+  fn accessibility(&mut self) -> Option<&mut dyn Accessibility> {
+    Some(self)
+  }
+}
+
+impl Accessibility for Context {
+  fn is_active(&self, surface: SurfaceId) -> bool {
+    self.reading.contains(&surface)
+  }
+
+  fn update(&mut self, surface: SurfaceId, update: TreeUpdate) {
+    self.accessibility_updates.push((surface, update));
   }
 }
 

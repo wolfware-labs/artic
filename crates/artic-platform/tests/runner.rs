@@ -1643,3 +1643,25 @@ fn content_sized_window_measures_text() {
     }
   );
 }
+
+// A screen reader that starts reading gives an idle window a frame, and each such frame hands over
+// the whole tree: the surface, its content and the two leaves.
+#[test]
+fn accessibility_request_draws_the_whole_tree() {
+  let mut fixture = Fixture::new(|_| {});
+  fixture.cx.reading.push(FIRST);
+
+  let mut wholes = Vec::new();
+  for _ in 0..2 {
+    fixture.cx.clear();
+    fixture
+      .runner
+      .event(&mut fixture.cx, HostEvent::AccessibilityRequested { surface: FIRST });
+    assert_eq!(fixture.cx.frames, [FIRST]);
+    fixture.frame();
+    let (surface, update) = fixture.cx.accessibility_updates.pop().expect("an update");
+    wholes.push((surface, update.tree.is_some(), update.nodes.len()));
+  }
+
+  assert_eq!(wholes, [(FIRST, true, 4); 2]);
+}

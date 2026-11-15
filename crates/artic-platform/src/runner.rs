@@ -2,8 +2,8 @@
 //! draws, and what a frame runs.
 
 use crate::{
-  AppHandler, Axes, Error, FrameServices, FrameStats, Hooks, HostContext, HostEvent, LogicalSize, Pipeline, SurfaceInfo,
-  SurfaceLoss, Waker, WindowDesc,
+  Accessibility, AppHandler, Axes, Error, FrameServices, FrameStats, Hooks, HostContext, HostEvent, LogicalSize, Pipeline,
+  SurfaceInfo, SurfaceLoss, Waker, WindowDesc,
 };
 use artic_core::dispatcher::Dispatcher;
 use artic_core::reactive::flush_effects;
@@ -331,6 +331,7 @@ impl<R: Renderer> Runner<R> {
     root: NodeId,
     info: &SurfaceInfo,
     target: Target<'_>,
+    accessibility: Option<&mut dyn Accessibility>,
   ) -> Option<Result<FrameStats, RenderError>> {
     let content = self.bound[index].presentation.content(&self.tree, root);
     let bound = &mut self.bound[index];
@@ -338,9 +339,11 @@ impl<R: Renderer> Runner<R> {
       return bound.pipeline.redraw(&mut self.renderer, bound.id, info, target);
     }
     bound.needs_frame = false;
+    let mut services = self.services.borrow();
+    services.accessibility = accessibility.map(|lent| lent as &mut dyn Accessibility);
     let frame = bound
       .pipeline
-      .prepare(&mut self.tree, root, bound.id, info, &mut self.services.borrow(), content);
+      .prepare(&mut self.tree, root, bound.id, info, &mut services, content);
     Some(bound.pipeline.present(&mut self.renderer, frame, target))
   }
 
@@ -442,7 +445,7 @@ impl<R: Renderer> Runner<R> {
       self.settle(cx);
       return None;
     }
-    let drawn = self.draw(index, root, &info, target)?;
+    let drawn = self.draw(index, root, &info, target, cx.accessibility())?;
     let failure = self.after_frame(cx, index, root, drawn);
     self.settle(cx);
     failure
@@ -490,11 +493,22 @@ impl<R: Renderer> AppHandler for Runner<R> {
   }
 
   fn event(&mut self, cx: &mut dyn HostContext, event: HostEvent) {
-    if let HostEvent::CloseRequested { surface } = event
-      && let Some(bound) = self.bound.iter().find(|bound| bound.id == surface)
-      && let Some(node) = self.tree.get_as::<Surface>(bound.node)
-    {
-      node.is_open.set(false);
+    match event {
+      HostEvent::CloseRequested { surface } => {
+        if let Some(bound) = self.bound.iter().find(|bound| bound.id == surface)
+          && let Some(node) = self.tree.get_as::<Surface>(bound.node)
+        {
+          node.is_open.set(false);
+        }
+      }
+      HostEvent::AccessibilityRequested { surface } => {
+        if let Some(bound) = self.bound.iter_mut().find(|bound| bound.id == surface) {
+          bound.pipeline.request_full_accessibility();
+          bound.needs_frame = true;
+          cx.request_frame(surface);
+        }
+      }
+      HostEvent::Suspended | HostEvent::Resumed => {}
     }
     self.settle(cx);
   }

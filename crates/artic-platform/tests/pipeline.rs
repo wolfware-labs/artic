@@ -6,9 +6,9 @@ use accesskit::TreeUpdate;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{ElementTypes, SizeToContent};
 use artic_layout::geometry::{Size, Transform};
-use artic_platform::{Accessibility, Axes, Frame, FrameServices, FrameStats, Pipeline};
+use artic_platform::{Axes, Frame, FrameServices, FrameStats, Pipeline};
 use artic_render::{Layer, SceneItem, SurfaceId};
-use common::{Counter, Label, Recorder, column, engine, info, label, leaf, pixels, target};
+use common::{Context, Counter, Label, Recorder, column, engine, info, label, leaf, pixels, target};
 use pretty_assertions::assert_eq;
 use static_assertions::assert_impl_all;
 
@@ -16,39 +16,21 @@ assert_impl_all!(Frame: Send);
 
 const SURFACE: SurfaceId = SurfaceId::new(1);
 
-/// A host's accessibility connection with a screen reader reading `reading`, which keeps every
-/// update it is handed.
-struct Reader {
-  reading: SurfaceId,
-  updates: Vec<(SurfaceId, TreeUpdate)>,
-}
-
-impl Reader {
-  fn reading(surface: SurfaceId) -> Self {
-    Self {
-      reading: surface,
-      updates: Vec::new(),
-    }
-  }
-}
-
-impl Accessibility for Reader {
-  fn is_active(&self, surface: SurfaceId) -> bool {
-    surface == self.reading
-  }
-
-  fn update(&mut self, surface: SurfaceId, update: TreeUpdate) {
-    self.updates.push((surface, update));
-  }
-}
-
 /// One frame of `SURFACE`, 64 by 64 at scale 1, lending `reader` as the accessibility connection.
-fn read_frame(pipeline: &mut Pipeline, tree: &mut UiTree, root: NodeId, reader: &mut Reader) {
+fn read_frame(pipeline: &mut Pipeline, tree: &mut UiTree, root: NodeId, reader: &mut Context) {
   let types = ElementTypes::from_link_time();
   let mut text = engine();
   let mut services = FrameServices::new(&types, &mut text);
   services.accessibility = Some(reader);
   pipeline.prepare(tree, root, SURFACE, &info(64, 64, 1.0), &mut services, Axes::NONE);
+}
+
+/// A host context on which a screen reader reads `surface`.
+fn reading(surface: SurfaceId) -> Context {
+  Context {
+    reading: vec![surface],
+    ..Context::default()
+  }
 }
 
 /// The accesskit ids an update holds, in order.
@@ -304,15 +286,15 @@ fn reader_gets_the_whole_tree_then_only_changes() {
   let other = leaf(&mut tree, 10.0);
   let (root, _) = column(&mut tree, &[node, other.id]);
   let mut pipeline = Pipeline::new();
-  let mut reader = Reader::reading(SURFACE);
+  let mut reader = reading(SURFACE);
   read_frame(&mut pipeline, &mut tree, root, &mut reader);
   read_frame(&mut pipeline, &mut tree, root, &mut reader);
   text.set("words".to_owned());
 
   read_frame(&mut pipeline, &mut tree, root, &mut reader);
 
-  let [(first_surface, first), (surface, changed)] = &reader.updates[..] else {
-    panic!("expected two updates, got {}", reader.updates.len());
+  let [(first_surface, first), (surface, changed)] = &reader.accessibility_updates[..] else {
+    panic!("expected two updates, got {}", reader.accessibility_updates.len());
   };
   assert_eq!((*first_surface, *surface), (SURFACE, SURFACE));
   assert_eq!(first.tree.as_ref().map(|tree| tree.root), Some(id(root)));
@@ -328,15 +310,15 @@ fn unread_surface_gets_nothing_until_read() {
   let child = leaf(&mut tree, 10.0);
   let (root, _) = column(&mut tree, &[child.id]);
   let mut pipeline = Pipeline::new();
-  let mut reader = Reader::reading(SurfaceId::new(2));
+  let mut reader = reading(SurfaceId::new(2));
   read_frame(&mut pipeline, &mut tree, root, &mut reader);
-  assert!(reader.updates.is_empty());
-  reader.reading = SURFACE;
+  assert!(reader.accessibility_updates.is_empty());
+  reader.reading = vec![SURFACE];
 
   read_frame(&mut pipeline, &mut tree, root, &mut reader);
 
-  let [(_, update)] = &reader.updates[..] else {
-    panic!("expected one update, got {}", reader.updates.len());
+  let [(_, update)] = &reader.accessibility_updates[..] else {
+    panic!("expected one update, got {}", reader.accessibility_updates.len());
   };
   assert_eq!((update.tree.is_some(), sent(update)), (true, vec![id(root), id(child.id)]));
 }
@@ -348,14 +330,14 @@ fn requested_whole_tree_is_sent_again() {
   let child = leaf(&mut tree, 10.0);
   let (root, _) = column(&mut tree, &[child.id]);
   let mut pipeline = Pipeline::new();
-  let mut reader = Reader::reading(SURFACE);
+  let mut reader = reading(SURFACE);
   read_frame(&mut pipeline, &mut tree, root, &mut reader);
 
   pipeline.request_full_accessibility();
   read_frame(&mut pipeline, &mut tree, root, &mut reader);
 
-  let [_, (_, again)] = &reader.updates[..] else {
-    panic!("expected two updates, got {}", reader.updates.len());
+  let [_, (_, again)] = &reader.accessibility_updates[..] else {
+    panic!("expected two updates, got {}", reader.accessibility_updates.len());
   };
   assert_eq!((again.tree.is_some(), sent(again)), (true, vec![id(root), id(child.id)]));
 }
