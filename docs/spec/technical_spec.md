@@ -417,7 +417,8 @@ pub trait Element: Object + Layoutable {          // Layoutable (§7 Layout prot
     fn hit_test(&self, cx: &HitTestCx, point: Point) -> HitTestResult { cx.bounds_test(point) }
     fn on_event(&mut self, cx: &mut EventCx, event: &InputEvent) -> Handled { Handled::No }
     fn accessibility(&self, cx: &AccessCx) -> accesskit::Node;
-    fn layers(&self, size: Size) -> Layers { Layers::default() }   // transform and opacity around the node and its children, clip around the children, visibility, z-index
+    fn layers(&self, size: Size) -> Layers { Layers::default() }   // transform and opacity around the node and its children, visibility, z-index
+    fn clip(&self, size: Size) -> Option<Shape> { None }           // clip around the children
 }
 pub trait ElementImpl {                           // what a control writes; #[element] calls it
     fn measure_override(&self, cx: &mut MeasureCx, available: Size) -> Size { cx.measure_children(available) }   // by default the children share one box
