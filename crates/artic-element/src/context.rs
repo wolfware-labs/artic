@@ -5,7 +5,7 @@
 //! names its node and carries the little the trait defaults need.
 
 use artic_core::tree::{NodeId, UiTree};
-use artic_layout::geometry::{Point, Rect, Size};
+use artic_layout::geometry::{Point, Size};
 use std::any::Any;
 use std::marker::PhantomData;
 
@@ -147,14 +147,14 @@ impl EventCx<'_> {
 pub struct AccessCx<'a> {
   tree: &'a UiTree,
   node: NodeId,
-  bounds: Rect,
+  size: Size,
 }
 
 impl<'a> AccessCx<'a> {
-  /// A context for describing `node`, arranged in `bounds`, in its parent's coordinates.
+  /// A context for describing `node`, arranged at `size`.
   #[must_use]
-  pub fn new(tree: &'a UiTree, node: NodeId, bounds: Rect) -> Self {
-    Self { tree, node, bounds }
+  pub fn new(tree: &'a UiTree, node: NodeId, size: Size) -> Self {
+    Self { tree, node, size }
   }
 
   /// The node being described.
@@ -169,10 +169,24 @@ impl<'a> AccessCx<'a> {
     self.tree
   }
 
-  /// The node's arranged bounds, in its parent's coordinates.
+  /// The node's arranged size.
   #[must_use]
-  pub fn bounds(&self) -> Rect {
-    self.bounds
+  pub fn size(&self) -> Size {
+    self.size
+  }
+
+  /// A generic container of the node's size at its own origin, the node every description starts
+  /// from: the tree walk places it with the node's transform.
+  #[must_use]
+  pub fn container(&self) -> accesskit::Node {
+    let mut node = accesskit::Node::new(accesskit::Role::GenericContainer);
+    node.set_bounds(accesskit::Rect::new(
+      0.0,
+      0.0,
+      f64::from(self.size.width),
+      f64::from(self.size.height),
+    ));
+    node
   }
 }
 
@@ -215,7 +229,7 @@ mod tests {
     assert_eq!(cx.bounds_test(Point::new(0.0, 0.0)), HitTestResult::Miss);
   }
 
-  // Each context hands back the tree it was built with, and a hit test its size.
+  // Each context hands back the tree it was built with, and a hit test or access context its size.
   #[test]
   fn contexts_hand_back_what_they_were_built_with() {
     let (tree, node) = one_node();
@@ -225,9 +239,18 @@ mod tests {
     assert!(std::ptr::eq(RenderCx::new(&tree, node, size, None).tree(), &tree));
     assert!(std::ptr::eq(hit.tree(), &tree));
     assert_eq!(hit.size(), size);
-    assert!(std::ptr::eq(
-      AccessCx::new(&tree, node, Rect::new(0.0, 0.0, 30.0, 20.0)).tree(),
-      &tree
-    ));
+    let access = AccessCx::new(&tree, node, size);
+    assert!(std::ptr::eq(access.tree(), &tree));
+    assert_eq!(access.size(), size);
+  }
+
+  // The container an access context starts from has the node's size at its own origin.
+  #[test]
+  fn container_has_the_size_at_the_origin() {
+    let (tree, node) = one_node();
+    let container = AccessCx::new(&tree, node, Size::new(30.0, 40.0)).container();
+
+    assert_eq!(container.role(), accesskit::Role::GenericContainer);
+    assert_eq!(container.bounds(), Some(accesskit::Rect::new(0.0, 0.0, 30.0, 40.0)));
   }
 }

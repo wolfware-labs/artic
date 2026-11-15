@@ -134,6 +134,16 @@ pub struct UiTree {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct NodeId(SlotId);
 
+impl NodeId {
+  /// The id as one number: the generation in the high 32 bits, the slot index in the low 32. Stable
+  /// for the node's life; a node that later reuses the slot has another generation, so its bits
+  /// differ from the old node's.
+  #[must_use]
+  pub const fn to_bits(self) -> u64 {
+    self.0.to_bits()
+  }
+}
+
 /// Which of a node's two trees an operation works on.
 ///
 /// Every node in a [`UiTree`] belongs to two trees at once, with independent parent and child
@@ -690,7 +700,7 @@ impl UiTree {
   /// already disposed is skipped, so freeing a node after disposing that scope is fine.
   ///
   /// Freeing bumps each slot's generation, which invalidates the freed ids and every copy of them.
-  /// The generation wraps around after `u32::MAX - 1` reuses of the same slot, so an id kept across
+  /// The generation wraps around after `u32::MAX` reuses of the same slot, so an id kept across
   /// that many reuses could in principle match a newer node.
   ///
   /// # Panics

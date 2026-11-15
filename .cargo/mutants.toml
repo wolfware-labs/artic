@@ -24,6 +24,9 @@ exclude_re = [
     # Which list a new read is checked against, the reader's few sources or the source's readers,
     # only changes how long the check takes.
     'artic-core/src/reactive/runtime/nodes\.rs:\d+:\d+: replace <= with > in Nodes::add_edge$',
+    # A node whose child list is unchanged is still relisted when `lists` says otherwise, which
+    # comes out equal to the cached node and isn't sent: it only costs a clone.
+    'artic-platform/src/accessibility\.rs:\d+:\d+: replace lists -> bool with false$',
     # Hand-written Debug output is for a person reading a panic; no behavior depends on its text.
     '<impl (std::)?(fmt::)?Debug for ',
     # It returns `T::default()`, the expression the mutant writes.
@@ -32,6 +35,8 @@ exclude_re = [
     'artic-test/src/scenes\.rs:\d+:21: replace \+ with - in star',
     # These `|`s join disjoint wgpu usage flags, where `^` sets the same bits.
     'artic-vello/src/renderer\.rs:\d+:\d+: replace \| with \^ in (Renderer::render_to_pixels|storage_texture)$',
+    # The generation fills the high 32 bits and the index the low 32, so `^` joins them as `|` does.
+    'artic-core/src/arena\.rs:\d+:\d+: replace \| with \^ in SlotId::to_bits$',
     # These trait defaults already return what the mutant writes: nothing, no layers or no clip.
     'artic-element/src/element\.rs:\d+:\d+: replace (Element::layers -> Layers with Default::default\(\)|ElementImpl::(render|accessibility) with \(\)|ElementImpl::clip -> Option<Shape> with None)$',
     # winit builds `ScaleFactorChanged` only inside its loop (`InnerSizeWriter` has no public

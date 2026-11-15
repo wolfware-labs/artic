@@ -216,8 +216,7 @@ impl Translation<'_> {
 
 /// The same transform in kurbo's coefficient order, which is also CSS's.
 pub(crate) fn affine(transform: Transform) -> Affine {
-  let Transform { xx, yx, xy, yy, dx, dy } = transform;
-  Affine::new([xx, yx, xy, yy, dx, dy].map(f64::from))
+  Affine::new(transform.coefficients().map(f64::from))
 }
 
 fn kurbo_rect(rect: Rect) -> kurbo::Rect {

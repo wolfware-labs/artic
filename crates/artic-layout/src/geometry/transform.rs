@@ -93,6 +93,14 @@ impl Transform {
       self.yx * point.x + self.yy * point.y + self.dy,
     )
   }
+
+  /// The six entries in the order the fields list them, `[xx, yx, xy, yy, dx, dy]`: the coefficient
+  /// order of CSS's `matrix(...)` and of the affine types renderers and accessibility APIs take.
+  #[must_use]
+  pub const fn coefficients(self) -> [f32; 6] {
+    let Transform { xx, yx, xy, yy, dx, dy } = self;
+    [xx, yx, xy, yy, dx, dy]
+  }
 }
 
 impl Default for Transform {
@@ -176,6 +184,21 @@ mod tests {
     for point in [Point::new(0.0, 0.0), Point::new(1.0, 0.0), Point::new(0.0, 1.0)] {
       assert_eq!(first.then(next).apply(point), next.apply(first.apply(point)));
     }
+  }
+
+  // The coefficients come in the fields' order, the order CSS's `matrix(...)` lists them.
+  #[test]
+  fn coefficients_are_in_field_order() {
+    let transform = Transform {
+      xx: 1.0,
+      yx: 2.0,
+      xy: 3.0,
+      yy: 4.0,
+      dx: 5.0,
+      dy: 6.0,
+    };
+
+    assert_eq!(transform.coefficients(), [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
   }
 
   // A transform prints in CSS's `matrix(...)` order.

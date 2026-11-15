@@ -176,7 +176,7 @@ fn border_accesskit_node() {
   let types = ElementTypes::from_link_time();
   let element = types.element(tree.get(node).expect("a node")).expect("an element");
 
-  let access = element.accessibility(&AccessCx::new(&tree, node, Rect::new(0.0, 0.0, 10.0, 10.0)));
+  let access = element.accessibility(&AccessCx::new(&tree, node, Size::new(10.0, 10.0)));
 
   assert_eq!(access.role(), accesskit::Role::GenericContainer);
 }

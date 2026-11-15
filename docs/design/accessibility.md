@@ -59,15 +59,20 @@ Per surface, the pass keeps a cache: for each node it described last time, the a
 ```rust,ignore
 struct Described {
   node: accesskit::Node,
-  rect: Rect,
+  rect: Option<Rect>,
 }
 
-pub(crate) struct AccessTree {
+pub struct AccessTree {
   described: HashMap<NodeId, Described>,
+  root: Option<NodeId>,
   scale: f32,
   full: bool,
 }
 ```
+
+The sketch leaves out what only makes a frame cheaper: a counter that stamps the nodes each walk reaches, and the walk's stack, kept between frames.
+
+The rect is `None` for a node that layout didn't place, a collapsed surface. `AccessTree` is public, as `artic_platform::AccessTree`, so a host outside the crate, such as the `TestHost` of #101, builds a surface's tree the way `Pipeline` does.
 
 Each frame the pass walks the surface's visible subtree from the root. The surface node is always described, visible or not: an accesskit tree must contain its root, so a `Hidden` or `Collapsed` surface is a `Window` with no children, at zero size when it is `Collapsed`, since layout gives a collapsed root no rectangle. For the surface node and each visible node below it:
 
@@ -86,7 +91,7 @@ The pass runs only in `prepare`, and the runner calls `prepare` only for a surfa
 
 A full update clears the cache first and walks the same way, so every visible node goes in, with `TreeUpdate::tree` set to the surface's root. An incremental update sets `tree` to `None`. Every update sets `tree_id` to `TreeId::ROOT` and `focus` to the root.
 
-A new `AccessTree` starts with `full` set, and `full` is cleared only when an update is handed to the host, not when a frame runs. So the first update a pipeline sends is always full, also for a surface whose screen reader was already reading, such as a spare surface a new `Surface` node takes over.
+A new `AccessTree` starts with `full` set, and `update` clears it when it builds the full update, so the caller hands every update it gets to the host and asks for one only while a screen reader is reading. So the first update a pipeline sends is always full, also for a surface whose screen reader was already reading, such as a spare surface a new `Surface` node takes over. An update for another root than the last one is full too, since the cached nodes belong to the old tree.
 
 ## 5. The host seam
 
@@ -149,7 +154,7 @@ A surface lent to a `Surface` node and given back to the spare list keeps the la
 
 | Test | Where | What it shows |
 | --- | --- | --- |
-| `to_bits` round trips, reused slot gives other bits | `artic-core` | section 2 |
+| Copies of an id give equal `to_bits`, a reused slot other bits | `artic-core` | section 2 |
 | walk: hidden subtree left out, and shown again with its unchanged descendants; visual order and a reorder; a node moved between parents; cache reuse; described again on render-dirty, a layout result with the same rect, a new rect or a new scale; freed and hidden nodes leave their parent's list; a non-element node as a container; a hidden surface as a `Window` with no children, and a collapsed one at zero size; full update clears the cache; `RenderTransform` placed in the node's transform; a new pipeline's first update is full; `AccessibilityRequested` gives an idle surface a frame with a full update | `artic-platform`, with its hand-written test elements | sections 3 to 5 |
 | `initial_tree_update_covers_all_nodes`, `text_change_updates_only_that_node`, `clean_frame_pushes_no_update`, `stack_panel_children_in_visual_order`, `freed_node_removed_from_tree` | `artic` (the facade crate's tests), with the real `Surface`, `Border`, `TextBlock` and `StackPanel`, a fake host whose `Accessibility` records updates, and headless frames | #54's acceptance criteria |
 | adapter made before the window shows, events reach the adapter, activation reports `AccessibilityRequested`, a window is not active before that report, a deactivation between the report and the move leaves it inactive, a stop and start during a frame turns an incremental update into the root alone, and a later activation is reported again | `artic-winit`, with its fake `Loop` and `Window` | section 6 |

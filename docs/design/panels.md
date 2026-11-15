@@ -240,7 +240,7 @@ Measure and arrange are each written once, over a private `Axis` helper that spl
 
 ## 6. Accessibility
 
-Elements return their own node; the tree of nodes is built by #54's walk, which takes children from the visual tree in order and skips nodes layout didn't place. Child order is that walk's job for every element, so `StackPanel` only checks its role here, and #54's `stack_panel_children_in_visual_order` checks its children's order, with collapsed children left out.
+Elements return their own node; the tree of nodes is built by #54's walk, which takes children from the visual tree in order and skips nodes that layout didn't place. Child order is that walk's job for every element, so `StackPanel` only checks its role here, and #54's `stack_panel_children_in_visual_order` checks its children's order, with collapsed children left out.
 
 ## 7. Documents that change
 
