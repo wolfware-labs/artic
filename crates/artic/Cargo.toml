@@ -28,5 +28,9 @@ artic-view-compiler = { workspace = true, optional = true }
 artic-xaml = { workspace = true, optional = true }
 artic-xaml-lang = { workspace = true, optional = true }
 
+[dev-dependencies]
+accesskit.workspace = true
+accesskit_consumer.workspace = true
+
 [lints]
 workspace = true
