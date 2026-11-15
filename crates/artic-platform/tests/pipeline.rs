@@ -331,3 +331,18 @@ fn requested_whole_tree_is_sent_again() {
   };
   assert_eq!((again.tree.is_some(), sent(again)), (true, ids(&[root, child.id])));
 }
+
+// The services show the element table and whether an accessibility connection is lent.
+#[test]
+fn services_debug_shows_the_connection() {
+  let types = ElementTypes::from_link_time();
+  let mut text = engine();
+  let mut reader = reading(SURFACE);
+  let mut services = FrameServices::new(&types, &mut text);
+  let unlent = format!("{services:?}");
+
+  services.accessibility = Some(&mut reader);
+
+  assert!(unlent.contains("accessibility: false"), "{unlent}");
+  assert!(format!("{services:?}").contains("accessibility: true"));
+}

@@ -1685,3 +1685,22 @@ fn accessibility_request_waits_for_a_suspended_window() {
   let (_, update) = fixture.cx.accessibility_updates.pop().expect("an update");
   assert_eq!((asked, update.tree.is_some()), (vec![], true));
 }
+
+// A screen reader on a surface the runner doesn't present, and the app's background and foreground
+// events, ask for no frame.
+#[test]
+fn other_events_ask_for_no_frame() {
+  let mut fixture = Fixture::new(|_| {});
+
+  for event in [
+    HostEvent::AccessibilityRequested {
+      surface: SurfaceId::new(9),
+    },
+    HostEvent::Suspended,
+    HostEvent::Resumed,
+  ] {
+    fixture.runner.event(&mut fixture.cx, event);
+  }
+
+  assert!(fixture.cx.frames.is_empty());
+}

@@ -81,10 +81,11 @@ mod tests {
   use pretty_assertions::assert_eq;
 
   /// A 10 by 10 leaf that fills its arranged size, with `transform` as its own layer, clipping its
-  /// descendants to its bounds.
+  /// descendants to its bounds; with `clip_in_layers`, it wrongly returns that clip from `layers`.
   #[derive(Debug)]
   struct Spot {
     transform: Option<Transform>,
+    clip_in_layers: bool,
   }
 
   impl Object for Spot {
@@ -109,9 +110,10 @@ mod tests {
       accesskit::Node::new(accesskit::Role::GenericContainer)
     }
 
-    fn layers(&self, _size: Size) -> artic_render::Layers {
+    fn layers(&self, size: Size) -> artic_render::Layers {
       artic_render::Layers {
         transform: self.transform,
+        clip: self.clip_in_layers.then(|| bounds(size)),
         ..artic_render::Layers::default()
       }
     }
@@ -201,8 +203,14 @@ mod tests {
   fn laid_out(at: (f32, f32), transform: Option<Transform>) -> (UiTree, NodeId, NodeId, LayoutManager) {
     let mut tree = UiTree::new();
     let root = tree.alloc(Box::new(Place { at }));
-    let spot = tree.alloc(Box::new(Spot { transform }));
-    let unreached = tree.alloc(Box::new(Spot { transform: None }));
+    let spot = tree.alloc(Box::new(Spot {
+      transform,
+      clip_in_layers: false,
+    }));
+    let unreached = tree.alloc(Box::new(Spot {
+      transform: None,
+      clip_in_layers: false,
+    }));
     tree.add_child(TreeKind::Visual, root, spot);
     let mut layout = LayoutManager::default();
     let grid = PixelGrid { scale: 1.0, snap: false };
@@ -299,45 +307,15 @@ mod tests {
     assert_eq!((placement.transform, placement.visible), (layers.transform, layers.visible));
   }
 
-  /// A 10 by 10 leaf that wrongly returns its clip from `layers`.
-  #[derive(Debug)]
-  struct ClipInLayers;
-
-  impl Object for ClipInLayers {
-    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
-  }
-
-  impl Layoutable for ClipInLayers {
-    fn measure(&self, _cx: &mut MeasureCx<'_>, _available: Size) -> Size {
-      Size::new(10.0, 10.0)
-    }
-
-    fn arrange(&self, _cx: &mut ArrangeCx<'_>, _rect: Rect) {}
-  }
-
-  impl Element for ClipInLayers {
-    fn render(&self, _cx: &mut RenderCx<'_>, _scene: &mut SceneBuilder) {}
-
-    fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
-      accesskit::Node::new(accesskit::Role::GenericContainer)
-    }
-
-    fn layers(&self, size: Size) -> artic_render::Layers {
-      artic_render::Layers {
-        clip: Some(bounds(size)),
-        ..artic_render::Layers::default()
-      }
-    }
-  }
-
-  crate::element_type!(ClipInLayers);
-
   // A clip returned from `layers` would be dropped for `clip`'s, so debug builds stop on it.
   #[cfg(debug_assertions)]
   #[test]
   #[should_panic(expected = "Element::layers returned a clip")]
   fn a_clip_in_layers_is_refused() {
-    let (tree, node, layout) = laid_out_alone(Box::new(ClipInLayers));
+    let (tree, node, layout) = laid_out_alone(Box::new(Spot {
+      transform: None,
+      clip_in_layers: true,
+    }));
     let types = ElementTypes::from_link_time();
 
     ElementNodes {
