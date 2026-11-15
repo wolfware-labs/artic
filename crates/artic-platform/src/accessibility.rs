@@ -6,7 +6,7 @@ use artic_core::property::Affects;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{AccessCx, ElementNodes};
 use artic_layout::geometry::{Rect, Transform};
-use artic_render::{Layers, Nodes};
+use artic_render::Layers;
 use std::collections::{HashMap, HashSet};
 
 /// What the pass last sent for a node, the layout rect it built it with, and the last update whose
@@ -95,14 +95,14 @@ impl AccessTree {
     let seen = self.updates;
     let mut changed = Vec::new();
     let mut walk = std::mem::take(&mut self.walk);
-    walk.push((root, nodes.layers(tree, root)));
+    walk.push((root, nodes.placement(tree, root)));
     while let Some((node, layers)) = walk.pop() {
       let start = walk.len();
       if node != root || layers.visible {
         walk.extend(
           tree
             .children(TreeKind::Visual, node)
-            .map(|child| (child, nodes.layers(tree, child)))
+            .map(|child| (child, nodes.placement(tree, child)))
             .filter(|(_, layers)| layers.visible),
         );
       }

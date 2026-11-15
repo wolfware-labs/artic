@@ -191,7 +191,10 @@ impl Nodes for OneSize {
     tree
       .get(node)
       .and_then(|object| self.0.element(object))
-      .map_or_else(Layers::default, |element| element.layers(SIZE))
+      .map_or_else(Layers::default, |element| Layers {
+        clip: element.clip(SIZE),
+        ..element.layers(SIZE)
+      })
   }
 
   fn record(&mut self, tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {

@@ -5,7 +5,7 @@ use artic_core::property::Property;
 use artic_layout::geometry::{Point, Rect, Size, Thickness, Transform};
 use artic_layout::{ArrangeCx, HorizontalAlignment, MeasureCx, Sizing, VerticalAlignment, arrange_with, measure_with};
 use artic_macros::UiProperties;
-use artic_render::{Layers, Shape};
+use artic_render::Layers;
 
 /// Where an element sits and how big it is: size, limits, margin and alignment.
 ///
@@ -136,17 +136,17 @@ impl Layout {
 
 impl Appearance {
   /// The element's layers in composition for its arranged `size`: its opacity as set, made
-  /// [drawable](artic_render::drawable_opacity) when drawn, its render transform around its centre in its own coordinates, whether it's
-  /// visible, its z-index, and the control's `clip`.
+  /// [drawable](artic_render::drawable_opacity) when drawn, its render transform around its center
+  /// in its own coordinates, whether it's visible, and its z-index. No clip: the control gives that.
   #[must_use]
-  pub fn layers(&self, size: Size, clip: Option<Shape>) -> Layers {
+  pub fn layers(&self, size: Size) -> Layers {
     let (x, y) = (size.width / 2.0, size.height / 2.0);
     Layers {
       transform: self
         .render_transform
         .get()
         .map(|transform| Transform::translate(-x, -y).then(transform).then(Transform::translate(x, y))),
-      clip,
+      clip: None,
       opacity: self.opacity.get(),
       visible: self.visibility.get() == Visibility::Visible,
       z_index: self.z_index.get(),

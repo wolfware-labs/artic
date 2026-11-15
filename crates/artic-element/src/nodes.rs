@@ -15,24 +15,40 @@ pub struct ElementNodes<'a> {
   pub layout: &'a LayoutManager,
 }
 
-impl Nodes for ElementNodes<'_> {
-  fn layers(&self, tree: &UiTree, node: NodeId) -> Layers {
+impl ElementNodes<'_> {
+  /// The node's [`layers`](Nodes::layers) without the clip: where it is and whether it shows, for
+  /// what doesn't draw it, such as the accessibility pass.
+  #[must_use]
+  pub fn placement(&self, tree: &UiTree, node: NodeId) -> Layers {
+    self.placed(tree, node, false)
+  }
+
+  fn placed(&self, tree: &UiTree, node: NodeId, clipped: bool) -> Layers {
     let Some(rect) = self.layout.rect(node) else {
       return Layers {
         visible: false,
         ..Layers::default()
       };
     };
-    let mut layers = tree
-      .get(node)
-      .and_then(|object| self.types.element(object))
-      .map_or_else(Layers::default, |element| element.layers(rect.size()));
+    let mut layers = Layers::default();
+    if let Some(element) = tree.get(node).and_then(|object| self.types.element(object)) {
+      layers = element.layers(rect.size());
+      if clipped {
+        layers.clip = element.clip(rect.size());
+      }
+    }
     let offset = (rect.x != 0.0 || rect.y != 0.0).then(|| Transform::translate(rect.x, rect.y));
     layers.transform = match (layers.transform, offset) {
       (Some(own), Some(offset)) => Some(own.then(offset)),
       (own, offset) => own.or(offset),
     };
     layers
+  }
+}
+
+impl Nodes for ElementNodes<'_> {
+  fn layers(&self, tree: &UiTree, node: NodeId) -> Layers {
+    self.placed(tree, node, true)
   }
 
   fn record(&mut self, tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
@@ -56,7 +72,8 @@ mod tests {
   use artic_layout::{ArrangeCx, Layoutable, MeasureCx, PixelGrid};
   use pretty_assertions::assert_eq;
 
-  /// A 10 by 10 leaf that fills its arranged size, with `transform` as its own layer.
+  /// A 10 by 10 leaf that fills its arranged size, with `transform` as its own layer, clipping its
+  /// descendants to its bounds.
   #[derive(Debug)]
   struct Spot {
     transform: Option<Transform>,
@@ -93,9 +110,18 @@ mod tests {
         ..artic_render::Layers::default()
       }
     }
+
+    fn clip(&self, size: Size) -> Option<artic_render::Shape> {
+      Some(bounds(size))
+    }
   }
 
   crate::element_type!(Spot);
+
+  /// A clip to a `size` rectangle at the origin.
+  fn bounds(size: Size) -> artic_render::Shape {
+    artic_render::Shape::Rect(Rect::new(0.0, 0.0, size.width, size.height))
+  }
 
   /// A parent that places its one child at `at`, at the child's desired size.
   #[derive(Debug)]
@@ -216,6 +242,39 @@ mod tests {
     .layers(&tree, spot);
 
     assert_eq!(layers.transform, Some(own.then(Transform::translate(5.0, 7.0))));
+  }
+
+  // Composition gets the element's clip, at its arranged size.
+  #[test]
+  fn layers_carry_the_element_clip() {
+    let (tree, spot, _, layout) = laid_out((5.0, 7.0), None);
+    let types = ElementTypes::from_link_time();
+
+    let layers = ElementNodes {
+      types: &types,
+      layout: &layout,
+    }
+    .layers(&tree, spot);
+
+    assert_eq!(layers.clip, Some(bounds(Size::new(10.0, 10.0))));
+  }
+
+  // Placement is the layers without the clip: the same transform and visibility, no clip built.
+  #[test]
+  fn placement_leaves_the_clip_out() {
+    let own = Transform::scale(2.0, 2.0);
+    let (tree, spot, _, layout) = laid_out((5.0, 7.0), Some(own));
+    let types = ElementTypes::from_link_time();
+    let nodes = ElementNodes {
+      types: &types,
+      layout: &layout,
+    };
+
+    let placement = nodes.placement(&tree, spot);
+
+    let layers = nodes.layers(&tree, spot);
+    assert_eq!(placement.clip, None);
+    assert_eq!((placement.transform, placement.visible), (layers.transform, layers.visible));
   }
 
   // At the origin there is no offset, so only the element's own transform is left.

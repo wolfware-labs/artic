@@ -11,7 +11,7 @@ use artic_layout::{
 };
 use artic_macros::UiType;
 use artic_registry::{PropertyGroup, Registry};
-use artic_render::{Layers, Shape};
+use artic_render::Layers;
 use artic_text::Engine;
 use pretty_assertions::assert_eq;
 use std::cell::Cell;
@@ -357,20 +357,13 @@ fn accessibility_node_has_its_size_at_its_origin() {
   assert_eq!(built.bounds(), Some(accesskit::Rect::new(0.0, 0.0, 30.0, 40.0)));
 }
 
-// The layers carry the control's clip, and otherwise the defaults.
+// A default appearance gives the default layers, with no clip: the control's clip comes from
+// `Element::clip`.
 #[test]
-fn layers_carry_the_clip() {
-  let clip = Some(Shape::Rect(Rect::new(0.0, 0.0, 5.0, 5.0)));
+fn default_layers_have_no_clip() {
+  let layers = Appearance::default().layers(Size::new(10.0, 10.0));
 
-  let layers = Appearance::default().layers(Size::new(10.0, 10.0), clip.clone());
-
-  assert_eq!(
-    layers,
-    Layers {
-      clip,
-      ..Layers::default()
-    }
-  );
+  assert_eq!(layers, Layers::default());
 }
 
 // Layers carry the opacity as set, out of range or NaN, for the renderer to make drawable.
@@ -379,7 +372,7 @@ fn layers_carry_opacity_as_set() {
   let appearance = Appearance::default();
   let opacity = |value: f32| {
     appearance.opacity.set(value);
-    appearance.layers(Size::new(10.0, 10.0), None).opacity
+    appearance.layers(Size::new(10.0, 10.0)).opacity
   };
 
   assert_eq!((opacity(0.25), opacity(-1.0), opacity(2.0)), (0.25, -1.0, 2.0));
@@ -394,10 +387,7 @@ fn transform_pivots_on_the_centre() {
     .render_transform
     .set(Some(Transform::rotate(std::f32::consts::FRAC_PI_2)));
 
-  let transform = appearance
-    .layers(Size::new(100.0, 40.0), None)
-    .transform
-    .expect("a transform");
+  let transform = appearance.layers(Size::new(100.0, 40.0)).transform.expect("a transform");
 
   let centre = transform.apply(Point::new(50.0, 20.0));
   assert!((centre.x - 50.0).abs() < 1e-4 && (centre.y - 20.0).abs() < 1e-4, "{centre:?}");
@@ -409,10 +399,7 @@ fn scale_grows_from_the_centre() {
   let appearance = Appearance::default();
   appearance.render_transform.set(Some(Transform::scale(2.0, 2.0)));
 
-  let transform = appearance
-    .layers(Size::new(100.0, 40.0), None)
-    .transform
-    .expect("a transform");
+  let transform = appearance.layers(Size::new(100.0, 40.0)).transform.expect("a transform");
 
   assert_eq!(transform.apply(Point::new(0.0, 0.0)), Point::new(-50.0, -20.0));
 }
@@ -424,7 +411,7 @@ fn layers_carry_visibility_and_z_index() {
   appearance.z_index.set(3);
   let visible = |visibility| {
     appearance.visibility.set(visibility);
-    appearance.layers(Size::new(1.0, 1.0), None).visible
+    appearance.layers(Size::new(1.0, 1.0)).visible
   };
 
   assert_eq!(
@@ -435,7 +422,7 @@ fn layers_carry_visibility_and_z_index() {
     ),
     (true, false, false)
   );
-  assert_eq!(appearance.layers(Size::new(1.0, 1.0), None).z_index, 3);
+  assert_eq!(appearance.layers(Size::new(1.0, 1.0)).z_index, 3);
 }
 
 // A disabled element's accessibility node says so.

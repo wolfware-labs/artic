@@ -55,6 +55,6 @@ pub mod __private {
   pub use artic_layout::{ArrangeCx, Layoutable, MeasureCx};
   pub use artic_macros::UiType;
   pub use artic_registry::__private::*;
-  pub use artic_render::{Layers, SceneBuilder};
+  pub use artic_render::{Layers, SceneBuilder, Shape};
   pub use linkme;
 }
