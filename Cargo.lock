@@ -146,6 +146,7 @@ dependencies = [
  "artic-view-compiler",
  "artic-xaml",
  "artic-xaml-lang",
+ "codspeed-criterion-compat",
 ]
 
 [[package]]
