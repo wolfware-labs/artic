@@ -2,8 +2,8 @@
 //!
 //! - [`Host`] owns the event loop and runs an [`AppHandler`], artic's side of it.
 //! - [`HostContext`] is handed to every [`AppHandler`] call: frames, exiting, and the capabilities,
-//!   such as [`Windows`], each `None` on hosts without it. [`WindowDesc`] is what a [`Windows`]
-//!   host opens.
+//!   such as [`Windows`] and [`Accessibility`], each `None` on hosts without it. [`WindowDesc`] is
+//!   what a [`Windows`] host opens.
 //! - [`SurfaceInfo`], [`DisplayId`] and [`HostEvent`] are what a host reports, and [`Waker`] wakes
 //!   its loop from other threads.
 //! - [`Pipeline`] draws one surface's frames, and [`Runner`] presents an `Application`'s surfaces
@@ -31,7 +31,7 @@ pub use artic_element::Chrome;
 pub use error::Error;
 pub use event::HostEvent;
 pub use hooks::Hooks;
-pub use host::{AppHandler, Host, HostContext, Windows};
+pub use host::{Accessibility, AppHandler, Host, HostContext, Windows};
 pub use pipeline::{Frame, FrameServices, FrameStats, Pipeline};
 pub use run::run;
 pub use runner::Runner;
