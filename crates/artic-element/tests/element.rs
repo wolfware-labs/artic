@@ -54,7 +54,7 @@ impl ElementImpl for Tile {
   }
 
   fn clip(&self, size: Size) -> Option<Shape> {
-    Some(Shape::Rect(Rect::new(0.0, 0.0, size.width, size.height)))
+    Some(Shape::Rect(Rect::from_size(size)))
   }
 }
 

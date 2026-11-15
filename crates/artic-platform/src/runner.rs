@@ -60,6 +60,14 @@ struct Bound {
   pipeline: Pipeline,
 }
 
+impl Bound {
+  /// Marks the surface as needing a frame and asks the host for one.
+  fn mark(&mut self, cx: &mut dyn HostContext) {
+    self.needs_frame = true;
+    cx.request_frame(self.id);
+  }
+}
+
 /// How the host shows a bound surface: a window the runner opened, with the description it last
 /// sent, or a host surface lent to it.
 enum Presentation {
@@ -365,8 +373,7 @@ impl<R: Renderer> Runner<R> {
     };
     let wants = self.hooks.wants_frame.iter_mut().fold(false, |wants, hook| hook() | wants);
     if wants {
-      self.bound[index].needs_frame = true;
-      cx.request_frame(self.bound[index].id);
+      self.bound[index].mark(cx);
     }
     failure
   }
@@ -410,10 +417,8 @@ impl<R: Renderer> Runner<R> {
 
   fn failed(&mut self, cx: &mut dyn HostContext, index: usize, error: RenderError) -> Option<Error> {
     if matches!(error, RenderError::SurfaceLost) {
-      let id = self.bound[index].id;
-      self.renderer.surface_lost(id);
-      self.bound[index].needs_frame = true;
-      cx.request_frame(id);
+      self.renderer.surface_lost(self.bound[index].id);
+      self.bound[index].mark(cx);
       return None;
     }
     let error = Error::Render(error);
@@ -465,8 +470,7 @@ impl<R: Renderer> AppHandler for Runner<R> {
     if let Some(bound) = self.bound.iter_mut().find(|bound| bound.id == surface) {
       bound.info = Some(info);
       bound.suspended = false;
-      bound.needs_frame = true;
-      cx.request_frame(surface);
+      bound.mark(cx);
     } else if let Some(spare) = self.spare.iter_mut().find(|spare| spare.id == surface) {
       spare.info = Some(info);
     } else {
@@ -504,8 +508,7 @@ impl<R: Renderer> AppHandler for Runner<R> {
       HostEvent::AccessibilityRequested { surface } => {
         if let Some(bound) = self.bound.iter_mut().find(|bound| bound.id == surface) {
           bound.pipeline.request_full_accessibility();
-          bound.needs_frame = true;
-          cx.request_frame(surface);
+          bound.mark(cx);
         }
       }
       HostEvent::Suspended | HostEvent::Resumed => {}

@@ -1,14 +1,14 @@
-// The pipeline for one surface, without a host: layout, composition and presenting.
+// The pipeline for one surface, without a host: layout, the accessibility pass, composition and
+// presenting.
 
 mod common;
 
-use accesskit::TreeUpdate;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{ElementTypes, SizeToContent};
 use artic_layout::geometry::{Size, Transform};
 use artic_platform::{Axes, Frame, FrameServices, FrameStats, Pipeline};
 use artic_render::{Layer, SceneItem, SurfaceId};
-use common::{Context, Counter, Label, Recorder, column, engine, info, label, leaf, pixels, target};
+use common::{Context, Counter, Label, Recorder, column, engine, id, ids, info, label, leaf, pixels, sent, target};
 use pretty_assertions::assert_eq;
 use static_assertions::assert_impl_all;
 
@@ -31,16 +31,6 @@ fn reading(surface: SurfaceId) -> Context {
     reading: vec![surface],
     ..Context::default()
   }
-}
-
-/// The accesskit ids an update holds, in order.
-fn sent(update: &TreeUpdate) -> Vec<accesskit::NodeId> {
-  update.nodes.iter().map(|(id, _)| *id).collect()
-}
-
-/// The accesskit id of `node`.
-fn id(node: NodeId) -> accesskit::NodeId {
-  accesskit::NodeId(node.to_bits())
 }
 
 // A node's own transform applies first, in its own coordinates, and its layout offset after it.
@@ -298,8 +288,8 @@ fn reader_gets_the_whole_tree_then_only_changes() {
   };
   assert_eq!((*first_surface, *surface), (SURFACE, SURFACE));
   assert_eq!(first.tree.as_ref().map(|tree| tree.root), Some(id(root)));
-  assert_eq!(sent(first), [id(root), id(node), id(other.id)]);
-  assert_eq!((changed.tree.is_none(), sent(changed)), (true, vec![id(node)]));
+  assert_eq!(sent(first), ids(&[root, node, other.id]));
+  assert_eq!((changed.tree.is_none(), sent(changed)), (true, ids(&[node])));
 }
 
 // A surface no screen reader reads gets no update, and frames drawn meanwhile don't use up the whole
@@ -320,7 +310,7 @@ fn unread_surface_gets_nothing_until_read() {
   let [(_, update)] = &reader.accessibility_updates[..] else {
     panic!("expected one update, got {}", reader.accessibility_updates.len());
   };
-  assert_eq!((update.tree.is_some(), sent(update)), (true, vec![id(root), id(child.id)]));
+  assert_eq!((update.tree.is_some(), sent(update)), (true, ids(&[root, child.id])));
 }
 
 // After a request for the whole tree, the next frame hands it over again, though nothing changed.
@@ -339,5 +329,5 @@ fn requested_whole_tree_is_sent_again() {
   let [_, (_, again)] = &reader.accessibility_updates[..] else {
     panic!("expected two updates, got {}", reader.accessibility_updates.len());
   };
-  assert_eq!((again.tree.is_some(), sent(again)), (true, vec![id(root), id(child.id)]));
+  assert_eq!((again.tree.is_some(), sent(again)), (true, ids(&[root, child.id])));
 }

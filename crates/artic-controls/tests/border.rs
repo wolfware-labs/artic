@@ -235,8 +235,7 @@ fn chrome() -> Border {
 }
 
 fn outline() -> RoundedRect {
-  RoundedRect::new(Rect::new(0.0, 0.0, SIZE.width, SIZE.height), CornerRadius::uniform(6.0))
-    .fitted_for_border(Thickness::new(1.0, 2.0, 3.0, 4.0))
+  RoundedRect::new(Rect::from_size(SIZE), CornerRadius::uniform(6.0)).fitted_for_border(Thickness::new(1.0, 2.0, 3.0, 4.0))
 }
 
 // The shadow, the background and the ring are drawn in that order, all from one outline.

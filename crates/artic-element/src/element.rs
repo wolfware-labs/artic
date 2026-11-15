@@ -75,7 +75,7 @@ pub trait ElementImpl {
   /// Places the children within `size`, in the element's own coordinates. By default, each child
   /// fills it.
   fn arrange_override(&self, cx: &mut ArrangeCx<'_>, size: Size) {
-    cx.arrange_children(Rect::new(0.0, 0.0, size.width, size.height));
+    cx.arrange_children(Rect::from_size(size));
   }
 
   /// Records the control's own drawing. By default, nothing.

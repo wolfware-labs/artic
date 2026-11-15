@@ -19,7 +19,7 @@ All in `artic-platform`, which depends on `artic-element` to drive the tree as `
 
 | Type | Role |
 | --- | --- |
-| `Pipeline` | One surface, no host: `prepare` runs layout, the accessibility pass ([accessibility design](accessibility.md), #54) and composition for the surface's root and returns a `Frame`; `present` hands it to the renderer. Owns the surface's `LayoutManager` and `Compositor`, and the last `Scene` it presented |
+| `Pipeline` | One surface, no host: `prepare` runs layout, the accessibility pass ([accessibility design](accessibility.md), #54) and composition for the surface's root and returns a `Frame`; `present` hands it to the renderer. Owns the surface's `LayoutManager`, `Compositor` and `AccessTree`, and the last `Scene` it presented |
 | `Frame` | The surface's `SurfaceId`, size and scale, the owned `Scene`, and the stats so far. `Send` |
 | `FrameStats` | `{ measured: u32, arranged: u32, recorded: u32, rendered: bool }`, `Copy + Eq + Default` |
 | `Hooks` | Per-stage lists of boxed closures: `before_layout`, `after_present`, `wants_frame`, and `on_error` for a frame that failed |

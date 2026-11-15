@@ -43,7 +43,7 @@ impl Border {
 
   fn outline(&self, size: Size) -> RoundedRect {
     let (thickness, _) = self.chrome();
-    RoundedRect::new(Rect::new(0.0, 0.0, size.width, size.height), self.corner_radius.get()).fitted_for_border(thickness)
+    RoundedRect::new(Rect::from_size(size), self.corner_radius.get()).fitted_for_border(thickness)
   }
 }
 
@@ -58,9 +58,7 @@ impl ElementImpl for Border {
   fn arrange_override(&self, cx: &mut ArrangeCx<'_>, size: Size) {
     let (thickness, padding) = self.chrome();
     if let Some(child) = cx.children().next() {
-      let inside = Rect::new(0.0, 0.0, size.width, size.height)
-        .deflate(thickness)
-        .deflate(padding);
+      let inside = Rect::from_size(size).deflate(thickness).deflate(padding);
       let origin = (inside.x.min(size.width), inside.y.min(size.height));
       cx.arrange(child, Rect::new(origin.0, origin.1, inside.width, inside.height));
     }

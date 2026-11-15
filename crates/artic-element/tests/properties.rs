@@ -144,7 +144,7 @@ impl Layoutable for Boxed {
     self.layout.arrange(cx, slot, |cx, size| {
       let children: Vec<NodeId> = cx.children().collect();
       for child in children {
-        cx.arrange(child, Rect::new(0.0, 0.0, size.width, size.height));
+        cx.arrange(child, Rect::from_size(size));
       }
     });
   }

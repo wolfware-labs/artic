@@ -317,7 +317,7 @@ impl Layoutable for FirstOnly {
 
   fn arrange(&self, cx: &mut ArrangeCx<'_>, rect: Rect) {
     if let Some(child) = cx.children().next() {
-      cx.arrange(child, Rect::new(0.0, 0.0, rect.width, rect.height));
+      cx.arrange(child, Rect::from_size(rect.size()));
     }
   }
 }
@@ -341,7 +341,7 @@ impl Layoutable for Swatch {
 
   fn arrange(&self, cx: &mut ArrangeCx<'_>, rect: Rect) {
     for child in cx.children() {
-      cx.arrange(child, Rect::new(0.0, 0.0, rect.width, rect.height));
+      cx.arrange(child, Rect::from_size(rect.size()));
     }
   }
 }
@@ -349,7 +349,7 @@ impl Layoutable for Swatch {
 impl Element for Swatch {
   fn render(&self, cx: &mut RenderCx<'_>, scene: &mut SceneBuilder) {
     let size = cx.size();
-    scene.fill(Rect::new(0.0, 0.0, size.width, size.height), Color::rgb(0, 0, 0));
+    scene.fill(Rect::from_size(size), Color::rgb(0, 0, 0));
   }
 
   fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {

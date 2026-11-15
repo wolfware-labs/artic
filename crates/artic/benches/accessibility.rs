@@ -25,8 +25,8 @@ use std::hint::black_box;
 const LEAVES: [usize; 2] = [100, 1000];
 
 /// A column of rows, each of ten 20 by 10 borders holding a text: `leaves` borders under
-/// `leaves / 10` rows under one root, laid out in 800 by 600. Returns the tree, the root and the
-/// texts.
+/// `leaves / 10` rows under one root, laid out in 800 by 600. Returns the tree, the root, the
+/// texts, the layout and the element table.
 fn laid_out(leaves: usize) -> (UiTree, NodeId, Vec<NodeId>, LayoutManager, ElementTypes) {
   let mut tree = UiTree::new();
   let root = tree.alloc(Box::new(StackPanel::default()));

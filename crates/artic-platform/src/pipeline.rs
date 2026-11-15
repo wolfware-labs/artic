@@ -1,4 +1,4 @@
-//! One surface's frames: layout, composition and presenting, without a host.
+//! One surface's frames: layout, the accessibility pass, composition and presenting, without a host.
 
 use crate::{AccessTree, Accessibility, Axes, SurfaceInfo};
 use artic_core::tree::{NodeId, TreeKind, UiTree};

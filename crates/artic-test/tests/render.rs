@@ -80,7 +80,7 @@ impl Layoutable for Swatch {
 impl Element for Swatch {
   fn render(&self, cx: &mut RenderCx<'_>, scene: &mut SceneBuilder) {
     self.seen.set(Some(cx.size()));
-    scene.fill(Rect::new(0.0, 0.0, cx.size().width, cx.size().height), Color::rgb(255, 0, 0));
+    scene.fill(Rect::from_size(cx.size()), Color::rgb(255, 0, 0));
   }
 
   fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {

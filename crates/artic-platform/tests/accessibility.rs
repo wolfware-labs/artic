@@ -14,7 +14,7 @@ use artic_layout::geometry::{Rect, Size, Transform};
 use artic_layout::{ArrangeCx, LayoutManager, Layoutable, MeasureCx, PixelGrid};
 use artic_platform::AccessTree;
 use artic_render::{Compositor, Layers, SceneBuilder, Shape};
-use common::{column, label, leaf};
+use common::{column, id, ids, label, leaf, sent};
 use pretty_assertions::{assert_eq, assert_ne};
 use std::cell::Cell;
 use std::collections::HashSet;
@@ -214,25 +214,6 @@ impl Window {
     }
     update
   }
-}
-
-/// The accesskit id of `node`, written out here rather than taken from the pass.
-fn id(node: NodeId) -> accesskit::NodeId {
-  accesskit::NodeId(node.to_bits())
-}
-
-/// The ids of the nodes `update` sends, sorted.
-fn sent(update: &TreeUpdate) -> Vec<accesskit::NodeId> {
-  let mut ids: Vec<_> = update.nodes.iter().map(|(id, _)| *id).collect();
-  ids.sort();
-  ids
-}
-
-/// The accesskit ids of `nodes`, sorted, to compare with [`sent`].
-fn ids(nodes: &[NodeId]) -> Vec<accesskit::NodeId> {
-  let mut ids: Vec<_> = nodes.iter().copied().map(id).collect();
-  ids.sort();
-  ids
 }
 
 /// What `update` sends for `node`; panics when it doesn't send it.

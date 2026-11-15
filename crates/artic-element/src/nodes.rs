@@ -1,8 +1,8 @@
-use crate::{ElementTypes, RenderCx};
+use crate::{Element, ElementTypes, RenderCx};
 use artic_core::tree::{NodeId, UiTree};
 use artic_layout::LayoutManager;
-use artic_layout::geometry::Transform;
-use artic_render::{Layers, Nodes, SceneBuilder};
+use artic_layout::geometry::{Size, Transform};
+use artic_render::{Layers, Nodes, SceneBuilder, Shape};
 
 /// Composition of laid-out elements: each node's element draws at the size layout arranged it at,
 /// with what its layout kept, and its layers carry its layout offset after its own transform. A
@@ -20,23 +20,24 @@ impl ElementNodes<'_> {
   /// what doesn't draw it, such as the accessibility pass.
   #[must_use]
   pub fn placement(&self, tree: &UiTree, node: NodeId) -> Layers {
-    self.placed(tree, node, false)
+    self.placed(tree, node, |_, _| None)
   }
 
-  fn placed(&self, tree: &UiTree, node: NodeId, clipped: bool) -> Layers {
+  /// The node's layers, with the clip `clip` gives for its element at its arranged size.
+  fn placed(&self, tree: &UiTree, node: NodeId, clip: impl FnOnce(&dyn Element, Size) -> Option<Shape>) -> Layers {
     let Some(rect) = self.layout.rect(node) else {
       return Layers {
         visible: false,
         ..Layers::default()
       };
     };
-    let mut layers = Layers::default();
-    if let Some(element) = tree.get(node).and_then(|object| self.types.element(object)) {
-      layers = element.layers(rect.size());
-      if clipped {
-        layers.clip = element.clip(rect.size());
-      }
-    }
+    let mut layers = tree
+      .get(node)
+      .and_then(|object| self.types.element(object))
+      .map_or_else(Layers::default, |element| Layers {
+        clip: clip(element, rect.size()),
+        ..element.layers(rect.size())
+      });
     let offset = (rect.x != 0.0 || rect.y != 0.0).then(|| Transform::translate(rect.x, rect.y));
     layers.transform = match (layers.transform, offset) {
       (Some(own), Some(offset)) => Some(own.then(offset)),
@@ -48,7 +49,7 @@ impl ElementNodes<'_> {
 
 impl Nodes for ElementNodes<'_> {
   fn layers(&self, tree: &UiTree, node: NodeId) -> Layers {
-    self.placed(tree, node, true)
+    self.placed(tree, node, Element::clip)
   }
 
   fn record(&mut self, tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
@@ -94,10 +95,7 @@ mod tests {
   impl Element for Spot {
     fn render(&self, cx: &mut RenderCx<'_>, scene: &mut SceneBuilder) {
       let size = cx.size();
-      scene.fill(
-        Rect::new(0.0, 0.0, size.width, size.height),
-        artic_render::Color::rgb(0, 0, 0),
-      );
+      scene.fill(Rect::from_size(size), artic_render::Color::rgb(0, 0, 0));
     }
 
     fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
@@ -120,7 +118,7 @@ mod tests {
 
   /// A clip to a `size` rectangle at the origin.
   fn bounds(size: Size) -> artic_render::Shape {
-    artic_render::Shape::Rect(Rect::new(0.0, 0.0, size.width, size.height))
+    artic_render::Shape::Rect(Rect::from_size(size))
   }
 
   /// A parent that places its one child at `at`, at the child's desired size.

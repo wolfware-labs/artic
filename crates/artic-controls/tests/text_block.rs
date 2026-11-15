@@ -379,7 +379,7 @@ impl Layoutable for Frame {
   fn arrange(&self, cx: &mut ArrangeCx<'_>, _rect: Rect) {
     let child = cx.children().next().expect("a child");
     let size = self.arranged.get();
-    cx.arrange(child, Rect::new(0.0, 0.0, size.width, size.height));
+    cx.arrange(child, Rect::from_size(size));
   }
 }
 

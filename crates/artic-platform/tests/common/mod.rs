@@ -1,4 +1,5 @@
-// Elements, a renderer and a host context shared by the pipeline, runner and accessibility tests.
+// Elements, a renderer, a host context and accesskit ids shared by the pipeline, runner and
+// accessibility tests.
 #![allow(dead_code, reason = "each test binary uses part of it")]
 
 use accesskit::TreeUpdate;
@@ -107,7 +108,7 @@ impl Element for Leaf {
     self.seen.set(Some(cx.size()));
     let color = self.color.get();
     let [_, r, g, b] = color.to_be_bytes();
-    scene.fill(Rect::new(0.0, 0.0, cx.size().width, cx.size().height), Color::rgb(r, g, b));
+    scene.fill(Rect::from_size(cx.size()), Color::rgb(r, g, b));
   }
 
   fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
@@ -415,4 +416,23 @@ pub fn label(tree: &mut UiTree, text: &str) -> (NodeId, Property<String>) {
     drawn: Cell::new(None),
   }));
   (id, text)
+}
+
+/// The accesskit id of `node`, written out rather than taken from the pass.
+pub fn id(node: NodeId) -> accesskit::NodeId {
+  accesskit::NodeId(node.to_bits())
+}
+
+/// The ids of the nodes `update` sends, sorted.
+pub fn sent(update: &TreeUpdate) -> Vec<accesskit::NodeId> {
+  let mut ids: Vec<_> = update.nodes.iter().map(|(id, _)| *id).collect();
+  ids.sort();
+  ids
+}
+
+/// The accesskit ids of `nodes`, sorted, to compare with [`sent`].
+pub fn ids(nodes: &[NodeId]) -> Vec<accesskit::NodeId> {
+  let mut ids: Vec<_> = nodes.iter().copied().map(id).collect();
+  ids.sort();
+  ids
 }
