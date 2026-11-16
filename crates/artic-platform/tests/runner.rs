@@ -1666,12 +1666,16 @@ fn accessibility_request_draws_the_whole_tree() {
   assert_eq!(wholes, [(FIRST, true, 4); 2]);
 }
 
-// A screen reader that starts on a suspended window asks for no frame; the window's first frame
-// after it comes back hands over the whole tree.
+// A screen reader that starts again on a suspended window asks for no frame; the window's first
+// frame after it comes back hands over the whole tree.
 #[test]
 fn accessibility_request_waits_for_a_suspended_window() {
   let mut fixture = Fixture::new(|_| {});
   fixture.cx.reading.push(FIRST);
+  fixture
+    .runner
+    .event(&mut fixture.cx, HostEvent::AccessibilityRequested { surface: FIRST });
+  fixture.frame();
   fixture.runner.surface_lost(&mut fixture.cx, FIRST, SurfaceLoss::Suspended);
   fixture.cx.clear();
 

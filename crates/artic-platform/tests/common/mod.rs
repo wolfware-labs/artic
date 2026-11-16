@@ -242,9 +242,10 @@ pub struct Context {
 }
 
 impl Context {
-  /// Forgets the frames asked for so far.
+  /// Forgets the frames asked for and the accessibility updates handed over so far.
   pub fn clear(&mut self) {
     self.frames.clear();
+    self.accessibility_updates.clear();
   }
 }
 
