@@ -4,6 +4,7 @@ use crate::accessibility::{Access, Activation, NoActions, Started, Stopped, Upda
 use crate::driver::{self, Driver, Loop, Monitor};
 use crate::error::Error;
 use crate::window::{Step, attributes};
+use accesskit::TreeUpdate;
 use accesskit_winit::Adapter;
 use artic_platform::{AppHandler, Waker, WindowDesc};
 use artic_render::TargetKind;
@@ -124,7 +125,7 @@ impl Loop for ActiveEventLoop {
 }
 
 impl Updates for Adapter {
-  fn update_if_active(&mut self, updater: impl FnOnce() -> accesskit::TreeUpdate) {
+  fn update_if_active(&mut self, updater: impl FnOnce() -> TreeUpdate) {
     Adapter::update_if_active(self, updater);
   }
 }
