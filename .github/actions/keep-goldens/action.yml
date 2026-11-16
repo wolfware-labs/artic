@@ -1,0 +1,13 @@
+name: Keep the golden diffs
+description: Uploads the `<name>.actual.png` and `<name>.diff.png` that a failed golden comparison leaves beside its golden, as the artifact goldens-<runner OS>. Call it after the tests, when one failed.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/upload-artifact@v7
+      with:
+        name: goldens-${{ runner.os }}
+        path: |
+          crates/*/tests/goldens/*.actual.png
+          crates/*/tests/goldens/*.diff.png
+        if-no-files-found: ignore

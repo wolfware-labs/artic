@@ -40,7 +40,7 @@ The required status checks for `main` are `Test (windows-latest)`, `Test (macos-
 
 ## Golden images
 
-Rendering tests compare an image against a PNG checked in beside the test. On a mismatch, `<name>.actual.png` and `<name>.diff.png` land beside the golden, and CI keeps them as an artifact of the failed job (`goldens-ubuntu`, `goldens-windows` or `goldens-macos`). When a change to rendering is intended, write the new goldens with `ARTIC_UPDATE_GOLDENS=1 cargo test --workspace` on a machine with a GPU or lavapipe, review the PNGs in the pull request, and commit them. One set of goldens serves all three platforms, and the tests draw text with the fonts in `artic-test-fonts`, not the system's, so a golden that passes on one platform and fails on another shows a renderer difference: look at that job's diff before writing anything.
+Rendering tests compare an image against a PNG checked in beside the test. On a mismatch, `<name>.actual.png` and `<name>.diff.png` land beside the golden, and CI keeps them as an artifact of the failed job (`goldens-Linux`, `goldens-Windows` or `goldens-macOS`). When a change to rendering is intended, write the new goldens with `ARTIC_UPDATE_GOLDENS=1 cargo test --workspace` on a machine with a GPU or lavapipe, review the PNGs in the pull request, and commit them. One set of goldens serves all three platforms, and the tests draw text with the fonts in `artic-test-fonts`, not the system's, so a golden that passes on one platform and fails on another shows a renderer difference: look at that job's diff before writing anything.
 
 ## Snapshot tests
 
