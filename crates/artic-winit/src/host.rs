@@ -23,7 +23,9 @@ use winit::window::{Window, WindowId};
 /// Wayland), through `winit`.
 ///
 /// It lends each window to the renderer as native handles
-/// ([`TargetKind::Handles`]) and has the [`Windows`](artic_platform::Windows) capability.
+/// ([`TargetKind::Handles`]) and has the [`Windows`](artic_platform::Windows) and
+/// [`Accessibility`](artic_platform::Accessibility) capabilities: each window has an `accesskit`
+/// adapter, which hands its tree to UI Automation, NSAccessibility or AT-SPI.
 pub struct Host {
   event_loop: EventLoop<()>,
 }
