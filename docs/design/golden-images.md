@@ -126,7 +126,7 @@ The tests share one renderer, as `pixels.rs` does; the sample leaves that out.
 The variable is ours rather than the `CI` most CI services set, because a CI machine without a GPU is normal today: GitHub's Windows runners have only WARP, and its Ubuntu runners no adapter. This design changes #53's plan, which ran Windows goldens on WARP:
 
 - Ubuntu installs lavapipe and sets `ARTIC_REQUIRE_GPU=1`. Its test job and the mutants jobs do this today, through `.github/actions/setup-lavapipe`.
-- Windows installs Mesa's lavapipe for Windows (mesa-dist-win) and sets `WGPU_BACKEND=vulkan`, which `artic-vello` already reads through `Backends::from_env` in place of its DX12 default, and `ARTIC_REQUIRE_GPU=1`. If vello can't run on lavapipe there, #53 drops Windows from its golden jobs and says so in its acceptance, rather than keeping a job that skips every golden and passes.
+- Windows installs Mesa's lavapipe for Windows (mesa-dist-win) and sets `WGPU_BACKEND=vulkan`, which `artic-vello` already reads through `Backends::from_env` in place of its DX12 default, `WGPU_ADAPTER_NAME=llvmpipe` and `ARTIC_REQUIRE_GPU=1`. If vello can't run on lavapipe there, #53 drops Windows from its golden jobs and says so in its acceptance, rather than keeping a job that skips every golden and passes.
 - macOS sets `ARTIC_REQUIRE_GPU=1`; GitHub's macOS runners have a Metal device.
 
 ## 4. The primitive goldens
@@ -152,7 +152,6 @@ The exact pixel tests in `artic-vello/tests/pixels.rs` stay. They check rules a 
 
 | Feature | How it fits | Tracked in |
 | --- | --- | --- |
-| A CI job that runs the goldens on lavapipe, and uploads `.actual.png` and `.diff.png` | it sets `ARTIC_REQUIRE_GPU=1` and, from the workspace root, uploads `crates/*/tests/goldens/*.actual.png` and `crates/*/tests/goldens/*.diff.png`, since each crate keeps its own goldens. Wayland is covered by #53's separate smoke job, since goldens draw into memory, not on a window | #53 |
 | Control goldens | `render_tree` with the control's tree | #45, #46, #47 |
 | Theme state goldens | the same, once per state | #121 |
 | Text goldens | shared, since the bundled test font draws the same on every system; `per_os` waits for a golden drawn with system fonts | #37, #46 |

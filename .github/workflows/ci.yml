@@ -106,6 +106,63 @@ jobs:
         run: cargo test -p artic --all-features
       - name: Test the registry without literals
         run: cargo test -p artic-registry
+      - name: Keep the golden diffs
+        if: failure()
+        uses: ./.github/actions/keep-goldens
+      # A window opens under X11 (the Xvfb above) and under Wayland (weston below); smoke's log must
+      # name the display server and frames' the adapter, rather than leaving them to winit's and
+      # wgpu's choice.
+      - name: Smoke on X11
+        shell: bash
+        run: |
+          cargo run -p artic-examples --example smoke | tee "$RUNNER_TEMP/smoke-x11.log"
+          grep -q "display server: X11" "$RUNNER_TEMP/smoke-x11.log"
+        timeout-minutes: 5
+        env:
+          ARTIC_SMOKE_FRAMES: "60"
+          WAYLAND_DISPLAY: ""
+      - name: Idle on X11
+        shell: bash
+        run: |
+          cargo run -p artic-examples --example frames | tee "$RUNNER_TEMP/frames-x11.log"
+          grep -q "llvmpipe" "$RUNNER_TEMP/frames-x11.log"
+        timeout-minutes: 5
+        env:
+          WAYLAND_DISPLAY: ""
+      - name: Hello on X11
+        run: cargo run -p artic-examples --example hello
+        timeout-minutes: 5
+        env:
+          ARTIC_HELLO_SECONDS: "3"
+          WAYLAND_DISPLAY: ""
+      - id: wayland
+        uses: ./.github/actions/setup-wayland
+      - name: Smoke on Wayland
+        shell: bash
+        run: |
+          cargo run -p artic-examples --example smoke | tee "$RUNNER_TEMP/smoke-wayland.log"
+          grep -q "display server: Wayland" "$RUNNER_TEMP/smoke-wayland.log"
+        timeout-minutes: 5
+        env:
+          ARTIC_SMOKE_FRAMES: "60"
+          DISPLAY: ""
+          WAYLAND_DISPLAY: ${{ steps.wayland.outputs.socket }}
+      - name: Idle on Wayland
+        shell: bash
+        run: |
+          cargo run -p artic-examples --example frames | tee "$RUNNER_TEMP/frames-wayland.log"
+          grep -q "llvmpipe" "$RUNNER_TEMP/frames-wayland.log"
+        timeout-minutes: 5
+        env:
+          DISPLAY: ""
+          WAYLAND_DISPLAY: ${{ steps.wayland.outputs.socket }}
+      - name: Hello on Wayland
+        run: cargo run -p artic-examples --example hello
+        timeout-minutes: 5
+        env:
+          ARTIC_HELLO_SECONDS: "3"
+          DISPLAY: ""
+          WAYLAND_DISPLAY: ${{ steps.wayland.outputs.socket }}
 
   coverage:
     name: Coverage
@@ -290,13 +347,25 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: windows-latest
+    # The runners' only GPU adapter is WARP, on DX12, which vello refuses, so the goldens and the
+    # examples render on lavapipe, the same CPU Vulkan driver as on Linux.
+    env:
+      WGPU_BACKEND: vulkan
+      WGPU_ADAPTER_NAME: llvmpipe
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-rust
+      - uses: ./.github/actions/setup-lavapipe
       - name: Build
         run: cargo build --workspace --all-targets
       - name: Test
         run: cargo test --workspace
+        timeout-minutes: 30
+        env:
+          ARTIC_REQUIRE_GPU: "1"
+      - name: Keep the golden diffs
+        if: failure()
+        uses: ./.github/actions/keep-goldens
       - name: Smoke
         run: cargo run -p artic-examples --example smoke
         timeout-minutes: 5
@@ -305,6 +374,11 @@ jobs:
       - name: Idle
         run: cargo run -p artic-examples --example frames
         timeout-minutes: 5
+      - name: Hello
+        run: cargo run -p artic-examples --example hello
+        timeout-minutes: 5
+        env:
+          ARTIC_HELLO_SECONDS: "3"
 
   test-macos:
     name: Test (macos-latest)
@@ -316,8 +390,15 @@ jobs:
       - uses: ./.github/actions/setup-rust
       - name: Build
         run: cargo build --workspace --all-targets
+      # The runners have a Metal adapter, so the goldens run instead of skipping.
       - name: Test
         run: cargo test --workspace
+        timeout-minutes: 30
+        env:
+          ARTIC_REQUIRE_GPU: "1"
+      - name: Keep the golden diffs
+        if: failure()
+        uses: ./.github/actions/keep-goldens
       - name: Smoke
         run: cargo run -p artic-examples --example smoke
         timeout-minutes: 5
@@ -326,7 +407,6 @@ jobs:
       - name: Idle
         run: cargo run -p artic-examples --example frames
         timeout-minutes: 5
-      # Windows' runners have only WARP, where vello refuses to start, and Ubuntu's have no display.
       - name: Hello
         run: cargo run -p artic-examples --example hello
         timeout-minutes: 5

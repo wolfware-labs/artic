@@ -277,9 +277,11 @@ impl artic_render::Renderer for Renderer {
 
 impl std::fmt::Debug for Renderer {
   fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    let info = self.adapter.get_info();
     formatter
       .debug_struct("Renderer")
-      .field("adapter", &self.adapter.get_info().name)
+      .field("adapter", &info.name)
+      .field("backend", &info.backend)
       .field("surfaces", &self.swapchains.len())
       .finish_non_exhaustive()
   }

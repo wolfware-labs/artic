@@ -1,7 +1,8 @@
 // Opens one empty window through the artic-winit host, asks for a frame after each frame, and
 // exits after `ARTIC_SMOKE_FRAMES` frames, or when the window is closed if the variable isn't set.
 // A window lost before that many frames, such as one that couldn't be created, exits with code 1.
-// It draws nothing; the `frames` example draws through the frame pipeline.
+// Its first frame prints the display server the window is on, so CI can check which it got. It draws
+// nothing; the `frames` example draws through the frame pipeline.
 //
 // Run with `ARTIC_SMOKE_FRAMES=120 cargo run -p artic-examples --example smoke`.
 
@@ -9,7 +10,8 @@ use artic_examples::Report;
 use artic_platform::{
   AppHandler, Axes, Chrome, Host as _, HostContext, HostEvent, LogicalSize, SurfaceInfo, SurfaceLoss, Waker, WindowDesc,
 };
-use artic_render::{SurfaceId, Target};
+use artic_render::{RawHandles, SurfaceId, Target};
+use raw_window_handle::RawDisplayHandle;
 use std::time::Duration;
 
 fn main() -> Result<(), Report> {
@@ -73,12 +75,29 @@ impl AppHandler for Smoke {
     }
   }
 
-  fn frame(&mut self, cx: &mut dyn HostContext, surface: SurfaceId, _target: Target<'_>, _time: Duration) {
+  fn frame(&mut self, cx: &mut dyn HostContext, surface: SurfaceId, target: Target<'_>, _time: Duration) {
     self.frames += 1;
+    if self.frames == 1
+      && let Target::Handles(handles) = target
+    {
+      println!("display server: {}", display_server(handles));
+    }
     if self.limit.is_some_and(|limit| self.frames >= limit) {
       cx.exit();
     } else {
       cx.request_frame(surface);
     }
+  }
+}
+
+/// The display server a window's handles are for.
+fn display_server(handles: &dyn RawHandles) -> &'static str {
+  match handles.display_handle().map(|handle| handle.as_raw()) {
+    Ok(RawDisplayHandle::Wayland(_)) => "Wayland",
+    Ok(RawDisplayHandle::Xlib(_) | RawDisplayHandle::Xcb(_)) => "X11",
+    Ok(RawDisplayHandle::Windows(_)) => "Windows",
+    Ok(RawDisplayHandle::AppKit(_)) => "AppKit",
+    Ok(_) => "another",
+    Err(_) => "unavailable",
   }
 }

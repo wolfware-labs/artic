@@ -1,0 +1,30 @@
+name: Set up Wayland
+description: Starts weston with its headless backend, a Wayland compositor with no screen, so a window can open under Wayland on a runner. Clients find it with WAYLAND_DISPLAY set to the socket output.
+
+outputs:
+  socket:
+    description: The compositor's socket name, for WAYLAND_DISPLAY.
+    value: ${{ steps.weston.outputs.socket }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install weston
+      shell: bash
+      run: |
+        sudo apt-get update -q
+        sudo apt-get install -y -q --no-install-recommends weston libwayland-client0 libwayland-cursor0 libxkbcommon0
+    # Runners set no XDG_RUNTIME_DIR, where Wayland sockets live. The pixman renderer draws on the
+    # CPU, so the compositor needs no GPU; clients still render through lavapipe and hand it buffers.
+    - name: Start weston
+      id: weston
+      shell: bash
+      run: |
+        runtime="$RUNNER_TEMP/wayland" socket=wayland-artic
+        mkdir -m 700 "$runtime"
+        XDG_RUNTIME_DIR="$runtime" weston --backend=headless --renderer=pixman --socket="$socket" \
+          --idle-time=0 > "$RUNNER_TEMP/weston.log" 2>&1 &
+        for _ in $(seq 100); do [ -S "$runtime/$socket" ] && break; sleep 0.1; done
+        [ -S "$runtime/$socket" ] || { cat "$RUNNER_TEMP/weston.log"; exit 1; }
+        echo "XDG_RUNTIME_DIR=$runtime" >> "$GITHUB_ENV"
+        echo "socket=$socket" >> "$GITHUB_OUTPUT"
