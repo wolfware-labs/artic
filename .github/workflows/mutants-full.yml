@@ -1,6 +1,6 @@
 name: Full mutants
 
-# Mutates the whole workspace, where CI mutates only the lines a pull request changes. A mutant
+# Mutates the whole workspace, where petri mutates only the lines a pull request changes. A mutant
 # that survives is code no test checks: the run fails, so GitHub reports it, and the Survivors job
 # lists every one by crate on the run's summary page. It isn't a required check: it measures the
 # code already merged, which pull requests can't fix one line at a time.
@@ -39,7 +39,6 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-mutants
-      # The same action as the pull request check, over every file.
       - name: Mutate the workspace
         uses: ./.github/actions/mutate
         with:

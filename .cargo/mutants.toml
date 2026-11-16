@@ -1,4 +1,4 @@
-# cargo-mutants: CI mutates the lines a pull request changes, and every mutant must make a test
+# cargo-mutants: petri mutates the lines a pull request changes, and every mutant must make a test
 # fail or stop the build. A mutant that survives marks code no test checks.
 
 # Much of artic is tested from the crates above the one that holds the code, such as layout
