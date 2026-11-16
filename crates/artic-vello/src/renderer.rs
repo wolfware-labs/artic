@@ -280,6 +280,7 @@ impl std::fmt::Debug for Renderer {
     formatter
       .debug_struct("Renderer")
       .field("adapter", &self.adapter.get_info().name)
+      .field("backend", &self.adapter.get_info().backend)
       .field("surfaces", &self.swapchains.len())
       .finish_non_exhaustive()
   }

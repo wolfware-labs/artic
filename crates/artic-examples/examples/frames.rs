@@ -130,7 +130,10 @@ impl Renderer for Blank {
 
 fn main() -> Result<(), Report> {
   match artic_vello::Renderer::new() {
-    Ok(renderer) => check(renderer),
+    Ok(renderer) => {
+      println!("{renderer:?}");
+      check(renderer)
+    }
     Err(error @ artic_vello::Error::UnsupportedAdapter(_)) => {
       println!("{}: drawing nothing", Chain(&error));
       check(Blank)

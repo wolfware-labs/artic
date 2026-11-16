@@ -22,6 +22,7 @@ fn main() -> Result<(), Report> {
   let value = std::env::var_os(SECONDS_VARIABLE).map(|value| value.to_string_lossy().into_owned());
   let limit = seconds(value.as_deref())?;
   let (host, renderer) = (artic_winit::Host::new()?, artic_vello::Renderer::new()?);
+  println!("{renderer:?}");
   if let Some(after) = limit {
     std::thread::spawn(move || {
       std::thread::sleep(after);
