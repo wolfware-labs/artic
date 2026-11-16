@@ -25,7 +25,7 @@ CI runs these on every pull request. Run them locally before pushing:
 | Formatting | `cargo fmt --all --check` | Lint |
 | Lints | `cargo clippy --workspace --all-targets -- -D warnings` | Lint |
 | Facade features | `cargo test -p artic --all-features` | Test (Ubuntu) |
-| Host examples | `cargo run -p artic-examples --example smoke` (with `ARTIC_SMOKE_FRAMES=60`) and `--example frames` | Test (Windows, macOS) |
+| Host examples | `cargo run -p artic-examples --example smoke` (with `ARTIC_SMOKE_FRAMES=60`), `--example frames` and `--example hello` (with `ARTIC_HELLO_SECONDS=3`) | Test (Windows, macOS, Ubuntu: under X11 and Wayland) |
 | Layering | `cargo test -p docs-check --test layers` and `cargo deny check bans` | Docs, Test, Deny |
 | UI-language neutral | `scripts/check-ui-neutral.sh` | Lint |
 | Docs | `cargo doc --workspace --no-deps --exclude docs-check` with `RUSTDOCFLAGS=-D warnings` | Docs |
@@ -36,7 +36,11 @@ CI runs these on every pull request. Run them locally before pushing:
 
 On Windows PowerShell, set the docs flag with `$env:RUSTDOCFLAGS="-D warnings"` before running `cargo doc`.
 
-The required status checks for `main` are `Test (windows-latest)`, `Test (macos-latest)`, `Test (ubuntu-latest)`, `Lint`, `Docs`, `Deny`, `Mutants` and `Socket Security: Pull Request Alerts`. Socket checks the dependencies a pull request adds or changes for known vulnerabilities and supply-chain risks. `Mutants` mutates the lines a pull request changes and fails when a mutant survives, that is when no test fails with it; a mutant that makes the tests hang is listed and passes. The Ubuntu job's `Test` step and the mutants jobs run on lavapipe, a Vulkan driver on the CPU, and Xvfb, a virtual X server, with `ARTIC_REQUIRE_GPU=1` and `ARTIC_REQUIRE_DISPLAY=1`, so the goldens and the window test run there instead of skipping.
+The required status checks for `main` are `Test (windows-latest)`, `Test (macos-latest)`, `Test (ubuntu-latest)`, `Lint`, `Docs`, `Deny`, `Mutants` and `Socket Security: Pull Request Alerts`. Socket checks the dependencies a pull request adds or changes for known vulnerabilities and supply-chain risks. `Mutants` mutates the lines a pull request changes and fails when a mutant survives, that is when no test fails with it; a mutant that makes the tests hang is listed and passes. The Ubuntu job's `Test` step and the mutants jobs run on lavapipe, a Vulkan driver on the CPU, and Xvfb, a virtual X server, with `ARTIC_REQUIRE_GPU=1` and `ARTIC_REQUIRE_DISPLAY=1`, so the goldens and the window test run there instead of skipping. The Windows job runs the goldens on lavapipe too, from Mesa's Windows build, since vello refuses the runners' WARP adapter; the macOS job runs them on the runners' Metal adapter. On Ubuntu the host examples run under Xvfb and again under weston, a Wayland compositor with no screen, and each run's log names the display server and the GPU adapter it got.
+
+## Golden images
+
+Rendering tests compare an image against a PNG checked in beside the test. On a mismatch, `<name>.actual.png` and `<name>.diff.png` land beside the golden, and CI keeps them as an artifact of the failed job (`goldens-ubuntu`, `goldens-windows` or `goldens-macos`). When a change to rendering is intended, write the new goldens with `ARTIC_UPDATE_GOLDENS=1 cargo test --workspace` on a machine with a GPU or lavapipe, review the PNGs in the pull request, and commit them. One set of goldens serves all three platforms, and the tests draw text with the fonts in `artic-test-fonts`, not the system's, so a golden that passes on one platform and fails on another shows a renderer difference: look at that job's diff before writing anything.
 
 ## Snapshot tests
 

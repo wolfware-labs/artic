@@ -1,11 +1,28 @@
 name: Set up lavapipe
-description: Installs Mesa's lavapipe, a Vulkan driver that runs on the CPU, so wgpu finds an adapter on a runner without a GPU.
+description: Installs Mesa's lavapipe, a Vulkan driver that runs on the CPU, so wgpu finds an adapter on a runner without a GPU. On Windows it comes from mesa-dist-win; pick it with WGPU_ADAPTER_NAME=llvmpipe, since the runner's only other adapter is WARP, which vello refuses.
 
 runs:
   using: composite
   steps:
     - name: Install lavapipe
+      if: runner.os == 'Linux'
       shell: bash
       run: |
         sudo apt-get update -q
         sudo apt-get install -y -q --no-install-recommends mesa-vulkan-drivers libvulkan1
+    # The release's SHA-256 is GitHub's digest for the asset; bump both together.
+    - name: Install lavapipe
+      if: runner.os == 'Windows'
+      shell: bash
+      env:
+        MESA_VERSION: "26.2.6"
+        MESA_SHA256: b2e00615feaba45942343c265cc8c5f576142ca682c1ac6661922d4b72492877
+      run: |
+        archive="$RUNNER_TEMP/mesa.7z"
+        curl -fsSL --retry 5 -o "$archive" \
+          "https://github.com/pal1000/mesa-dist-win/releases/download/$MESA_VERSION/mesa3d-$MESA_VERSION-release-msvc.7z"
+        echo "$MESA_SHA256  $archive" | sha256sum -c -
+        mesa="$RUNNER_TEMP/mesa"
+        7z e "$archive" -o"$mesa" 'x64/vulkan_lvp.dll' 'x64/lvp_icd.x86_64.json' > /dev/null
+        [ -f /c/Windows/System32/vulkan-1.dll ] || { echo "no Vulkan loader (vulkan-1.dll) on the runner"; exit 1; }
+        echo "VK_DRIVER_FILES=$(cygpath --windows "$mesa/lvp_icd.x86_64.json")" >> "$GITHUB_ENV"
