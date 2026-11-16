@@ -9,6 +9,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+accesskit.workspace = true
+accesskit_winit.workspace = true
 artic-platform.workspace = true
 artic-render.workspace = true
 thiserror.workspace = true

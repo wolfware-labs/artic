@@ -6,6 +6,14 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
+# zbus folded these crates into itself (https://github.com/z-galaxy/zbus/issues/2043). They come only
+# through accesskit_unix 0.24, the Linux screen reader backend of accesskit_winit, on zbus 5, and no
+# accesskit_unix on the merged zbus exists yet. Drop these once one does.
+ignore = [
+    { id = "RUSTSEC-2026-0370", reason = "zvariant, folded into zbus; only through accesskit_unix" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names, folded into zbus; only through accesskit_unix" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive, folded into zbus; only through accesskit_unix" },
+]
 
 [licenses]
 version = 2
@@ -31,10 +39,11 @@ exceptions = [{ crate = "artic-test-fonts", allow = ["OFL-1.1"] }]
 multiple-versions = "warn"
 wildcards = "deny"
 allow-wildcard-paths = true
-# The backends stay in their adapters (docs/architecture.md): only artic-winit reaches winit, only
-# artic-vello reaches vello, and wgpu arrives through vello.
+# The backends stay in their adapters (docs/architecture.md): only artic-winit reaches winit (with
+# accesskit_winit, the accessibility adapter it uses), only artic-vello reaches vello, and wgpu
+# arrives through vello.
 deny = [
-    { crate = "winit", wrappers = ["artic-winit"] },
+    { crate = "winit", wrappers = ["artic-winit", "accesskit_winit"] },
     { crate = "vello", wrappers = ["artic-vello"] },
     { crate = "wgpu", wrappers = ["vello"] },
 ]

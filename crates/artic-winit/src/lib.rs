@@ -4,6 +4,7 @@
 //! `artic_platform::run` with a `Runner`. It implements `artic_platform::Host`, and no `winit`
 //! type appears in its public items. The design is `docs/design/host.md`.
 
+mod accessibility;
 mod displays;
 mod driver;
 mod error;

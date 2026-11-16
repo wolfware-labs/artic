@@ -1,10 +1,12 @@
 //! What the host does with each of winit's callbacks, over an event loop and windows it can fake.
 
+use crate::accessibility::{Access, Updates};
 use crate::displays::Displays;
 use crate::surfaces::Surfaces;
 use crate::translate::{Translated, translate};
 use crate::window::{Step, steps};
-use artic_platform::{AppHandler, HostContext, HostEvent, SurfaceInfo, SurfaceLoss, Waker, WindowDesc, Windows};
+use accesskit::TreeUpdate;
+use artic_platform::{Accessibility, AppHandler, HostContext, HostEvent, SurfaceInfo, SurfaceLoss, Waker, WindowDesc, Windows};
 use artic_render::{PhysicalSize, RawHandles, SurfaceId, Target};
 use std::rc::Rc;
 use std::time::Instant;
@@ -15,8 +17,9 @@ use winit::event::WindowEvent;
 pub(crate) trait Loop {
   type Window: Window;
 
-  /// A new window for `desc`, or `None` if the platform refused it.
-  fn create_window(&self, desc: &WindowDesc) -> Option<Self::Window>;
+  /// A new window for `desc`, or `None` if the platform refused it. Its accessibility handlers wake
+  /// the loop with `waker` when a screen reader starts reading it.
+  fn create_window(&self, desc: &WindowDesc, waker: &Waker) -> Option<Self::Window>;
 
   fn exit(&self);
 }
@@ -25,6 +28,8 @@ pub(crate) trait Loop {
 pub(crate) trait Window: RawHandles {
   type Id: PartialEq + Copy;
   type Monitor: Monitor;
+  /// What the window hands accessibility updates through.
+  type Adapter: Updates;
 
   fn id(&self) -> Self::Id;
 
@@ -38,6 +43,12 @@ pub(crate) trait Window: RawHandles {
 
   /// Makes one change toward a new description.
   fn apply(&self, step: Step);
+
+  /// The window's accessibility: whether a screen reader reads it, and its adapter.
+  fn access(&self) -> &Access<Self::Adapter>;
+
+  /// Passes an event to the window's accessibility adapter, before artic sees it.
+  fn accessibility_event(&self, event: &WindowEvent);
 }
 
 /// A display, as the driver uses it, ordered by the platform's identity for it.
@@ -54,6 +65,8 @@ pub(crate) struct Driver<A, W: Window> {
   opened: Vec<SurfaceId>,
   /// The waker the handler gets when the loop first resumes, and `None` once it has.
   waker: Option<Waker>,
+  /// A clone of it, which each window's accessibility handlers wake the loop with.
+  accessibility_waker: Waker,
   start: Instant,
   suspended: bool,
   exiting: bool,
@@ -67,6 +80,7 @@ impl<A: AppHandler, W: Window> Driver<A, W> {
       surfaces: Surfaces::default(),
       displays: Displays::default(),
       opened: Vec::new(),
+      accessibility_waker: waker.clone(),
       waker: Some(waker),
       start: Instant::now(),
       suspended: false,
@@ -84,6 +98,7 @@ impl<A: AppHandler, W: Window> Driver<A, W> {
       opened,
       suspended,
       exiting,
+      accessibility_waker,
       ..
     } = self;
     let mut cx = Context {
@@ -92,6 +107,7 @@ impl<A: AppHandler, W: Window> Driver<A, W> {
       opened,
       suspended: *suspended,
       exiting,
+      accessibility_waker,
     };
     call(app, &mut cx);
     if !self.reporting {
@@ -197,6 +213,7 @@ impl<A: AppHandler, W: Window> Driver<A, W> {
     let Some(window) = self.surfaces.window(surface).map(Rc::clone) else {
       return;
     };
+    window.accessibility_event(event);
     match translate(event, || window.inner_size()) {
       Translated::Changed { size, scale } => self.refresh(event_loop, surface, Some((size, scale))),
       Translated::Moved => self.refresh(event_loop, surface, None),
@@ -218,8 +235,30 @@ impl<A: AppHandler, W: Window> Driver<A, W> {
     }
   }
 
-  /// A `Waker` fired.
+  /// A `Waker` fired: reports each window a screen reader started reading, then counts it active,
+  /// so artic's first update after the report is the whole tree; then settles the handler.
   pub(crate) fn wake<L: Loop<Window = W>>(&mut self, event_loop: &L) {
+    let requested: Vec<SurfaceId> = self
+      .surfaces
+      .windows()
+      .filter(|(_, window)| window.access().activation().is_requested())
+      .map(|(surface, _)| surface)
+      .collect();
+    for surface in requested {
+      let still_requested = self
+        .surfaces
+        .window(surface)
+        .is_some_and(|window| window.access().activation().is_requested());
+      if !still_requested {
+        continue;
+      }
+      self.call(event_loop, |app, cx| {
+        app.event(cx, HostEvent::AccessibilityRequested { surface })
+      });
+      if let Some(window) = self.surfaces.window(surface) {
+        window.access().activation().activate_if_requested();
+      }
+    }
     self.call(event_loop, |app, cx| app.woken(cx));
   }
 
@@ -241,6 +280,7 @@ struct Context<'a, L: Loop> {
   opened: &'a mut Vec<SurfaceId>,
   suspended: bool,
   exiting: &'a mut bool,
+  accessibility_waker: &'a Waker,
 }
 
 impl<L: Loop> HostContext for Context<'_, L> {
@@ -261,6 +301,25 @@ impl<L: Loop> HostContext for Context<'_, L> {
   fn windows(&mut self) -> Option<&mut dyn Windows> {
     Some(self)
   }
+
+  fn accessibility(&mut self) -> Option<&mut dyn Accessibility> {
+    Some(self)
+  }
+}
+
+impl<L: Loop> Accessibility for Context<'_, L> {
+  fn is_active(&self, surface: SurfaceId) -> bool {
+    self
+      .surfaces
+      .window(surface)
+      .is_some_and(|window| window.access().activation().is_active())
+  }
+
+  fn update(&mut self, surface: SurfaceId, update: TreeUpdate) {
+    if let Some(window) = self.surfaces.window(surface) {
+      window.access().hand_over(update);
+    }
+  }
 }
 
 impl<L: Loop> Windows for Context<'_, L> {
@@ -268,7 +327,7 @@ impl<L: Loop> Windows for Context<'_, L> {
     if *self.exiting {
       return self.surfaces.reserve();
     }
-    match self.event_loop.create_window(desc) {
+    match self.event_loop.create_window(desc, self.accessibility_waker) {
       Some(window) => {
         let surface = self.surfaces.insert(window.id(), Rc::new(window));
         self.surfaces.apply(surface, desc.clone());
@@ -302,9 +361,12 @@ impl<L: Loop> Windows for Context<'_, L> {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::accessibility::Activation;
+  use crate::accessibility::tests::{FakeAdapter, whole};
   use artic_platform::{Axes, Chrome, LogicalSize};
   use pretty_assertions::assert_eq;
   use std::cell::{Cell, RefCell};
+  use std::sync::Arc;
   use std::time::Duration;
   use winit::dpi::PhysicalPosition;
   use winit::raw_window_handle::{DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle};
@@ -318,6 +380,8 @@ mod tests {
     monitor: Cell<Option<u8>>,
     redraws: Cell<usize>,
     steps: RefCell<Vec<Step>>,
+    access: Access<FakeAdapter>,
+    events: Cell<usize>,
   }
 
   /// A window that logs its drop.
@@ -348,6 +412,7 @@ mod tests {
   impl Window for FakeWindow {
     type Id = u32;
     type Monitor = FakeMonitor;
+    type Adapter = FakeAdapter;
 
     fn id(&self) -> u32 {
       self.id
@@ -372,6 +437,14 @@ mod tests {
 
     fn apply(&self, step: Step) {
       self.state.steps.borrow_mut().push(step);
+    }
+
+    fn access(&self) -> &Access<FakeAdapter> {
+      &self.state.access
+    }
+
+    fn accessibility_event(&self, _event: &WindowEvent) {
+      self.state.events.set(self.state.events.get() + 1);
     }
   }
 
@@ -403,7 +476,7 @@ mod tests {
   impl Loop for FakeLoop {
     type Window = FakeWindow;
 
-    fn create_window(&self, _desc: &WindowDesc) -> Option<FakeWindow> {
+    fn create_window(&self, _desc: &WindowDesc, _waker: &Waker) -> Option<FakeWindow> {
       if self.refuse.get() {
         return None;
       }
@@ -413,6 +486,8 @@ mod tests {
         monitor: Cell::new(Some(0)),
         redraws: Cell::new(0),
         steps: RefCell::new(Vec::new()),
+        access: Access::new(FakeAdapter::connected(), Arc::new(Activation::default())),
+        events: Cell::new(0),
       });
       let mut windows = self.windows.borrow_mut();
       windows.push(Rc::clone(&state));
@@ -473,6 +548,7 @@ mod tests {
     fn event(&mut self, cx: &mut dyn HostContext, event: HostEvent) {
       let line = match event {
         HostEvent::CloseRequested { surface } => format!("close {}", surface.get()),
+        HostEvent::AccessibilityRequested { surface } => format!("reader {}", surface.get()),
         other => format!("{other:?}").to_lowercase(),
       };
       self.record(cx, line);
@@ -522,6 +598,22 @@ mod tests {
     driver.resume(&event_loop);
     log.borrow_mut().clear();
     Fixture { driver, event_loop, log }
+  }
+
+  /// A started driver whose app opened `windows` windows and stops the reader of the window at
+  /// `index` once, when `reader 1` is reported.
+  fn stopping(windows: usize, index: usize) -> Fixture<impl FnMut(&str, &mut dyn HostContext)> {
+    let window = Rc::new(RefCell::new(None::<Rc<State>>));
+    let stop = Rc::clone(&window);
+    let fixture = running(windows, move |line, _| {
+      if line == "reader 1"
+        && let Some(state) = stop.borrow_mut().take()
+      {
+        state.access.activation().deactivate();
+      }
+    });
+    *window.borrow_mut() = Some(fixture.event_loop.window(index));
+    fixture
   }
 
   fn desc(title: &str) -> WindowDesc {
@@ -870,5 +962,125 @@ mod tests {
     driver.handle(&event_loop, 7, &WindowEvent::RedrawRequested);
 
     assert_eq!(take(&log), Vec::<String>::new());
+  }
+
+  // A screen reader that starts on a window is reported once the loop wakes, while the window doesn't
+  // count as read yet, and the window counts as read after, by `woken`, which comes last.
+  #[test]
+  fn a_started_reader_is_reported_then_counted() {
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let during = Rc::clone(&seen);
+    let Fixture {
+      mut driver,
+      event_loop,
+      log,
+    } = running(2, move |line, cx| {
+      if line == "reader 2" || line == "woken" {
+        let reading = cx
+          .accessibility()
+          .expect("the driver reads windows")
+          .is_active(SurfaceId::new(2));
+        during.borrow_mut().push(reading);
+      }
+    });
+
+    event_loop.window(1).access.activation().request();
+    driver.wake(&event_loop);
+
+    assert_eq!(take(&log), ["reader 2", "woken"]);
+    assert_eq!(*seen.borrow(), [false, true]);
+    let active = [0, 1].map(|index| event_loop.window(index).access.activation().is_active());
+    assert_eq!(active, [false, true]);
+  }
+
+  // A reader that stops while its start is being reported leaves the window unread, and a later
+  // start is reported again.
+  #[test]
+  fn a_reader_stopped_during_the_report_is_reported_again() {
+    let Fixture {
+      mut driver,
+      event_loop,
+      log,
+    } = stopping(1, 0);
+
+    event_loop.window(0).access.activation().request();
+    driver.wake(&event_loop);
+    let stopped = event_loop.window(0).access.activation().is_active();
+    event_loop.window(0).access.activation().request();
+    driver.wake(&event_loop);
+
+    assert_eq!(stopped, false);
+    assert_eq!(take(&log), ["reader 1", "woken", "reader 1", "woken"]);
+    assert!(event_loop.window(0).access.activation().is_active());
+  }
+
+  // A window the app closes while another window's reader is reported is not reported after its
+  // loss.
+  #[test]
+  fn a_window_closed_during_the_report_is_not_reported() {
+    let Fixture {
+      mut driver,
+      event_loop,
+      log,
+    } = running(2, |line, cx| {
+      if line == "reader 1" {
+        cx.windows().expect("the driver has windows").close(SurfaceId::new(2));
+      }
+    });
+
+    event_loop.window(0).access.activation().request();
+    event_loop.window(1).access.activation().request();
+    driver.wake(&event_loop);
+
+    assert_eq!(take(&log), ["reader 1", "lost 2 Gone", "dropped 2", "woken"]);
+  }
+
+  // A window whose reader stops while another window's reader is reported isn't reported.
+  #[test]
+  fn a_reader_stopped_before_its_report_is_not_reported() {
+    let Fixture {
+      mut driver,
+      event_loop,
+      log,
+    } = stopping(2, 1);
+
+    event_loop.window(0).access.activation().request();
+    event_loop.window(1).access.activation().request();
+    driver.wake(&event_loop);
+
+    assert_eq!(take(&log), ["reader 1", "woken"]);
+  }
+
+  // Every event of a known window reaches its accessibility adapter first, also while suspended.
+  #[test]
+  fn events_reach_the_adapter() {
+    let Fixture {
+      mut driver, event_loop, ..
+    } = running(1, |_, _| {});
+
+    driver.handle(&event_loop, 1, &WindowEvent::Moved(PhysicalPosition::new(1, 2)));
+    driver.suspend(&event_loop);
+    driver.handle(&event_loop, 1, &WindowEvent::RedrawRequested);
+    driver.handle(&event_loop, 7, &WindowEvent::RedrawRequested);
+
+    assert_eq!(event_loop.window(0).events.get(), 2);
+  }
+
+  // An update goes to its window's adapter; one for a surface with no window goes nowhere.
+  #[test]
+  fn updates_reach_their_window() {
+    let Fixture {
+      mut driver, event_loop, ..
+    } = running(1, |line, cx| {
+      if line == "woken" {
+        let accessibility = cx.accessibility().expect("the driver reads windows");
+        accessibility.update(SurfaceId::new(1), whole());
+        accessibility.update(SurfaceId::new(9), whole());
+      }
+    });
+
+    driver.wake(&event_loop);
+
+    assert_eq!(event_loop.window(0).access.adapter.borrow().applied, [whole()]);
   }
 }
