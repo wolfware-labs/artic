@@ -168,7 +168,7 @@ mod tests {
     assert!(!activation.is_requested());
   }
 
-  /// The state as the three questions see it: requested, active.
+  /// The state as the two questions see it: requested, active.
   fn state(activation: &Activation) -> (bool, bool) {
     (activation.is_requested(), activation.is_active())
   }

@@ -40,8 +40,8 @@ multiple-versions = "warn"
 wildcards = "deny"
 allow-wildcard-paths = true
 # The backends stay in their adapters (docs/architecture.md): only artic-winit reaches winit (with
-# accesskit_winit, the accessibility adapter it uses), only
-# artic-vello reaches vello, and wgpu arrives through vello.
+# accesskit_winit, the accessibility adapter it uses), only artic-vello reaches vello, and wgpu
+# arrives through vello.
 deny = [
     { crate = "winit", wrappers = ["artic-winit", "accesskit_winit"] },
     { crate = "vello", wrappers = ["artic-vello"] },

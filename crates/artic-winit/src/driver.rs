@@ -67,7 +67,7 @@ pub(crate) struct Driver<A, W: Window> {
   /// The waker the handler gets when the loop first resumes, and `None` once it has.
   waker: Option<Waker>,
   /// A clone of it, which each window's accessibility handlers wake the loop with.
-  wake: Waker,
+  accessibility_waker: Waker,
   start: Instant,
   suspended: bool,
   exiting: bool,
@@ -81,7 +81,7 @@ impl<A: AppHandler, W: Window> Driver<A, W> {
       surfaces: Surfaces::default(),
       displays: Displays::default(),
       opened: Vec::new(),
-      wake: waker.clone(),
+      accessibility_waker: waker.clone(),
       waker: Some(waker),
       start: Instant::now(),
       suspended: false,
@@ -99,7 +99,7 @@ impl<A: AppHandler, W: Window> Driver<A, W> {
       opened,
       suspended,
       exiting,
-      wake,
+      accessibility_waker,
       ..
     } = self;
     let mut cx = Context {
@@ -108,7 +108,7 @@ impl<A: AppHandler, W: Window> Driver<A, W> {
       opened,
       suspended: *suspended,
       exiting,
-      wake,
+      accessibility_waker,
     };
     call(app, &mut cx);
     if !self.reporting {
@@ -274,7 +274,7 @@ struct Context<'a, L: Loop> {
   opened: &'a mut Vec<SurfaceId>,
   suspended: bool,
   exiting: &'a mut bool,
-  wake: &'a Waker,
+  accessibility_waker: &'a Waker,
 }
 
 impl<L: Loop> HostContext for Context<'_, L> {
@@ -321,7 +321,7 @@ impl<L: Loop> Windows for Context<'_, L> {
     if *self.exiting {
       return self.surfaces.reserve();
     }
-    match self.event_loop.create_window(desc, self.wake) {
+    match self.event_loop.create_window(desc, self.accessibility_waker) {
       Some(window) => {
         let surface = self.surfaces.insert(window.id(), Rc::new(window));
         self.surfaces.apply(surface, desc.clone());
