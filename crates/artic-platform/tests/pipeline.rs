@@ -332,7 +332,7 @@ fn requested_whole_tree_is_sent_again() {
   assert_eq!((again.tree.is_some(), sent(again)), (true, ids(&[root, child.id])));
 }
 
-// The services show the element table and whether an accessibility connection is lent.
+// The services' Debug shows whether an accessibility connection is lent.
 #[test]
 fn services_debug_shows_the_connection() {
   let types = ElementTypes::from_link_time();
@@ -342,7 +342,8 @@ fn services_debug_shows_the_connection() {
   let unlent = format!("{services:?}");
 
   services.accessibility = Some(&mut reader);
+  let lent = format!("{services:?}");
 
   assert!(unlent.contains("accessibility: false"), "{unlent}");
-  assert!(format!("{services:?}").contains("accessibility: true"));
+  assert!(lent.contains("accessibility: true"), "{lent}");
 }
