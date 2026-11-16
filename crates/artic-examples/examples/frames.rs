@@ -2,7 +2,7 @@
 // first frame, and checks that the loop then goes idle: it exits with code 0 once 500 ms pass with no
 // frame after at least two, and with code 1 if frames still come 10 s after the first. Waiting for
 // the quiet rather than judging at a fixed time keeps a slow presenter, such as lavapipe under a
-// headless compositor, from passing for a loop that never stops. The check and the exit run on the
+// headless compositor, from being taken for a loop that never stops. The check and the exit run on the
 // loop's thread, woken every 100 ms by a timer through the host's `Waker`. On WARP, Windows' software
 // adapter (all GitHub's Windows runners have), vello can't run and the renderer refuses to start,
 // so there it draws with a renderer that draws nothing: the check is about when frames run, not
@@ -193,7 +193,7 @@ fn check(renderer: impl Renderer + 'static) -> Result<(), Report> {
   artic_winit::Host::new()?.run(idle)?;
   match quiet.get() {
     Some(true) => Ok(()),
-    Some(false) => Err(io::Error::other("frames ran after the app should have gone idle").into()),
+    Some(false) => Err(io::Error::other("the loop did not go idle by the deadline").into()),
     None => Err(io::Error::other("the loop ended before the check").into()),
   }
 }
