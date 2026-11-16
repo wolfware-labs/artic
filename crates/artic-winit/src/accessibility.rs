@@ -101,7 +101,8 @@ impl<A: Updates> Access<A> {
 /// read. A reader can stop and start again before the adapter takes it: the adapter then waits for a
 /// whole tree, and accesskit panics on one without `tree`. So when the window is no longer `active`
 /// and `update` has no tree, the window hands over a tree of the root alone, the `root` of the last
-/// whole tree it handed over; the whole update artic sends after the new start replaces it.
+/// whole tree it handed over; the whole update artic sends after the new start replaces it. A first
+/// update without `tree`, which accesskit refuses, panics in debug builds.
 fn checked(update: TreeUpdate, active: bool, root: Option<NodeId>) -> TreeUpdate {
   match root {
     Some(root) if !active && update.tree.is_none() => TreeUpdate {
@@ -112,7 +113,7 @@ fn checked(update: TreeUpdate, active: bool, root: Option<NodeId>) -> TreeUpdate
     },
     _ => {
       debug_assert!(
-        root.is_some() || active || update.tree.is_some(),
+        root.is_some() || update.tree.is_some(),
         "a window's first update is the whole tree"
       );
       update
@@ -182,7 +183,7 @@ pub(crate) mod tests {
   }
 
   /// A whole tree rooted at node 1.
-  fn whole() -> TreeUpdate {
+  pub(crate) fn whole() -> TreeUpdate {
     TreeUpdate {
       tree: Some(TreeInfo::new(NodeId(1))),
       ..incremental()
@@ -250,12 +251,15 @@ pub(crate) mod tests {
   // A whole tree goes as it is even when the reader restarted, since the adapter takes it.
   #[test]
   fn whole_tree_is_unchanged() {
-    let whole = TreeUpdate {
-      tree: Some(TreeInfo::new(NodeId(1))),
-      ..incremental()
-    };
+    assert_eq!(checked(whole(), false, Some(NodeId(1))), whole());
+  }
 
-    assert_eq!(checked(whole.clone(), false, Some(NodeId(1))), whole);
+  // A first update without a tree panics in debug builds, even for a window still read.
+  #[test]
+  #[cfg(debug_assertions)]
+  #[should_panic(expected = "a window's first update is the whole tree")]
+  fn first_update_without_a_tree_panics() {
+    checked(incremental(), true, None);
   }
 
   // An incremental update for a reader that restarted becomes the root alone, as a whole tree.

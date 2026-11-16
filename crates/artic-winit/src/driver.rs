@@ -28,6 +28,8 @@ pub(crate) trait Loop {
 pub(crate) trait Window: RawHandles {
   type Id: PartialEq + Copy;
   type Monitor: Monitor;
+  /// What the window hands accessibility updates through.
+  type Adapter: Updates;
 
   fn id(&self) -> Self::Id;
 
@@ -41,9 +43,6 @@ pub(crate) trait Window: RawHandles {
 
   /// Makes one change toward a new description.
   fn apply(&self, step: Step);
-
-  /// What the window hands accessibility updates through.
-  type Adapter: Updates;
 
   /// The window's accessibility: whether a screen reader reads it, and its adapter.
   fn access(&self) -> &Access<Self::Adapter>;
@@ -246,13 +245,11 @@ impl<A: AppHandler, W: Window> Driver<A, W> {
       .map(|(surface, _)| surface)
       .collect();
     for surface in requested {
-      let still_requested = |driver: &Self| {
-        driver
-          .surfaces
-          .window(surface)
-          .is_some_and(|window| window.access().activation().is_requested())
-      };
-      if !still_requested(self) {
+      let still_requested = self
+        .surfaces
+        .window(surface)
+        .is_some_and(|window| window.access().activation().is_requested());
+      if !still_requested {
         continue;
       }
       self.call(event_loop, |app, cx| {
@@ -365,7 +362,7 @@ impl<L: Loop> Windows for Context<'_, L> {
 mod tests {
   use super::*;
   use crate::accessibility::Activation;
-  use crate::accessibility::tests::FakeAdapter;
+  use crate::accessibility::tests::{FakeAdapter, whole};
   use artic_platform::{Axes, Chrome, LogicalSize};
   use pretty_assertions::assert_eq;
   use std::cell::{Cell, RefCell};
@@ -951,16 +948,6 @@ mod tests {
     assert_eq!(take(&log), Vec::<String>::new());
   }
 
-  /// A whole tree of the window's root, with no nodes.
-  fn update() -> TreeUpdate {
-    TreeUpdate {
-      nodes: Vec::new(),
-      tree: Some(accesskit::TreeInfo::new(accesskit::NodeId(1))),
-      tree_id: accesskit::TreeId::ROOT,
-      focus: accesskit::NodeId(1),
-    }
-  }
-
   // A screen reader that starts on a window is reported once the loop wakes, while the window doesn't
   // count as read yet, and the window counts as read after; `woken` comes last.
   #[test]
@@ -1064,13 +1051,13 @@ mod tests {
     } = running(1, |line, cx| {
       if line == "woken" {
         let accessibility = cx.accessibility().expect("the driver reads windows");
-        accessibility.update(SurfaceId::new(1), update());
-        accessibility.update(SurfaceId::new(9), update());
+        accessibility.update(SurfaceId::new(1), whole());
+        accessibility.update(SurfaceId::new(9), whole());
       }
     });
 
     driver.wake(&event_loop);
 
-    assert_eq!(event_loop.window(0).access.adapter.borrow().applied, [update()]);
+    assert_eq!(event_loop.window(0).access.adapter.borrow().applied, [whole()]);
   }
 }
