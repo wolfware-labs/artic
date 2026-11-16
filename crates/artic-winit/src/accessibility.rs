@@ -1,0 +1,224 @@
+//! A window's side of accessibility: whether a screen reader reads it, set by accesskit's handlers,
+//! which may run on another thread, and what an update becomes when the reader restarted meanwhile.
+
+use accesskit::{
+  ActionHandler, ActionRequest, ActivationHandler, DeactivationHandler, Node, NodeId, Role, TreeInfo, TreeUpdate,
+};
+use artic_platform::Waker;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, Ordering};
+
+const INACTIVE: u8 = 0;
+const REQUESTED: u8 = 1;
+const ACTIVE: u8 = 2;
+
+/// One window's accessibility state: `Inactive` until a screen reader starts, `Requested` until the
+/// loop has reported it to artic, then `Active` until the reader stops.
+///
+/// One atomic for the three states, rather than a flag each, so a deactivation that lands between
+/// the report and the move to `Active` leaves the window `Inactive`.
+#[derive(Debug, Default)]
+pub(crate) struct Activation(AtomicU8);
+
+impl Activation {
+  /// A screen reader started reading the window; the loop reports it next.
+  pub(crate) fn request(&self) {
+    self.0.store(REQUESTED, Ordering::Release);
+  }
+
+  /// The screen reader stopped.
+  pub(crate) fn deactivate(&self) {
+    self.0.store(INACTIVE, Ordering::Release);
+  }
+
+  /// Whether a start is waiting to be reported.
+  pub(crate) fn is_requested(&self) -> bool {
+    self.0.load(Ordering::Acquire) == REQUESTED
+  }
+
+  /// Moves a reported start to `Active`, unless the reader stopped since.
+  pub(crate) fn activate_if_requested(&self) {
+    let _ = self
+      .0
+      .compare_exchange(REQUESTED, ACTIVE, Ordering::AcqRel, Ordering::Acquire);
+  }
+
+  /// Whether a screen reader reads the window, counted from the moment the loop reported it.
+  pub(crate) fn is_active(&self) -> bool {
+    self.0.load(Ordering::Acquire) == ACTIVE
+  }
+}
+
+/// The update to hand a window's adapter for `update`, which artic built while the window counted as
+/// read. A reader can stop and start again before the adapter takes it: the adapter then waits for a
+/// whole tree, and accesskit panics on one without `tree`. So when the window is no longer `active`
+/// and `update` has no tree, the window hands over a tree of the root alone, the `root` of the last
+/// whole tree it handed over; the whole update artic sends after the new start replaces it.
+pub(crate) fn checked(update: TreeUpdate, active: bool, root: Option<NodeId>) -> TreeUpdate {
+  match root {
+    Some(root) if !active && update.tree.is_none() => TreeUpdate {
+      nodes: vec![(root, Node::new(Role::Window))],
+      tree: Some(TreeInfo::new(root)),
+      tree_id: update.tree_id,
+      focus: root,
+    },
+    _ => update,
+  }
+}
+
+/// accesskit's call when a screen reader starts: the window waits for artic's whole tree, so it
+/// returns none, marks the window requested and wakes the loop to report it.
+pub(crate) struct Started {
+  pub(crate) activation: Arc<Activation>,
+  pub(crate) waker: Waker,
+}
+
+impl ActivationHandler for Started {
+  fn request_initial_tree(&mut self) -> Option<TreeUpdate> {
+    self.activation.request();
+    self.waker.wake();
+    None
+  }
+}
+
+/// accesskit's call when the screen reader stops.
+pub(crate) struct Stopped(pub(crate) Arc<Activation>);
+
+impl DeactivationHandler for Stopped {
+  fn deactivate_accessibility(&mut self) {
+    self.0.deactivate();
+  }
+}
+
+/// Actions a screen reader asks for; artic takes none yet (#102).
+pub(crate) struct NoActions;
+
+impl ActionHandler for NoActions {
+  fn do_action(&mut self, _request: ActionRequest) {}
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use accesskit::TreeId;
+  use std::sync::atomic::AtomicUsize;
+
+  /// An incremental update of node 7, with the root, 1, focused.
+  fn incremental() -> TreeUpdate {
+    TreeUpdate {
+      nodes: vec![(NodeId(7), Node::new(Role::Label))],
+      tree: None,
+      tree_id: TreeId::ROOT,
+      focus: NodeId(1),
+    }
+  }
+
+  // An update for a window still read goes as it is.
+  #[test]
+  fn update_for_a_read_window_is_unchanged() {
+    assert_eq!(checked(incremental(), true, Some(NodeId(1))), incremental());
+  }
+
+  // A whole tree goes as it is even when the reader restarted, since the adapter takes it.
+  #[test]
+  fn whole_tree_is_unchanged() {
+    let whole = TreeUpdate {
+      tree: Some(TreeInfo::new(NodeId(1))),
+      ..incremental()
+    };
+
+    assert_eq!(checked(whole.clone(), false, Some(NodeId(1))), whole);
+  }
+
+  // An incremental update for a reader that restarted becomes the root alone, as a whole tree.
+  #[test]
+  fn update_after_a_restart_is_the_root_alone() {
+    let checked = checked(incremental(), false, Some(NodeId(1)));
+
+    assert_eq!(
+      checked,
+      TreeUpdate {
+        nodes: vec![(NodeId(1), Node::new(Role::Window))],
+        tree: Some(TreeInfo::new(NodeId(1))),
+        tree_id: TreeId::ROOT,
+        focus: NodeId(1),
+      }
+    );
+  }
+
+  // The handlers mark the window: a start requests it and wakes the loop, returning no tree, and a
+  // stop deactivates it.
+  #[test]
+  fn handlers_mark_the_window() {
+    let activation = Arc::new(Activation::default());
+    let wakes = Arc::new(AtomicUsize::new(0));
+    let woken = Arc::clone(&wakes);
+    let mut started = Started {
+      activation: Arc::clone(&activation),
+      waker: Waker::new(move || {
+        woken.fetch_add(1, Ordering::Relaxed);
+      }),
+    };
+
+    let tree = started.request_initial_tree();
+    let requested = activation.is_requested();
+    Stopped(Arc::clone(&activation)).deactivate_accessibility();
+
+    assert_eq!((tree, requested, wakes.load(Ordering::Relaxed)), (None, true, 1));
+    assert!(!activation.is_requested());
+  }
+
+  /// The state as the three questions see it: requested, active.
+  fn state(activation: &Activation) -> (bool, bool) {
+    (activation.is_requested(), activation.is_active())
+  }
+
+  // A start is requested, not active, until the loop reports it and moves it on.
+  #[test]
+  fn start_is_active_only_after_the_move() {
+    let activation = Activation::default();
+    assert_eq!(state(&activation), (false, false));
+
+    activation.request();
+    let requested = state(&activation);
+    activation.activate_if_requested();
+
+    assert_eq!((requested, state(&activation)), ((true, false), (false, true)));
+  }
+
+  // A stop between the report and the move leaves the window inactive.
+  #[test]
+  fn stop_before_the_move_stays_inactive() {
+    let activation = Activation::default();
+    activation.request();
+
+    activation.deactivate();
+    activation.activate_if_requested();
+
+    assert_eq!(state(&activation), (false, false));
+  }
+
+  // A window that was never started isn't made active by the move.
+  #[test]
+  fn move_without_a_start_does_nothing() {
+    let activation = Activation::default();
+
+    activation.activate_if_requested();
+
+    assert_eq!(state(&activation), (false, false));
+  }
+
+  // A stop ends an active window, and a later start is requested again.
+  #[test]
+  fn restart_is_requested_again() {
+    let activation = Activation::default();
+    activation.request();
+    activation.activate_if_requested();
+
+    activation.deactivate();
+    let stopped = state(&activation);
+    activation.request();
+
+    assert_eq!((stopped, state(&activation)), ((false, false), (true, false)));
+  }
+}

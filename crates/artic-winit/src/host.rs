@@ -1,16 +1,22 @@
 //! The host: winit's event loop, driving an `AppHandler`.
 
+use crate::accessibility::{Activation, NoActions, Started, Stopped, checked};
 use crate::driver::{self, Driver, Loop, Monitor};
 use crate::error::Error;
 use crate::window::{Step, attributes};
+use accesskit::{NodeId, TreeUpdate};
+use accesskit_winit::Adapter;
 use artic_platform::{AppHandler, Waker, WindowDesc};
 use artic_render::TargetKind;
+use std::cell::{Cell, RefCell};
 use std::fmt::{Debug, Formatter};
+use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::monitor::MonitorHandle;
+use winit::raw_window_handle::{DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle};
 use winit::window::{Window, WindowId};
 
 /// The desktop host: windows, frames and the event loop on Windows, macOS and Linux (X11 and
@@ -58,7 +64,7 @@ impl artic_platform::Host for Host {
     let waker = Waker::new(move || {
       let _ = proxy.send_event(());
     });
-    let mut driver = Driver::<_, Window>::new(app, waker);
+    let mut driver = Driver::<_, HostWindow>::new(app, waker);
     self
       .event_loop
       .run_app(&mut driver)
@@ -66,7 +72,7 @@ impl artic_platform::Host for Host {
   }
 }
 
-impl<A: AppHandler> ApplicationHandler for Driver<A, Window> {
+impl<A: AppHandler> ApplicationHandler for Driver<A, HostWindow> {
   fn resumed(&mut self, event_loop: &ActiveEventLoop) {
     self.resume(event_loop);
   }
@@ -93,10 +99,25 @@ impl<A: AppHandler> ApplicationHandler for Driver<A, Window> {
 }
 
 impl Loop for ActiveEventLoop {
-  type Window = Window;
+  type Window = HostWindow;
 
-  fn create_window(&self, desc: &WindowDesc) -> Option<Window> {
-    ActiveEventLoop::create_window(self, attributes(desc)).ok()
+  /// Creates the window hidden, makes its accessibility adapter, then shows it: accesskit needs the
+  /// adapter before the window is first shown.
+  fn create_window(&self, desc: &WindowDesc, waker: &Waker) -> Option<HostWindow> {
+    let window = ActiveEventLoop::create_window(self, attributes(desc).with_visible(false)).ok()?;
+    let activation = Arc::new(Activation::default());
+    let started = Started {
+      activation: Arc::clone(&activation),
+      waker: waker.clone(),
+    };
+    let adapter = Adapter::with_direct_handlers(self, &window, started, NoActions, Stopped(Arc::clone(&activation)));
+    window.set_visible(true);
+    Some(HostWindow {
+      window,
+      adapter: RefCell::new(adapter),
+      activation,
+      root: Cell::new(None),
+    })
   }
 
   fn exit(&self) {
@@ -104,43 +125,86 @@ impl Loop for ActiveEventLoop {
   }
 }
 
-impl driver::Window for Window {
+/// A winit window with its accessibility adapter, whether a screen reader reads it, and the root of
+/// the last whole tree it handed over.
+pub(crate) struct HostWindow {
+  window: Window,
+  adapter: RefCell<Adapter>,
+  activation: Arc<Activation>,
+  root: Cell<Option<NodeId>>,
+}
+
+impl HasWindowHandle for HostWindow {
+  fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+    self.window.window_handle()
+  }
+}
+
+impl HasDisplayHandle for HostWindow {
+  fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+    self.window.display_handle()
+  }
+}
+
+impl driver::Window for HostWindow {
   type Id = WindowId;
   type Monitor = MonitorHandle;
 
   fn id(&self) -> WindowId {
-    Window::id(self)
+    self.window.id()
   }
 
   fn inner_size(&self) -> PhysicalSize<u32> {
-    Window::inner_size(self)
+    self.window.inner_size()
   }
 
   fn scale_factor(&self) -> f64 {
-    Window::scale_factor(self)
+    self.window.scale_factor()
   }
 
   fn current_monitor(&self) -> Option<MonitorHandle> {
-    Window::current_monitor(self)
+    self.window.current_monitor()
   }
 
   fn request_redraw(&self) {
-    Window::request_redraw(self);
+    self.window.request_redraw();
   }
 
   fn apply(&self, step: Step) {
+    let window = &self.window;
     match step {
-      Step::Title(title) => self.set_title(&title),
-      Step::Decorations(decorations) => self.set_decorations(decorations),
+      Step::Title(title) => window.set_title(&title),
+      Step::Decorations(decorations) => window.set_decorations(decorations),
       Step::Size(size) => {
-        let _ = self.request_inner_size(size);
+        let _ = window.request_inner_size(size);
       }
-      Step::Resizable(resizable) => self.set_resizable(resizable),
+      Step::Resizable(resizable) => window.set_resizable(resizable),
       Step::Limits(min, max) => {
-        self.set_min_inner_size(min);
-        self.set_max_inner_size(max);
+        window.set_min_inner_size(min);
+        window.set_max_inner_size(max);
       }
     }
+  }
+
+  fn activation(&self) -> &Activation {
+    &self.activation
+  }
+
+  fn accessibility_event(&self, event: &WindowEvent) {
+    self.adapter.borrow_mut().process_event(&self.window, event);
+  }
+
+  /// Hands `update` over through `update_if_active`, whose closure runs under the lock the
+  /// activation handler takes, and checks there again whether the reader restarted meanwhile.
+  fn hand_over(&self, update: TreeUpdate) {
+    if let Some(tree) = &update.tree {
+      self.root.set(Some(tree.root));
+    }
+    let (activation, root) = (&self.activation, self.root.get());
+    self
+      .adapter
+      .borrow_mut()
+      .update_if_active(|| checked(update, activation.is_active(), root));
   }
 }
 
