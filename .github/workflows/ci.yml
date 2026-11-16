@@ -363,6 +363,8 @@ jobs:
         timeout-minutes: 30
         env:
           ARTIC_REQUIRE_GPU: "1"
+          # The Vulkan loader says which drivers it found and why it skipped any.
+          VK_LOADER_DEBUG: error,warn,driver
       - name: Keep the golden diffs
         if: failure()
         uses: ./.github/actions/keep-goldens

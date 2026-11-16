@@ -1,7 +1,9 @@
 // Draws one surface of an `Application` through the frame pipeline, changes a color once after the
-// first frame, and checks that the loop then goes idle: 1.5 s after the first frame it exits with
-// code 1 if any frame ran in the last 500 ms, and with code 0 otherwise. The check and the exit run
-// on the loop's thread, woken by a timer through the host's `Waker`. On WARP, Windows' software
+// first frame, and checks that the loop then goes idle: it exits with code 0 once 500 ms pass with no
+// frame after at least two, and with code 1 if frames still come 10 s after the first. Waiting for
+// the quiet rather than judging at a fixed time keeps a slow presenter, such as lavapipe under a
+// headless compositor, from passing for a loop that never stops. The check and the exit run on the
+// loop's thread, woken every 100 ms by a timer through the host's `Waker`. On WARP, Windows' software
 // adapter (all GitHub's Windows runners have), vello can't run and the renderer refuses to start,
 // so there it draws with a renderer that draws nothing: the check is about when frames run, not
 // what they show.
@@ -58,7 +60,14 @@ impl Element for Swatch {
 
 artic_element::element_type!(Swatch);
 
-/// Runs `runner` and judges, 1.5 s after the first frame, whether the last 500 ms were quiet.
+/// How long the loop must stay without a frame to count as idle.
+const QUIET: Duration = Duration::from_millis(500);
+/// How long after the first frame the loop may take to go idle.
+const DEADLINE: Duration = Duration::from_secs(10);
+/// How often the timer wakes the loop to check.
+const TICK: Duration = Duration::from_millis(100);
+
+/// Runs `runner` and judges whether the loop goes quiet after its frames.
 struct Idle<R> {
   runner: Runner<R>,
   waker: Option<Waker>,
@@ -74,17 +83,21 @@ impl<R: Renderer> AppHandler for Idle<R> {
 
   fn woken(&mut self, cx: &mut dyn HostContext) {
     self.runner.woken(cx);
-    let Some(first) = self.frames.first().copied() else {
+    let (Some(&first), Some(&last)) = (self.frames.first(), self.frames.last()) else {
       return;
     };
-    if self.quiet.get().is_none() && first.elapsed() >= Duration::from_millis(1500) {
-      let busy = self
-        .frames
-        .iter()
-        .filter(|at| at.duration_since(first) > Duration::from_millis(1000))
-        .count();
-      println!("{} frames, {busy} in the last 500 ms", self.frames.len());
-      self.quiet.set(Some(self.frames.len() >= 2 && busy == 0));
+    if self.quiet.get().is_some() {
+      return;
+    }
+    let quiet = self.frames.len() >= 2 && last.elapsed() >= QUIET;
+    if quiet || first.elapsed() >= DEADLINE {
+      println!(
+        "{} frames over {} ms, the last {} ms ago",
+        self.frames.len(),
+        last.duration_since(first).as_millis(),
+        last.elapsed().as_millis()
+      );
+      self.quiet.set(Some(quiet));
       cx.exit();
     }
   }
@@ -108,8 +121,11 @@ impl<R: Renderer> AppHandler for Idle<R> {
       && let Some(waker) = self.waker.clone()
     {
       std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(1500));
-        waker.wake();
+        let start = Instant::now();
+        while start.elapsed() <= DEADLINE + TICK {
+          std::thread::sleep(TICK);
+          waker.wake();
+        }
       });
     }
   }
