@@ -600,6 +600,22 @@ mod tests {
     Fixture { driver, event_loop, log }
   }
 
+  /// A started driver whose app opened `windows` windows and stops the reader of the window at
+  /// `index` once, when `reader 1` is reported.
+  fn stopping(windows: usize, index: usize) -> Fixture<impl FnMut(&str, &mut dyn HostContext)> {
+    let window = Rc::new(RefCell::new(None::<Rc<State>>));
+    let stop = Rc::clone(&window);
+    let fixture = running(windows, move |line, _| {
+      if line == "reader 1"
+        && let Some(state) = stop.borrow_mut().take()
+      {
+        state.access.activation().deactivate();
+      }
+    });
+    *window.borrow_mut() = Some(fixture.event_loop.window(index));
+    fixture
+  }
+
   fn desc(title: &str) -> WindowDesc {
     WindowDesc {
       title: title.into(),
@@ -981,20 +997,11 @@ mod tests {
   // start is reported again.
   #[test]
   fn a_reader_stopped_during_the_report_is_reported_again() {
-    let window = Rc::new(RefCell::new(None::<Rc<State>>));
-    let stop = Rc::clone(&window);
     let Fixture {
       mut driver,
       event_loop,
       log,
-    } = running(1, move |line, _| {
-      if line == "reader 1"
-        && let Some(state) = stop.borrow_mut().take()
-      {
-        state.access.activation().deactivate();
-      }
-    });
-    *window.borrow_mut() = Some(event_loop.window(0));
+    } = stopping(1, 0);
 
     event_loop.window(0).access.activation().request();
     driver.wake(&event_loop);
@@ -1031,20 +1038,11 @@ mod tests {
   // A window whose reader stops while another window's reader is reported isn't reported.
   #[test]
   fn a_reader_stopped_before_its_report_is_not_reported() {
-    let window = Rc::new(RefCell::new(None::<Rc<State>>));
-    let stop = Rc::clone(&window);
     let Fixture {
       mut driver,
       event_loop,
       log,
-    } = running(2, move |line, _| {
-      if line == "reader 1"
-        && let Some(state) = stop.borrow_mut().take()
-      {
-        state.access.activation().deactivate();
-      }
-    });
-    *window.borrow_mut() = Some(event_loop.window(1));
+    } = stopping(2, 1);
 
     event_loop.window(0).access.activation().request();
     event_loop.window(1).access.activation().request();
