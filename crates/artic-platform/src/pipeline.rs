@@ -1,6 +1,6 @@
-//! One surface's frames: layout, composition and presenting, without a host.
+//! One surface's frames: layout, the accessibility pass, composition and presenting, without a host.
 
-use crate::{Axes, SurfaceInfo};
+use crate::{AccessTree, Accessibility, Axes, SurfaceInfo};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{ElementNodes, ElementTypes};
 use artic_layout::geometry::Size;
@@ -52,35 +52,55 @@ impl Frame {
   }
 }
 
-/// What a frame's layout and composition borrow from the runner: the table it finds a node's
-/// element in, and the text engine layout shapes with. Every surface's pipeline borrows the same
-/// ones, so elements resolve the same way and a font keeps one identity in every window.
+/// What a frame borrows from the runner: the table it finds a node's element in, the text engine
+/// layout shapes with, and the host's accessibility connection. Every surface's pipeline borrows the
+/// same ones, so elements resolve the same way and a font keeps one identity in every window.
+#[non_exhaustive]
 pub struct FrameServices<'a> {
   /// The element table.
   pub types: &'a ElementTypes,
   /// The text engine.
   pub text: &'a mut dyn TextEngine,
+  /// The host's accessibility connection, when it has one; the frame builds no accessibility tree
+  /// without it.
+  pub accessibility: Option<&'a mut dyn Accessibility>,
+}
+
+impl<'a> FrameServices<'a> {
+  /// The services of a frame with no accessibility connection.
+  #[must_use]
+  pub fn new(types: &'a ElementTypes, text: &'a mut dyn TextEngine) -> Self {
+    Self {
+      types,
+      text,
+      accessibility: None,
+    }
+  }
 }
 
 impl Debug for FrameServices<'_> {
-  /// Shows the element table; the engine needn't implement `Debug`.
+  /// Shows the element table and whether a connection is lent; neither the engine nor the
+  /// connection need implement `Debug`.
   fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
     formatter
       .debug_struct("FrameServices")
       .field("types", &self.types)
+      .field("accessibility", &self.accessibility.is_some())
       .finish_non_exhaustive()
   }
 }
 
 /// Draws one surface's frames.
 ///
-/// It keeps the surface's layout results and recorded drawings between frames, so each frame
-/// redoes only what changed, and the last scene it presented, for a redraw the OS asks for. Each
-/// surface has its own, since both caches drop what isn't under the root they last worked on.
+/// It keeps the surface's layout results, recorded drawings and accessibility tree between frames,
+/// so each frame redoes only what changed, and the last scene it presented, for a redraw the OS asks
+/// for. Each surface has its own, since the caches drop what isn't under the root they last worked
+/// on.
 #[derive(Debug, Default)]
 pub struct Pipeline {
   layout: LayoutManager,
   compositor: Compositor,
+  access: AccessTree,
   stale: HashSet<NodeId>,
   last: Option<Scene>,
 }
@@ -92,13 +112,17 @@ impl Pipeline {
     Pipeline::default()
   }
 
-  /// Lays out `root`'s visual subtree in the surface's logical size and composes it.
+  /// Lays out `root`'s visual subtree in the surface's logical size, hands what changed in its
+  /// accessibility tree to the host, and composes it.
   ///
   /// Layout measures only what changed; composition records only render-dirty nodes, the nodes
   /// layout resized since they were last recorded, including while hidden, and those whose layout
-  /// result was set or dropped. On the `content`
-  /// axes, which the surface's content sizes, layout offers `∞`, so the root takes its desired
-  /// size there. Layout shapes text with `services`' engine.
+  /// result was set or dropped. On the `content` axes, which the surface's content sizes, layout
+  /// offers `∞`, so the root takes its desired size there. Layout shapes text with `services`'
+  /// engine. While `services` lends an accessibility connection on which a screen reader reads the
+  /// surface, the pipeline's [`AccessTree`] builds the update and hands it over when it holds
+  /// anything: the whole tree the first time and after
+  /// [`request_full_accessibility`](Self::request_full_accessibility), otherwise only what changed.
   pub fn prepare(
     &mut self,
     tree: &mut UiTree,
@@ -120,11 +144,18 @@ impl Pipeline {
     self.stale.extend(layout.resized);
     self.stale.extend(layout.results);
     self.stale.retain(|node| tree.is_within(TreeKind::Visual, *node, root));
+    let elements = ElementNodes {
+      types: services.types,
+      layout: &self.layout,
+    };
+    if let Some(accessibility) = services.accessibility.as_deref_mut()
+      && accessibility.is_active(surface)
+      && let Some(update) = self.access.update(tree, root, &elements, &self.stale, info.scale)
+    {
+      accessibility.update(surface, update);
+    }
     let mut nodes = PipelineNodes {
-      elements: ElementNodes {
-        types: services.types,
-        layout: &self.layout,
-      },
+      elements,
       stale: &mut self.stale,
     };
     let scene = self.compositor.compose(tree, root, &mut nodes);
@@ -140,6 +171,12 @@ impl Pipeline {
         rendered: false,
       },
     }
+  }
+
+  /// Makes the next accessibility update the whole tree, as a screen reader that starts reading the
+  /// surface needs.
+  pub fn request_full_accessibility(&mut self) {
+    self.access.request_full();
   }
 
   /// Measures `root`'s visual subtree in `available` without arranging it, as before its window

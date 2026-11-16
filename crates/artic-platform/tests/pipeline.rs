@@ -1,19 +1,37 @@
-// The pipeline for one surface, without a host: layout, composition and presenting.
+// The pipeline for one surface, without a host: layout, the accessibility pass, composition and
+// presenting.
 
 mod common;
 
-use artic_core::tree::{TreeKind, UiTree};
+use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{ElementTypes, SizeToContent};
 use artic_layout::geometry::{Size, Transform};
 use artic_platform::{Axes, Frame, FrameServices, FrameStats, Pipeline};
 use artic_render::{Layer, SceneItem, SurfaceId};
-use common::{Counter, Label, Recorder, column, engine, info, label, leaf, pixels, target};
+use common::{Context, Counter, Label, Recorder, column, engine, id, ids, info, label, leaf, pixels, sent, target};
 use pretty_assertions::assert_eq;
 use static_assertions::assert_impl_all;
 
 assert_impl_all!(Frame: Send);
 
 const SURFACE: SurfaceId = SurfaceId::new(1);
+
+/// One frame of `SURFACE`, 64 by 64 at scale 1, lending `reader` as the accessibility connection.
+fn read_frame(pipeline: &mut Pipeline, tree: &mut UiTree, root: NodeId, reader: &mut Context) {
+  let types = ElementTypes::from_link_time();
+  let mut text = engine();
+  let mut services = FrameServices::new(&types, &mut text);
+  services.accessibility = Some(reader);
+  pipeline.prepare(tree, root, SURFACE, &info(64, 64, 1.0), &mut services, Axes::NONE);
+}
+
+/// A host context on which a screen reader reads `surface`.
+fn reading(surface: SurfaceId) -> Context {
+  Context {
+    reading: vec![surface],
+    ..Context::default()
+  }
+}
 
 // A node's own transform applies first, in its own coordinates, and its layout offset after it.
 #[test]
@@ -29,10 +47,7 @@ fn layout_offset_applies_after_render_transform() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &mut FrameServices {
-      types: &ElementTypes::from_link_time(),
-      text: &mut engine(),
-    },
+    &mut FrameServices::new(&ElementTypes::from_link_time(), &mut engine()),
     Axes::NONE,
   );
 
@@ -52,10 +67,7 @@ fn render_cx_has_the_arranged_size() {
     root,
     SURFACE,
     &info(128, 128, 2.0),
-    &mut FrameServices {
-      types: &ElementTypes::from_link_time(),
-      text: &mut engine(),
-    },
+    &mut FrameServices::new(&ElementTypes::from_link_time(), &mut engine()),
     Axes::NONE,
   );
 
@@ -77,10 +89,7 @@ fn first_frame_does_all_the_work() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &mut FrameServices {
-      types: &ElementTypes::from_link_time(),
-      text: &mut engine(),
-    },
+    &mut FrameServices::new(&ElementTypes::from_link_time(), &mut engine()),
     Axes::NONE,
   );
   let stats = pipeline.present(&mut Counter::default(), frame, target(&mut buffer)).unwrap();
@@ -115,10 +124,7 @@ fn redraw_presents_the_last_scene() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &mut FrameServices {
-      types: &ElementTypes::from_link_time(),
-      text: &mut engine(),
-    },
+    &mut FrameServices::new(&ElementTypes::from_link_time(), &mut engine()),
     Axes::NONE,
   );
   pipeline.present(&mut renderer, frame, target(&mut buffer)).unwrap();
@@ -152,10 +158,7 @@ fn failed_present_keeps_no_scene() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &mut FrameServices {
-      types: &ElementTypes::from_link_time(),
-      text: &mut engine(),
-    },
+    &mut FrameServices::new(&ElementTypes::from_link_time(), &mut engine()),
     Axes::NONE,
   );
 
@@ -177,10 +180,7 @@ fn measure_before_open_serves_the_first_frame() {
   let (root, _) = column(&mut tree, &[child.id]);
   let types = ElementTypes::from_link_time();
   let mut text = engine();
-  let mut services = FrameServices {
-    types: &types,
-    text: &mut text,
-  };
+  let mut services = FrameServices::new(&types, &mut text);
   let mut pipeline = Pipeline::new();
 
   let desired = pipeline.measure(&mut tree, root, Size::new(f32::INFINITY, f32::INFINITY), &mut services);
@@ -220,10 +220,7 @@ fn nodes_not_laid_out_are_not_drawn() {
     root,
     SURFACE,
     &info(64, 64, 1.0),
-    &mut FrameServices {
-      types: &ElementTypes::from_link_time(),
-      text: &mut engine(),
-    },
+    &mut FrameServices::new(&ElementTypes::from_link_time(), &mut engine()),
     Axes::NONE,
   );
 
@@ -248,10 +245,7 @@ fn replaced_result_is_recorded_again() {
     root,
     SURFACE,
     &info(256, 64, 1.0),
-    &mut FrameServices {
-      types: &types,
-      text: &mut engine,
-    },
+    &mut FrameServices::new(&types, &mut engine),
     Axes::NONE,
   );
   tree.get_as::<Label>(node).unwrap().drawn.set(None);
@@ -263,10 +257,7 @@ fn replaced_result_is_recorded_again() {
       root,
       SURFACE,
       &info(256, 64, 1.0),
-      &mut FrameServices {
-        types: &types,
-        text: &mut engine,
-      },
+      &mut FrameServices::new(&types, &mut engine),
       Axes::NONE,
     )
     .stats();
@@ -274,4 +265,85 @@ fn replaced_result_is_recorded_again() {
   assert!(stats.recorded >= 1);
   let drawn = tree.get_as::<Label>(node).unwrap().drawn.get();
   assert_eq!(drawn, Some(Size::new(8.0 * 5.0, 16.0)));
+}
+
+// While a screen reader reads the surface, its first frame hands over the whole tree, a frame with
+// nothing changed hands over nothing, and a changed node goes alone.
+#[test]
+fn reader_gets_the_whole_tree_then_only_changes() {
+  let mut tree = UiTree::new();
+  let (node, text) = label(&mut tree, "short");
+  let other = leaf(&mut tree, 10.0);
+  let (root, _) = column(&mut tree, &[node, other.id]);
+  let mut pipeline = Pipeline::new();
+  let mut reader = reading(SURFACE);
+  read_frame(&mut pipeline, &mut tree, root, &mut reader);
+  read_frame(&mut pipeline, &mut tree, root, &mut reader);
+  text.set("words".to_owned());
+
+  read_frame(&mut pipeline, &mut tree, root, &mut reader);
+
+  let [(first_surface, first), (surface, changed)] = &reader.accessibility_updates[..] else {
+    panic!("expected two updates, got {}", reader.accessibility_updates.len());
+  };
+  assert_eq!((*first_surface, *surface), (SURFACE, SURFACE));
+  assert_eq!(first.tree.as_ref().map(|tree| tree.root), Some(id(root)));
+  assert_eq!(sent(first), ids(&[root, node, other.id]));
+  assert_eq!((changed.tree.is_none(), sent(changed)), (true, ids(&[node])));
+}
+
+// A surface no screen reader reads gets no update, and frames drawn meanwhile don't use up the whole
+// tree its reader gets first.
+#[test]
+fn unread_surface_gets_nothing_until_read() {
+  let mut tree = UiTree::new();
+  let child = leaf(&mut tree, 10.0);
+  let (root, _) = column(&mut tree, &[child.id]);
+  let mut pipeline = Pipeline::new();
+  let mut reader = reading(SurfaceId::new(2));
+  read_frame(&mut pipeline, &mut tree, root, &mut reader);
+  assert!(reader.accessibility_updates.is_empty());
+  reader.reading = vec![SURFACE];
+
+  read_frame(&mut pipeline, &mut tree, root, &mut reader);
+
+  let [(_, update)] = &reader.accessibility_updates[..] else {
+    panic!("expected one update, got {}", reader.accessibility_updates.len());
+  };
+  assert_eq!((update.tree.is_some(), sent(update)), (true, ids(&[root, child.id])));
+}
+
+// After a request for the whole tree, the next frame hands it over again, though nothing changed.
+#[test]
+fn requested_whole_tree_is_sent_again() {
+  let mut tree = UiTree::new();
+  let child = leaf(&mut tree, 10.0);
+  let (root, _) = column(&mut tree, &[child.id]);
+  let mut pipeline = Pipeline::new();
+  let mut reader = reading(SURFACE);
+  read_frame(&mut pipeline, &mut tree, root, &mut reader);
+
+  pipeline.request_full_accessibility();
+  read_frame(&mut pipeline, &mut tree, root, &mut reader);
+
+  let [_, (_, again)] = &reader.accessibility_updates[..] else {
+    panic!("expected two updates, got {}", reader.accessibility_updates.len());
+  };
+  assert_eq!((again.tree.is_some(), sent(again)), (true, ids(&[root, child.id])));
+}
+
+// The services' Debug shows whether an accessibility connection is lent.
+#[test]
+fn services_debug_shows_the_connection() {
+  let types = ElementTypes::from_link_time();
+  let mut text = engine();
+  let mut reader = reading(SURFACE);
+  let mut services = FrameServices::new(&types, &mut text);
+  let unlent = format!("{services:?}");
+
+  services.accessibility = Some(&mut reader);
+  let lent = format!("{services:?}");
+
+  assert!(unlent.contains("accessibility: false"), "{unlent}");
+  assert!(lent.contains("accessibility: true"), "{lent}");
 }

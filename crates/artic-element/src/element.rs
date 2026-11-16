@@ -34,11 +34,20 @@ pub trait Element: Object + Layoutable {
   /// The element's accessibility node: its role, name, value, state, bounds and actions.
   fn accessibility(&self, cx: &AccessCx<'_>) -> accesskit::Node;
 
-  /// The element's layers in composition, for its arranged `size`: transform, clip and opacity.
-  /// By default, none.
+  /// The element's layers in composition, for its arranged `size`: transform, opacity, visibility
+  /// and z-index. The clip comes from [`clip`](Self::clip); a clip returned here panics in debug
+  /// builds. By default, none.
   fn layers(&self, size: Size) -> Layers {
     let _ = size;
     Layers::default()
+  }
+
+  /// The clip of the element's descendants, in its own coordinates, for its arranged `size`. Kept
+  /// apart from [`layers`](Self::layers), so what needs only placement and visibility, such as the
+  /// accessibility pass, doesn't build it. By default, none.
+  fn clip(&self, size: Size) -> Option<Shape> {
+    let _ = size;
+    None
   }
 }
 
@@ -67,7 +76,7 @@ pub trait ElementImpl {
   /// Places the children within `size`, in the element's own coordinates. By default, each child
   /// fills it.
   fn arrange_override(&self, cx: &mut ArrangeCx<'_>, size: Size) {
-    cx.arrange_children(Rect::new(0.0, 0.0, size.width, size.height));
+    cx.arrange_children(Rect::from_size(size));
   }
 
   /// Records the control's own drawing. By default, nothing.

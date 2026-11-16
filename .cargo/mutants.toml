@@ -38,7 +38,7 @@ exclude_re = [
     # The generation fills the high 32 bits and the index the low 32, so `^` joins them as `|` does.
     'artic-core/src/arena\.rs:\d+:\d+: replace \| with \^ in SlotId::to_bits$',
     # These trait defaults already return what the mutant writes: nothing, no layers or no clip.
-    'artic-element/src/element\.rs:\d+:\d+: replace (Element::layers -> Layers with Default::default\(\)|ElementImpl::(render|accessibility) with \(\)|ElementImpl::clip -> Option<Shape> with None)$',
+    'artic-element/src/element\.rs:\d+:\d+: replace (Element::layers -> Layers with Default::default\(\)|ElementImpl::(render|accessibility) with \(\)|(Element|ElementImpl)::clip -> Option<Shape> with None)$',
     # winit builds `ScaleFactorChanged` only inside its loop (`InnerSizeWriter` has no public
     # constructor), so no test can send one.
     'artic-winit/src/translate\.rs:\d+:\d+: delete match arm WindowEvent::ScaleFactorChanged\{scale_factor, \.\.\} in translate$',

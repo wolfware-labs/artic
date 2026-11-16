@@ -1,6 +1,8 @@
-// Elements, a renderer and a host context shared by the pipeline, runner and accessibility tests.
+// Elements, a renderer, a host context and accesskit ids shared by the pipeline, runner and
+// accessibility tests.
 #![allow(dead_code, reason = "each test binary uses part of it")]
 
+use accesskit::TreeUpdate;
 use artic_core::Object;
 use artic_core::property::{Affects, Inheritance, Property, PropertyKey, PropertyVisitor};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
@@ -8,7 +10,7 @@ use artic_element::{AccessCx, Application, Element, RenderCx, Surface};
 use artic_layout::geometry::{Rect, Size, Transform};
 use artic_layout::text::{FontFamily, GlyphRun, Line, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
 use artic_layout::{ArrangeCx, Layoutable, MeasureCx};
-use artic_platform::{DisplayId, HostContext, SurfaceInfo, WindowDesc, Windows};
+use artic_platform::{Accessibility, DisplayId, HostContext, SurfaceInfo, WindowDesc, Windows};
 use artic_render::{
   Color, Layers, PhysicalSize, PixelBuffer, PixelFormat, RenderError, Renderer, Scene, SceneBuilder, SurfaceId, SurfaceView,
   Target, TargetKind,
@@ -106,7 +108,7 @@ impl Element for Leaf {
     self.seen.set(Some(cx.size()));
     let color = self.color.get();
     let [_, r, g, b] = color.to_be_bytes();
-    scene.fill(Rect::new(0.0, 0.0, cx.size().width, cx.size().height), Color::rgb(r, g, b));
+    scene.fill(Rect::from_size(cx.size()), Color::rgb(r, g, b));
   }
 
   fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
@@ -225,7 +227,8 @@ impl Renderer for Counter {
   }
 }
 
-/// A host context that logs what the runner asks for and opens windows numbered from 1.
+/// A host context that logs what the runner asks for and opens windows numbered from 1. A screen
+/// reader reads the surfaces in `reading`, and the accessibility updates it is handed are kept.
 #[derive(Debug, Default)]
 pub struct Context {
   pub frames: Vec<SurfaceId>,
@@ -234,12 +237,15 @@ pub struct Context {
   pub updated: Vec<(SurfaceId, WindowDesc)>,
   pub closed: Vec<SurfaceId>,
   pub windowless: bool,
+  pub reading: Vec<SurfaceId>,
+  pub accessibility_updates: Vec<(SurfaceId, TreeUpdate)>,
 }
 
 impl Context {
-  /// Forgets the frames asked for so far.
+  /// Forgets the frames asked for and the accessibility updates handed over so far.
   pub fn clear(&mut self) {
     self.frames.clear();
+    self.accessibility_updates.clear();
   }
 }
 
@@ -254,6 +260,20 @@ impl HostContext for Context {
 
   fn windows(&mut self) -> Option<&mut dyn Windows> {
     if self.windowless { None } else { Some(self) }
+  }
+
+  fn accessibility(&mut self) -> Option<&mut dyn Accessibility> {
+    Some(self)
+  }
+}
+
+impl Accessibility for Context {
+  fn is_active(&self, surface: SurfaceId) -> bool {
+    self.reading.contains(&surface)
+  }
+
+  fn update(&mut self, surface: SurfaceId, update: TreeUpdate) {
+    self.accessibility_updates.push((surface, update));
   }
 }
 
@@ -397,4 +417,23 @@ pub fn label(tree: &mut UiTree, text: &str) -> (NodeId, Property<String>) {
     drawn: Cell::new(None),
   }));
   (id, text)
+}
+
+/// The accesskit id of `node`, written out rather than taken from the pass.
+pub fn id(node: NodeId) -> accesskit::NodeId {
+  accesskit::NodeId(node.to_bits())
+}
+
+/// The ids of the nodes `update` sends, sorted.
+pub fn sent(update: &TreeUpdate) -> Vec<accesskit::NodeId> {
+  let mut ids: Vec<_> = update.nodes.iter().map(|(id, _)| *id).collect();
+  ids.sort();
+  ids
+}
+
+/// The accesskit ids of `nodes`, sorted, to compare with [`sent`].
+pub fn ids(nodes: &[NodeId]) -> Vec<accesskit::NodeId> {
+  let mut ids: Vec<_> = nodes.iter().copied().map(id).collect();
+  ids.sort();
+  ids
 }

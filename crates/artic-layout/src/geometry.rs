@@ -80,6 +80,12 @@ impl Rect {
     Rect { x, y, width, height }
   }
 
+  /// The rectangle of `size` at the origin, as a node covers its own coordinates.
+  #[must_use]
+  pub const fn from_size(size: Size) -> Rect {
+    Rect::new(0.0, 0.0, size.width, size.height)
+  }
+
   /// The top-left corner.
   #[must_use]
   pub const fn origin(self) -> Point {
@@ -973,6 +979,12 @@ mod tests {
     assert_eq!(Size::new(10.0, 10.0) - padding, Size::new(6.0, 4.0));
     assert_eq!(Size::new(3.0, 3.0) - padding, Size::ZERO);
     assert_eq!(Size::INFINITY - padding, Size::INFINITY);
+  }
+
+  // A size becomes the rectangle of that size at the origin.
+  #[test]
+  fn rect_from_size_starts_at_the_origin() {
+    assert_eq!(Rect::from_size(Size::new(3.0, 4.0)), Rect::new(0.0, 0.0, 3.0, 4.0));
   }
 
   // Deflating moves the origin in by the left and top widths and shrinks, stopping at zero.

@@ -13,8 +13,8 @@ use artic_element::{AccessCx, Element, ElementNodes, ElementTypes, RenderCx};
 use artic_layout::geometry::{Rect, Size, Transform};
 use artic_layout::{ArrangeCx, LayoutManager, Layoutable, MeasureCx, PixelGrid};
 use artic_platform::AccessTree;
-use artic_render::{Compositor, Layers, SceneBuilder};
-use common::{column, label, leaf};
+use artic_render::{Compositor, Layers, SceneBuilder, Shape};
+use common::{column, id, ids, label, leaf, sent};
 use pretty_assertions::{assert_eq, assert_ne};
 use std::cell::Cell;
 use std::collections::HashSet;
@@ -99,10 +99,11 @@ impl Element for Shifted {
 
 artic_element::element_type!(Shifted);
 
-/// A 10 by 10 element that counts how often it is asked for its description.
+/// A 10 by 10 element that counts how often it is asked for its description and for its clip.
 #[derive(Debug, Default)]
 struct Counted {
   calls: Cell<u32>,
+  clips: Cell<u32>,
 }
 
 impl Object for Counted {
@@ -123,6 +124,11 @@ impl Element for Counted {
   fn accessibility(&self, cx: &AccessCx<'_>) -> Node {
     self.calls.set(self.calls.get() + 1);
     cx.container()
+  }
+
+  fn clip(&self, _size: Size) -> Option<Shape> {
+    self.clips.set(self.clips.get() + 1);
+    None
   }
 }
 
@@ -208,25 +214,6 @@ impl Window {
     }
     update
   }
-}
-
-/// The accesskit id of `node`, written out here rather than taken from the pass.
-fn id(node: NodeId) -> accesskit::NodeId {
-  accesskit::NodeId(node.to_bits())
-}
-
-/// The ids of the nodes `update` sends, sorted.
-fn sent(update: &TreeUpdate) -> Vec<accesskit::NodeId> {
-  let mut ids: Vec<_> = update.nodes.iter().map(|(id, _)| *id).collect();
-  ids.sort();
-  ids
-}
-
-/// The accesskit ids of `nodes`, sorted, to compare with [`sent`].
-fn ids(nodes: &[NodeId]) -> Vec<accesskit::NodeId> {
-  let mut ids: Vec<_> = nodes.iter().copied().map(id).collect();
-  ids.sort();
-  ids
 }
 
 /// What `update` sends for `node`; panics when it doesn't send it.
@@ -583,4 +570,19 @@ fn unchanged_frame_describes_nothing() {
 
   let calls = window.tree.get_as::<Counted>(root).expect("the root").calls.get();
   assert_eq!(calls, 1);
+}
+
+// The pass places nodes without their clip: in a frame that describes a child, only composition asks
+// for the child's clip.
+#[test]
+fn pass_builds_no_clip() {
+  let mut tree = UiTree::new();
+  let child = tree.alloc(Box::<Counted>::default());
+  let (root, _) = column(&mut tree, &[child]);
+  let mut window = Window::new(tree, root);
+
+  window.frame();
+
+  let counted = window.tree.get_as::<Counted>(child).expect("the child");
+  assert_eq!((counted.calls.get(), counted.clips.get()), (1, 1));
 }

@@ -140,7 +140,11 @@ pub fn expand_struct(mut item: ItemStruct, kind: Option<TokenStream>) -> syn::Re
         }
 
         fn layers(&self, size: __artic::Size) -> __artic::Layers {
-          self.appearance.layers(size, <Self as __artic::ElementImpl>::clip(self, size))
+          self.appearance.layers(size)
+        }
+
+        fn clip(&self, size: __artic::Size) -> ::core::option::Option<__artic::Shape> {
+          <Self as __artic::ElementImpl>::clip(self, size)
         }
       }
 

@@ -136,6 +136,25 @@ fn drain_empties_the_map() {
   );
 }
 
+// clear drops every value, and the map takes new ones after.
+#[test]
+fn clear_empties_the_map() {
+  let mut tree = UiTree::new();
+  let [a, b] = nodes(&mut tree);
+  let mut map = NodeMap::new();
+  map.insert(a, 1);
+  map.insert(b, 2);
+
+  map.clear();
+
+  assert_eq!([map.get(a), map.get(b)], [None, None]);
+  map.insert(b, 3);
+  assert_eq!(
+    map.iter_mut().map(|(node, value)| (node, *value)).collect::<Vec<_>>(),
+    [(b, 3)]
+  );
+}
+
 // is_empty holds until a value goes in, and again once the last one is out.
 #[test]
 fn is_empty_follows_the_values() {

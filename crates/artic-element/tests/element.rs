@@ -54,7 +54,7 @@ impl ElementImpl for Tile {
   }
 
   fn clip(&self, size: Size) -> Option<Shape> {
-    Some(Shape::Rect(Rect::new(0.0, 0.0, size.width, size.height)))
+    Some(Shape::Rect(Rect::from_size(size)))
   }
 }
 
@@ -180,9 +180,10 @@ fn element_hit_test_misses_hidden_element() {
   assert_eq!(Element::hit_test(tile, &cx, Point::new(5.0, 5.0)), HitTestResult::Miss);
 }
 
-// The control's accessibility hook adds to the default node, and its clip reaches the layers.
+// The control's accessibility hook adds to the default node, and its clip reaches `Element::clip`
+// rather than the layers.
 #[test]
-fn control_hooks_add_to_default_node_and_layers() {
+fn control_hooks_add_to_default_node_and_clip() {
   let mut tree = UiTree::new();
   let node = tree.alloc(Box::new(Tile::default()));
   let tile = tree.get_as::<Tile>(node).unwrap();
@@ -190,12 +191,13 @@ fn control_hooks_add_to_default_node_and_layers() {
 
   let built = Element::accessibility(tile, &cx);
   let layers = Element::layers(tile, Size::new(8.0, 4.0));
+  let clip = Element::clip(tile, Size::new(8.0, 4.0));
 
   assert_eq!(
     (built.role(), built.label()),
     (accesskit::Role::GenericContainer, Some("tile"))
   );
-  assert_eq!(layers.clip, Some(Shape::Rect(Rect::new(0.0, 0.0, 8.0, 4.0))));
+  assert_eq!((clip, layers.clip), (Some(Shape::Rect(Rect::new(0.0, 0.0, 8.0, 4.0))), None));
 }
 
 /// A test-only state: how often a control was pressed.

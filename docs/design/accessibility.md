@@ -34,15 +34,15 @@ The accesskit id of a node is `accesskit::NodeId(node.to_bits())`. No side table
 
 Each surface is its own accesskit tree, one per window, and the surface's node is its root. `Surface` already describes itself as `Role::Window` labeled with its `Title` (#48).
 
-A node is in the tree when it is visible: when `ElementNodes::layers` says `visible`, that is, layout placed it and its `Visibility` is `Visible`. A `Hidden` or `Collapsed` node and its whole subtree are left out, as the [element design](element.md) section 7 requires, except the surface node: the tree's root stays, with no children (section 4). A node's accesskit children are its visible visual children, in visual order (`UiTree::children(TreeKind::Visual, node)`).
+A node is in the tree when it is visible: when `ElementNodes::placement`, the node's layers without the clip, says `visible`, that is, layout placed it and its `Visibility` is `Visible`. A `Hidden` or `Collapsed` node and its whole subtree are left out, as the [element design](element.md) section 7 requires, except the surface node: the tree's root stays, with no children (section 4). A node's accesskit children are its visible visual children, in visual order (`UiTree::children(TreeKind::Visual, node)`).
 
-A visual node that is not an element gets default layers from the [frame design](frame.md) and records nothing; it gets a `Role::GenericContainer` node with its size as bounds and, like every node, the transform `ElementNodes::layers` gives it, here its layout offset alone, so its descendants stay where they are drawn.
+A visual node that is not an element gets default layers from the [frame design](frame.md) and records nothing; it gets a `Role::GenericContainer` node with its size as bounds and, like every node, the transform `ElementNodes::placement` gives it, here its layout offset alone, so its descendants stay where they are drawn.
 
 A node describes only itself. `ElementImpl::accessibility` may read the node's own properties and nothing else through `AccessCx::tree()`, because the cache in section 4 notices changes of the node, not of its neighbors. A name made from a child's text is left to accesskit, which computes it from the children; `Accessibility.LabeledBy` (#161) names another node by id and follows the same rule.
 
 accesskit measures a node's `bounds` in the space that the node's own `transform` and its ancestors' transforms combine to; `bounds` itself moves nothing, and with no transform anywhere every node's bounds are in the window's space. So a node is placed by its transform, and its bounds start at its own origin:
 
-- The pass sets each node's `transform` from `ElementNodes::layers`, the transform the compositor draws the node with: its `RenderTransform`, then the offset layout placed it at. It sets none when that is the identity, as accesskit asks. A rotated or scaled control is reported where it is drawn, the geometry is computed in one place, and a change of `RenderTransform`, which affects render, describes the node again.
+- The pass sets each node's `transform` from `ElementNodes::placement`, the transform the compositor draws the node with: its `RenderTransform`, then the offset layout placed it at. It sets none when that is the identity, as accesskit asks. A rotated or scaled control is reported where it is drawn, the geometry is computed in one place, and a change of `RenderTransform`, which affects render, describes the node again.
 - `Interaction::accessibility` sets `bounds` to the node's size at `(0, 0)`. Today it puts the layout rect, in the parent's coordinates, in `bounds`, which places every nested node wrong; this design fixes that.
 - The surface node is also scaled: its transform is its own, then `Affine::scale(info.scale)`, since layout works in logical units and accesskit wants physical pixels from the window's origin. A window moved to a display with another scale can keep its logical rect, so the pass also keeps the scale it built the surface node with and describes that node again when `info.scale` changes.
 
@@ -63,7 +63,7 @@ struct Described {
 }
 
 pub struct AccessTree {
-  described: HashMap<NodeId, Described>,
+  described: NodeMap<Described>,
   root: Option<NodeId>,
   scale: f32,
   full: bool,

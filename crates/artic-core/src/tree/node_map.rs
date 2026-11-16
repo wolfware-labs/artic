@@ -104,6 +104,11 @@ impl<T> NodeMap<T> {
     self.entries.drain(..)
   }
 
+  /// Drops every value, keeping the map's size as it was.
+  pub fn clear(&mut self) {
+    self.drain().for_each(drop);
+  }
+
   pub fn iter_mut(&mut self) -> impl Iterator<Item = (NodeId, &mut T)> {
     self.entries.iter_mut().map(|(node, value)| (*node, value))
   }

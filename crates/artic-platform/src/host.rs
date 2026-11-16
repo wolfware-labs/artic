@@ -78,6 +78,25 @@ pub trait HostContext {
   fn windows(&mut self) -> Option<&mut dyn Windows> {
     None
   }
+
+  /// The connection to the OS accessibility API, on hosts that have one.
+  fn accessibility(&mut self) -> Option<&mut dyn Accessibility> {
+    None
+  }
+}
+
+/// Handing each surface's accessibility tree to the OS, for screen readers.
+pub trait Accessibility {
+  /// Whether a screen reader is reading `surface`, counted from the
+  /// [`AccessibilityRequested`](HostEvent::AccessibilityRequested) the host reported for it, not from
+  /// the moment the reader started: the first update a reader gets must be the whole tree. While it
+  /// isn't, artic builds nothing.
+  fn is_active(&self, surface: SurfaceId) -> bool;
+
+  /// Hands `update` to the OS. The first one after an
+  /// [`AccessibilityRequested`](HostEvent::AccessibilityRequested) is the whole tree; the others hold
+  /// only the nodes that changed.
+  fn update(&mut self, surface: SurfaceId, update: accesskit::TreeUpdate);
 }
 
 /// Opening, updating and closing windows.

@@ -22,6 +22,10 @@
 
 #![deny(unused_crate_dependencies)]
 
+// The integration tests' and benches' dev-dependencies, which the crate's own unit tests don't use.
+#[cfg(test)]
+use {accesskit as _, accesskit_consumer as _, criterion as _};
+
 #[doc(hidden)]
 pub use artic_element::__private;
 

@@ -3,11 +3,11 @@
 
 use accesskit::{Affine, Node, TreeId, TreeInfo, TreeUpdate};
 use artic_core::property::Affects;
-use artic_core::tree::{NodeId, TreeKind, UiTree};
+use artic_core::tree::{NodeId, NodeMap, TreeKind, UiTree};
 use artic_element::{AccessCx, ElementNodes};
 use artic_layout::geometry::{Rect, Transform};
-use artic_render::{Layers, Nodes};
-use std::collections::{HashMap, HashSet};
+use artic_render::Layers;
+use std::collections::HashSet;
 
 /// What the pass last sent for a node, the layout rect it built it with, and the last update whose
 /// walk reached it.
@@ -31,7 +31,7 @@ struct Described {
 /// send the whole tree next.
 #[derive(Debug)]
 pub struct AccessTree {
-  described: HashMap<NodeId, Described>,
+  described: NodeMap<Described>,
   walk: Vec<(NodeId, Layers)>,
   root: Option<NodeId>,
   scale: f32,
@@ -50,7 +50,7 @@ impl AccessTree {
   #[must_use]
   pub fn new() -> Self {
     Self {
-      described: HashMap::new(),
+      described: NodeMap::new(),
       walk: Vec::new(),
       root: None,
       scale: 1.0,
@@ -95,20 +95,20 @@ impl AccessTree {
     let seen = self.updates;
     let mut changed = Vec::new();
     let mut walk = std::mem::take(&mut self.walk);
-    walk.push((root, nodes.layers(tree, root)));
+    walk.push((root, nodes.placement(tree, root)));
     while let Some((node, layers)) = walk.pop() {
       let start = walk.len();
       if node != root || layers.visible {
         walk.extend(
           tree
             .children(TreeKind::Visual, node)
-            .map(|child| (child, nodes.layers(tree, child)))
+            .map(|child| (child, nodes.placement(tree, child)))
             .filter(|(_, layers)| layers.visible),
         );
       }
       let children = &walk[start..];
       let rect = nodes.layout.rect(node);
-      let cached = self.described.get(&node);
+      let cached = self.described.get(node);
       let fresh = cached.is_none_or(|cached| {
         cached.rect != rect || tree.dirty(node).contains(Affects::RENDER) || stale.contains(&node) || (node == root && rescaled)
       });
@@ -130,7 +130,7 @@ impl AccessTree {
           self.described.insert(node, Described { node: next, rect, seen });
         }
         _ => {
-          if let Some(described) = self.described.get_mut(&node) {
+          if let Some(described) = self.described.get_mut(node) {
             described.rect = rect;
             described.seen = seen;
           }

@@ -82,7 +82,7 @@ impl<Q: Copy + Eq> Outside<Q> {
     if self.generation != generation {
       self.generation = generation;
       self.spare.extend(self.roots.drain(..).map(|(_, mut found)| {
-        found.retain(|_, ()| false);
+        found.clear();
         found
       }));
     }

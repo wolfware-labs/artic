@@ -1643,3 +1643,68 @@ fn content_sized_window_measures_text() {
     }
   );
 }
+
+// A screen reader that starts reading gives an idle window a frame, and each such frame hands over
+// the whole tree: the surface, its content and the two leaves.
+#[test]
+fn accessibility_request_draws_the_whole_tree() {
+  let mut fixture = Fixture::new(|_| {});
+  fixture.cx.reading.push(FIRST);
+
+  let mut wholes = Vec::new();
+  for _ in 0..2 {
+    fixture.cx.clear();
+    fixture
+      .runner
+      .event(&mut fixture.cx, HostEvent::AccessibilityRequested { surface: FIRST });
+    assert_eq!(fixture.cx.frames, [FIRST]);
+    fixture.frame();
+    let (surface, update) = fixture.cx.accessibility_updates.pop().expect("an update");
+    wholes.push((surface, update.tree.is_some(), update.nodes.len()));
+  }
+
+  assert_eq!(wholes, [(FIRST, true, 4); 2]);
+}
+
+// A screen reader that starts again on a suspended window asks for no frame; the window's first
+// frame after it comes back hands over the whole tree.
+#[test]
+fn accessibility_request_waits_for_a_suspended_window() {
+  let mut fixture = Fixture::new(|_| {});
+  fixture.cx.reading.push(FIRST);
+  fixture
+    .runner
+    .event(&mut fixture.cx, HostEvent::AccessibilityRequested { surface: FIRST });
+  fixture.frame();
+  fixture.runner.surface_lost(&mut fixture.cx, FIRST, SurfaceLoss::Suspended);
+  fixture.cx.clear();
+
+  fixture
+    .runner
+    .event(&mut fixture.cx, HostEvent::AccessibilityRequested { surface: FIRST });
+  let asked = std::mem::take(&mut fixture.cx.frames);
+  fixture.runner.surface_changed(&mut fixture.cx, FIRST, info(64, 64, 1.0));
+  fixture.frame();
+
+  let (_, update) = fixture.cx.accessibility_updates.pop().expect("an update");
+  assert_eq!((asked, update.tree.is_some()), (vec![], true));
+}
+
+// A screen reader on a surface the runner doesn't present, and the app's background and foreground
+// events, ask for no frame.
+#[test]
+fn other_events_ask_for_no_frame() {
+  let mut fixture = Fixture::new(|_| {});
+
+  for event in [
+    HostEvent::AccessibilityRequested {
+      surface: SurfaceId::new(9),
+    },
+    HostEvent::Suspended,
+    HostEvent::Resumed,
+  ] {
+    fixture.runner.event(&mut fixture.cx, event);
+  }
+
+  assert!(fixture.cx.frames.is_empty());
+}

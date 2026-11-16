@@ -22,4 +22,10 @@ pub enum HostEvent {
   Suspended,
   /// The app came back to the foreground. Its surfaces are reported again after this.
   Resumed,
+  /// A screen reader started reading the surface. The next frame hands it the whole tree, through
+  /// [`HostContext::accessibility`](crate::HostContext::accessibility).
+  AccessibilityRequested {
+    /// The window's surface.
+    surface: SurfaceId,
+  },
 }

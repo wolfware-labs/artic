@@ -18,7 +18,7 @@ impl Panel {
   pub fn render(&self, cx: &RenderCx<'_>, scene: &mut SceneBuilder) {
     if let Some(brush) = self.background.get() {
       let size = cx.size();
-      scene.fill(Rect::new(0.0, 0.0, size.width, size.height), brush);
+      scene.fill(Rect::from_size(size), brush);
     }
   }
 }

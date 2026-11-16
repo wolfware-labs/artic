@@ -1,8 +1,8 @@
-use crate::{ElementTypes, RenderCx};
+use crate::{Element, ElementTypes, RenderCx};
 use artic_core::tree::{NodeId, UiTree};
 use artic_layout::LayoutManager;
-use artic_layout::geometry::Transform;
-use artic_render::{Layers, Nodes, SceneBuilder};
+use artic_layout::geometry::{Size, Transform};
+use artic_render::{Layers, Nodes, SceneBuilder, Shape};
 
 /// Composition of laid-out elements: each node's element draws at the size layout arranged it at,
 /// with what its layout kept, and its layers carry its layout offset after its own transform. A
@@ -15,8 +15,16 @@ pub struct ElementNodes<'a> {
   pub layout: &'a LayoutManager,
 }
 
-impl Nodes for ElementNodes<'_> {
-  fn layers(&self, tree: &UiTree, node: NodeId) -> Layers {
+impl ElementNodes<'_> {
+  /// The node's [`layers`](Nodes::layers) without the clip: where it is and whether it shows, for
+  /// what doesn't draw it, such as the accessibility pass.
+  #[must_use]
+  pub fn placement(&self, tree: &UiTree, node: NodeId) -> Layers {
+    self.placed(tree, node, |_, _| None)
+  }
+
+  /// The node's layers, with the clip `clip` gives for its element at its arranged size.
+  fn placed(&self, tree: &UiTree, node: NodeId, clip: impl FnOnce(&dyn Element, Size) -> Option<Shape>) -> Layers {
     let Some(rect) = self.layout.rect(node) else {
       return Layers {
         visible: false,
@@ -26,13 +34,29 @@ impl Nodes for ElementNodes<'_> {
     let mut layers = tree
       .get(node)
       .and_then(|object| self.types.element(object))
-      .map_or_else(Layers::default, |element| element.layers(rect.size()));
+      .map_or_else(Layers::default, |element| {
+        let own = element.layers(rect.size());
+        debug_assert!(
+          own.clip.is_none(),
+          "Element::layers returned a clip; return it from Element::clip"
+        );
+        Layers {
+          clip: clip(element, rect.size()),
+          ..own
+        }
+      });
     let offset = (rect.x != 0.0 || rect.y != 0.0).then(|| Transform::translate(rect.x, rect.y));
     layers.transform = match (layers.transform, offset) {
       (Some(own), Some(offset)) => Some(own.then(offset)),
       (own, offset) => own.or(offset),
     };
     layers
+  }
+}
+
+impl Nodes for ElementNodes<'_> {
+  fn layers(&self, tree: &UiTree, node: NodeId) -> Layers {
+    self.placed(tree, node, Element::clip)
   }
 
   fn record(&mut self, tree: &UiTree, node: NodeId, builder: &mut SceneBuilder) {
@@ -56,10 +80,12 @@ mod tests {
   use artic_layout::{ArrangeCx, Layoutable, MeasureCx, PixelGrid};
   use pretty_assertions::assert_eq;
 
-  /// A 10 by 10 leaf that fills its arranged size, with `transform` as its own layer.
+  /// A 10 by 10 leaf that fills its arranged size, with `transform` as its own layer, clipping its
+  /// descendants to its bounds; with `clip_in_layers`, it wrongly returns that clip from `layers`.
   #[derive(Debug)]
   struct Spot {
     transform: Option<Transform>,
+    clip_in_layers: bool,
   }
 
   impl Object for Spot {
@@ -77,25 +103,32 @@ mod tests {
   impl Element for Spot {
     fn render(&self, cx: &mut RenderCx<'_>, scene: &mut SceneBuilder) {
       let size = cx.size();
-      scene.fill(
-        Rect::new(0.0, 0.0, size.width, size.height),
-        artic_render::Color::rgb(0, 0, 0),
-      );
+      scene.fill(Rect::from_size(size), artic_render::Color::rgb(0, 0, 0));
     }
 
     fn accessibility(&self, _cx: &AccessCx<'_>) -> accesskit::Node {
       accesskit::Node::new(accesskit::Role::GenericContainer)
     }
 
-    fn layers(&self, _size: Size) -> artic_render::Layers {
+    fn layers(&self, size: Size) -> artic_render::Layers {
       artic_render::Layers {
         transform: self.transform,
+        clip: self.clip_in_layers.then(|| bounds(size)),
         ..artic_render::Layers::default()
       }
+    }
+
+    fn clip(&self, size: Size) -> Option<artic_render::Shape> {
+      Some(bounds(size))
     }
   }
 
   crate::element_type!(Spot);
+
+  /// A clip to a `size` rectangle at the origin.
+  fn bounds(size: Size) -> artic_render::Shape {
+    artic_render::Shape::Rect(Rect::from_size(size))
+  }
 
   /// A parent that places its one child at `at`, at the child's desired size.
   #[derive(Debug)]
@@ -170,8 +203,14 @@ mod tests {
   fn laid_out(at: (f32, f32), transform: Option<Transform>) -> (UiTree, NodeId, NodeId, LayoutManager) {
     let mut tree = UiTree::new();
     let root = tree.alloc(Box::new(Place { at }));
-    let spot = tree.alloc(Box::new(Spot { transform }));
-    let unreached = tree.alloc(Box::new(Spot { transform: None }));
+    let spot = tree.alloc(Box::new(Spot {
+      transform,
+      clip_in_layers: false,
+    }));
+    let unreached = tree.alloc(Box::new(Spot {
+      transform: None,
+      clip_in_layers: false,
+    }));
     tree.add_child(TreeKind::Visual, root, spot);
     let mut layout = LayoutManager::default();
     let grid = PixelGrid { scale: 1.0, snap: false };
@@ -185,6 +224,23 @@ mod tests {
       &mut artic_text::Engine::without_fonts(),
     );
     (tree, spot, unreached, layout)
+  }
+
+  /// `element` alone, laid out in 10 by 10: the tree, its node and the layout.
+  fn laid_out_alone(element: Box<dyn Object>) -> (UiTree, NodeId, LayoutManager) {
+    let mut tree = UiTree::new();
+    let node = tree.alloc(element);
+    let mut layout = LayoutManager::default();
+    let grid = PixelGrid { scale: 1.0, snap: false };
+    layout.run(
+      &mut tree,
+      &ElementTypes::from_link_time(),
+      node,
+      Size::new(10.0, 10.0),
+      grid,
+      &mut artic_text::Engine::without_fonts(),
+    );
+    (tree, node, layout)
   }
 
   // A node layout never arranged isn't drawn.
@@ -216,6 +272,57 @@ mod tests {
     .layers(&tree, spot);
 
     assert_eq!(layers.transform, Some(own.then(Transform::translate(5.0, 7.0))));
+  }
+
+  // Composition gets the element's clip, at its arranged size.
+  #[test]
+  fn layers_carry_the_element_clip() {
+    let (tree, spot, _, layout) = laid_out((5.0, 7.0), None);
+    let types = ElementTypes::from_link_time();
+
+    let layers = ElementNodes {
+      types: &types,
+      layout: &layout,
+    }
+    .layers(&tree, spot);
+
+    assert_eq!(layers.clip, Some(bounds(Size::new(10.0, 10.0))));
+  }
+
+  // Placement is the layers without the clip: the same transform and visibility, no clip built.
+  #[test]
+  fn placement_leaves_the_clip_out() {
+    let own = Transform::scale(2.0, 2.0);
+    let (tree, spot, _, layout) = laid_out((5.0, 7.0), Some(own));
+    let types = ElementTypes::from_link_time();
+    let nodes = ElementNodes {
+      types: &types,
+      layout: &layout,
+    };
+
+    let placement = nodes.placement(&tree, spot);
+
+    let layers = nodes.layers(&tree, spot);
+    assert_eq!(placement.clip, None);
+    assert_eq!((placement.transform, placement.visible), (layers.transform, layers.visible));
+  }
+
+  // A clip returned from `layers` would be dropped for `clip`'s, so debug builds stop on it.
+  #[cfg(debug_assertions)]
+  #[test]
+  #[should_panic(expected = "Element::layers returned a clip")]
+  fn a_clip_in_layers_is_refused() {
+    let (tree, node, layout) = laid_out_alone(Box::new(Spot {
+      transform: None,
+      clip_in_layers: true,
+    }));
+    let types = ElementTypes::from_link_time();
+
+    ElementNodes {
+      types: &types,
+      layout: &layout,
+    }
+    .layers(&tree, node);
   }
 
   // At the origin there is no offset, so only the element's own transform is left.
@@ -271,19 +378,8 @@ mod tests {
   // An element draws with what its layout kept, such as a shaped paragraph.
   #[test]
   fn record_passes_the_layout_result() {
-    let mut tree = UiTree::new();
-    let node = tree.alloc(Box::new(Shaped));
-    let mut layout = LayoutManager::default();
+    let (tree, node, layout) = laid_out_alone(Box::new(Shaped));
     let types = ElementTypes::from_link_time();
-    let grid = PixelGrid { scale: 1.0, snap: false };
-    layout.run(
-      &mut tree,
-      &types,
-      node,
-      Size::new(10.0, 10.0),
-      grid,
-      &mut artic_text::Engine::without_fonts(),
-    );
     let mut builder = SceneBuilder::default();
 
     ElementNodes {

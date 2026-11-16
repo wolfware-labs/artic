@@ -475,7 +475,7 @@ mod bounds {
       cx.set_bounds(bounds);
       let children: Vec<NodeId> = cx.children().collect();
       for child in children {
-        cx.arrange(child, Rect::new(0.0, 0.0, bounds.width, bounds.height));
+        cx.arrange(child, Rect::from_size(bounds.size()));
       }
     }
   }
@@ -565,7 +565,7 @@ mod skipped {
       }
       let children: Vec<NodeId> = cx.children().collect();
       for child in children {
-        cx.arrange(child, Rect::new(0.0, 0.0, rect.width, rect.height));
+        cx.arrange(child, Rect::from_size(rect.size()));
       }
     }
   }
@@ -928,7 +928,7 @@ mod overlay {
     }
 
     fn arrange(&self, cx: &mut ArrangeCx<'_>, rect: Rect) {
-      cx.arrange_children(Rect::new(0.0, 0.0, rect.width, rect.height));
+      cx.arrange_children(Rect::from_size(rect.size()));
     }
   }
 
@@ -1385,7 +1385,7 @@ impl Layoutable for Holder {
   }
 
   fn arrange(&self, cx: &mut ArrangeCx<'_>, rect: Rect) {
-    cx.arrange_children(Rect::new(0.0, 0.0, rect.width, rect.height));
+    cx.arrange_children(Rect::from_size(rect.size()));
   }
 }
 

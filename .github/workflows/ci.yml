@@ -156,7 +156,7 @@ jobs:
           use_oidc: true
           fail_ci_if_error: false
 
-  # The criterion benches (artic-core, artic-layout, artic-controls) under CodSpeed's CPU
+  # The criterion benches (artic-core, artic-layout, artic-controls, artic) under CodSpeed's CPU
   # simulation; CodSpeed compares a pull request against the latest commit of main that has a run.
   # The CodSpeed action authenticates with this job's OIDC token, so there's no CodSpeed token to
   # store. Only this job gets the token, and every action it runs, `setup-rust`'s included, is
