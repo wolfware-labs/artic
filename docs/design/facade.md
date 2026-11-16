@@ -145,7 +145,7 @@ Changing the title at runtime needs app code that runs after the tree is built (
 | `host.md`, `frame.md` | the facade rows point here |
 | `view-pipeline.md`, `xaml-compiler.md` | a view with a code type gets `Root` and `Members`, and its root's content must be `Child` or `Children` |
 | Doc comments in code | with PR 2, `artic-platform`'s `host.rs` and `artic-winit`'s crate docs name `artic::run` as current |
-| #55 | the runtime title change moves to #82; CI runs `hello` on macOS only |
+| #55 | the runtime title change moves to #82; CI runs `hello` on macOS only (#53 runs it on all three desktops) |
 | #82 | gains #55's runtime title criterion |
 
 ## Pull requests
