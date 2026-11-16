@@ -965,7 +965,7 @@ mod tests {
   }
 
   // A screen reader that starts on a window is reported once the loop wakes, while the window doesn't
-  // count as read yet, and the window counts as read after; `woken` comes last.
+  // count as read yet, and the window counts as read after, by `woken`, which comes last.
   #[test]
   fn a_started_reader_is_reported_then_counted() {
     let seen = Rc::new(RefCell::new(Vec::new()));
@@ -975,7 +975,7 @@ mod tests {
       event_loop,
       log,
     } = running(2, move |line, cx| {
-      if line == "reader 2" {
+      if line == "reader 2" || line == "woken" {
         let reading = cx
           .accessibility()
           .expect("the driver reads windows")
@@ -988,7 +988,7 @@ mod tests {
     driver.wake(&event_loop);
 
     assert_eq!(take(&log), ["reader 2", "woken"]);
-    assert_eq!(*seen.borrow(), [false]);
+    assert_eq!(*seen.borrow(), [false, true]);
     let active = [0, 1].map(|index| event_loop.window(index).access.activation().is_active());
     assert_eq!(active, [false, true]);
   }

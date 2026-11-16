@@ -56,12 +56,6 @@ pub(crate) trait Updates {
   fn update_if_active(&mut self, updater: impl FnOnce() -> TreeUpdate);
 }
 
-impl Updates for accesskit_winit::Adapter {
-  fn update_if_active(&mut self, updater: impl FnOnce() -> TreeUpdate) {
-    accesskit_winit::Adapter::update_if_active(self, updater);
-  }
-}
-
 /// A window's accessibility: its adapter, whether a screen reader reads it, and the root of the
 /// last whole tree it handed over.
 pub(crate) struct Access<A> {

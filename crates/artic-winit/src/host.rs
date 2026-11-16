@@ -1,6 +1,6 @@
 //! The host: winit's event loop, driving an `AppHandler`.
 
-use crate::accessibility::{Access, Activation, NoActions, Started, Stopped};
+use crate::accessibility::{Access, Activation, NoActions, Started, Stopped, Updates};
 use crate::driver::{self, Driver, Loop, Monitor};
 use crate::error::Error;
 use crate::window::{Step, attributes};
@@ -120,6 +120,12 @@ impl Loop for ActiveEventLoop {
 
   fn exit(&self) {
     ActiveEventLoop::exit(self);
+  }
+}
+
+impl Updates for Adapter {
+  fn update_if_active(&mut self, updater: impl FnOnce() -> accesskit::TreeUpdate) {
+    Adapter::update_if_active(self, updater);
   }
 }
 
