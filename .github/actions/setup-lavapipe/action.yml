@@ -25,4 +25,6 @@ runs:
         mesa="$RUNNER_TEMP/mesa"
         7z e "$archive" -o"$mesa" 'x64/vulkan_lvp.dll' 'x64/lvp_icd.x86_64.json' > /dev/null
         [ -f /c/Windows/System32/vulkan-1.dll ] || { echo "no Vulkan loader (vulkan-1.dll) on the runner"; exit 1; }
-        echo "VK_DRIVER_FILES=$(cygpath --windows "$mesa/lvp_icd.x86_64.json")" >> "$GITHUB_ENV"
+        icd=$(cygpath --windows "$mesa/lvp_icd.x86_64.json")
+        # VK_ICD_FILENAMES is the name loaders before 1.3.207 read.
+        { echo "VK_DRIVER_FILES=$icd"; echo "VK_ICD_FILENAMES=$icd"; } >> "$GITHUB_ENV"

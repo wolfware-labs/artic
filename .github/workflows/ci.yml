@@ -109,8 +109,8 @@ jobs:
       - name: Keep the golden diffs
         if: failure()
         uses: ./.github/actions/keep-goldens
-      # A window opens under X11 (the Xvfb above) and under Wayland (weston below), and each run's
-      # log says which display server and adapter it got, rather than leaving it to winit's choice.
+      # A window opens under X11 (the Xvfb above) and under Wayland (weston below); smoke's log must
+      # name the display server and frames' the adapter, rather than leaving either to winit's choice.
       - name: Smoke on X11
         shell: bash
         run: |
