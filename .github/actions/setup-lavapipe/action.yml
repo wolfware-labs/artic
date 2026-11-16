@@ -27,7 +27,8 @@ runs:
         [ -f /c/Windows/System32/vulkan-1.dll ] || { echo "no Vulkan loader (vulkan-1.dll) on the runner"; exit 1; }
         icd=$(cygpath --windows "$mesa/lvp_icd.x86_64.json")
         # The loader can ignore driver paths from the environment in an elevated process, as the
-        # runners' are, so the driver is also registered where installed drivers are, which it
-        # always reads. VK_ICD_FILENAMES is the name loaders before 1.3.207 read.
+        # runners' are, so the driver is registered where installed drivers are, which it always
+        # reads: that entry is how it finds lavapipe on the runners. The variables stay for a loader
+        # that reads them; VK_ICD_FILENAMES is the name loaders before 1.3.207 read.
         MSYS_NO_PATHCONV=1 reg add 'HKLM\SOFTWARE\Khronos\Vulkan\Drivers' /v "$icd" /t REG_DWORD /d 0 /f
         { echo "VK_DRIVER_FILES=$icd"; echo "VK_ICD_FILENAMES=$icd"; } >> "$GITHUB_ENV"
