@@ -211,14 +211,19 @@ pub(crate) mod tests {
     assert_eq!(applied[2].nodes, [(NodeId(1), Node::new(Role::Window))]);
   }
 
-  // An adapter with no reader connected takes nothing.
+  // A whole tree handed over while no reader is connected still sets the kept root, so a later
+  // update after a restart goes out as that root alone.
   #[test]
-  fn hand_over_without_a_reader_applies_nothing() {
+  fn root_is_kept_while_no_reader_is_connected() {
     let access = Access::new(FakeAdapter::default(), Arc::new(Activation::default()));
-
     access.hand_over(whole());
+    access.adapter.borrow_mut().connected = true;
 
-    assert!(access.adapter.borrow().applied.is_empty());
+    access.hand_over(incremental());
+
+    let applied = &access.adapter.borrow().applied;
+    assert_eq!(applied.len(), 1);
+    assert_eq!(applied[0].tree, Some(TreeInfo::new(NodeId(1))));
   }
 
   // Actions a screen reader asks for are ignored, without a panic.
