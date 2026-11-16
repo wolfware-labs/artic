@@ -1,14 +1,12 @@
 //! The host: winit's event loop, driving an `AppHandler`.
 
-use crate::accessibility::{Activation, NoActions, Started, Stopped, checked};
+use crate::accessibility::{Access, Activation, NoActions, Started, Stopped};
 use crate::driver::{self, Driver, Loop, Monitor};
 use crate::error::Error;
 use crate::window::{Step, attributes};
-use accesskit::{NodeId, TreeUpdate};
 use accesskit_winit::Adapter;
 use artic_platform::{AppHandler, Waker, WindowDesc};
 use artic_render::TargetKind;
-use std::cell::{Cell, RefCell};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
@@ -116,9 +114,7 @@ impl Loop for ActiveEventLoop {
     window.set_visible(true);
     Some(HostWindow {
       window,
-      adapter: RefCell::new(adapter),
-      activation,
-      root: Cell::new(None),
+      access: Access::new(adapter, activation),
     })
   }
 
@@ -127,13 +123,10 @@ impl Loop for ActiveEventLoop {
   }
 }
 
-/// A winit window with its accessibility adapter, whether a screen reader reads it, and the root of
-/// the last whole tree it handed over.
+/// A winit window with its accessibility.
 pub(crate) struct HostWindow {
   window: Window,
-  adapter: RefCell<Adapter>,
-  activation: Arc<Activation>,
-  root: Cell<Option<NodeId>>,
+  access: Access<Adapter>,
 }
 
 impl HasWindowHandle for HostWindow {
@@ -151,6 +144,7 @@ impl HasDisplayHandle for HostWindow {
 impl driver::Window for HostWindow {
   type Id = WindowId;
   type Monitor = MonitorHandle;
+  type Adapter = Adapter;
 
   fn id(&self) -> WindowId {
     self.window.id()
@@ -188,25 +182,12 @@ impl driver::Window for HostWindow {
     }
   }
 
-  fn activation(&self) -> &Activation {
-    &self.activation
+  fn access(&self) -> &Access<Adapter> {
+    &self.access
   }
 
   fn accessibility_event(&self, event: &WindowEvent) {
-    self.adapter.borrow_mut().process_event(&self.window, event);
-  }
-
-  /// Hands `update` over through `update_if_active`, whose closure runs under the lock the
-  /// activation handler takes, and checks there again whether the reader restarted meanwhile.
-  fn hand_over(&self, update: TreeUpdate) {
-    if let Some(tree) = &update.tree {
-      self.root.set(Some(tree.root));
-    }
-    let (activation, root) = (&self.activation, self.root.get());
-    self
-      .adapter
-      .borrow_mut()
-      .update_if_active(|| checked(update, activation.is_active(), root));
+    self.access.adapter.borrow_mut().process_event(&self.window, event);
   }
 }
 

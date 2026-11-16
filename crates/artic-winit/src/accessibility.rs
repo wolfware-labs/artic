@@ -5,6 +5,7 @@ use accesskit::{
   ActionHandler, ActionRequest, ActivationHandler, DeactivationHandler, Node, NodeId, Role, TreeInfo, TreeUpdate,
 };
 use artic_platform::Waker;
+use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
@@ -49,12 +50,59 @@ impl Activation {
   }
 }
 
+/// The calls a window makes on its accesskit adapter.
+pub(crate) trait Updates {
+  /// Applies the update `updater` builds, only while a screen reader is connected.
+  fn update_if_active(&mut self, updater: impl FnOnce() -> TreeUpdate);
+}
+
+impl Updates for accesskit_winit::Adapter {
+  fn update_if_active(&mut self, updater: impl FnOnce() -> TreeUpdate) {
+    accesskit_winit::Adapter::update_if_active(self, updater);
+  }
+}
+
+/// A window's accessibility: its adapter, whether a screen reader reads it, and the root of the
+/// last whole tree it handed over.
+pub(crate) struct Access<A> {
+  pub(crate) adapter: RefCell<A>,
+  activation: Arc<Activation>,
+  root: Cell<Option<NodeId>>,
+}
+
+impl<A: Updates> Access<A> {
+  pub(crate) fn new(adapter: A, activation: Arc<Activation>) -> Self {
+    Self {
+      adapter: RefCell::new(adapter),
+      activation,
+      root: Cell::new(None),
+    }
+  }
+
+  pub(crate) fn activation(&self) -> &Activation {
+    &self.activation
+  }
+
+  /// Hands `update` over through `update_if_active`, whose closure runs under the lock the
+  /// activation handler takes, and checks there again whether the reader restarted meanwhile.
+  pub(crate) fn hand_over(&self, update: TreeUpdate) {
+    if let Some(tree) = &update.tree {
+      self.root.set(Some(tree.root));
+    }
+    let (activation, root) = (&self.activation, self.root.get());
+    self
+      .adapter
+      .borrow_mut()
+      .update_if_active(|| checked(update, activation.is_active(), root));
+  }
+}
+
 /// The update to hand a window's adapter for `update`, which artic built while the window counted as
 /// read. A reader can stop and start again before the adapter takes it: the adapter then waits for a
 /// whole tree, and accesskit panics on one without `tree`. So when the window is no longer `active`
 /// and `update` has no tree, the window hands over a tree of the root alone, the `root` of the last
 /// whole tree it handed over; the whole update artic sends after the new start replaces it.
-pub(crate) fn checked(update: TreeUpdate, active: bool, root: Option<NodeId>) -> TreeUpdate {
+fn checked(update: TreeUpdate, active: bool, root: Option<NodeId>) -> TreeUpdate {
   match root {
     Some(root) if !active && update.tree.is_none() => TreeUpdate {
       nodes: vec![(root, Node::new(Role::Window))],
@@ -62,7 +110,13 @@ pub(crate) fn checked(update: TreeUpdate, active: bool, root: Option<NodeId>) ->
       tree_id: update.tree_id,
       focus: root,
     },
-    _ => update,
+    _ => {
+      debug_assert!(
+        root.is_some() || active || update.tree.is_some(),
+        "a window's first update is the whole tree"
+      );
+      update
+    }
   }
 }
 
@@ -98,10 +152,84 @@ impl ActionHandler for NoActions {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use super::*;
   use accesskit::TreeId;
   use std::sync::atomic::AtomicUsize;
+
+  /// An adapter that applies updates while `connected`, keeping them.
+  #[derive(Default)]
+  pub(crate) struct FakeAdapter {
+    connected: bool,
+    pub(crate) applied: Vec<TreeUpdate>,
+  }
+
+  impl FakeAdapter {
+    pub(crate) fn connected() -> Self {
+      Self {
+        connected: true,
+        ..Self::default()
+      }
+    }
+  }
+
+  impl Updates for FakeAdapter {
+    fn update_if_active(&mut self, updater: impl FnOnce() -> TreeUpdate) {
+      if self.connected {
+        self.applied.push(updater());
+      }
+    }
+  }
+
+  /// A whole tree rooted at node 1.
+  fn whole() -> TreeUpdate {
+    TreeUpdate {
+      tree: Some(TreeInfo::new(NodeId(1))),
+      ..incremental()
+    }
+  }
+
+  // A window keeps the root of the whole trees it hands over, and when its reader restarted before an
+  // incremental update reaches the adapter, it hands over that root alone instead.
+  #[test]
+  fn hand_over_after_a_restart_sends_the_kept_root() {
+    let activation = Arc::new(Activation::default());
+    activation.request();
+    activation.activate_if_requested();
+    let access = Access::new(FakeAdapter::connected(), Arc::clone(&activation));
+    access.hand_over(whole());
+    access.hand_over(incremental());
+
+    activation.deactivate();
+    activation.request();
+    access.hand_over(incremental());
+
+    let applied = &access.adapter.borrow().applied;
+    assert_eq!(applied[..2], [whole(), incremental()]);
+    assert_eq!(applied[2].tree, Some(TreeInfo::new(NodeId(1))));
+    assert_eq!(applied[2].nodes, [(NodeId(1), Node::new(Role::Window))]);
+  }
+
+  // An adapter with no reader connected takes nothing.
+  #[test]
+  fn hand_over_without_a_reader_applies_nothing() {
+    let access = Access::new(FakeAdapter::default(), Arc::new(Activation::default()));
+
+    access.hand_over(whole());
+
+    assert!(access.adapter.borrow().applied.is_empty());
+  }
+
+  // Actions a screen reader asks for are ignored, without a panic.
+  #[test]
+  fn actions_are_ignored() {
+    NoActions.do_action(ActionRequest {
+      action: accesskit::Action::Click,
+      target_tree: TreeId::ROOT,
+      target_node: NodeId(1),
+      data: None,
+    });
+  }
 
   /// An incremental update of node 7, with the root, 1, focused.
   fn incremental() -> TreeUpdate {
