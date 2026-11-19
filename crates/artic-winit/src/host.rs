@@ -15,6 +15,7 @@ use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::monitor::MonitorHandle;
+use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
 use winit::window::{Window, WindowId};
 
 /// The desktop host: windows, frames and the event loop on Windows, macOS and Linux (X11 and
@@ -55,19 +56,22 @@ impl artic_platform::Host for Host {
 
   /// Runs winit's loop until the handler exits; it blocks on every desktop platform.
   ///
+  /// The handler is dropped before the loop, on a return and on a panic alike, so a surface its
+  /// renderer still holds never outlives the connection to the display server.
+  ///
   /// # Errors
   ///
   /// [`Error::Loop`] if winit's loop ends with an error, such as a lost connection to the display
   /// server. The surfaces have been reported lost by then.
   fn run(self, app: impl AppHandler + 'static) -> Result<(), Error> {
-    let proxy = self.event_loop.create_proxy();
+    let mut event_loop = self.event_loop;
+    let proxy = event_loop.create_proxy();
     let waker = Waker::new(move || {
       let _ = proxy.send_event(());
     });
     let mut driver = Driver::<_, HostWindow>::new(app, waker);
-    self
-      .event_loop
-      .run_app(&mut driver)
+    event_loop
+      .run_app_on_demand(&mut driver)
       .map_err(|error| Error::Loop(Box::new(error)))
   }
 }
