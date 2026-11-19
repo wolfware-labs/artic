@@ -12,9 +12,11 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
+use winit::error::EventLoopError;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::monitor::MonitorHandle;
+#[cfg(not(target_os = "ios"))]
 use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
 use winit::window::{Window, WindowId};
 
@@ -57,23 +59,36 @@ impl artic_platform::Host for Host {
   /// Runs winit's loop until the handler exits; it blocks on every desktop platform.
   ///
   /// The handler is dropped before the loop, on a return and on a panic alike, so a surface its
-  /// renderer still holds never outlives the connection to the display server.
+  /// renderer still holds never outlives the connection to the display server. On iOS the loop
+  /// never returns.
   ///
   /// # Errors
   ///
   /// [`Error::Loop`] if winit's loop ends with an error, such as a lost connection to the display
   /// server. The surfaces have been reported lost by then.
   fn run(self, app: impl AppHandler + 'static) -> Result<(), Error> {
-    let mut event_loop = self.event_loop;
-    let proxy = event_loop.create_proxy();
+    let proxy = self.event_loop.create_proxy();
     let waker = Waker::new(move || {
       let _ = proxy.send_event(());
     });
-    let mut driver = Driver::<_, HostWindow>::new(app, waker);
-    event_loop
-      .run_app_on_demand(&mut driver)
-      .map_err(|error| Error::Loop(Box::new(error)))
+    let driver = Driver::<_, HostWindow>::new(app, waker);
+    drive(self.event_loop, driver).map_err(|error| Error::Loop(Box::new(error)))
   }
+}
+
+/// Runs `driver` on `event_loop`, lending the loop so that it outlives the driver.
+#[cfg(not(target_os = "ios"))]
+fn drive<A: AppHandler>(event_loop: EventLoop<()>, driver: Driver<A, HostWindow>) -> Result<(), EventLoopError> {
+  let mut event_loop = event_loop;
+  let mut driver = driver;
+  event_loop.run_app_on_demand(&mut driver)
+}
+
+/// Runs `driver` on `event_loop`. UIKit owns the loop and never returns from it.
+#[cfg(target_os = "ios")]
+fn drive<A: AppHandler>(event_loop: EventLoop<()>, driver: Driver<A, HostWindow>) -> Result<(), EventLoopError> {
+  let mut driver = driver;
+  event_loop.run_app(&mut driver)
 }
 
 impl<A: AppHandler> ApplicationHandler for Driver<A, HostWindow> {
