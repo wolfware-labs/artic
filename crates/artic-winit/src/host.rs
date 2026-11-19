@@ -7,7 +7,7 @@ use crate::window::{Step, attributes};
 use accesskit::TreeUpdate;
 use accesskit_winit::Adapter;
 use artic_platform::{AppHandler, Waker, WindowDesc};
-use artic_render::TargetKind;
+use artic_render::{RawHandles, TargetKind};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
@@ -15,7 +15,6 @@ use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::monitor::MonitorHandle;
-use winit::raw_window_handle::{DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle};
 use winit::window::{Window, WindowId};
 
 /// The desktop host: windows, frames and the event loop on Windows, macOS and Linux (X11 and
@@ -113,8 +112,11 @@ impl Loop for ActiveEventLoop {
     };
     let adapter = Adapter::with_direct_handlers(self, &window, started, NoActions, Stopped(Arc::clone(&activation)));
     window.set_visible(true);
+    let window = Arc::new(window);
+    let handles: Arc<dyn RawHandles> = window.clone();
     Some(HostWindow {
       window,
+      handles,
       access: Access::new(adapter, activation),
     })
   }
@@ -132,20 +134,10 @@ impl Updates for Adapter {
 
 /// A winit window with its accessibility.
 pub(crate) struct HostWindow {
-  window: Window,
+  window: Arc<Window>,
+  /// The same window, as the handles the renderer may keep.
+  handles: Arc<dyn RawHandles>,
   access: Access<Adapter>,
-}
-
-impl HasWindowHandle for HostWindow {
-  fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
-    self.window.window_handle()
-  }
-}
-
-impl HasDisplayHandle for HostWindow {
-  fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
-    self.window.display_handle()
-  }
 }
 
 impl driver::Window for HostWindow {
@@ -155,6 +147,10 @@ impl driver::Window for HostWindow {
 
   fn id(&self) -> WindowId {
     self.window.id()
+  }
+
+  fn handles(&self) -> &Arc<dyn RawHandles> {
+    &self.handles
   }
 
   fn inner_size(&self) -> PhysicalSize<u32> {

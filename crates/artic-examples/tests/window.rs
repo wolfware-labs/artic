@@ -16,6 +16,7 @@ use raw_window_handle::RawWindowHandle;
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use x11rb::protocol::xproto::{ConnectionExt as _, ImageFormat};
 use x11rb::rust_connection::RustConnection;
@@ -85,7 +86,7 @@ struct Script {
 
 impl Script {
   /// Fills `size` of the window behind `handles`, drawing as surface `id`, with `color`.
-  fn fill(&mut self, id: SurfaceId, size: PhysicalSize, handles: &dyn RawHandles, color: [u8; 3]) {
+  fn fill(&mut self, id: SurfaceId, size: PhysicalSize, handles: &Arc<dyn RawHandles>, color: [u8; 3]) {
     let [r, g, b] = color;
     let scene = Scene::record(|builder| builder.fill(Rect::new(0.0, 0.0, 4096.0, 4096.0), Color::rgb(r, g, b)));
     let surface = SurfaceView {

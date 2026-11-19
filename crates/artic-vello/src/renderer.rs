@@ -5,12 +5,12 @@ use artic_render::{
   PhysicalSize, PixelBuffer, PixelFormat, RawHandles, RenderError, Scene, SurfaceId, SurfaceView, Target, TargetKind,
 };
 use std::collections::HashMap;
-use std::sync::mpsc;
+use std::sync::{Arc, mpsc};
 use vello::wgpu::util::TextureBlitter;
 use vello::wgpu::{
   self, Adapter, Backends, CompositeAlphaMode, CurrentSurfaceTexture, Device, DeviceDescriptor, Extent3d, Instance,
-  InstanceDescriptor, PresentMode, Queue, SurfaceConfiguration, SurfaceTargetUnsafe, TexelCopyBufferInfo,
-  TexelCopyBufferLayout, TexelCopyTextureInfo, Texture, TextureFormat, TextureUsages, TextureView,
+  InstanceDescriptor, PresentMode, Queue, SurfaceConfiguration, TexelCopyBufferInfo, TexelCopyBufferLayout,
+  TexelCopyTextureInfo, Texture, TextureFormat, TextureUsages, TextureView,
 };
 use vello::{AaConfig, AaSupport, RenderParams, RendererOptions};
 
@@ -98,7 +98,7 @@ impl Renderer {
       .map_err(backend)
   }
 
-  fn render_to_window(&mut self, id: SurfaceId, size: PhysicalSize, handles: &dyn RawHandles) -> Result<(), RenderError> {
+  fn render_to_window(&mut self, id: SurfaceId, size: PhysicalSize, handles: &Arc<dyn RawHandles>) -> Result<(), RenderError> {
     if size.is_empty() {
       return Ok(());
     }
@@ -130,7 +130,7 @@ impl Renderer {
     &mut self,
     id: SurfaceId,
     size: PhysicalSize,
-    handles: &dyn RawHandles,
+    handles: &Arc<dyn RawHandles>,
   ) -> Result<Option<wgpu::SurfaceTexture>, RenderError> {
     for retry in [false, true] {
       let swapchain = &self.swapchains[&id];
@@ -148,14 +148,8 @@ impl Renderer {
     Ok(None)
   }
 
-  fn create_swapchain(&self, handles: &dyn RawHandles, size: PhysicalSize) -> Result<Swapchain, RenderError> {
-    let target = SurfaceTargetUnsafe::RawHandle {
-      raw_display_handle: Some(handles.display_handle().map_err(backend)?.as_raw()),
-      raw_window_handle: handles.window_handle().map_err(backend)?.as_raw(),
-    };
-    // SAFETY: `Target::Handles` promises the handles stay valid until the host reports the surface
-    // lost, and `surface_lost` drops the surface then.
-    let surface = unsafe { self.instance.create_surface_unsafe(target) }.map_err(backend)?;
+  fn create_swapchain(&self, handles: &Arc<dyn RawHandles>, size: PhysicalSize) -> Result<Swapchain, RenderError> {
+    let surface = self.instance.create_surface(Arc::clone(handles)).map_err(backend)?;
     let adapter_formats = surface.get_capabilities(&self.adapter).formats;
     let format = adapter_formats
       .into_iter()

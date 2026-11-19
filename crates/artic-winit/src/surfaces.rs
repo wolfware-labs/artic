@@ -22,6 +22,7 @@ pub(crate) struct Surfaces<K, W> {
   entries: Vec<Entry<K, W>>,
   next: u64,
   lost: Vec<(SurfaceId, Option<W>)>,
+  reporting: Vec<(SurfaceId, Option<W>)>,
 }
 
 impl<K, W> Default for Surfaces<K, W> {
@@ -30,6 +31,7 @@ impl<K, W> Default for Surfaces<K, W> {
       entries: Vec::new(),
       next: 1,
       lost: Vec::new(),
+      reporting: Vec::new(),
     }
   }
 }
@@ -61,8 +63,7 @@ impl<K: PartialEq + Copy, W> Surfaces<K, W> {
     self.lost.push((id, None));
   }
 
-  /// Closes surface `id`, keeping its window until its loss is reported, so the handles a renderer
-  /// holds stay valid until then.
+  /// Closes surface `id`, keeping its window until its loss is reported.
   pub(crate) fn close(&mut self, id: SurfaceId) {
     if let Some(index) = self.entries.iter().position(|entry| entry.id == id) {
       let entry = self.entries.remove(index);
@@ -70,10 +71,18 @@ impl<K: PartialEq + Copy, W> Surfaces<K, W> {
     }
   }
 
-  /// The surfaces gone since the last call, oldest first, each with its window to drop once its loss
-  /// is reported, emptying the list.
-  pub(crate) fn take_lost(&mut self) -> Vec<(SurfaceId, Option<W>)> {
-    std::mem::take(&mut self.lost)
+  /// The surfaces gone since the last call, oldest first, emptying the list. Each stays owned, with
+  /// its window, until [`reported`](Self::reported) says its loss was delivered.
+  pub(crate) fn take_lost(&mut self) -> Vec<SurfaceId> {
+    let lost = std::mem::take(&mut self.lost);
+    let ids = lost.iter().map(|(id, _)| *id).collect();
+    self.reporting.extend(lost);
+    ids
+  }
+
+  /// Records that the loss of surface `id` was delivered, and drops its window.
+  pub(crate) fn reported(&mut self, id: SurfaceId) {
+    self.reporting.retain(|(reporting, _)| *reporting != id);
   }
 
   /// The surface of the window the library calls `key`.
@@ -117,9 +126,15 @@ impl<K: PartialEq + Copy, W> Surfaces<K, W> {
     }
   }
 
-  /// Removes every surface and returns it with its window, in the order they opened.
-  pub(crate) fn drain(&mut self) -> Vec<(SurfaceId, W)> {
-    self.entries.drain(..).map(|entry| (entry.id, entry.window)).collect()
+  /// Removes every surface and returns its id, in the order they opened. Each stays owned, with its
+  /// window, until [`reported`](Self::reported) says its loss was delivered.
+  pub(crate) fn drain(&mut self) -> Vec<SurfaceId> {
+    let entries = std::mem::take(&mut self.entries);
+    let ids = entries.iter().map(|entry| entry.id).collect();
+    self
+      .reporting
+      .extend(entries.into_iter().map(|entry| (entry.id, Some(entry.window))));
+    ids
   }
 }
 
@@ -194,10 +209,7 @@ mod tests {
 
     surfaces.close(second);
 
-    assert_eq!(
-      surfaces.drain().into_iter().map(|(id, ())| id).collect::<Vec<_>>(),
-      [first, third]
-    );
+    assert_eq!(surfaces.drain(), [first, third]);
     assert_eq!(surfaces.id(10), None);
   }
 
@@ -209,11 +221,11 @@ mod tests {
     let id = surfaces.reserve();
     surfaces.lose(id);
 
-    assert_eq!(surfaces.take_lost().into_iter().map(|(id, _)| id).collect::<Vec<_>>(), [id]);
+    assert_eq!(surfaces.take_lost(), [id]);
     assert!(surfaces.take_lost().is_empty());
   }
 
-  // A closed window is kept until its loss is reported, so its handles stay valid until then.
+  // A closed window is kept until its loss is reported.
   #[test]
   fn closed_window_lives_until_reported() {
     let mut surfaces = Surfaces::<u32, Rc<()>>::default();
@@ -223,9 +235,9 @@ mod tests {
     surfaces.close(id);
 
     assert_eq!(Rc::strong_count(&window), 2);
-    let lost = surfaces.take_lost();
-    assert_eq!(lost.iter().map(|(id, _)| *id).collect::<Vec<_>>(), [id]);
-    drop(lost);
+    assert_eq!(surfaces.take_lost(), [id]);
+    assert_eq!(Rc::strong_count(&window), 2);
+    surfaces.reported(id);
     assert_eq!(Rc::strong_count(&window), 1);
   }
 
