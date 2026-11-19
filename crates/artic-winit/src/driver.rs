@@ -133,10 +133,15 @@ impl<A: AppHandler, W: Window> Driver<A, W> {
         self.refresh(event_loop, surface, None);
       }
       for surface in lost {
-        self.call(event_loop, |app, cx| app.surface_lost(cx, surface, SurfaceLoss::Gone));
-        self.surfaces.reported(surface);
+        self.report_gone(event_loop, surface);
       }
     }
+  }
+
+  /// Reports `surface` gone for good, then lets go of its window.
+  fn report_gone<L: Loop<Window = W>>(&mut self, event_loop: &L, surface: SurfaceId) {
+    self.call(event_loop, |app, cx| app.surface_lost(cx, surface, SurfaceLoss::Gone));
+    self.surfaces.reported(surface);
   }
 
   /// Reads `surface`'s facts from its window, with `size` and `scale` from an event when it has
@@ -273,8 +278,7 @@ impl<A: AppHandler, W: Window> Driver<A, W> {
   pub(crate) fn drain<L: Loop<Window = W>>(&mut self, event_loop: &L) {
     self.exiting = true;
     for surface in self.surfaces.drain() {
-      self.call(event_loop, |app, cx| app.surface_lost(cx, surface, SurfaceLoss::Gone));
-      self.surfaces.reported(surface);
+      self.report_gone(event_loop, surface);
     }
   }
 }

@@ -135,7 +135,6 @@ impl Updates for Adapter {
 /// A winit window with its accessibility.
 pub(crate) struct HostWindow {
   window: Arc<Window>,
-  /// The same window, as the handles the renderer may keep.
   handles: Arc<dyn RawHandles>,
   access: Access<Adapter>,
 }
