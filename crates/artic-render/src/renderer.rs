@@ -288,7 +288,9 @@ mod tests {
   #[test]
   fn unsupported_targets_are_errors() {
     let mut renderer = FirstColor;
+    let mut keeper = Keeper::default();
     let mut other = 0_u8;
+    let mut kept = 0_u8;
     let mut data = [0_u8; 8];
     let bgra = PixelBuffer {
       data: &mut data,
@@ -298,12 +300,18 @@ mod tests {
 
     let custom = renderer.render(&red_scene(), surface(Target::Custom(&mut other)));
     let format = renderer.render(&red_scene(), surface(Target::Pixels(bgra)));
+    let unkept = keeper.render(&red_scene(), surface(Target::Custom(&mut kept)));
 
     assert_eq!(
       custom.expect_err("custom").to_string(),
       "this renderer can't draw on Custom targets"
     );
     assert_eq!(format.expect_err("bgra").to_string(), "this renderer can't fill Bgra8 pixels");
+    assert_eq!(
+      unkept.expect_err("unkept").to_string(),
+      "this renderer can't draw on Custom targets"
+    );
+    assert!(keeper.accepts(TargetKind::Handles) && !keeper.accepts(TargetKind::Custom));
   }
 
   // A renderer can keep the lent handles past the call, which keeps the window alive until it drops them.
@@ -312,6 +320,7 @@ mod tests {
     let mut renderer = Keeper::default();
     let window = Arc::new(Window);
     let handles: Arc<dyn RawHandles> = window.clone();
+    assert!(handles.window_handle().is_err() && handles.display_handle().is_err());
 
     renderer
       .render(&red_scene(), surface(Target::Handles(&handles)))
