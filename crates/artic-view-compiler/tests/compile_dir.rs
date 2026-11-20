@@ -4,13 +4,14 @@
 
 mod common;
 
-use artic_view_compiler::{CratePaths, compile_dir};
+use artic_view_compiler::{CompileError, CratePaths, compile_dir};
 use common::Named;
 use std::fs;
 use std::path::Path;
 
 // A directory with no views replaces `$OUT_DIR/views/` with nothing, and a directory whose path
-// holds a newline is refused before anything is printed for Cargo.
+// holds a newline is refused before anything is printed for Cargo. Windows can't name a directory
+// so.
 fn main() {
   let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("compile_dir");
   let _ = fs::remove_dir_all(&root);
@@ -24,11 +25,13 @@ fn main() {
   compile_dir(&views, &Named, &CratePaths::new()).expect("an empty directory compiles");
   assert!(!out.join("views").exists(), "the earlier output is removed");
 
-  // Windows can't name a directory so.
   if cfg!(not(windows)) {
     let bad = root.join("views\nx");
     fs::create_dir_all(&bad).expect("a writable temp dir");
-    let refused = compile_dir(&bad, &Named, &CratePaths::new());
-    assert!(refused.is_err(), "a newline in the directory is refused: {refused:?}");
+    let error = compile_dir(&bad, &Named, &CratePaths::new()).expect_err("a newline in the directory");
+    assert!(
+      matches!(error, CompileError::ControlCharacter { ref path } if path.ends_with("views\nx")),
+      "{error}"
+    );
   }
 }
