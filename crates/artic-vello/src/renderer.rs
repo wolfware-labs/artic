@@ -654,7 +654,7 @@ mod tests {
   }
 
   // A buffer holds the surface when its rows fit the row and its length fits every row, compared
-  // without wrapping: sizes past `u32` and past a 32-bit `usize` are refused, not let through.
+  // without wrapping: sizes past `u64` and past a 32-bit `usize` are refused, not let through.
   #[test]
   fn a_buffer_holds_the_surface_without_wrapping() {
     let size = PhysicalSize::new(4, 3);
