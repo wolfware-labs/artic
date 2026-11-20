@@ -20,17 +20,23 @@ use vello::{AaConfig, AaSupport, RenderParams, RendererOptions};
 /// It accepts [`Target::Handles`], keeping a swapchain per surface until the host reports the
 /// surface lost, and [`Target::Pixels`], rendering offscreen and copying the pixels back.
 pub struct Renderer {
+  /// The wgpu instance windows' surfaces are created from.
   instance: Instance,
+  /// The GPU the device was opened on.
   adapter: wgpu::Adapter,
+  /// The device every texture and buffer is made on.
   device: Device,
+  /// The device's queue, where draws and copies are submitted.
   queue: Queue,
   /// The longest side, in pixels, of a texture the device can make.
   max_side: u32,
+  /// vello's pipelines, built once for the device.
   vello: vello::Renderer,
   /// The translated scene, reused across frames to keep its allocations.
   encoded: vello::Scene,
   /// One band of a frame too large for a single pass, shifted to the band's first row.
   band: vello::Scene,
+  /// The swapchain of each window surface, until the host reports it lost.
   swapchains: HashMap<SurfaceId, Swapchain>,
 }
 
@@ -107,8 +113,7 @@ impl Renderer {
     }
     let band = storage_texture(&self.device, PhysicalSize::new(size.width, rows), TextureUsages::COPY_SRC);
     let view = band.create_view(&wgpu::TextureViewDescriptor::default());
-    for first in (0..size.height).step_by(rows as usize) {
-      let part = PhysicalSize::new(size.width, rows.min(size.height - first));
+    for (first, part) in bands(size, rows) {
       self.band.reset();
       self
         .band
@@ -241,8 +246,7 @@ impl Renderer {
       usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
       mapped_at_creation: false,
     });
-    for first in (0..size.height).step_by(rows as usize) {
-      let band = PhysicalSize::new(size.width, rows.min(size.height - first));
+    for (first, band) in bands(size, rows) {
       let slice = self.read_back(&texture, first, band, &readback, padded)?;
       let mapped = slice.get_mapped_range().map_err(backend)?;
       let start = first as usize * buffer.stride;
@@ -364,6 +368,14 @@ fn fits(size: PhysicalSize, max: u32) -> Result<(), RenderError> {
 /// they fit in `max_bytes`, else as many as fit.
 fn rows_per_copy(padded: usize, max_bytes: u64, height: u32) -> u32 {
   (max_bytes / padded as u64).min(u64::from(height)) as u32
+}
+
+/// The bands of whole rows a frame of `size` splits into, `rows` high but the last: each band's
+/// first row and its size.
+fn bands(size: PhysicalSize, rows: u32) -> impl Iterator<Item = (u32, PhysicalSize)> {
+  (0..size.height)
+    .step_by(rows as usize)
+    .map(move |first| (first, PhysicalSize::new(size.width, rows.min(size.height - first))))
 }
 
 /// The tiles one vello pass draws at most. vello keeps a fixed 2^23 words for the tiles' command
@@ -579,6 +591,25 @@ mod tests {
     assert_eq!(rows_per_pass(16 * 1024), 64 * 16);
     assert_eq!(rows_per_pass(16 * 1024 - 1), 64 * 16, "the last tile partly covered");
     assert_eq!(rows_per_pass(u32::MAX), 16, "wider than the budget");
+  }
+
+  // A frame splits into bands of whole rows from the top, the last holding what's left; a band as
+  // tall as the frame or taller is the whole frame.
+  #[test]
+  fn a_frame_splits_into_bands_of_whole_rows() {
+    let size = |height| PhysicalSize::new(3, height);
+    let split = bands(size(10), 4).collect::<Vec<_>>();
+    assert_eq!(split, [(0, size(4)), (4, size(4)), (8, size(2))]);
+    assert_eq!(
+      bands(size(8), 4).collect::<Vec<_>>(),
+      [(0, size(4)), (4, size(4))],
+      "even split"
+    );
+    assert_eq!(
+      bands(size(4), 16).collect::<Vec<_>>(),
+      [(0, size(4))],
+      "taller than the frame"
+    );
   }
 
   // Every row is copied back at once when the rows fit in the limit, and as many whole rows as fit
