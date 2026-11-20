@@ -63,6 +63,8 @@ jobs:
               - '.github/workflows/ci.yml'
               - '.github/actions/**'
               - '.github/scripts/**'
+              - 'scripts/**'
+              - 'codecov.yml'
             # What can move a bench, or how the benches run.
             benches:
               - 'crates/**'
