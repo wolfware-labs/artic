@@ -8,9 +8,9 @@ use quote::{format_ident, quote};
 use std::path::{Component, Path};
 use syn::ext::IdentExt;
 
-/// The module body for `view`, compiled from the file at `path`. The path is written with its line
-/// breaks and bidirectional controls escaped in its header and doc comments, so it can't end a
-/// comment and add code.
+/// The module body for `view`, compiled from the file at `path`. The path is written with its
+/// control characters and bidirectional controls escaped in its header and doc comments, so it
+/// can't end a comment and add code.
 pub(crate) fn emit(view: &View, path: &Path) -> String {
   let file = escaped(&display(path));
   let root = view.root;
@@ -159,17 +159,16 @@ fn local(index: usize) -> proc_macro2::Ident {
 /// refuses in comments written as escapes; every other character, accents and quotes among them,
 /// as it is.
 fn escaped(text: &str) -> String {
-  text
-    .chars()
-    .map(|character| {
-      let bidi = matches!(character, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}');
-      if character.is_control() || bidi {
-        character.escape_debug().to_string()
-      } else {
-        character.to_string()
-      }
-    })
-    .collect()
+  let mut escaped = String::with_capacity(text.len());
+  for character in text.chars() {
+    let bidi = matches!(character, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}');
+    if character.is_control() || bidi {
+      escaped.extend(character.escape_debug());
+    } else {
+      escaped.push(character);
+    }
+  }
+  escaped
 }
 
 /// `path` with `/` separators and without a root, so the output is the same on every platform.

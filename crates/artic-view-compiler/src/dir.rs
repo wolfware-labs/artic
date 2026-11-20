@@ -33,9 +33,9 @@ pub enum CompileError {
   /// The linked crates register two types at one Rust path, or another duplicate.
   #[error(transparent)]
   Registry(#[from] RegistryError),
-  /// A view's path holds a control character, such as a newline, which would reach the generated
-  /// header and Cargo's `rerun-if-changed` lines as raw text.
-  #[error("the view {path:?} has a control character in its path")]
+  /// The directory's or a view's path holds a control character, such as a newline, which would
+  /// start a line of its own in Cargo's `rerun-if-changed` output.
+  #[error("the path {path:?} has a control character")]
   ControlCharacter {
     /// The view's path.
     path: PathBuf,
@@ -75,8 +75,8 @@ impl Debug for CompileError {
 /// # Errors
 ///
 /// Stops at the first view with errors, in sorted order, and returns its diagnostics; or returns
-/// the I/O error, a view whose path holds a control character, the registry's duplicates, or a
-/// missing `OUT_DIR`.
+/// the I/O error, the directory or a view whose path holds a control character, the registry's
+/// duplicates, or a missing `OUT_DIR`.
 pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), paths: &CratePaths) -> Result<(), CompileError> {
   let out = std::env::var_os("OUT_DIR").ok_or(CompileError::NoOutDir)?;
   let registry = Registry::from_link_time()?;
@@ -178,8 +178,8 @@ fn shown(dir: &Path, relative: &Path) -> PathBuf {
   }
 }
 
-/// `path`, or an error when it holds a control character: Cargo reads a build script's output a
-/// line at a time, so a newline in a path printed there starts a directive of its own.
+/// Refuses `path` when it holds a control character: Cargo reads a build script's output a line at
+/// a time, so a newline in a path printed there starts a directive of its own.
 fn checked(path: &Path) -> Result<(), CompileError> {
   if path.to_string_lossy().chars().any(char::is_control) {
     return Err(CompileError::ControlCharacter { path: path.to_owned() });
