@@ -303,7 +303,7 @@ impl Renderer {
       timeout: Some(READBACK_TIMEOUT),
     };
     self.device.poll(wait).map_err(backend)?;
-    receiver.recv().map_err(backend)?.map_err(backend)?;
+    receiver.recv_timeout(READBACK_TIMEOUT).map_err(backend)?.map_err(backend)?;
     Ok(slice)
   }
 }
@@ -367,7 +367,8 @@ fn fits(size: PhysicalSize, max: u32) -> Result<(), RenderError> {
   Ok(())
 }
 
-/// How long a readback waits for the GPU before it fails, as when the device was lost meanwhile.
+/// How long a readback waits for the GPU, and then for the mapped buffer, before it fails, so a
+/// GPU that never finishes can't hang the frame.
 const READBACK_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// The bytes one row of `size` takes in a pixel buffer `len` bytes long with rows `stride` bytes
@@ -665,6 +666,9 @@ mod tests {
     assert!(row_bytes(tall, 1 << 31, 1 << 20).is_err(), "past a 32-bit usize");
     assert!(row_bytes(tall, usize::MAX, usize::MAX).is_err(), "past u64");
     let wide = PhysicalSize::new(u32::MAX, 1);
+    #[cfg(target_pointer_width = "32")]
+    assert!(row_bytes(wide, usize::MAX, usize::MAX).is_err(), "a row past a 32-bit usize");
+    #[cfg(target_pointer_width = "64")]
     assert_eq!(
       row_bytes(wide, usize::MAX, usize::MAX).ok(),
       Some(u32::MAX as usize * 4),
