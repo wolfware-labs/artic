@@ -1,4 +1,4 @@
-use crate::{PixelFormat, TargetKind};
+use crate::{PhysicalSize, PixelFormat, TargetKind};
 use std::error::Error;
 
 /// Why a [`Renderer`](crate::Renderer) couldn't draw a frame.
@@ -13,6 +13,14 @@ pub enum RenderError {
   /// The surface went away while drawing.
   #[error("the surface was lost")]
   SurfaceLost,
+  /// The surface is larger on a side than the renderer can draw; a frame of a smaller size draws.
+  #[error("the surface is {}x{} pixels, over the renderer's limit of {max} on a side", size.width, size.height)]
+  SurfaceTooLarge {
+    /// The surface's size.
+    size: PhysicalSize,
+    /// The longest side, in pixels, the renderer can draw.
+    max: u32,
+  },
   /// The renderer's library failed.
   #[error(transparent)]
   Backend(Box<dyn Error + Send + Sync>),

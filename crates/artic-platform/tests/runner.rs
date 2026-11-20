@@ -19,7 +19,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use artic_platform::{Error, Host, HostEvent, SurfaceLoss, run};
-use artic_render::{RenderError, TargetKind};
+use artic_render::{PhysicalSize, RenderError, TargetKind};
 const FIRST: SurfaceId = SurfaceId::new(1);
 
 /// Each surface's last frame stats, recorded through the `after_present` hook.
@@ -650,6 +650,36 @@ fn lost_surface_isnt_returned_from_run() {
   let result = run(Frames { fail, outcomes }, one_window(renderer));
 
   assert!(result.is_ok(), "{result:?}");
+}
+
+// A surface too large to draw keeps the loop running: the error hooks hear of it once, and again
+// only after a frame that drew.
+#[test]
+fn too_large_surface_is_reported_once_and_keeps_running() {
+  let renderer = Counter::default();
+  let fail = Rc::clone(&renderer.fail);
+  let too_large = || {
+    Some(RenderError::SurfaceTooLarge {
+      size: PhysicalSize::new(20_000, 64),
+      max: 16_384,
+    })
+  };
+  let outcomes = vec![too_large(), too_large(), None, too_large()];
+  let seen = Rc::new(Cell::new(0));
+  let hook_seen = Rc::clone(&seen);
+  let mut runner = one_window(renderer);
+  runner.hooks().on_error(move |error| {
+    assert!(
+      matches!(error, Error::Render(RenderError::SurfaceTooLarge { .. })),
+      "{error:?}"
+    );
+    hook_seen.set(hook_seen.get() + 1);
+  });
+
+  let result = run(Frames { fail, outcomes }, runner);
+
+  assert!(result.is_ok(), "{result:?}");
+  assert_eq!(seen.get(), 2);
 }
 
 /// A host that makes every call of the seam once, recording what the app asked of it.

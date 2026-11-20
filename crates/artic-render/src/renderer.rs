@@ -22,7 +22,8 @@ pub trait Renderer {
   /// # Errors
   ///
   /// Returns [`RenderError::Unsupported`] or [`RenderError::UnsupportedFormat`] for a target it
-  /// can't draw on, [`RenderError::SurfaceLost`] if the surface went away, and
+  /// can't draw on, [`RenderError::SurfaceLost`] if the surface went away,
+  /// [`RenderError::SurfaceTooLarge`] for a surface over its size limit, and
   /// [`RenderError::Backend`] for its library's own failures.
   fn render(&mut self, scene: &Scene, surface: SurfaceView<'_>) -> Result<(), RenderError>;
 

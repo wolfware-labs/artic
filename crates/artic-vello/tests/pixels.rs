@@ -575,6 +575,24 @@ fn a_buffer_smaller_than_the_surface_fails() {
   });
 }
 
+// A surface with a side longer than the GPU can draw is refused before drawing, and a side at the
+// GPU's own limit, past wgpu's default of 8192, draws.
+#[test]
+fn a_surface_over_the_gpu_limit_fails() {
+  with_renderer(|renderer| {
+    let refused = render_into(renderer, PhysicalSize::new(u32::MAX, 1), 0, 0);
+    let Err(RenderError::SurfaceTooLarge { max, .. }) = refused else {
+      panic!("{refused:?}")
+    };
+    assert!(max > 8192, "the device keeps wgpu's default limit: {max}");
+    assert!(matches!(
+      render_into(renderer, PhysicalSize::new(1, max + 1), 4, 0),
+      Err(RenderError::SurfaceTooLarge { .. })
+    ));
+    render_into(renderer, PhysicalSize::new(max, 1), max as usize * 4, 1).expect("a side at the limit");
+  });
+}
+
 // A surface without width or height draws nothing and succeeds, with no buffer to draw into.
 #[test]
 fn a_surface_without_pixels_draws_nothing() {

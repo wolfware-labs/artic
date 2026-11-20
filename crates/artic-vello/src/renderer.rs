@@ -9,7 +9,7 @@ use std::sync::{Arc, mpsc};
 use vello::wgpu::util::TextureBlitter;
 use vello::wgpu::{
   self, Adapter, Backends, CompositeAlphaMode, CurrentSurfaceTexture, Device, DeviceDescriptor, Extent3d, Instance,
-  InstanceDescriptor, PresentMode, Queue, SurfaceConfiguration, TexelCopyBufferInfo, TexelCopyBufferLayout,
+  InstanceDescriptor, Limits, PresentMode, Queue, SurfaceConfiguration, TexelCopyBufferInfo, TexelCopyBufferLayout,
   TexelCopyTextureInfo, Texture, TextureFormat, TextureUsages, TextureView,
 };
 use vello::{AaConfig, AaSupport, RenderParams, RendererOptions};
@@ -23,6 +23,8 @@ pub struct Renderer {
   adapter: wgpu::Adapter,
   device: Device,
   queue: Queue,
+  /// The longest side, in pixels, of a texture the device can make.
+  max_side: u32,
   vello: vello::Renderer,
   /// The translated scene, reused across frames to keep its allocations.
   encoded: vello::Scene,
@@ -60,7 +62,12 @@ impl Renderer {
     if is_warp(info.backend, info.device_type) {
       return Err(Error::UnsupportedAdapter(info.name));
     }
-    let (device, queue) = pollster::block_on(adapter.request_device(&DeviceDescriptor::default()))?;
+    let descriptor = DeviceDescriptor {
+      required_limits: Limits::default().using_resolution(adapter.limits()),
+      ..DeviceDescriptor::default()
+    };
+    let (device, queue) = pollster::block_on(adapter.request_device(&descriptor))?;
+    let max_side = device.limits().max_texture_dimension_2d;
     let options = RendererOptions {
       antialiasing_support: AaSupport::area_only(),
       ..RendererOptions::default()
@@ -71,6 +78,7 @@ impl Renderer {
       adapter,
       device,
       queue,
+      max_side,
       vello,
       encoded: vello::Scene::new(),
       swapchains: HashMap::new(),
@@ -102,6 +110,7 @@ impl Renderer {
     if size.is_empty() {
       return Ok(());
     }
+    fits(size, self.max_side)?;
     if !self.swapchains.contains_key(&id) {
       let swapchain = self.create_swapchain(handles, size)?;
       self.swapchains.insert(id, swapchain);
@@ -197,6 +206,7 @@ impl Renderer {
     if size.is_empty() {
       return Ok(());
     }
+    fits(size, self.max_side)?;
     let row_bytes = size.width as usize * 4;
     if buffer.stride < row_bytes || buffer.data.len() < buffer.stride * size.height as usize {
       return Err(backend("the pixel buffer is smaller than the surface"));
@@ -299,6 +309,14 @@ fn acquired(answer: CurrentSurfaceTexture, retry: bool) -> Acquired {
     CurrentSurfaceTexture::Outdated | CurrentSurfaceTexture::Lost => Acquired::Failed(RenderError::SurfaceLost),
     CurrentSurfaceTexture::Validation => Acquired::Failed(backend("the surface texture failed validation")),
   }
+}
+
+/// [`RenderError::SurfaceTooLarge`] when a side of `size` is longer than `max`.
+fn fits(size: PhysicalSize, max: u32) -> Result<(), RenderError> {
+  if size.width > max || size.height > max {
+    return Err(RenderError::SurfaceTooLarge { size, max });
+  }
+  Ok(())
 }
 
 fn extent(size: PhysicalSize) -> Extent3d {
@@ -454,6 +472,20 @@ mod tests {
   }
 
   // A hidden window or a timed-out GPU skips the frame; a validation failure is an error.
+  // A side longer than the limit is refused, whichever side it is; sides at the limit fit.
+  #[test]
+  fn a_size_fits_up_to_the_limit() {
+    let too_large = |width, height| {
+      matches!(
+        fits(PhysicalSize::new(width, height), 16),
+        Err(RenderError::SurfaceTooLarge { size, max: 16 }) if size == PhysicalSize::new(width, height)
+      )
+    };
+    assert!(fits(PhysicalSize::new(16, 16), 16).is_ok());
+    assert!(too_large(17, 1), "too wide");
+    assert!(too_large(1, 17), "too tall");
+  }
+
   #[test]
   fn a_hidden_or_failed_surface_gives_no_frame() {
     for retry in [false, true] {
