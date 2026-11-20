@@ -593,6 +593,24 @@ fn a_surface_over_the_gpu_limit_fails() {
   });
 }
 
+// A frame of more tiles than vello draws in one pass is filled to its last row: vello's fixed
+// buffers hold about 2^17 16x16 tiles, and alone it would leave the rows past them blank.
+#[test]
+fn a_frame_past_vellos_tile_budget_draws_every_row() {
+  with_renderer(|renderer| {
+    let size = PhysicalSize::new(8192, 4200);
+    let scene = Scene::record(|builder| builder.fill(Rect::new(0.0, 0.0, 8192.0, 4200.0), RED));
+
+    let image = artic_test::golden::render(renderer, &scene, size, 1.0).expect("renders");
+
+    let pixels = image.pixels();
+    let last = pixels.len() - 1;
+    for (index, what) in [(0, "first pixel"), (8192 * 4100, "row 4100"), (last, "last pixel")] {
+      assert_eq!(pixels[index], OPAQUE_RED, "{what}");
+    }
+  });
+}
+
 // A surface without width or height draws nothing and succeeds, with no buffer to draw into.
 #[test]
 fn a_surface_without_pixels_draws_nothing() {

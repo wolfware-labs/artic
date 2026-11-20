@@ -6,6 +6,7 @@ use artic_render::{
 };
 use std::collections::HashMap;
 use std::sync::{Arc, mpsc};
+use vello::kurbo::Affine;
 use vello::wgpu::util::TextureBlitter;
 use vello::wgpu::{
   self, Adapter, Backends, CompositeAlphaMode, CurrentSurfaceTexture, Device, DeviceDescriptor, Extent3d, Instance,
@@ -28,6 +29,8 @@ pub struct Renderer {
   vello: vello::Renderer,
   /// The translated scene, reused across frames to keep its allocations.
   encoded: vello::Scene,
+  /// One band of a frame too large for a single pass, shifted to the band's first row.
+  band: vello::Scene,
   swapchains: HashMap<SurfaceId, Swapchain>,
 }
 
@@ -35,7 +38,7 @@ pub struct Renderer {
 struct Swapchain {
   surface: wgpu::Surface<'static>,
   config: SurfaceConfiguration,
-  target: TextureView,
+  target: Texture,
   blitter: TextureBlitter,
 }
 
@@ -81,6 +84,7 @@ impl Renderer {
       max_side,
       vello,
       encoded: vello::Scene::new(),
+      band: vello::Scene::new(),
       swapchains: HashMap::new(),
     })
   }
@@ -88,22 +92,40 @@ impl Renderer {
   /// Draws the translated scene into a fresh texture of `size`, which vello can write.
   fn draw_offscreen(&mut self, size: PhysicalSize, usage: TextureUsages) -> Result<Texture, RenderError> {
     let texture = storage_texture(&self.device, size, usage);
-    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-    self.draw(&view, size)?;
+    self.draw(&texture, size)?;
     Ok(texture)
   }
 
-  fn draw(&mut self, view: &TextureView, size: PhysicalSize) -> Result<(), RenderError> {
-    let params = RenderParams {
-      base_color: vello::peniko::Color::TRANSPARENT,
-      width: size.width,
-      height: size.height,
-      antialiasing_method: AaConfig::Area,
-    };
-    self
-      .vello
-      .render_to_texture(&self.device, &self.queue, &self.encoded, view, &params)
-      .map_err(backend)
+  /// Draws the translated scene into `target`, of `size`. A frame with more tiles than one vello
+  /// pass holds is drawn in bands of whole rows, each shifted up into a texture of its own and
+  /// copied into place.
+  fn draw(&mut self, target: &Texture, size: PhysicalSize) -> Result<(), RenderError> {
+    let rows = rows_per_pass(size.width);
+    if rows >= size.height {
+      let view = target.create_view(&wgpu::TextureViewDescriptor::default());
+      return pass(&mut self.vello, &self.device, &self.queue, &self.encoded, &view, size);
+    }
+    let band = storage_texture(&self.device, PhysicalSize::new(size.width, rows), TextureUsages::COPY_SRC);
+    let view = band.create_view(&wgpu::TextureViewDescriptor::default());
+    for first in (0..size.height).step_by(rows as usize) {
+      let part = PhysicalSize::new(size.width, rows.min(size.height - first));
+      self.band.reset();
+      self
+        .band
+        .append(&self.encoded, Some(Affine::translate((0.0, -f64::from(first)))));
+      pass(&mut self.vello, &self.device, &self.queue, &self.band, &view, part)?;
+      let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+      encoder.copy_texture_to_texture(
+        band.as_image_copy(),
+        TexelCopyTextureInfo {
+          origin: wgpu::Origin3d { x: 0, y: first, z: 0 },
+          ..target.as_image_copy()
+        },
+        extent(part),
+      );
+      self.queue.submit([encoder.finish()]);
+    }
+    Ok(())
   }
 
   fn render_to_window(&mut self, id: SurfaceId, size: PhysicalSize, handles: &Arc<dyn RawHandles>) -> Result<(), RenderError> {
@@ -123,11 +145,10 @@ impl Renderer {
     let target = swapchain.target.clone();
     self.draw(&target, size)?;
     let swapchain = &self.swapchains[&id];
+    let target_view = target.create_view(&wgpu::TextureViewDescriptor::default());
     let frame_view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
     let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-    swapchain
-      .blitter
-      .copy(&self.device, &mut encoder, &swapchain.target, &frame_view);
+    swapchain.blitter.copy(&self.device, &mut encoder, &target_view, &frame_view);
     self.queue.submit([encoder.finish()]);
     self.queue.present(frame);
     Ok(())
@@ -176,7 +197,7 @@ impl Renderer {
       color_space: wgpu::SurfaceColorSpace::Auto,
     };
     surface.configure(&self.device, &config);
-    let target = storage_view(&self.device, size);
+    let target = storage_texture(&self.device, size, TextureUsages::empty());
     Ok(Swapchain {
       surface,
       config,
@@ -194,7 +215,7 @@ impl Renderer {
     swapchain.config.width = size.width;
     swapchain.config.height = size.height;
     swapchain.surface.configure(&self.device, &swapchain.config);
-    swapchain.target = storage_view(&self.device, size);
+    swapchain.target = storage_texture(&self.device, size, TextureUsages::empty());
   }
 
   fn render_to_pixels(&mut self, size: PhysicalSize, buffer: PixelBuffer<'_>) -> Result<(), RenderError> {
@@ -345,6 +366,38 @@ fn rows_per_copy(padded: usize, max_bytes: u64, height: u32) -> u32 {
   (max_bytes / padded as u64).min(u64::from(height)) as u32
 }
 
+/// The tiles one vello pass draws at most. vello keeps a fixed 2^23 words for the tiles' command
+/// lists and reserves 64 for each tile up front, so a pass of 2^17 tiles leaves nothing for a tile
+/// that needs more; half of that leaves the other half to them.
+const PASS_TILES: u32 = 1 << 16;
+
+/// The side of vello's square tiles, in pixels.
+const TILE: u32 = 16;
+
+/// How many rows of a frame `width` pixels wide one vello pass draws: whole rows of tiles, as many
+/// as [`PASS_TILES`] holds, and at least one.
+fn rows_per_pass(width: u32) -> u32 {
+  (PASS_TILES / width.div_ceil(TILE)).max(1) * TILE
+}
+
+/// Draws `scene` into `view` at `size` in one vello pass.
+fn pass(
+  vello: &mut vello::Renderer,
+  device: &Device,
+  queue: &Queue,
+  scene: &vello::Scene,
+  view: &TextureView,
+  size: PhysicalSize,
+) -> Result<(), RenderError> {
+  let params = RenderParams {
+    base_color: vello::peniko::Color::TRANSPARENT,
+    width: size.width,
+    height: size.height,
+    antialiasing_method: AaConfig::Area,
+  };
+  vello.render_to_texture(device, queue, scene, view, &params).map_err(backend)
+}
+
 fn extent(size: PhysicalSize) -> Extent3d {
   Extent3d {
     width: size.width,
@@ -362,13 +415,9 @@ fn storage_texture(device: &Device, size: PhysicalSize, usage: TextureUsages) ->
     sample_count: 1,
     dimension: wgpu::TextureDimension::D2,
     format: TextureFormat::Rgba8Unorm,
-    usage: TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING | usage,
+    usage: TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST | usage,
     view_formats: &[],
   })
-}
-
-fn storage_view(device: &Device, size: PhysicalSize) -> TextureView {
-  storage_texture(device, size, TextureUsages::empty()).create_view(&wgpu::TextureViewDescriptor::default())
 }
 
 /// A library failure, as the `RenderError` the renderer seam reports.
@@ -520,6 +569,16 @@ mod tests {
     assert!(fits(PhysicalSize::new(16, 16), 16).is_ok());
     assert!(too_large(17, 1), "too wide");
     assert!(too_large(1, 17), "too tall");
+  }
+
+  // A pass holds whole rows of tiles up to the budget: a 4K frame is one pass, the widest frames
+  // still get a row of tiles, and a width that ends mid-tile counts the whole tile.
+  #[test]
+  fn a_pass_holds_whole_rows_of_tiles_up_to_the_budget() {
+    assert_eq!(rows_per_pass(3840), 4368, "4K, 240 tiles wide");
+    assert_eq!(rows_per_pass(16 * 1024), 64 * 16);
+    assert_eq!(rows_per_pass(16 * 1024 - 1), 64 * 16, "the last tile partly covered");
+    assert_eq!(rows_per_pass(u32::MAX), 16, "wider than the budget");
   }
 
   // Every row is copied back at once when the rows fit in the limit, and as many whole rows as fit
