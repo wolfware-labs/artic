@@ -5,6 +5,7 @@ pub use error::RenderError;
 use crate::Scene;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use std::any::Any;
+use std::sync::Arc;
 
 /// Draws [`Scene`]s on the surfaces a host offers.
 ///
@@ -91,9 +92,10 @@ pub enum Target<'a> {
   /// Native handles, through `raw-window-handle`: OS windows, DRM/GBM screens, browser canvases.
   /// The renderer creates its swapchain from them and presents.
   ///
-  /// The handles stay valid until the host reports the surface lost, so a renderer may keep a
-  /// swapchain made from them across frames; it must drop it in [`Renderer::surface_lost`].
-  Handles(&'a dyn RawHandles),
+  /// The host lends the handles' owner as an [`Arc`]. A renderer may clone it into a swapchain it
+  /// keeps across frames, which keeps the window alive until the swapchain drops; it must drop the
+  /// swapchain in [`Renderer::surface_lost`], or a closed window stays on screen.
+  Handles(&'a Arc<dyn RawHandles>),
   /// A CPU pixel buffer of the surface's size, such as a framebuffer or an offscreen test image. The
   /// renderer fills it; the host presents it.
   Pixels(PixelBuffer<'a>),
@@ -135,10 +137,10 @@ pub enum TargetKind {
 }
 
 /// The native window and display handles of a surface: anything with both `raw-window-handle`
-/// handles.
-pub trait RawHandles: HasWindowHandle + HasDisplayHandle {}
+/// handles that can be shared between threads and kept alive by a renderer.
+pub trait RawHandles: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static {}
 
-impl<T: HasWindowHandle + HasDisplayHandle + ?Sized> RawHandles for T {}
+impl<T: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static> RawHandles for T {}
 
 /// CPU memory for a surface's pixels, rows from the top.
 #[derive(Debug)]
@@ -167,6 +169,46 @@ mod tests {
   use crate::{Brush, Color, Command, SceneItem, SolidColorBrush};
   use artic_layout::geometry::Rect;
   use pretty_assertions::assert_eq;
+  use raw_window_handle::{DisplayHandle, HandleError, WindowHandle};
+
+  /// A window with no handles, which counts as owned while any clone of its `Arc` lives.
+  struct Window;
+
+  impl HasWindowHandle for Window {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+      Err(HandleError::Unavailable)
+    }
+  }
+
+  impl HasDisplayHandle for Window {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+      Err(HandleError::Unavailable)
+    }
+  }
+
+  /// Keeps the handles of every `Handles` target it draws on.
+  #[derive(Default)]
+  struct Keeper {
+    kept: Vec<Arc<dyn RawHandles>>,
+  }
+
+  impl Renderer for Keeper {
+    fn accepts(&self, kind: TargetKind) -> bool {
+      kind == TargetKind::Handles
+    }
+
+    fn render(&mut self, _scene: &Scene, surface: SurfaceView<'_>) -> Result<(), RenderError> {
+      let Target::Handles(handles) = surface.target else {
+        return Err(RenderError::Unsupported(surface.target.kind()));
+      };
+      self.kept.push(Arc::clone(handles));
+      Ok(())
+    }
+
+    fn surface_lost(&mut self, _surface: SurfaceId) {
+      self.kept.clear();
+    }
+  }
 
   /// Fills `Pixels` targets with the color of the scene's first rectangle, ignoring layers.
   struct FirstColor;
@@ -246,7 +288,9 @@ mod tests {
   #[test]
   fn unsupported_targets_are_errors() {
     let mut renderer = FirstColor;
+    let mut keeper = Keeper::default();
     let mut other = 0_u8;
+    let mut kept = 0_u8;
     let mut data = [0_u8; 8];
     let bgra = PixelBuffer {
       data: &mut data,
@@ -256,11 +300,35 @@ mod tests {
 
     let custom = renderer.render(&red_scene(), surface(Target::Custom(&mut other)));
     let format = renderer.render(&red_scene(), surface(Target::Pixels(bgra)));
+    let unkept = keeper.render(&red_scene(), surface(Target::Custom(&mut kept)));
 
     assert_eq!(
       custom.expect_err("custom").to_string(),
       "this renderer can't draw on Custom targets"
     );
     assert_eq!(format.expect_err("bgra").to_string(), "this renderer can't fill Bgra8 pixels");
+    assert_eq!(
+      unkept.expect_err("unkept").to_string(),
+      "this renderer can't draw on Custom targets"
+    );
+    assert!(keeper.accepts(TargetKind::Handles) && !keeper.accepts(TargetKind::Custom));
+  }
+
+  // A renderer can keep the lent handles past the call, which keeps the window alive until it drops them.
+  #[test]
+  fn lent_handles_outlive_the_borrow() {
+    let mut renderer = Keeper::default();
+    let window = Arc::new(Window);
+    let handles: Arc<dyn RawHandles> = window.clone();
+    assert!(handles.window_handle().is_err() && handles.display_handle().is_err());
+
+    renderer
+      .render(&red_scene(), surface(Target::Handles(&handles)))
+      .expect("renders");
+    drop(handles);
+    assert_eq!(Arc::strong_count(&window), 2);
+
+    renderer.surface_lost(SurfaceId::new(1));
+    assert_eq!(Arc::strong_count(&window), 1);
   }
 }

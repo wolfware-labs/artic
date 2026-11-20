@@ -9,6 +9,7 @@ use accesskit::TreeUpdate;
 use artic_platform::{Accessibility, AppHandler, HostContext, HostEvent, SurfaceInfo, SurfaceLoss, Waker, WindowDesc, Windows};
 use artic_render::{PhysicalSize, RawHandles, SurfaceId, Target};
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Instant;
 use winit::dpi::PhysicalSize as WinitSize;
 use winit::event::WindowEvent;
@@ -25,13 +26,16 @@ pub(crate) trait Loop {
 }
 
 /// A native window, as the driver uses it.
-pub(crate) trait Window: RawHandles {
+pub(crate) trait Window {
   type Id: PartialEq + Copy;
   type Monitor: Monitor;
   /// What the window hands accessibility updates through.
   type Adapter: Updates;
 
   fn id(&self) -> Self::Id;
+
+  /// The window's native handles, which the renderer may keep alive.
+  fn handles(&self) -> &Arc<dyn RawHandles>;
 
   fn inner_size(&self) -> WinitSize<u32>;
 
@@ -128,11 +132,16 @@ impl<A: AppHandler, W: Window> Driver<A, W> {
       for surface in opened {
         self.refresh(event_loop, surface, None);
       }
-      for (surface, window) in lost {
-        self.call(event_loop, |app, cx| app.surface_lost(cx, surface, SurfaceLoss::Gone));
-        drop(window);
+      for surface in lost {
+        self.report_gone(event_loop, surface);
       }
     }
+  }
+
+  /// Reports `surface` gone for good, then lets go of its window.
+  fn report_gone<L: Loop<Window = W>>(&mut self, event_loop: &L, surface: SurfaceId) {
+    self.call(event_loop, |app, cx| app.surface_lost(cx, surface, SurfaceLoss::Gone));
+    self.surfaces.reported(surface);
   }
 
   /// Reads `surface`'s facts from its window, with `size` and `scale` from an event when it has
@@ -229,7 +238,9 @@ impl<A: AppHandler, W: Window> Driver<A, W> {
           return;
         }
         let time = self.start.elapsed();
-        self.call(event_loop, |app, cx| app.frame(cx, surface, Target::Handles(&*window), time));
+        self.call(event_loop, |app, cx| {
+          app.frame(cx, surface, Target::Handles(window.handles()), time)
+        });
       }
       Translated::Ignored => {}
     }
@@ -266,9 +277,8 @@ impl<A: AppHandler, W: Window> Driver<A, W> {
   /// is never created.
   pub(crate) fn drain<L: Loop<Window = W>>(&mut self, event_loop: &L) {
     self.exiting = true;
-    for (surface, window) in self.surfaces.drain() {
-      self.call(event_loop, |app, cx| app.surface_lost(cx, surface, SurfaceLoss::Gone));
-      drop(window);
+    for surface in self.surfaces.drain() {
+      self.report_gone(event_loop, surface);
     }
   }
 }
@@ -366,6 +376,7 @@ mod tests {
   use artic_platform::{Axes, Chrome, LogicalSize};
   use pretty_assertions::assert_eq;
   use std::cell::{Cell, RefCell};
+  use std::panic::{AssertUnwindSafe, catch_unwind};
   use std::sync::Arc;
   use std::time::Duration;
   use winit::dpi::PhysicalPosition;
@@ -388,6 +399,7 @@ mod tests {
   struct FakeWindow {
     id: u32,
     state: Rc<State>,
+    handles: Arc<dyn RawHandles>,
     log: Log,
   }
 
@@ -397,13 +409,16 @@ mod tests {
     }
   }
 
-  impl HasWindowHandle for FakeWindow {
+  /// The handles of a fake window, which has none.
+  struct FakeHandles;
+
+  impl HasWindowHandle for FakeHandles {
     fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
       Err(HandleError::Unavailable)
     }
   }
 
-  impl HasDisplayHandle for FakeWindow {
+  impl HasDisplayHandle for FakeHandles {
     fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
       Err(HandleError::Unavailable)
     }
@@ -416,6 +431,10 @@ mod tests {
 
     fn id(&self) -> u32 {
       self.id
+    }
+
+    fn handles(&self) -> &Arc<dyn RawHandles> {
+      &self.handles
     }
 
     fn inner_size(&self) -> WinitSize<u32> {
@@ -494,6 +513,7 @@ mod tests {
       Some(FakeWindow {
         id: windows.len() as u32,
         state,
+        handles: Arc::new(FakeHandles),
         log: Rc::clone(&self.log),
       })
     }
@@ -507,6 +527,12 @@ mod tests {
   struct Script<R> {
     log: Log,
     react: R,
+  }
+
+  impl<R> Drop for Script<R> {
+    fn drop(&mut self) {
+      self.log.borrow_mut().push("dropped app".into());
+    }
   }
 
   impl<R: FnMut(&str, &mut dyn HostContext)> Script<R> {
@@ -816,6 +842,68 @@ mod tests {
     assert_eq!(take(&log), ["lost 1 Gone", "dropped 1"]);
     driver.handle(&event_loop, 1, &WindowEvent::RedrawRequested);
     assert_eq!(take(&log), Vec::<String>::new());
+  }
+
+  // A surface lost while another's loss is being reported is reported once, and each window is
+  // dropped after its own report.
+  #[test]
+  fn a_destroyed_window_is_reported_once() {
+    let Fixture {
+      mut driver,
+      event_loop,
+      log,
+    } = running(2, |line, cx| {
+      if line == "lost 1 Gone" {
+        cx.windows().expect("the driver has windows").close(SurfaceId::new(2));
+      }
+    });
+
+    driver.handle(&event_loop, 1, &WindowEvent::Destroyed);
+
+    assert_eq!(take(&log), ["lost 1 Gone", "lost 2 Gone", "dropped 2", "dropped 1"]);
+  }
+
+  // A handler that panics while a closed window's loss is reported can't leave the window to drop
+  // before the app does.
+  #[test]
+  fn a_panic_in_a_reported_loss_drops_the_window_after_the_app() {
+    let Fixture {
+      mut driver,
+      event_loop,
+      log,
+    } = running(1, |line, cx| match line {
+      "close 1" => cx.windows().expect("the driver has windows").close(SurfaceId::new(1)),
+      "lost 1 Gone" => panic!("the handler failed"),
+      _ => {}
+    });
+
+    let result = catch_unwind(AssertUnwindSafe(|| {
+      driver.handle(&event_loop, 1, &WindowEvent::CloseRequested);
+    }));
+    drop(driver);
+
+    assert!(result.is_err());
+    assert_eq!(take(&log), ["close 1", "lost 1 Gone", "dropped app", "dropped 1"]);
+  }
+
+  // The same holds while the loop exits: windows still waiting for their report drop after the app.
+  #[test]
+  fn a_panic_while_exiting_drops_the_windows_after_the_app() {
+    let Fixture {
+      mut driver,
+      event_loop,
+      log,
+    } = running(2, |line, _| {
+      if line == "lost 1 Gone" {
+        panic!("the handler failed");
+      }
+    });
+
+    let result = catch_unwind(AssertUnwindSafe(|| driver.drain(&event_loop)));
+    drop(driver);
+
+    assert!(result.is_err());
+    assert_eq!(take(&log), ["lost 1 Gone", "dropped app", "dropped 1", "dropped 2"]);
   }
 
   // A close request reaches the app, which decides whether to close.

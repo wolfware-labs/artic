@@ -89,9 +89,9 @@ A host offers each surface as a `Target`, split by how a renderer gets pixels on
 ```rust,ignore
 pub enum Target<'a> {
   /// Native handles (`raw-window-handle`): OS windows, DRM/GBM screens, browser canvases. The
-  /// renderer creates its swapchain from them and presents. They stay valid until the host reports
-  /// the surface lost, so a swapchain may outlive a frame.
-  Handles(&'a dyn RawHandles),
+  /// renderer creates its swapchain from them and presents. The host lends their owner as an `Arc`:
+  /// a swapchain may clone it and outlive a frame, and must drop it on `surface_lost`.
+  Handles(&'a Arc<dyn RawHandles>),
   /// A CPU pixel buffer (data, stride, format; the size is the surface's): framebuffers, offscreen
   /// tests, `putImageData`. The renderer fills it; the host presents it.
   Pixels(PixelBuffer<'a>),

@@ -7,15 +7,17 @@ use crate::window::{Step, attributes};
 use accesskit::TreeUpdate;
 use accesskit_winit::Adapter;
 use artic_platform::{AppHandler, Waker, WindowDesc};
-use artic_render::TargetKind;
+use artic_render::{RawHandles, TargetKind};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
+use winit::error::EventLoopError;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::monitor::MonitorHandle;
-use winit::raw_window_handle::{DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle};
+#[cfg(not(target_os = "ios"))]
+use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
 use winit::window::{Window, WindowId};
 
 /// The desktop host: windows, frames and the event loop on Windows, macOS and Linux (X11 and
@@ -56,6 +58,10 @@ impl artic_platform::Host for Host {
 
   /// Runs winit's loop until the handler exits; it blocks on every desktop platform.
   ///
+  /// The handler is dropped before the loop, on a return and on a panic alike, so a surface its
+  /// renderer still holds never outlives the connection to the display server. On iOS the loop
+  /// never returns.
+  ///
   /// # Errors
   ///
   /// [`Error::Loop`] if winit's loop ends with an error, such as a lost connection to the display
@@ -65,12 +71,24 @@ impl artic_platform::Host for Host {
     let waker = Waker::new(move || {
       let _ = proxy.send_event(());
     });
-    let mut driver = Driver::<_, HostWindow>::new(app, waker);
-    self
-      .event_loop
-      .run_app(&mut driver)
-      .map_err(|error| Error::Loop(Box::new(error)))
+    let driver = Driver::<_, HostWindow>::new(app, waker);
+    drive(self.event_loop, driver).map_err(|error| Error::Loop(Box::new(error)))
   }
+}
+
+/// Runs `driver` on `event_loop`, lending the loop so that it outlives the driver.
+#[cfg(not(target_os = "ios"))]
+fn drive<A: AppHandler>(event_loop: EventLoop<()>, driver: Driver<A, HostWindow>) -> Result<(), EventLoopError> {
+  let mut event_loop = event_loop;
+  let mut driver = driver;
+  event_loop.run_app_on_demand(&mut driver)
+}
+
+/// Runs `driver` on `event_loop`. UIKit owns the loop and never returns from it.
+#[cfg(target_os = "ios")]
+fn drive<A: AppHandler>(event_loop: EventLoop<()>, driver: Driver<A, HostWindow>) -> Result<(), EventLoopError> {
+  let mut driver = driver;
+  event_loop.run_app(&mut driver)
 }
 
 impl<A: AppHandler> ApplicationHandler for Driver<A, HostWindow> {
@@ -113,8 +131,11 @@ impl Loop for ActiveEventLoop {
     };
     let adapter = Adapter::with_direct_handlers(self, &window, started, NoActions, Stopped(Arc::clone(&activation)));
     window.set_visible(true);
+    let window = Arc::new(window);
+    let handles: Arc<dyn RawHandles> = window.clone();
     Some(HostWindow {
       window,
+      handles,
       access: Access::new(adapter, activation),
     })
   }
@@ -132,20 +153,9 @@ impl Updates for Adapter {
 
 /// A winit window with its accessibility.
 pub(crate) struct HostWindow {
-  window: Window,
+  window: Arc<Window>,
+  handles: Arc<dyn RawHandles>,
   access: Access<Adapter>,
-}
-
-impl HasWindowHandle for HostWindow {
-  fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
-    self.window.window_handle()
-  }
-}
-
-impl HasDisplayHandle for HostWindow {
-  fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
-    self.window.display_handle()
-  }
 }
 
 impl driver::Window for HostWindow {
@@ -155,6 +165,10 @@ impl driver::Window for HostWindow {
 
   fn id(&self) -> WindowId {
     self.window.id()
+  }
+
+  fn handles(&self) -> &Arc<dyn RawHandles> {
+    &self.handles
   }
 
   fn inner_size(&self) -> PhysicalSize<u32> {
