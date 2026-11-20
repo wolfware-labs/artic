@@ -587,16 +587,21 @@ fn a_buffer_smaller_than_the_surface_fails() {
   });
 }
 
+/// The longest side `renderer` draws, as it reports when refusing a surface wider than any GPU's.
+fn max_side(renderer: &mut Renderer) -> u32 {
+  let refused = render_into(renderer, PhysicalSize::new(u32::MAX, 1), 0, 0);
+  let Err(RenderError::SurfaceTooLarge { max, .. }) = refused else {
+    panic!("{refused:?}")
+  };
+  max
+}
+
 // A surface with a side longer than the GPU can draw is refused before drawing, and a side at the
-// GPU's own limit, past wgpu's default of 8192, draws.
+// GPU's own limit draws.
 #[test]
 fn a_surface_over_the_gpu_limit_fails() {
   with_renderer(|renderer| {
-    let refused = render_into(renderer, PhysicalSize::new(u32::MAX, 1), 0, 0);
-    let Err(RenderError::SurfaceTooLarge { max, .. }) = refused else {
-      panic!("{refused:?}")
-    };
-    assert!(max > 8192, "the device keeps wgpu's default limit: {max}");
+    let max = max_side(renderer);
     assert!(matches!(
       render_into(renderer, PhysicalSize::new(1, max + 1), 4, 0),
       Err(RenderError::SurfaceTooLarge { .. })
@@ -605,9 +610,9 @@ fn a_surface_over_the_gpu_limit_fails() {
   });
 }
 
-// A frame of more tiles than vello draws in one pass, and of more bytes than one readback holds,
-// lands every row in place: vello's fixed buffers hold about 2^17 16x16 tiles, and alone it would
-// leave the rows past them blank. Stripes of 8 rows in three colors tell each band's rows apart,
+// A frame of more tiles than vello draws in one pass, and of more bytes than one readback holds
+// on a GPU that draws past 8192 rows, lands every row in place: vello's fixed buffers hold about
+// 2^17 16x16 tiles, and alone it would leave the rows past them blank. Stripes of 8 rows in three colors tell each band's rows apart,
 // and the padding past each row of the buffer is left as it was.
 #[test]
 fn a_frame_past_vellos_tile_budget_draws_every_row() {
@@ -616,7 +621,7 @@ fn a_frame_past_vellos_tile_budget_draws_every_row() {
   const BYTES: [[u8; 4]; 3] = [OPAQUE_RED, OPAQUE_GREEN, OPAQUE_BLUE];
   const PADDING: u8 = 0xAB;
   with_renderer(|renderer| {
-    let size = PhysicalSize::new(8192, 8200);
+    let size = PhysicalSize::new(8192, max_side(renderer).min(8200));
     let scene = Scene::record(|builder| {
       for (stripe, color) in (0..size.height / STRIPE).zip(COLORS.into_iter().cycle()) {
         let top = (stripe * STRIPE) as f32;

@@ -544,6 +544,17 @@ mod tests {
     });
   }
 
+  // The device opens with the adapter's own texture limit rather than wgpu's default of 8192, and
+  // the renderer refuses surfaces by it.
+  #[test]
+  fn the_device_takes_the_adapters_texture_limit() {
+    match Renderer::new() {
+      Ok(renderer) => assert_eq!(renderer.max_side, renderer.adapter.limits().max_texture_dimension_2d),
+      Err(error @ (Error::Adapter(_) | Error::UnsupportedAdapter(_))) => require::no_gpu(error),
+      Err(error) => panic!("the renderer failed to start: {error}"),
+    }
+  }
+
   // The first outdated answer reconfigures the surface and the first lost one recreates it; on the
   // retry either fails.
   #[test]
