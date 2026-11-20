@@ -219,10 +219,10 @@ jobs:
   # The criterion benches (artic-core, artic-layout, artic-controls, artic) under CodSpeed's CPU
   # simulation; CodSpeed compares a pull request against the latest commit of main that has a run.
   # The CodSpeed action authenticates with this job's OIDC token, so there's no CodSpeed token to
-  # store. The action runs the benches itself, to measure them, and uploads in the same step, so the
-  # token can't move to a job of its own as `codecov`'s does: the job holds it in every step, and the
-  # benches' build scripts (in `cargo codspeed build`) and the benches can reach it. Every action the
-  # job runs, `setup-rust`'s included, is pinned by commit.
+  # store. The action runs the benches itself, to measure them, and uploads in the same step, so
+  # the token can't move to a job of its own as `codecov`'s does: the job holds it in every step,
+  # and the benches' build scripts (in `cargo codspeed build`) and the benches can reach it. Every
+  # action the job runs, `setup-rust`'s included, is pinned by commit.
   benchmarks:
     name: Benchmarks
     needs: changes
