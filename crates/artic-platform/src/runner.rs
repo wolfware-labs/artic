@@ -376,7 +376,7 @@ impl<R: Renderer> Runner<R> {
       Err(error) => self.failed(cx, index, error),
     };
     let wants = self.hooks.wants_frame.iter_mut().fold(false, |wants, hook| hook() | wants);
-    if wants {
+    if wants && !self.bound[index].too_large {
       self.bound[index].mark(cx);
     }
     failure

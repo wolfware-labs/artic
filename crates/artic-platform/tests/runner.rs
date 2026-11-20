@@ -682,6 +682,23 @@ fn too_large_surface_is_reported_once_and_keeps_running() {
   assert_eq!(seen.get(), 2);
 }
 
+// A too-large window asks for no frame, even from a hook that wants one every frame, until its size
+// changes: a frame that's skipped at once has no vsync to wait on, and would spin the loop.
+#[test]
+fn too_large_surface_asks_for_no_frame_until_resized() {
+  let mut fixture = Fixture::new(|runner| runner.hooks().wants_frame(|| true));
+  *fixture.renderer.fail.borrow_mut() = Some(RenderError::SurfaceTooLarge {
+    size: PhysicalSize::new(20_000, 64),
+    max: 16_384,
+  });
+
+  fixture.frame();
+  assert!(fixture.cx.frames.is_empty(), "{:?}", fixture.cx.frames);
+
+  fixture.runner.surface_changed(&mut fixture.cx, FIRST, info(32, 32, 1.0));
+  assert_eq!(fixture.cx.frames, [FIRST]);
+}
+
 /// A host that makes every call of the seam once, recording what the app asked of it.
 struct Scripted {
   cx: Rc<RefCell<Context>>,
