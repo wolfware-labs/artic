@@ -12,7 +12,8 @@ updates:
       cargo-minor-and-patch:
         update-types: [minor, patch]
   - package-ecosystem: github-actions
-    directory: /
+    # The composite actions under .github/actions pin actions of their own.
+    directories: ["/", "/.github/actions/*"]
     schedule:
       interval: weekly
     commit-message:
