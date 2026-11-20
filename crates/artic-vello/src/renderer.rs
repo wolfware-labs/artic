@@ -236,7 +236,7 @@ impl Renderer {
     fits(size, self.max_side)?;
     let row_bytes = row_bytes(size, buffer.stride, buffer.data.len())?;
     let texture = self.draw_offscreen(size, TextureUsages::COPY_SRC)?;
-    let padded = row_bytes.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize);
+    let padded = padded_row(row_bytes)?;
     let rows = rows_per_copy(padded, self.device.limits().max_buffer_size, size.height);
     let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
       label: Some("artic-vello readback"),
@@ -381,6 +381,14 @@ fn row_bytes(size: PhysicalSize, stride: usize, len: usize) -> Result<usize, Ren
     (Some(row), Some(needed)) if stride >= row && len as u64 >= needed => Ok(row),
     _ => Err(backend("the pixel buffer is smaller than the surface")),
   }
+}
+
+/// `row` bytes rounded up to the alignment wgpu copies rows at, or an error when that passes
+/// `usize`.
+fn padded_row(row: usize) -> Result<usize, RenderError> {
+  row
+    .checked_next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize)
+    .ok_or_else(|| backend("the surface's rows are too long to read back"))
 }
 
 /// How many rows `padded` bytes long one copy back from the GPU holds: all `height` of them when
@@ -674,6 +682,15 @@ mod tests {
       Some(u32::MAX as usize * 4),
       "a row past u32"
     );
+  }
+
+  // A row rounds up to wgpu's 256-byte copy alignment, and a row too long to round is refused.
+  #[test]
+  fn a_row_pads_to_the_copy_alignment() {
+    assert_eq!(padded_row(4).ok(), Some(256));
+    assert_eq!(padded_row(256).ok(), Some(256), "already aligned");
+    assert_eq!(padded_row(257).ok(), Some(512));
+    assert!(padded_row(usize::MAX - 3).is_err(), "past usize");
   }
 
   // Every row is copied back at once when the rows fit in the limit, and as many whole rows as fit
