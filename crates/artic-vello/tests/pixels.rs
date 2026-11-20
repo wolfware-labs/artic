@@ -25,6 +25,8 @@ const GREEN: Color = Color::rgb(0, 255, 0);
 const BLUE: Color = Color::rgb(0, 0, 255);
 const CLEAR: [u8; 4] = [0, 0, 0, 0];
 const OPAQUE_RED: [u8; 4] = [255, 0, 0, 255];
+const OPAQUE_GREEN: [u8; 4] = [0, 255, 0, 255];
+const OPAQUE_BLUE: [u8; 4] = [0, 0, 255, 255];
 const BLACK: Color = Color::rgb(0, 0, 0);
 const OPAQUE_BLACK: [u8; 4] = [0, 0, 0, 255];
 const AWAY: f32 = 64.0;
@@ -130,7 +132,7 @@ fn renders_scene_into_pixels() {
     tree.mark_dirty(root, artic_core::property::Affects::RENDER);
     let bgra = render(renderer, &mut tree, root, &mut nodes, PixelFormat::Bgra8);
 
-    assert!(rgba.iter().all(|pixel| *pixel == [255, 0, 0, 255]), "{rgba:?}");
+    assert!(rgba.iter().all(|pixel| *pixel == OPAQUE_RED), "{rgba:?}");
     assert!(bgra.iter().all(|pixel| *pixel == [0, 0, 255, 255]), "{bgra:?}");
   });
 }
@@ -157,9 +159,9 @@ fn transform_and_clip_place_the_child() {
 
     let pixels = render(renderer, &mut tree, root, &mut nodes, PixelFormat::Rgba8);
 
-    assert_eq!(pixel(&pixels, 1, 1), [0, 0, 255, 255], "outside the moved child");
-    assert_eq!(pixel(&pixels, 5, 5), [0, 255, 0, 255], "inside the child and its clip");
-    assert_eq!(pixel(&pixels, 7, 5), [0, 0, 255, 255], "cut off by the clip");
+    assert_eq!(pixel(&pixels, 1, 1), OPAQUE_BLUE, "outside the moved child");
+    assert_eq!(pixel(&pixels, 5, 5), OPAQUE_GREEN, "inside the child and its clip");
+    assert_eq!(pixel(&pixels, 7, 5), OPAQUE_BLUE, "cut off by the clip");
   });
 }
 
@@ -202,8 +204,8 @@ fn linear_gradient_fills_rect() {
     let pixels = render_one(renderer, move |builder| builder.fill(full(), brush.clone()));
 
     for y in 0..SIZE {
-      assert_near(pixel(&pixels, 0, y), [255, 0, 0, 255], "left edge");
-      assert_near(pixel(&pixels, SIZE - 1, y), [0, 0, 255, 255], "right edge");
+      assert_near(pixel(&pixels, 0, y), OPAQUE_RED, "left edge");
+      assert_near(pixel(&pixels, SIZE - 1, y), OPAQUE_BLUE, "right edge");
     }
     let [r, _, b, _] = pixel(&pixels, SIZE / 2, 0);
     assert!(r > 2 && b > 2, "the middle blends, got red {r} and blue {b}");
@@ -224,9 +226,9 @@ fn radial_gradient_fills_an_ellipse() {
 
     let pixels = render_one(renderer, move |builder| builder.fill(wide, brush.clone()));
 
-    assert_near(pixel(&pixels, 4, 2), [255, 0, 0, 255], "center");
-    assert_near(pixel(&pixels, 7, 2), [0, 0, 255, 255], "end of the horizontal radius");
-    assert_near(pixel(&pixels, 4, 0), [0, 0, 255, 255], "end of the vertical radius");
+    assert_near(pixel(&pixels, 4, 2), OPAQUE_RED, "center");
+    assert_near(pixel(&pixels, 7, 2), OPAQUE_BLUE, "end of the horizontal radius");
+    assert_near(pixel(&pixels, 4, 0), OPAQUE_BLUE, "end of the vertical radius");
   });
 }
 
@@ -313,8 +315,8 @@ fn gradient_on_path_uses_its_bounds() {
 
     let pixels = render_one(renderer, move |builder| builder.fill(square.clone(), brush.clone()));
 
-    assert_near(pixel(&pixels, 8, 4), [255, 0, 0, 255], "the path's left edge");
-    assert_near(pixel(&pixels, 15, 4), [0, 0, 255, 255], "the path's right edge");
+    assert_near(pixel(&pixels, 8, 4), OPAQUE_RED, "the path's left edge");
+    assert_near(pixel(&pixels, 15, 4), OPAQUE_BLUE, "the path's right edge");
     assert_near(pixel(&pixels, 4, 4), CLEAR, "outside the path");
   });
 }
@@ -329,7 +331,7 @@ fn undrawable_clip_hides_its_content() {
     });
 
     assert_near(pixel(&pixels, 8, 8), CLEAR, "inside the broken clip");
-    assert_near(pixel(&pixels, 1, 1), [0, 0, 255, 255], "drawn after it");
+    assert_near(pixel(&pixels, 1, 1), OPAQUE_BLUE, "drawn after it");
   });
 }
 
@@ -549,18 +551,28 @@ fn accepts_handles_and_pixels() {
 /// Renders a red fill into `size` with a buffer of `rows` rows of `stride` bytes.
 fn render_into(renderer: &mut Renderer, size: PhysicalSize, stride: usize, rows: usize) -> Result<(), RenderError> {
   let scene = Scene::record(|builder| builder.fill(full(), RED));
-  let mut data = vec![0; stride * rows];
+  render_scene(renderer, &scene, size, &mut vec![0; stride * rows], stride)
+}
+
+/// Renders `scene` into `size` on `data`, as RGBA rows of `stride` bytes.
+fn render_scene(
+  renderer: &mut Renderer,
+  scene: &Scene,
+  size: PhysicalSize,
+  data: &mut [u8],
+  stride: usize,
+) -> Result<(), RenderError> {
   let surface = SurfaceView {
     id: SurfaceId::new(1),
     size,
     scale: 1.0,
     target: Target::Pixels(PixelBuffer {
-      data: &mut data,
+      data,
       stride,
       format: PixelFormat::Rgba8,
     }),
   };
-  renderer.render(&scene, surface)
+  renderer.render(scene, surface)
 }
 
 // A buffer whose rows or whose height can't hold the surface is refused before drawing.
@@ -572,6 +584,65 @@ fn a_buffer_smaller_than_the_surface_fails() {
     assert!(refused(28, 8), "short rows");
     assert!(refused(32, 7), "too few rows");
     render_into(renderer, size, 32, 8).expect("a buffer that fits");
+  });
+}
+
+/// The longest side `renderer` draws, as it reports when refusing a surface wider than any GPU's.
+fn max_side(renderer: &mut Renderer) -> u32 {
+  let refused = render_into(renderer, PhysicalSize::new(u32::MAX, 1), 0, 0);
+  let Err(RenderError::SurfaceTooLarge { max, .. }) = refused else {
+    panic!("{refused:?}")
+  };
+  max
+}
+
+// A surface with a side longer than the GPU can draw is refused before drawing, and a side at the
+// GPU's own limit draws.
+#[test]
+fn a_surface_over_the_gpu_limit_fails() {
+  with_renderer(|renderer| {
+    let max = max_side(renderer);
+    assert!(matches!(
+      render_into(renderer, PhysicalSize::new(1, max + 1), 4, 0),
+      Err(RenderError::SurfaceTooLarge { .. })
+    ));
+    render_into(renderer, PhysicalSize::new(max, 1), max as usize * 4, 1).expect("a side at the limit");
+  });
+}
+
+// A frame of more tiles than vello draws in one pass, and of more bytes than one readback holds
+// on a GPU that draws past 8192 rows, lands every row in place: vello's fixed buffers hold about
+// 2^17 16x16 tiles, and alone it would leave the rows past them blank. Stripes of 8 rows in three
+// colors tell each band's rows apart, and the padding past each row of the buffer is left as it was.
+#[test]
+fn a_frame_past_vellos_tile_budget_draws_every_row() {
+  const STRIPE: u32 = 8;
+  const COLORS: [Color; 3] = [RED, GREEN, BLUE];
+  const BYTES: [[u8; 4]; 3] = [OPAQUE_RED, OPAQUE_GREEN, OPAQUE_BLUE];
+  const PADDING: u8 = 0xAB;
+  with_renderer(|renderer| {
+    let size = PhysicalSize::new(8192, max_side(renderer).min(8200));
+    let scene = Scene::record(|builder| {
+      for (stripe, color) in (0..size.height / STRIPE).zip(COLORS.into_iter().cycle()) {
+        let top = (stripe * STRIPE) as f32;
+        builder.fill(Rect::new(0.0, top, size.width as f32, STRIPE as f32), color);
+      }
+    });
+    let row = size.width as usize * 4;
+    let stride = row + 20;
+    let mut data = vec![PADDING; stride * size.height as usize];
+
+    render_scene(renderer, &scene, size, &mut data, stride).expect("renders");
+
+    for (y, line) in data.chunks(stride).enumerate() {
+      let expected = BYTES[y / STRIPE as usize % BYTES.len()];
+      let (pixels, padding) = line.split_at(row);
+      assert!(
+        pixels.as_chunks::<4>().0.iter().all(|&p| p == expected),
+        "row {y}: expected {expected:?}"
+      );
+      assert!(padding.iter().all(|&b| b == PADDING), "row {y}: padding was written");
+    }
   });
 }
 

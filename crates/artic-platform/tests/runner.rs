@@ -19,7 +19,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use artic_platform::{Error, Host, HostEvent, SurfaceLoss, run};
-use artic_render::{RenderError, TargetKind};
+use artic_render::{PhysicalSize, RenderError, TargetKind};
 const FIRST: SurfaceId = SurfaceId::new(1);
 
 /// Each surface's last frame stats, recorded through the `after_present` hook.
@@ -650,6 +650,53 @@ fn lost_surface_isnt_returned_from_run() {
   let result = run(Frames { fail, outcomes }, one_window(renderer));
 
   assert!(result.is_ok(), "{result:?}");
+}
+
+/// The error of a surface wider than the renderer can draw.
+fn too_large() -> RenderError {
+  RenderError::SurfaceTooLarge {
+    size: PhysicalSize::new(20_000, 64),
+    max: 16_384,
+  }
+}
+
+// A surface too large to draw keeps the loop running: the error hooks hear of it once, and again
+// only after a frame that drew.
+#[test]
+fn too_large_surface_is_reported_once_and_keeps_running() {
+  let renderer = Counter::default();
+  let fail = Rc::clone(&renderer.fail);
+  let outcomes = vec![Some(too_large()), Some(too_large()), None, Some(too_large())];
+  let seen = Rc::new(Cell::new(0));
+  let hook_seen = Rc::clone(&seen);
+  let mut runner = one_window(renderer);
+  runner.hooks().on_error(move |error| {
+    assert!(
+      matches!(error, Error::Render(RenderError::SurfaceTooLarge { .. })),
+      "{error:?}"
+    );
+    hook_seen.set(hook_seen.get() + 1);
+  });
+
+  let result = run(Frames { fail, outcomes }, runner);
+
+  assert!(result.is_ok(), "{result:?}");
+  assert_eq!(seen.get(), 2);
+}
+
+// A too-large window's `wants_frame` hooks ask for no frame, even one that wants a frame every
+// frame, and a change of its size asks for one again: a frame that's skipped at once has no vsync
+// to wait on, and would spin the loop.
+#[test]
+fn too_large_surface_asks_for_no_frame_until_resized() {
+  let mut fixture = Fixture::new(|runner| runner.hooks().wants_frame(|| true));
+  *fixture.renderer.fail.borrow_mut() = Some(too_large());
+
+  fixture.frame();
+  assert!(fixture.cx.frames.is_empty(), "{:?}", fixture.cx.frames);
+
+  fixture.runner.surface_changed(&mut fixture.cx, FIRST, info(32, 32, 1.0));
+  assert_eq!(fixture.cx.frames, [FIRST]);
 }
 
 /// A host that makes every call of the seam once, recording what the app asked of it.

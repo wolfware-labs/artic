@@ -57,6 +57,7 @@ struct Bound {
   info: Option<SurfaceInfo>,
   needs_frame: bool,
   suspended: bool,
+  too_large: bool,
   pipeline: Pipeline,
 }
 
@@ -271,6 +272,7 @@ impl<R: Renderer> Runner<R> {
         info: None,
         needs_frame: true,
         suspended: false,
+        too_large: false,
         pipeline,
       });
     } else if !self.spare.is_empty() {
@@ -282,6 +284,7 @@ impl<R: Renderer> Runner<R> {
         info,
         needs_frame: true,
         suspended: false,
+        too_large: false,
         pipeline: Pipeline::new(),
       });
       if info.is_some() {
@@ -364,6 +367,7 @@ impl<R: Renderer> Runner<R> {
   ) -> Option<Error> {
     let failure = match drawn {
       Ok(stats) => {
+        self.bound[index].too_large = false;
         for hook in &mut self.hooks.after_present {
           hook(&self.tree, root, &stats);
         }
@@ -372,7 +376,7 @@ impl<R: Renderer> Runner<R> {
       Err(error) => self.failed(cx, index, error),
     };
     let wants = self.hooks.wants_frame.iter_mut().fold(false, |wants, hook| hook() | wants);
-    if wants {
+    if wants && !self.bound[index].too_large {
       self.bound[index].mark(cx);
     }
     failure
@@ -416,17 +420,31 @@ impl<R: Renderer> Runner<R> {
   }
 
   fn failed(&mut self, cx: &mut dyn HostContext, index: usize, error: RenderError) -> Option<Error> {
-    if matches!(error, RenderError::SurfaceLost) {
-      self.renderer.surface_lost(self.bound[index].id);
-      self.bound[index].mark(cx);
-      return None;
+    match error {
+      RenderError::SurfaceLost => {
+        self.renderer.surface_lost(self.bound[index].id);
+        self.bound[index].mark(cx);
+        None
+      }
+      RenderError::SurfaceTooLarge { .. } => {
+        if !std::mem::replace(&mut self.bound[index].too_large, true) {
+          self.report(&Error::Render(error));
+        }
+        None
+      }
+      error => {
+        let error = Error::Render(error);
+        self.report(&error);
+        cx.exit();
+        Some(error)
+      }
     }
-    let error = Error::Render(error);
+  }
+
+  fn report(&mut self, error: &Error) {
     for hook in &mut self.hooks.on_error {
-      hook(&error);
+      hook(error);
     }
-    cx.exit();
-    Some(error)
   }
 
   pub(crate) fn accepts(&self, kind: TargetKind) -> bool {
