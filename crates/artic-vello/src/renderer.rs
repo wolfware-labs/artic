@@ -549,15 +549,21 @@ mod tests {
     });
   }
 
-  // The device asks for the adapter's own texture limit rather than wgpu's default of 8192.
+  // The device asks for the adapter's own texture limit rather than wgpu's default of 8192, and
+  // keeps every other default, such as the buffer size readback splits frames by.
   #[test]
   fn the_device_takes_the_adapters_texture_limit() {
     let adapter = Limits {
       max_texture_dimension_2d: 16384,
+      max_buffer_size: u64::MAX,
       ..Limits::default()
     };
 
-    assert_eq!(device_limits(adapter).max_texture_dimension_2d, 16384);
+    let expected = Limits {
+      max_texture_dimension_2d: 16384,
+      ..Limits::default()
+    };
+    assert_eq!(device_limits(adapter), expected);
   }
 
   // The first outdated answer reconfigures the surface and the first lost one recreates it; on the
