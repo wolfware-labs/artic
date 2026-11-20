@@ -20,6 +20,10 @@ quote.workspace = true
 syn.workspace = true
 thiserror.workspace = true
 
+[[test]]
+name = "compile_dir"
+harness = false
+
 [dev-dependencies]
 pretty_assertions.workspace = true
 syn = { workspace = true, features = ["full"] }

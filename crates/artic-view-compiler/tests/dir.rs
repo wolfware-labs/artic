@@ -68,8 +68,8 @@ fn missing_dir_is_an_io_error() {
 }
 
 // A view whose name holds a control character is refused before the output is removed or written,
-// since the name would reach the generated header and Cargo's `rerun-if-changed` lines. Windows
-// can't name a file so.
+// since the name would start a line of its own in Cargo's `rerun-if-changed` output. Windows can't
+// name a file so.
 #[cfg(not(windows))]
 #[test]
 fn control_character_in_a_name_is_refused() {

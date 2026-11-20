@@ -37,7 +37,7 @@ pub enum CompileError {
   /// start a line of its own in Cargo's `rerun-if-changed` output.
   #[error("the path {path:?} has a control character")]
   ControlCharacter {
-    /// The view's path.
+    /// The directory's or the view's path.
     path: PathBuf,
   },
   /// `OUT_DIR` isn't set, so this isn't running in a build script.
