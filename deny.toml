@@ -6,6 +6,8 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
+# Unsound code anywhere in the graph, not only in direct dependencies.
+unsound = "all"
 # zbus folded these crates into itself (https://github.com/z-galaxy/zbus/issues/2043). They come only
 # through accesskit_unix 0.24, the Linux screen reader backend of accesskit_winit, on zbus 5, and no
 # accesskit_unix on the merged zbus exists yet. Drop these once one does.

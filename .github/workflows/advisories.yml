@@ -1,0 +1,27 @@
+name: Advisories
+
+# Advisories are published without any change here, and CI's Deny job runs only on main and on pull
+# requests that change dependencies, so a quiet week would go unchecked. This checks the lockfile
+# against the advisory database every week; a failure is reported like any failed run.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 7 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  advisories:
+    name: Advisories
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
+        with:
+          tool: cargo-deny
+      - name: Check
+        run: cargo deny check advisories
