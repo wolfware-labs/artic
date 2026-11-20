@@ -371,13 +371,13 @@ fn fits(size: PhysicalSize, max: u32) -> Result<(), RenderError> {
 const READBACK_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// The bytes one row of `size` takes in a pixel buffer `len` bytes long with rows `stride` bytes
-/// apart, or an error when the buffer can't hold every row. The sizes are compared as `u64`, so
-/// they can't wrap where `usize` is 32 bits.
+/// apart, or an error when the buffer can't hold every row. The products are checked, so they
+/// can't wrap where `usize` is 32 bits.
 fn row_bytes(size: PhysicalSize, stride: usize, len: usize) -> Result<usize, RenderError> {
-  let row = u64::from(size.width) * 4;
-  let (stride, len) = (stride as u64, len as u64);
-  match stride.checked_mul(u64::from(size.height)) {
-    Some(needed) if stride >= row && len >= needed => usize::try_from(row).map_err(backend),
+  let row = usize::try_from(size.width).ok().and_then(|width| width.checked_mul(4));
+  let needed = (stride as u64).checked_mul(u64::from(size.height));
+  match (row, needed) {
+    (Some(row), Some(needed)) if stride >= row && len as u64 >= needed => Ok(row),
     _ => Err(backend("the pixel buffer is smaller than the surface")),
   }
 }
