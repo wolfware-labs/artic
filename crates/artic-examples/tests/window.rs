@@ -71,7 +71,8 @@ fn main() {
 enum Step {
   /// Window A's first frame: sizes without pixels, then red at its size.
   Draw,
-  /// A frame of A after it was resized from the size it holds: blue at the new size.
+  /// A frame of A after it was resized from the size it holds: blue at the new size, with a red
+  /// square in its bottom-right corner that a frame stretched from the old size wouldn't show.
   Resized(PhysicalSize),
   /// Window B's first frame, after A was drawn: green to B under A's id, once A's surface is lost.
   Reused { lost: SurfaceId },
@@ -87,16 +88,24 @@ struct Script {
 impl Script {
   /// Fills `size` of the window behind `handles`, drawing as surface `id`, with `color`.
   fn fill(&mut self, id: SurfaceId, size: PhysicalSize, handles: &Arc<dyn RawHandles>, color: [u8; 3]) {
-    let [r, g, b] = color;
-    let scene = Scene::record(|builder| builder.fill(Rect::new(0.0, 0.0, 4096.0, 4096.0), Color::rgb(r, g, b)));
+    let scene = Scene::record(|builder| builder.fill(Rect::new(0.0, 0.0, 4096.0, 4096.0), rgb(color)));
+    self.draw(id, size, handles, &scene);
+  }
+
+  /// Draws `scene` into `size` of the window behind `handles`, as surface `id`.
+  fn draw(&mut self, id: SurfaceId, size: PhysicalSize, handles: &Arc<dyn RawHandles>, scene: &Scene) {
     let surface = SurfaceView {
       id,
       size,
       scale: 1.0,
       target: Target::Handles(handles),
     };
-    self.renderer.render(&scene, surface).expect("draws into the window");
+    self.renderer.render(scene, surface).expect("draws into the window");
   }
+}
+
+fn rgb([r, g, b]: [u8; 3]) -> Color {
+  Color::rgb(r, g, b)
 }
 
 impl AppHandler for Script {
@@ -143,8 +152,20 @@ impl AppHandler for Script {
         self.step = Step::Resized(size);
       }
       Step::Resized(old) if size != old => {
-        self.fill(surface, size, handles, BLUE);
-        assert_shows(handles, size.width - 2, size.height - 2, BLUE, "the corner after the resize");
+        let (width, height) = (size.width as f32, size.height as f32);
+        let scene = Scene::record(|builder| {
+          builder.fill(Rect::new(0.0, 0.0, width, height), rgb(BLUE));
+          builder.fill(Rect::new(width - 4.0, height - 4.0, 4.0, 4.0), rgb(RED));
+        });
+        self.draw(surface, size, handles, &scene);
+        assert_shows(handles, size.width - 2, size.height - 2, RED, "the corner after the resize");
+        assert_shows(
+          handles,
+          size.width - 8,
+          size.height - 8,
+          BLUE,
+          "beside the corner after the resize",
+        );
         cx.windows()
           .expect("a desktop host has windows")
           .open(&desc("window B", 100.0, 80.0));
