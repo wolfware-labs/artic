@@ -86,8 +86,9 @@ pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), p
     .as_deref()
     .and_then(|manifest| dir.strip_prefix(manifest).ok())
     .unwrap_or(dir);
+  let views = compile_into(dir, &Path::new(&out).join("views"), language, &registry, paths)?;
   println!("cargo:rerun-if-changed={}", dir.display());
-  for view in compile_into(dir, &Path::new(&out).join("views"), language, &registry, paths)? {
+  for view in views {
     println!("cargo:rerun-if-changed={}", view.display());
   }
   Ok(())
@@ -110,6 +111,7 @@ pub fn compile_into(
   registry: &Registry,
   paths: &CratePaths,
 ) -> Result<Vec<PathBuf>, CompileError> {
+  checked(dir)?;
   let views = find_views(dir, language.extension())?;
   if out.exists() {
     fs::remove_dir_all(out).map_err(io_error(out))?;
@@ -150,9 +152,7 @@ fn find_views(dir: &Path, extension: &str) -> Result<Vec<PathBuf>, CompileError>
     if kind.is_dir() {
       views.extend(find_views(&path, extension)?);
     } else if path.extension().is_some_and(|found| found == extension) {
-      if path.to_string_lossy().chars().any(char::is_control) {
-        return Err(CompileError::ControlCharacter { path });
-      }
+      checked(&path)?;
       views.push(path);
     }
   }
@@ -176,6 +176,15 @@ fn shown(dir: &Path, relative: &Path) -> PathBuf {
   } else {
     relative.to_owned()
   }
+}
+
+/// `path`, or an error when it holds a control character: Cargo reads a build script's output a
+/// line at a time, so a newline in a path printed there starts a directive of its own.
+fn checked(path: &Path) -> Result<(), CompileError> {
+  if path.to_string_lossy().chars().any(char::is_control) {
+    return Err(CompileError::ControlCharacter { path: path.to_owned() });
+  }
+  Ok(())
 }
 
 /// Turns an I/O error into a [`CompileError`] naming `path`.

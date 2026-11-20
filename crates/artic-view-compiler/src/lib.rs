@@ -22,8 +22,9 @@ use artic_view::Language;
 
 /// Compiles one document of `language` to the Rust module body for it.
 ///
-/// The file's path in `sources` is written, escaped, into the output's header and doc comments, so
-/// pass a path relative to the crate, such as `src/views/login.ui`.
+/// The file's path in `sources` is written into the output's header and doc comments, with its
+/// control characters and bidirectional controls escaped, so pass a path relative to the crate,
+/// such as `src/views/login.ui`.
 ///
 /// # Errors
 ///

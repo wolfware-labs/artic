@@ -73,22 +73,27 @@ fn hand_built_view_compiles() {
   }
 }
 
-// The file name is written escaped in the header and the doc comments, so a name with a newline
-// or a `*/` can't end a comment and put its own Rust in the module.
+// A file name is written with its line breaks and bidirectional controls escaped, in the header
+// and the doc comments, so a newline can't end the `//` header and put its own Rust in the module.
+// Other characters, accents and quotes among them, are written as they are.
 #[test]
 fn file_name_cant_add_code() {
-  for path in ["a\nfn x() {}\n.view", "a*/ fn x() {} /*.view"] {
+  let rust = compile_named("a\nfn x() {}\n.view", form, |_| {}).expect("a valid view");
+  let file = syn::parse_file(&rust).expect("the output parses");
+  let injected = file
+    .items
+    .iter()
+    .any(|item| matches!(item, syn::Item::Fn(function) if function.sig.ident == "x"));
+  assert!(!injected, "a newline added a function:\n{rust}");
+  for (path, header) in [
+    ("a\nb.view", r"a\nb.view"),
+    ("a\u{202e}b.view", r"a\u{202e}b.view"),
+    ("cafe\u{301}'s.view", "cafe\u{301}'s.view"),
+  ] {
     let rust = compile_named(path, form, |_| {}).expect("a valid view");
-
-    let file = syn::parse_file(&rust).expect("the output parses");
-    let injected = file
-      .items
-      .iter()
-      .any(|item| matches!(item, syn::Item::Fn(function) if function.sig.ident == "x"));
-    assert!(!injected, "{path:?} added a function:\n{rust}");
+    let expected = format!("// Generated from {header}.");
+    assert_eq!(rust.lines().next(), Some(expected.as_str()), "{path:?}");
   }
-  let rust = compile_named("a\nb.view", form, |_| {}).expect("a valid view");
-  assert_eq!(rust.lines().next(), Some(r"// Generated from a\nb.view."));
 }
 
 // A literal emission refuses and a type the checker reports come back in source order.

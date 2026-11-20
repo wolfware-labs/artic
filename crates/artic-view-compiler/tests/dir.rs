@@ -86,6 +86,27 @@ fn control_character_in_a_name_is_refused() {
   assert!(root.join("out/b.rs").is_file(), "the earlier output is kept");
 }
 
+// A control character in a folder under the directory, or in the directory itself, is refused
+// the same way.
+#[cfg(not(windows))]
+#[test]
+fn control_character_in_a_folder_is_refused() {
+  let root = setup("control_folder", &[("a\nb/c.view", PANEL)]);
+  let error = run(&root, &root.join("views")).expect_err("a newline in a folder");
+  assert!(
+    matches!(error, CompileError::ControlCharacter { ref path } if path.ends_with("a\nb/c.view")),
+    "{error}"
+  );
+  let dir = root.join("views\nx");
+  fs::create_dir_all(&dir).expect("a writable temp dir");
+  fs::write(dir.join("c.view"), PANEL).expect("a writable temp dir");
+  let error = run(&root, &dir).expect_err("a newline in the directory");
+  assert!(
+    matches!(error, CompileError::ControlCharacter { ref path } if *path == dir),
+    "{error}"
+  );
+}
+
 // An absolute directory names each view relative to it, so the header has no absolute path.
 #[test]
 fn absolute_dir_is_shown_relative() {
