@@ -612,8 +612,8 @@ fn a_surface_over_the_gpu_limit_fails() {
 
 // A frame of more tiles than vello draws in one pass, and of more bytes than one readback holds
 // on a GPU that draws past 8192 rows, lands every row in place: vello's fixed buffers hold about
-// 2^17 16x16 tiles, and alone it would leave the rows past them blank. Stripes of 8 rows in three colors tell each band's rows apart,
-// and the padding past each row of the buffer is left as it was.
+// 2^17 16x16 tiles, and alone it would leave the rows past them blank. Stripes of 8 rows in three
+// colors tell each band's rows apart, and the padding past each row of the buffer is left as it was.
 #[test]
 fn a_frame_past_vellos_tile_budget_draws_every_row() {
   const STRIPE: u32 = 8;

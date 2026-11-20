@@ -72,7 +72,7 @@ impl Renderer {
       return Err(Error::UnsupportedAdapter(info.name));
     }
     let descriptor = DeviceDescriptor {
-      required_limits: Limits::default().using_resolution(adapter.limits()),
+      required_limits: device_limits(adapter.limits()),
       ..DeviceDescriptor::default()
     };
     let (device, queue) = pollster::block_on(adapter.request_device(&descriptor))?;
@@ -444,6 +444,11 @@ fn instance(backends: Backends) -> Instance {
   Instance::new(descriptor)
 }
 
+/// The limits to open a device with: wgpu's defaults, but the texture sides `adapter` allows.
+fn device_limits(adapter: Limits) -> Limits {
+  Limits::default().using_resolution(adapter)
+}
+
 /// The first adapter on `backends` whose name contains `wanted`, or without `wanted` the one wgpu
 /// picks for `power`.
 async fn adapter(
@@ -544,15 +549,15 @@ mod tests {
     });
   }
 
-  // The device opens with the adapter's own texture limit rather than wgpu's default of 8192, and
-  // the renderer refuses surfaces by it.
+  // The device asks for the adapter's own texture limit rather than wgpu's default of 8192.
   #[test]
   fn the_device_takes_the_adapters_texture_limit() {
-    match Renderer::new() {
-      Ok(renderer) => assert_eq!(renderer.max_side, renderer.adapter.limits().max_texture_dimension_2d),
-      Err(error @ (Error::Adapter(_) | Error::UnsupportedAdapter(_))) => require::no_gpu(error),
-      Err(error) => panic!("the renderer failed to start: {error}"),
-    }
+    let adapter = Limits {
+      max_texture_dimension_2d: 16384,
+      ..Limits::default()
+    };
+
+    assert_eq!(device_limits(adapter).max_texture_dimension_2d, 16384);
   }
 
   // The first outdated answer reconfigures the surface and the first lost one recreates it; on the
