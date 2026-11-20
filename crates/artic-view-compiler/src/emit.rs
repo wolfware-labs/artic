@@ -8,9 +8,10 @@ use quote::{format_ident, quote};
 use std::path::{Component, Path};
 use syn::ext::IdentExt;
 
-/// The module body for `view`, compiled from the file at `path`.
+/// The module body for `view`, compiled from the file at `path`. The path is written escaped in its
+/// header and doc comments, so no character of it can end a comment and add code.
 pub(crate) fn emit(view: &View, path: &Path) -> String {
-  let file = display(path);
+  let file = display(path).escape_debug().to_string();
   let root = view.root;
   let tree_module = &view.tree;
   let traits = view.traits.values();

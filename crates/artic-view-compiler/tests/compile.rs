@@ -11,8 +11,17 @@ use common::{BADGE, Built, HOST, LABEL, PANEL, children, code_type, element, nam
 /// Compiles the document `build` makes, with `test_ui` reached as `::ui` and the paths `edit`
 /// adds.
 fn compile(build: impl Fn(SourceId) -> Document, edit: impl FnOnce(&mut CratePaths)) -> Result<String, Vec<(String, usize)>> {
+  compile_named("view.view", build, edit)
+}
+
+/// Compiles the document `build` makes from a file named `path`, as [`compile`] does.
+fn compile_named(
+  path: &str,
+  build: impl Fn(SourceId) -> Document,
+  edit: impl FnOnce(&mut CratePaths),
+) -> Result<String, Vec<(String, usize)>> {
   let mut sources = SourceMap::new();
-  let file = sources.add("view.view", "");
+  let file = sources.add(path, "");
   let mut paths = CratePaths::new();
   paths.path("test_ui", "::ui");
   edit(&mut paths);
@@ -62,6 +71,24 @@ fn hand_built_view_compiles() {
   ] {
     assert!(rust.contains(expected), "{expected} in {rust}");
   }
+}
+
+// The file name is written escaped in the header and the doc comments, so a name with a newline
+// or a `*/` can't end a comment and put its own Rust in the module.
+#[test]
+fn file_name_cant_add_code() {
+  for path in ["a\nfn x() {}\n.view", "a*/ fn x() {} /*.view"] {
+    let rust = compile_named(path, form, |_| {}).expect("a valid view");
+
+    let file = syn::parse_file(&rust).expect("the output parses");
+    let injected = file
+      .items
+      .iter()
+      .any(|item| matches!(item, syn::Item::Fn(function) if function.sig.ident == "x"));
+    assert!(!injected, "{path:?} added a function:\n{rust}");
+  }
+  let rust = compile_named("a\nb.view", form, |_| {}).expect("a valid view");
+  assert_eq!(rust.lines().next(), Some(r"// Generated from a\nb.view."));
 }
 
 // A literal emission refuses and a type the checker reports come back in source order.

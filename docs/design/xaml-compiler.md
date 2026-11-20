@@ -205,7 +205,7 @@ fn main() {
 }
 ```
 
-- `compile_dir` walks the directory in sorted order, writes one file per view under `$OUT_DIR/views/` at the view's path in the crate, which `#[ui_class]` finds it by ([code type design](ui-class.md#the-file-argument)), and prints `cargo:rerun-if-changed` for the directory and each file.
+- `compile_dir` walks the directory in sorted order, writes one file per view under `$OUT_DIR/views/` at the view's path in the crate, which `#[ui_class]` finds it by ([code type design](ui-class.md#the-file-argument)), and prints `cargo:rerun-if-changed` for the directory and each file. A view whose path holds a control character, such as a newline, is refused with `CompileError::ControlCharacter` before anything is written, since the path would reach those lines and the generated header as raw text; the header and doc comments write a path escaped.
 - Linking: each generated file references every crate in `namespaces.crates_named()` and `paths.crates_named()` through its path, so a control crate the map names keeps its types in the app's registry even when no view uses them. Every crate the map names is therefore a normal dependency of the app as well as a build-dependency; one that isn't fails to compile in the generated file, at its `use` line. A crate the map doesn't name can't be reached by a view; an app that wants its types for the runtime loader references it itself, as `dsl-neutral.md` §3 says. No `cargo metadata` runs inside the build.
 - The facade's `xaml-compiler` feature adds `artic-xaml-lang` and turns on `view-compiler`, which adds `artic-view-compiler` as `artic::view`; apps don't name either crate. A build-dependency on the facade compiles it once more for the host, the usual cost of a code generator.
 

@@ -33,6 +33,13 @@ pub enum CompileError {
   /// The linked crates register two types at one Rust path, or another duplicate.
   #[error(transparent)]
   Registry(#[from] RegistryError),
+  /// A view's path holds a control character, such as a newline, which would reach the generated
+  /// header and Cargo's `rerun-if-changed` lines as raw text.
+  #[error("the view {path:?} has a control character in its path")]
+  ControlCharacter {
+    /// The view's path.
+    path: PathBuf,
+  },
   /// `OUT_DIR` isn't set, so this isn't running in a build script.
   #[error("`OUT_DIR` isn't set: call `compile_dir` from a build script")]
   NoOutDir,
@@ -68,7 +75,8 @@ impl Debug for CompileError {
 /// # Errors
 ///
 /// Stops at the first view with errors, in sorted order, and returns its diagnostics; or returns
-/// the I/O error, the registry's duplicates, or a missing `OUT_DIR`.
+/// the I/O error, a view whose path holds a control character, the registry's duplicates, or a
+/// missing `OUT_DIR`.
 pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), paths: &CratePaths) -> Result<(), CompileError> {
   let out = std::env::var_os("OUT_DIR").ok_or(CompileError::NoOutDir)?;
   let registry = Registry::from_link_time()?;
@@ -125,8 +133,9 @@ pub fn compile_into(
   Ok(views)
 }
 
-/// Every file under `dir` with `extension`, in sorted order. A symlink to a directory isn't
-/// followed, so a link back to an ancestor can't loop.
+/// Every file under `dir` with `extension`, in sorted order, or an error for the first whose path
+/// holds a control character. A symlink to a directory isn't followed, so a link back to an
+/// ancestor can't loop.
 fn find_views(dir: &Path, extension: &str) -> Result<Vec<PathBuf>, CompileError> {
   let mut entries = fs::read_dir(dir)
     .and_then(|entries| {
@@ -141,6 +150,9 @@ fn find_views(dir: &Path, extension: &str) -> Result<Vec<PathBuf>, CompileError>
     if kind.is_dir() {
       views.extend(find_views(&path, extension)?);
     } else if path.extension().is_some_and(|found| found == extension) {
+      if path.to_string_lossy().chars().any(char::is_control) {
+        return Err(CompileError::ControlCharacter { path });
+      }
       views.push(path);
     }
   }
