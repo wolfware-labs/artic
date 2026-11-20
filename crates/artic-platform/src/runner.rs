@@ -57,8 +57,6 @@ struct Bound {
   info: Option<SurfaceInfo>,
   needs_frame: bool,
   suspended: bool,
-  /// Whether its last frame failed for being larger than the renderer can draw, which the error
-  /// hooks heard once.
   too_large: bool,
   pipeline: Pipeline,
 }

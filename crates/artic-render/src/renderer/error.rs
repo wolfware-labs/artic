@@ -25,3 +25,22 @@ pub enum RenderError {
   #[error(transparent)]
   Backend(Box<dyn Error + Send + Sync>),
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  // A surface over the limit names its size and the limit.
+  #[test]
+  fn too_large_names_the_size_and_the_limit() {
+    let error = RenderError::SurfaceTooLarge {
+      size: PhysicalSize::new(20_000, 64),
+      max: 16_384,
+    };
+
+    assert_eq!(
+      error.to_string(),
+      "the surface is 20000x64 pixels, over the renderer's limit of 16384 on a side"
+    );
+  }
+}

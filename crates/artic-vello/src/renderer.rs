@@ -213,50 +213,70 @@ impl Renderer {
     }
     let texture = self.draw_offscreen(size, TextureUsages::COPY_SRC)?;
     let padded = row_bytes.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize);
+    let rows = rows_per_copy(padded, self.device.limits().max_buffer_size, size.height);
     let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
       label: Some("artic-vello readback"),
-      size: (padded * size.height as usize) as u64,
+      size: (padded * rows as usize) as u64,
       usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
       mapped_at_creation: false,
     });
+    for first in (0..size.height).step_by(rows as usize) {
+      let band = PhysicalSize::new(size.width, rows.min(size.height - first));
+      let slice = self.read_back(&texture, first, band, &readback, padded)?;
+      let mapped = slice.get_mapped_range().map_err(backend)?;
+      let start = first as usize * buffer.stride;
+      for (row, source) in buffer.data[start..].chunks_mut(buffer.stride).zip(mapped.chunks(padded)) {
+        let row = &mut row[..row_bytes];
+        row.copy_from_slice(&source[..row_bytes]);
+        if swap_red_and_blue {
+          for pixel in row.as_chunks_mut::<4>().0 {
+            pixel.swap(0, 2);
+          }
+        }
+      }
+      drop(mapped);
+      readback.unmap();
+    }
+    Ok(())
+  }
+
+  /// Copies `band`, the texture's rows from `first` on, into `readback` with rows `padded` bytes
+  /// apart, and returns the part of `readback` that holds them, mapped for reading.
+  fn read_back<'buffer>(
+    &self,
+    texture: &Texture,
+    first: u32,
+    band: PhysicalSize,
+    readback: &'buffer wgpu::Buffer,
+    padded: usize,
+  ) -> Result<wgpu::BufferSlice<'buffer>, RenderError> {
     let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
     encoder.copy_texture_to_buffer(
       TexelCopyTextureInfo {
-        texture: &texture,
+        texture,
         mip_level: 0,
-        origin: wgpu::Origin3d::ZERO,
+        origin: wgpu::Origin3d { x: 0, y: first, z: 0 },
         aspect: wgpu::TextureAspect::All,
       },
       TexelCopyBufferInfo {
-        buffer: &readback,
+        buffer: readback,
         layout: TexelCopyBufferLayout {
           offset: 0,
           bytes_per_row: Some(padded as u32),
           rows_per_image: None,
         },
       },
-      extent(size),
+      extent(band),
     );
     self.queue.submit([encoder.finish()]);
-
-    let slice = readback.slice(..);
+    let slice = readback.slice(..(padded * band.height as usize) as u64);
     let (sender, receiver) = mpsc::channel();
     slice.map_async(wgpu::MapMode::Read, move |result| {
       let _ = sender.send(result);
     });
     self.device.poll(wgpu::PollType::wait_indefinitely()).map_err(backend)?;
     receiver.recv().map_err(backend)?.map_err(backend)?;
-    let mapped = slice.get_mapped_range().map_err(backend)?;
-    for (row, source) in buffer.data.chunks_mut(buffer.stride).zip(mapped.chunks(padded)) {
-      let row = &mut row[..row_bytes];
-      row.copy_from_slice(&source[..row_bytes]);
-      if swap_red_and_blue {
-        for pixel in row.as_chunks_mut::<4>().0 {
-          pixel.swap(0, 2);
-        }
-      }
-    }
-    Ok(())
+    Ok(slice)
   }
 }
 
@@ -317,6 +337,12 @@ fn fits(size: PhysicalSize, max: u32) -> Result<(), RenderError> {
     return Err(RenderError::SurfaceTooLarge { size, max });
   }
   Ok(())
+}
+
+/// How many rows `padded` bytes long one copy back from the GPU holds: all `height` of them when
+/// they fit in `max_bytes`, else as many as fit.
+fn rows_per_copy(padded: usize, max_bytes: u64, height: u32) -> u32 {
+  (max_bytes / padded as u64).min(u64::from(height)) as u32
 }
 
 fn extent(size: PhysicalSize) -> Extent3d {
@@ -472,6 +498,16 @@ mod tests {
   }
 
   // A hidden window or a timed-out GPU skips the frame; a validation failure is an error.
+  #[test]
+  fn a_hidden_or_failed_surface_gives_no_frame() {
+    for retry in [false, true] {
+      assert!(matches!(acquired(CurrentSurfaceTexture::Timeout, retry), Acquired::Skip));
+      assert!(matches!(acquired(CurrentSurfaceTexture::Occluded, retry), Acquired::Skip));
+      let failed = acquired(CurrentSurfaceTexture::Validation, retry);
+      assert!(matches!(failed, Acquired::Failed(RenderError::Backend(_))));
+    }
+  }
+
   // A side longer than the limit is refused, whichever side it is; sides at the limit fit.
   #[test]
   fn a_size_fits_up_to_the_limit() {
@@ -486,13 +522,13 @@ mod tests {
     assert!(too_large(1, 17), "too tall");
   }
 
+  // Every row is copied back at once when the rows fit in the limit, and as many whole rows as fit
+  // when they don't.
   #[test]
-  fn a_hidden_or_failed_surface_gives_no_frame() {
-    for retry in [false, true] {
-      assert!(matches!(acquired(CurrentSurfaceTexture::Timeout, retry), Acquired::Skip));
-      assert!(matches!(acquired(CurrentSurfaceTexture::Occluded, retry), Acquired::Skip));
-      let failed = acquired(CurrentSurfaceTexture::Validation, retry);
-      assert!(matches!(failed, Acquired::Failed(RenderError::Backend(_))));
-    }
+  fn rows_are_copied_back_as_many_as_fit() {
+    assert_eq!(rows_per_copy(256, 256 * 4, 4), 4, "exactly the limit");
+    assert_eq!(rows_per_copy(256, 256 * 8, 4), 4, "under the limit");
+    assert_eq!(rows_per_copy(256, 256 * 4 - 1, 4), 3, "one byte short");
+    assert_eq!(rows_per_copy(256, 256 * 2, 4), 2, "half of them");
   }
 }
