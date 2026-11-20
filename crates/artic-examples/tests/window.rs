@@ -104,6 +104,7 @@ impl Script {
   }
 }
 
+/// The opaque color of an `[r, g, b]` triple, as the pixel checks name it.
 fn rgb([r, g, b]: [u8; 3]) -> Color {
   Color::rgb(r, g, b)
 }
@@ -183,6 +184,7 @@ impl AppHandler for Script {
   }
 }
 
+/// A resizable window with the system's chrome, titled `title`, of `width` by `height` logical pixels.
 fn desc(title: &str, width: f32, height: f32) -> WindowDesc {
   WindowDesc {
     title: title.into(),
