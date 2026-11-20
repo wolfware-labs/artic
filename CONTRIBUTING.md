@@ -58,7 +58,7 @@ An error's message says what failed at its own layer and never formats its cause
 
 ## Dependencies
 
-`deny.toml` defines the dependency policy. Dependencies must use one of the allowed licenses, come from crates.io, and have no open security advisories. A new dependency that fails `cargo deny check` needs a discussion in its pull request before the policy changes.
+`deny.toml` defines the dependency policy. Dependencies must use one of the allowed licenses, come from crates.io, and have no open security advisories, including unsound ones in dependencies of dependencies. A weekly workflow, `advisories.yml`, checks the lockfile as well, since advisories appear without any change here. A new dependency that fails `cargo deny check` needs a discussion in its pull request before the policy changes.
 
 A new dependency between workspace crates must follow the layers in [docs/architecture.md](docs/architecture.md). Update that document in the same pull request.
 
