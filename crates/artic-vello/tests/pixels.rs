@@ -593,20 +593,48 @@ fn a_surface_over_the_gpu_limit_fails() {
   });
 }
 
-// A frame of more tiles than vello draws in one pass is filled to its last row: vello's fixed
-// buffers hold about 2^17 16x16 tiles, and alone it would leave the rows past them blank.
+// A frame of more tiles than vello draws in one pass, and of more bytes than one readback holds,
+// lands every row in place: vello's fixed buffers hold about 2^17 16x16 tiles, and alone it would
+// leave the rows past them blank. Stripes of 8 rows in three colors tell each band's rows apart,
+// and the padding past each row of the buffer is left as it was.
 #[test]
 fn a_frame_past_vellos_tile_budget_draws_every_row() {
+  const STRIPE: u32 = 8;
+  const COLORS: [Color; 3] = [RED, GREEN, BLUE];
+  const BYTES: [[u8; 4]; 3] = [[255, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255]];
+  const PADDING: u8 = 0xAB;
   with_renderer(|renderer| {
-    let size = PhysicalSize::new(8192, 4200);
-    let scene = Scene::record(|builder| builder.fill(Rect::new(0.0, 0.0, 8192.0, 4200.0), RED));
+    let size = PhysicalSize::new(8192, 8200);
+    let scene = Scene::record(|builder| {
+      for (stripe, color) in (0..size.height / STRIPE).zip(COLORS.into_iter().cycle()) {
+        let top = (stripe * STRIPE) as f32;
+        builder.fill(Rect::new(0.0, top, size.width as f32, STRIPE as f32), color);
+      }
+    });
+    let row = size.width as usize * 4;
+    let stride = row + 20;
+    let mut data = vec![PADDING; stride * size.height as usize];
+    let surface = SurfaceView {
+      id: SurfaceId::new(1),
+      size,
+      scale: 1.0,
+      target: Target::Pixels(PixelBuffer {
+        data: &mut data,
+        stride,
+        format: PixelFormat::Rgba8,
+      }),
+    };
 
-    let image = artic_test::golden::render(renderer, &scene, size, 1.0).expect("renders");
+    renderer.render(&scene, surface).expect("renders");
 
-    let pixels = image.pixels();
-    let last = pixels.len() - 1;
-    for (index, what) in [(0, "first pixel"), (8192 * 4100, "row 4100"), (last, "last pixel")] {
-      assert_eq!(pixels[index], OPAQUE_RED, "{what}");
+    for (y, line) in data.chunks(stride).enumerate() {
+      let expected = BYTES[y / STRIPE as usize % BYTES.len()];
+      let (pixels, padding) = line.split_at(row);
+      assert!(
+        pixels.as_chunks::<4>().0.iter().all(|&p| p == expected),
+        "row {y}: expected {expected:?}"
+      );
+      assert!(padding.iter().all(|&b| b == PADDING), "row {y}: padding was written");
     }
   });
 }
