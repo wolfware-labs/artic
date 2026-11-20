@@ -67,21 +67,23 @@ fn missing_dir_is_an_io_error() {
   assert_eq!(format!("{error:?}"), format!("{error}: {cause}"));
 }
 
-// A view whose name holds a control character is refused before anything is written, since the
-// name would reach the generated header and Cargo's `rerun-if-changed` lines. Windows can't name
-// a file so.
+// A view whose name holds a control character is refused before the output is removed or written,
+// since the name would reach the generated header and Cargo's `rerun-if-changed` lines. Windows
+// can't name a file so.
 #[cfg(not(windows))]
 #[test]
 fn control_character_in_a_name_is_refused() {
   let name = "a\nfn x() {}\n.view";
-  let root = setup("control_character", &[("b.view", PANEL), (name, PANEL)]);
+  let root = setup("control_character", &[("b.view", PANEL)]);
+  run(&root, &root.join("views")).expect("a valid view");
+  fs::write(root.join("views").join(name), PANEL).expect("writable");
   let error = run(&root, &root.join("views")).expect_err("a newline in a name");
   assert!(
     matches!(error, CompileError::ControlCharacter { ref path } if path.ends_with(name)),
     "{error}"
   );
   assert!(error.to_string().contains(r"a\nfn x() {}\n.view"), "{error}");
-  assert!(!root.join("out").exists(), "nothing written");
+  assert!(root.join("out/b.rs").is_file(), "the earlier output is kept");
 }
 
 // An absolute directory names each view relative to it, so the header has no absolute path.
