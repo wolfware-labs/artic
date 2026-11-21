@@ -781,9 +781,10 @@ impl UiTree {
   /// Says whether `id` is drawn by its logical parent rather than on its own, as an inline run is
   /// drawn by the text block that holds it.
   ///
-  /// While it is, `id` keeps no dirty flags: every stage marked on it, by a property change or
-  /// [`mark_dirty`](Self::mark_dirty), is marked on its logical parent instead, and on up while that
-  /// parent is drawn by its own. Joining or leaving a parent marks the parent for layout and
+  /// While it is and has a logical parent, `id` keeps no dirty flags: every stage marked on it, by a
+  /// property change or [`mark_dirty`](Self::mark_dirty), is marked on its logical parent instead,
+  /// and on up while that parent is drawn by its own. Without a parent it keeps its marks, and they
+  /// move up when it joins one. Joining or leaving a parent marks the parent for layout and
   /// rendering, since what it draws changed, and so does turning this on or off; a node that draws
   /// on its own again is marked too.
   ///

@@ -9,8 +9,9 @@
 //! finds its nodes through [`UiTree::take_dirty`](super::UiTree::take_dirty) without walking the
 //! tree.
 //!
-//! A node drawn by its logical parent, such as an inline run, holds no flags of its own: its handle
-//! passes every mark to the parent's, so whatever takes the parent's marks sees the change. See
+//! A node drawn by its logical parent, such as an inline run, holds no flags of its own while it has
+//! one: its handle passes every mark to the parent's, so whatever takes the parent's marks sees the
+//! change. Without a parent it keeps its marks, and they move up when it joins one. See
 //! [`UiTree::set_drawn_by_parent`](super::UiTree::set_drawn_by_parent).
 
 use crate::arena::SlotMap;

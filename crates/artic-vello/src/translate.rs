@@ -144,8 +144,16 @@ impl Translation<'_> {
   fn text(&mut self, paragraph: &Paragraph, origin: Point, brushes: &TextBrushes) {
     let size = paragraph.size();
     let bounds = Rect::new(origin.x, origin.y, size.width, size.height);
+    let mut painted = None;
     for run in paragraph.runs() {
-      let Some((brush, transform)) = brushes.brush(run.style()).and_then(|brush| paint(brush, bounds)) else {
+      let Some(slot) = brushes.slot(run.style()) else {
+        return;
+      };
+      let paint = match &painted {
+        Some((at, paint)) if *at == slot => paint,
+        _ => &painted.insert((slot, paint(&brushes.as_slice()[slot], bounds))).1,
+      };
+      let Some((brush, transform)) = paint else {
         continue;
       };
       let font = run.font();
@@ -172,11 +180,11 @@ impl Translation<'_> {
         .font_size(run.size())
         .transform(self.current)
         .glyph_transform(skew)
-        .brush_transform(transform)
+        .brush_transform(*transform)
         .font_embolden(embolden)
         .hint(false)
         .normalized_coords(run.coords())
-        .brush(&brush)
+        .brush(brush)
         .draw(Fill::NonZero, glyphs);
     }
   }

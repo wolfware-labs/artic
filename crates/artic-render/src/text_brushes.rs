@@ -25,50 +25,74 @@ use crate::Brush;
 /// assert_eq!(two.brush(5), two.brush(1));
 /// ```
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct TextBrushes(Vec<Brush>);
+pub struct TextBrushes(Held);
+
+/// The brushes as held: one brush, the common case, needs no allocation.
+#[derive(Debug, Clone, Default, PartialEq)]
+enum Held {
+  #[default]
+  None,
+  One(Brush),
+  Many(Vec<Brush>),
+}
 
 impl TextBrushes {
   /// The brush for the glyph runs in style `style`: the brush at that index, the last brush past
   /// the end, or `None` when there is no brush.
   #[must_use]
   pub fn brush(&self, style: usize) -> Option<&Brush> {
-    self.0.get(style).or_else(|| self.0.last())
+    self.slot(style).map(|slot| &self.as_slice()[slot])
+  }
+
+  /// The index of the brush style `style` takes, as [`brush`](Self::brush) picks it, so a renderer
+  /// can reuse what it made of a brush for every style that takes it.
+  #[must_use]
+  pub fn slot(&self, style: usize) -> Option<usize> {
+    self.as_slice().len().checked_sub(1).map(|last| style.min(last))
   }
 
   /// The brushes, by style index.
   #[must_use]
   pub fn as_slice(&self) -> &[Brush] {
-    &self.0
+    match &self.0 {
+      Held::None => &[],
+      Held::One(brush) => std::slice::from_ref(brush),
+      Held::Many(brushes) => brushes,
+    }
   }
 
   /// Whether there is no brush, so nothing is drawn.
   #[must_use]
   pub fn is_empty(&self) -> bool {
-    self.0.is_empty()
+    self.as_slice().is_empty()
   }
 }
 
 impl<B: Into<Brush>> From<B> for TextBrushes {
   fn from(brush: B) -> TextBrushes {
-    TextBrushes(vec![brush.into()])
+    TextBrushes(Held::One(brush.into()))
   }
 }
 
 impl<B: Into<Brush>, const N: usize> From<[B; N]> for TextBrushes {
   fn from(brushes: [B; N]) -> TextBrushes {
-    TextBrushes(brushes.into_iter().map(Into::into).collect())
+    brushes.into_iter().map(Into::into).collect()
   }
 }
 
 impl From<Vec<Brush>> for TextBrushes {
-  fn from(brushes: Vec<Brush>) -> TextBrushes {
-    TextBrushes(brushes)
+  fn from(mut brushes: Vec<Brush>) -> TextBrushes {
+    TextBrushes(match brushes.len() {
+      0 => Held::None,
+      1 => Held::One(brushes.remove(0)),
+      _ => Held::Many(brushes),
+    })
   }
 }
 
 impl FromIterator<Brush> for TextBrushes {
   fn from_iter<I: IntoIterator<Item = Brush>>(brushes: I) -> TextBrushes {
-    TextBrushes(brushes.into_iter().collect())
+    brushes.into_iter().collect::<Vec<_>>().into()
   }
 }
 
@@ -103,6 +127,17 @@ mod tests {
   }
 
   // With no brush, no style has one.
+  // A style takes the slot of its own brush, or the last one past the end, so a renderer can share
+  // what it made of a brush; with no brush there's no slot.
+  #[test]
+  fn each_style_takes_its_brushs_slot() {
+    let two = TextBrushes::from([Color::rgb(1, 2, 3), Color::rgb(4, 5, 6)]);
+
+    assert_eq!([0, 1, 7].map(|style| two.slot(style)), [Some(0), Some(1), Some(1)]);
+    assert_eq!(TextBrushes::from(Color::rgb(1, 2, 3)).slot(3), Some(0));
+    assert_eq!(TextBrushes::default().slot(0), None);
+  }
+
   #[test]
   fn no_brush_paints_nothing() {
     let brushes = TextBrushes::from(Vec::new());
