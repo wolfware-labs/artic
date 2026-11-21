@@ -3,7 +3,7 @@
 
 use crate::text::engine;
 use artic_layout::geometry::{CornerRadius, FillRule, Path, Point, Rect, RelativePoint, RelativeScalar, RoundedRect};
-use artic_layout::text::{FontFamily, ParagraphStyle, TextEngine, TextLimits, TextStyle, TextWrapping};
+use artic_layout::text::{FontFamily, ParagraphStyle, StyledText, TextEngine, TextLimits, TextStyle, TextWrapping};
 use artic_render::{
   BoxShadow, Color, GradientStop, LineJoin, LinearGradientBrush, PhysicalSize, RadialGradientBrush, Scene, SceneBuilder, Stroke,
 };
@@ -106,12 +106,8 @@ pub fn nested_opacity() -> Scene {
 /// "Text" in the test font at 20 px, in solid blue.
 #[must_use]
 pub fn text_solid() -> Scene {
-  let paragraph = engine().paragraph(
-    "Text",
-    &TextStyle::new(FontFamily::default(), 20.0),
-    &ParagraphStyle::default(),
-    TextLimits::NONE,
-  );
+  let text = StyledText::plain("Text", TextStyle::new(FontFamily::default(), 20.0));
+  let paragraph = engine().paragraph(&text, &ParagraphStyle::default(), TextLimits::NONE);
   Scene::record(|builder| builder.text(&paragraph, Point::new(4.0, 4.0), BLUE))
 }
 
@@ -119,7 +115,11 @@ pub fn text_solid() -> Scene {
 #[must_use]
 pub fn text_gradient() -> Scene {
   let style = TextStyle::new(FontFamily::default(), 16.0);
-  let paragraph = engine().paragraph("Grad ient", &style, &overflowing(), TextLimits::width(56.0));
+  let paragraph = engine().paragraph(
+    &StyledText::plain("Grad ient", style),
+    &overflowing(),
+    TextLimits::width(56.0),
+  );
   Scene::record(|builder| builder.text(&paragraph, Point::new(4.0, 4.0), gradient()))
 }
 
@@ -127,7 +127,8 @@ pub fn text_gradient() -> Scene {
 #[must_use]
 pub fn text_wrapped() -> Scene {
   let style = TextStyle::new(FontFamily::default(), 12.0);
-  let paragraph = engine().paragraph("Wrapped to the width", &style, &overflowing(), TextLimits::width(56.0));
+  let text = StyledText::plain("Wrapped to the width", style);
+  let paragraph = engine().paragraph(&text, &overflowing(), TextLimits::width(56.0));
   Scene::record(|builder| builder.text(&paragraph, Point::new(4.0, 4.0), Color::rgb(51, 65, 85)))
 }
 

@@ -7,7 +7,9 @@ use artic_core::Object;
 use artic_core::property::PropertyVisitor;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_layout::geometry::{CornerRadius, FillRule, Path, Point, Rect, RelativePoint, RoundedRect, Transform};
-use artic_layout::text::{FontFamily, FontStyle, FontWeight, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
+use artic_layout::text::{
+  FontFamily, FontStyle, FontWeight, Paragraph, ParagraphStyle, StyledText, TextEngine, TextLimits, TextStyle,
+};
 use artic_render::Renderer as _;
 use artic_render::{
   BoxShadow, Color, Compositor, GradientStop, Layers, LinearGradientBrush, Nodes, PhysicalSize, PixelBuffer, PixelFormat,
@@ -663,8 +665,7 @@ fn shaped(text: &str, weight: FontWeight, style: FontStyle) -> Paragraph {
     ..TextStyle::new(FontFamily::default(), 32.0)
   };
   artic_text::Engine::with_fonts([artic_test_fonts::REGULAR]).paragraph(
-    text,
-    &style,
+    &StyledText::plain(text, style),
     &ParagraphStyle::default(),
     TextLimits::NONE,
   )
@@ -716,5 +717,38 @@ fn synthesized_italic_leans_right() {
       center(10..22),
       center(30..42)
     );
+  });
+}
+
+// One paragraph in two styles, drawn with a brush per style: the first style's glyphs are red and
+// the second's blue, each on its side of where the second run starts.
+#[test]
+fn each_style_draws_with_its_own_brush() {
+  with_renderer(|renderer| {
+    let style = TextStyle::new(FontFamily::default(), 32.0);
+    let mut text = StyledText::plain("H", style.clone());
+    text.push("H", style);
+    let paragraph = artic_text::Engine::with_fonts([artic_test_fonts::REGULAR]).paragraph(
+      &text,
+      &ParagraphStyle::default(),
+      TextLimits::NONE,
+    );
+    let split = 8.0 + paragraph.runs()[1].glyphs()[0].x;
+    let scene = Scene::record(|builder| builder.text(&paragraph, Point::new(8.0, 8.0), [RED, BLUE]));
+
+    let image = artic_test::golden::render(renderer, &scene, PhysicalSize::new(64, 64), 1.0).expect("renders");
+
+    // Inked pixels by color, then side: [[red left, red right], [blue left, blue right]].
+    let mut inked = [[0; 2]; 2];
+    for (at, pixel) in image.pixels().iter().enumerate() {
+      let side = usize::from((at % 64) as f32 >= split);
+      match *pixel {
+        [_, 0, 0, alpha] if alpha > 0 => inked[0][side] += 1,
+        [0, 0, _, alpha] if alpha > 0 => inked[1][side] += 1,
+        _ => {}
+      }
+    }
+    assert!(inked[0][0] > 0 && inked[1][1] > 0, "{inked:?}");
+    assert_eq!((inked[0][1], inked[1][0]), (0, 0), "{inked:?}");
   });
 }

@@ -15,10 +15,10 @@ use crate::candidates::Candidates;
 use crate::draft::{Draft, DraftLine};
 use crate::trim;
 use artic_layout::geometry::Size;
-use artic_layout::text::{Line, Paragraph, ParagraphStyle, TextAlignment, TextTrimming};
+use artic_layout::text::{Line, Paragraph, ParagraphStyle, StyledText, TextAlignment, TextTrimming};
 
 pub(crate) fn paragraph(
-  text: &str,
+  text: &StyledText,
   draft: Draft,
   style: &ParagraphStyle,
   max_width: Option<f32>,
@@ -73,7 +73,7 @@ pub(crate) fn paragraph(
 }
 
 fn trim(
-  text: &str,
+  text: &StyledText,
   lines: &mut [DraftLine],
   mode: TextTrimming,
   max_width: Option<f32>,
@@ -85,13 +85,13 @@ fn trim(
   let last = lines.len() - 1;
   let mut lost = false;
   for (index, line) in lines.iter_mut().enumerate() {
-    let clamped = index == last && !text[line.text.end..].trim().is_empty();
+    let clamped = index == last && !text.text()[line.text.end..].trim().is_empty();
     let wide = max_width.is_some_and(|max| line.width() > max);
     if !(clamped || wide) {
       continue;
     }
     let limit = max_width.unwrap_or(f32::INFINITY);
-    if let Some(trimmed) = trim::trim_line(candidates, &text[line.text.start..line.hung], mode, limit) {
+    if let Some(trimmed) = trim::trim_line(candidates, &text.slice(line.text.start..line.hung), mode, limit) {
       lost |= trimmed.lost;
       *line = std::mem::take(line).replaced_by(trimmed.line);
     }

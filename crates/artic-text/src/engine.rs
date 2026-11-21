@@ -4,7 +4,7 @@ use crate::candidates::Candidates;
 use crate::paragraph;
 use crate::shaping::Shaping;
 use artic_layout::finite;
-use artic_layout::text::{FamilyName, FontBytes, GenericFamily, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
+use artic_layout::text::{FamilyName, FontBytes, GenericFamily, Paragraph, ParagraphStyle, StyledText, TextEngine, TextLimits};
 use fontique::{Blob, Collection, CollectionOptions, SourceCache};
 use parley::FontContext;
 use std::fmt::{self, Debug, Formatter};
@@ -78,13 +78,15 @@ impl Engine {
 }
 
 impl TextEngine for Engine {
-  fn paragraph(&mut self, text: &str, style: &TextStyle, paragraph_style: &ParagraphStyle, limits: TextLimits) -> Paragraph {
-    if finite::positive(style.size).is_none() || !self.shaping.has_fonts() {
+  fn paragraph(&mut self, text: &StyledText, paragraph_style: &ParagraphStyle, limits: TextLimits) -> Paragraph {
+    let styles = text.styles();
+    let sized = !styles.is_empty() && styles.iter().all(|style| finite::positive(style.size).is_some());
+    if !sized || !self.shaping.has_fonts() {
       return Paragraph::default();
     }
-    let kept = self.shaping.lay_out(text, style, paragraph_style, limits);
-    let draft = self.shaping.draft(text, kept);
-    let mut candidates = Candidates::new(&mut self.shaping, style, paragraph_style.line_height, draft.right_to_left);
+    let kept = self.shaping.lay_out(text, paragraph_style, limits);
+    let draft = self.shaping.draft(text.text(), kept);
+    let mut candidates = Candidates::new(&mut self.shaping, paragraph_style.line_height, draft.right_to_left);
     paragraph::paragraph(text, draft, paragraph_style, limits.usable_width(), &mut candidates)
   }
 }
@@ -104,7 +106,7 @@ impl Debug for Engine {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use artic_layout::text::FontFamily;
+  use artic_layout::text::{FontFamily, TextStyle};
   use pretty_assertions::assert_eq;
 
   fn engine() -> Engine {
@@ -116,16 +118,16 @@ mod tests {
   #[test]
   fn candidates_drop_the_direction_mark() {
     let mut engine = engine();
-    let style = TextStyle::new(FontFamily::default(), 16.0);
+    let text = |text: &str| StyledText::plain(text, TextStyle::new(FontFamily::default(), 16.0));
 
     for right_to_left in [false, true] {
-      let mut candidates = Candidates::new(&mut engine.shaping, &style, None, right_to_left);
-      let line = candidates.line("abc");
+      let mut candidates = Candidates::new(&mut engine.shaping, None, right_to_left);
+      let line = candidates.line(&text("abc"));
       let glyphs = line.runs.iter().map(|run| run.glyph_count()).sum::<usize>();
 
       assert_eq!(glyphs, 3, "{right_to_left}");
-      assert_eq!(candidates.clusters("ab c").starts, [0, 1, 2, 3]);
-      let words = candidates.clusters("ab c").words;
+      assert_eq!(candidates.clusters(&text("ab c")).starts, [0, 1, 2, 3]);
+      let words = candidates.clusters(&text("ab c")).words;
       assert!(words.contains(&3) && !words.contains(&1), "{words:?}");
     }
   }

@@ -8,7 +8,9 @@ use artic_core::property::{Affects, Inheritance, Property, PropertyKey, Property
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_element::{AccessCx, Application, Element, RenderCx, Surface};
 use artic_layout::geometry::{Rect, Size, Transform};
-use artic_layout::text::{FontFamily, GlyphRun, Line, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
+use artic_layout::text::{
+  FontFamily, GlyphRun, Line, Paragraph, ParagraphStyle, StyledText, TextEngine, TextLimits, TextStyle,
+};
 use artic_layout::{ArrangeCx, Layoutable, MeasureCx};
 use artic_platform::{Accessibility, DisplayId, HostContext, SurfaceInfo, WindowDesc, Windows};
 use artic_render::{
@@ -359,9 +361,9 @@ pub struct Recorder {
 }
 
 impl TextEngine for Recorder {
-  fn paragraph(&mut self, text: &str, _style: &TextStyle, _paragraph: &ParagraphStyle, _limits: TextLimits) -> Paragraph {
-    self.asked.borrow_mut().push(text.to_owned());
-    let size = Size::new(8.0 * text.chars().count() as f32, 16.0);
+  fn paragraph(&mut self, text: &StyledText, _paragraph: &ParagraphStyle, _limits: TextLimits) -> Paragraph {
+    self.asked.borrow_mut().push(text.text().to_owned());
+    let size = Size::new(8.0 * text.text().chars().count() as f32, 16.0);
     Paragraph::new(size, Vec::<Line>::new(), Vec::<GlyphRun>::new())
   }
 }
@@ -383,10 +385,8 @@ impl Object for Label {
 
 impl Layoutable for Label {
   fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {
-    let style = TextStyle::new(FontFamily::default(), 16.0);
-    let paragraph = cx
-      .text()
-      .paragraph(&self.text.get(), &style, &ParagraphStyle::default(), TextLimits::NONE);
+    let text = StyledText::plain(&self.text.get(), TextStyle::new(FontFamily::default(), 16.0));
+    let paragraph = cx.text().paragraph(&text, &ParagraphStyle::default(), TextLimits::NONE);
     let size = paragraph.size();
     cx.set_measured(paragraph);
     size

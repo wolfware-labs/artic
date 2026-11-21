@@ -1,4 +1,4 @@
-use crate::{BoxShadow, Brush, Command, Layer, Shape, Stroke};
+use crate::{BoxShadow, Brush, Command, Layer, Shape, Stroke, TextBrushes};
 use artic_layout::geometry::{Point, RoundedRect, Transform};
 use artic_layout::text::Paragraph;
 
@@ -95,9 +95,11 @@ impl SceneBuilder {
     });
   }
 
-  /// Draws `paragraph` with its top-left corner at `origin`, painted with `brush`. The brush's
-  /// relative points resolve against the paragraph's box, so a gradient runs across the whole
-  /// text. A paragraph without glyphs records nothing.
+  /// Draws `paragraph` with its top-left corner at `origin`, each glyph run painted with the brush
+  /// [`TextBrushes`] gives its style: one brush, such as a [`Color`](crate::Color), paints all of
+  /// it, and a list one brush per style, its last brush painting the styles past its end. The
+  /// brushes' relative points resolve against the paragraph's box, so a gradient runs across the
+  /// whole text. A paragraph without glyphs, or no brush, records nothing.
   ///
   /// # Examples
   ///
@@ -109,15 +111,17 @@ impl SceneBuilder {
   /// let paragraph = Paragraph::default();
   /// let mut builder = SceneBuilder::default();
   /// builder.text(&paragraph, Point::new(8.0, 8.0), Color::rgb(15, 23, 42));
+  /// builder.text(&paragraph, Point::new(8.0, 8.0), [Color::rgb(15, 23, 42), Color::rgb(220, 38, 38)]);
   /// ```
-  pub fn text(&mut self, paragraph: &Paragraph, origin: Point, brush: impl Into<Brush>) {
-    if !paragraph.has_glyphs() {
+  pub fn text(&mut self, paragraph: &Paragraph, origin: Point, brushes: impl Into<TextBrushes>) {
+    let brushes = brushes.into();
+    if !paragraph.has_glyphs() || brushes.is_empty() {
       return;
     }
     self.commands.push(Command::Text {
       paragraph: paragraph.clone(),
       origin,
-      brush: brush.into(),
+      brushes,
     });
   }
 
@@ -214,9 +218,34 @@ mod tests {
       [Command::Text {
         paragraph,
         origin: Point::new(4.0, 6.0),
-        brush: Color::rgb(1, 2, 3).into(),
+        brushes: Color::rgb(1, 2, 3).into(),
       }]
     );
+  }
+
+  // A paragraph drawn with a brush per style records all of them, in style order.
+  #[test]
+  fn text_records_a_brush_per_style() {
+    let mut builder = SceneBuilder::default();
+    let brushes = [Color::rgb(1, 2, 3), Color::rgb(4, 5, 6)];
+
+    builder.text(&paragraph(2), Point::ZERO, brushes);
+
+    let commands = builder.take();
+    let [Command::Text { brushes: recorded, .. }] = commands.as_slice() else {
+      panic!("one text command");
+    };
+    assert_eq!(recorded.as_slice(), brushes.map(Brush::from));
+  }
+
+  // Text with no brush draws nothing, so nothing is recorded.
+  #[test]
+  fn text_without_brushes_records_nothing() {
+    let mut builder = SceneBuilder::default();
+
+    builder.text(&paragraph(2), Point::ZERO, Vec::new());
+
+    assert!(builder.take().is_empty());
   }
 
   // A paragraph without glyphs draws nothing, so nothing is recorded: one with no runs, as an

@@ -1,6 +1,6 @@
 use artic_layout::text::{
-  FontFamily, FontStyle, FontWeight, GenericFamily, Line, Paragraph, ParagraphStyle, TextAlignment, TextEngine, TextLimits,
-  TextStyle, TextTrimming, TextWrapping,
+  FontFamily, FontStyle, FontWeight, GenericFamily, Line, Paragraph, ParagraphStyle, StyledText, TextAlignment, TextEngine,
+  TextLimits, TextStyle, TextTrimming, TextWrapping,
 };
 use artic_test_fonts::{BOLD, REGULAR};
 use artic_text::Engine;
@@ -19,11 +19,15 @@ fn style() -> TextStyle {
 }
 
 fn shape(engine: &mut Engine, text: &str, style: &TextStyle) -> Paragraph {
-  engine.paragraph(text, style, &ParagraphStyle::default(), TextLimits::NONE)
+  engine.paragraph(
+    &StyledText::plain(text, style.clone()),
+    &ParagraphStyle::default(),
+    TextLimits::NONE,
+  )
 }
 
 fn laid_out(engine: &mut Engine, text: &str, paragraph: &ParagraphStyle, limits: TextLimits) -> Paragraph {
-  engine.paragraph(text, &style(), paragraph, limits)
+  engine.paragraph(&StyledText::plain(text, style()), paragraph, limits)
 }
 
 fn wrapping(wrapping: TextWrapping) -> ParagraphStyle {
@@ -1393,4 +1397,107 @@ fn justify_spreads_the_spare_width_over_the_gaps() {
     right_glyph(&justified, line) - right_glyph(&start, natural),
     200.0 - natural.width,
   );
+}
+
+fn two_styles(first: &str, second: &str, style: TextStyle) -> StyledText {
+  let mut text = StyledText::plain(first, self::style());
+  text.push(second, style);
+  text
+}
+
+fn styled_trimmed(text: &StyledText, mode: TextTrimming, max_width: f32) -> Paragraph {
+  engine().paragraph(text, &trimming(mode), TextLimits::width(max_width))
+}
+
+fn styles(paragraph: &Paragraph) -> Vec<usize> {
+  paragraph.runs().iter().map(|run| run.style()).collect()
+}
+
+fn ellipsis_styles(paragraph: &Paragraph) -> Vec<usize> {
+  let ellipsis = ellipsis(&mut engine());
+  paragraph
+    .runs()
+    .iter()
+    .filter(|run| run.glyphs().iter().any(|glyph| glyph.id == ellipsis))
+    .map(|run| run.style())
+    .collect()
+}
+
+// Each span is shaped in its own style, and each run reports the index of the style it came from.
+#[test]
+fn spans_shape_in_their_own_styles() {
+  let big = TextStyle { size: 32.0, ..style() };
+
+  let paragraph = engine().paragraph(
+    &two_styles("Hello ", "world", big),
+    &ParagraphStyle::default(),
+    TextLimits::NONE,
+  );
+
+  let runs = paragraph
+    .runs()
+    .iter()
+    .map(|run| (run.style(), run.size()))
+    .collect::<Vec<_>>();
+  assert_eq!(runs, [(0, 16.0), (1, 32.0)]);
+  assert_close(paragraph.size().height, LINE * 2.0);
+}
+
+// Spans in equal styles still give a run each, so each can take its own brush.
+#[test]
+fn spans_in_equal_styles_split_runs() {
+  let paragraph = engine().paragraph(
+    &two_styles("Hel", "lo", style()),
+    &ParagraphStyle::default(),
+    TextLimits::NONE,
+  );
+
+  let runs = paragraph
+    .runs()
+    .iter()
+    .map(|run| (run.style(), run.glyphs().len()))
+    .collect::<Vec<_>>();
+  assert_eq!(runs, [(0, 3), (1, 2)]);
+}
+
+// Text without a style gives a paragraph with no lines; so does a span whose size isn't above 0.
+#[test]
+fn text_without_a_style_or_with_a_bad_size_gives_no_lines() {
+  let bad = TextStyle { size: 0.0, ..style() };
+
+  assert_eq!(
+    engine().paragraph(&StyledText::new(), &ParagraphStyle::default(), TextLimits::NONE),
+    Paragraph::default()
+  );
+  assert_eq!(
+    engine().paragraph(&two_styles("a", "b", bad), &ParagraphStyle::default(), TextLimits::NONE),
+    Paragraph::default()
+  );
+}
+
+// A trimmed line keeps its runs' style indices, and the ellipsis takes the style of the text
+// kept just before it.
+#[test]
+fn trimming_keeps_style_indices_and_styles_the_ellipsis_from_before() {
+  let text = two_styles("Hello ", "world wide", style());
+
+  let late = styled_trimmed(&text, TextTrimming::CharacterEllipsis, 70.0);
+  let early = styled_trimmed(&text, TextTrimming::CharacterEllipsis, 30.0);
+
+  assert!(late.limited_width() && early.limited_width());
+  assert_eq!(styles(&late), [0, 1]);
+  assert_eq!(ellipsis_styles(&late), [1]);
+  assert_eq!(styles(&early), [0]);
+  assert_eq!(ellipsis_styles(&early), [0]);
+}
+
+// When nothing is kept before the ellipsis, it takes the style of the text just after it.
+#[test]
+fn leading_ellipsis_takes_the_style_after_it() {
+  let text = two_styles("Hello ", "world", style());
+
+  let paragraph = styled_trimmed(&text, TextTrimming::LeadingCharacterEllipsis, 30.0);
+
+  assert_eq!(styles(&paragraph), [1]);
+  assert_eq!(ellipsis_styles(&paragraph), [1]);
 }

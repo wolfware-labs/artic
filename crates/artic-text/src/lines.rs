@@ -9,7 +9,7 @@ pub(crate) struct Kept {
   pub(crate) limited_height: bool,
 }
 
-pub(crate) fn break_lines(layout: &mut Layout<()>, paragraph: &ParagraphStyle, limits: TextLimits) -> Kept {
+pub(crate) fn break_lines(layout: &mut Layout<usize>, paragraph: &ParagraphStyle, limits: TextLimits) -> Kept {
   let max_width = limits.usable_width().unwrap_or(f32::MAX);
   let mut breaker = layout.break_lines();
   breaker.state_mut().set_layout_max_advance(max_width);
@@ -26,7 +26,7 @@ pub(crate) fn break_lines(layout: &mut Layout<()>, paragraph: &ParagraphStyle, l
   keep_by_height(layout, limits.usable_height())
 }
 
-fn keep_by_height(layout: &Layout<()>, max_height: Option<f32>) -> Kept {
+fn keep_by_height(layout: &Layout<usize>, max_height: Option<f32>) -> Kept {
   let broken = layout.len();
   let Some(max_height) = max_height else {
     return Kept {
