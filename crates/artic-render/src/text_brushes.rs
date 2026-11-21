@@ -129,7 +129,7 @@ mod tests {
   // A style takes the slot of its own brush, or the last one past the end, so a renderer can share
   // what it made of a brush; with no brush there's no slot.
   #[test]
-  fn each_style_takes_its_brushs_slot() {
+  fn each_style_takes_its_brush_slot() {
     let two = TextBrushes::from([RED, BLUE]);
 
     assert_eq!([0, 1, 7].map(|style| two.slot(style)), [Some(0), Some(1), Some(1)]);
