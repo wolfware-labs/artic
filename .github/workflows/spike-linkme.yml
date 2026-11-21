@@ -13,6 +13,9 @@ on:
       - spikes/linkme-registry/**
       - .github/workflows/spike-linkme.yml
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -35,7 +38,9 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: rustup toolchain install && rustc --version && cargo tree -p spike-registry --manifest-path spikes/linkme-registry/Cargo.toml -i linkme --depth 0
       - run: bash spikes/linkme-registry/run-desktop.sh | tee -a "$GITHUB_STEP_SUMMARY"
 
@@ -43,7 +48,9 @@ jobs:
     name: iOS simulator
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: rustup toolchain install && rustc --version
       - run: xcodebuild -version | tee -a "$GITHUB_STEP_SUMMARY"
       - run: bash spikes/linkme-registry/run-ios.sh | tee -a "$GITHUB_STEP_SUMMARY"
@@ -54,7 +61,9 @@ jobs:
     name: Android
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: rustup toolchain install && rustc --version
       - name: NDK version
         run: grep Pkg.Revision "${ANDROID_NDK_LATEST_HOME}/source.properties" | tee -a "$GITHUB_STEP_SUMMARY"
@@ -66,7 +75,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Run on emulator
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 26
           arch: x86_64
