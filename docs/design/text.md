@@ -196,7 +196,7 @@ It never panics and never fails:
 | A family that isn't installed | the next name in the list, then the engine's default family, then `fontique`'s fallback for the text's script |
 | A weight or style the family has no face for | the nearest face, with `synthesis` set |
 | Empty text | width 0, and the height of one line, as an empty WPF `TextBlock` |
-| No style, a style whose size isn't finite or isn't above 0, or no font at all | a paragraph with no lines, of size 0 (`Paragraph::default()`) |
+| No style, a base or spanned style whose size isn't finite or isn't above 0, or no font at all | a paragraph with no lines, of size 0 (`Paragraph::default()`) |
 | A `max_width` that is NaN or infinite | no width limit: lines break only at hard line breaks and no line is trimmed for its width; when `max_lines` or `max_height` drops lines, the last kept line is still trimmed |
 | A negative `max_width` | 0: `Wrap` puts each cluster on its own line; `WrapWithOverflow` breaks at every opportunity and keeps each word whole, overhanging |
 | A `max_height` that is NaN or infinite | no limit |

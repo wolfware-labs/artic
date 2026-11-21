@@ -1,7 +1,8 @@
 //! What a [`StyledText`]'s styles and a [`ParagraphStyle`] become on a `parley` builder.
 //!
 //! The text's base style is the layout's default, and each span in another style pushes that style
-//! over its range; a style no text is in plays no part. The brush is the style's index, so each cluster knows the style it came from.
+//! over its range; a style no text is in plays no part. The brush is the style's index, so each
+//! cluster knows the style it came from.
 
 use artic_layout::finite;
 use artic_layout::text::{
