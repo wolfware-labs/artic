@@ -1,4 +1,4 @@
-use crate::{BoxShadow, Brush, SceneBuilder, Shape, Stroke};
+use crate::{BoxShadow, Brush, SceneBuilder, Shape, Stroke, TextBrushes};
 use artic_core::Object;
 use artic_core::property::PropertyVisitor;
 use artic_core::tree::{NodeId, UiTree};
@@ -67,15 +67,17 @@ pub enum Command {
     /// How the shadow is grown, moved, blurred and colored.
     shadow: BoxShadow,
   },
-  /// Draws `paragraph`'s glyphs with its top-left corner at `origin`, painted with `brush`.
+  /// Draws `paragraph`'s glyphs with its top-left corner at `origin`, each glyph run painted with
+  /// the brush for its style.
   Text {
     /// The shaped text.
     paragraph: Paragraph,
     /// Where the paragraph's top-left corner goes, in the node's coordinates.
     origin: Point,
-    /// The paint. Its relative points and radii resolve against the paragraph's box,
-    /// `Rect::new(origin, paragraph.size())`, so a gradient runs across the whole text.
-    brush: Brush,
+    /// The paint for each text style. Their relative points and radii resolve against the
+    /// paragraph's box, `Rect::new(origin, paragraph.size())`, so a gradient runs across the whole
+    /// text.
+    brushes: TextBrushes,
   },
 }
 

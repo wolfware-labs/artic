@@ -12,7 +12,7 @@ use artic_core::property::{Affects, PropertyVisitor};
 use artic_core::tree::{NodeId, UiTree};
 use artic_examples::Report;
 use artic_layout::geometry::{CornerRadius, Path, Point, Rect, RelativePoint, RelativeScalar, RoundedRect, Transform};
-use artic_layout::text::{FontFamily, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle, TextWrapping};
+use artic_layout::text::{FontFamily, Paragraph, ParagraphStyle, StyledText, TextEngine, TextLimits, TextStyle, TextWrapping};
 use artic_platform::{
   AppHandler, Axes, Chrome, Host as _, HostContext, HostEvent, LogicalSize, SurfaceInfo, SurfaceLoss, Waker, WindowDesc,
 };
@@ -172,13 +172,12 @@ impl Demo {
   fn new(renderer: Renderer) -> Demo {
     let mut tree = UiTree::new();
     let root = tree.alloc(Box::new(Node));
-    let style = TextStyle::new(FontFamily::default(), 28.0);
+    let text = StyledText::plain("Text in a gradient", TextStyle::new(FontFamily::default(), 28.0));
     let wrapping = ParagraphStyle {
       wrapping: TextWrapping::WrapWithOverflow,
       ..ParagraphStyle::default()
     };
-    let paragraph =
-      artic_text::Engine::system().paragraph("Text in a gradient", &style, &wrapping, TextLimits::width(TILE - 16.0));
+    let paragraph = artic_text::Engine::system().paragraph(&text, &wrapping, TextLimits::width(TILE - 16.0));
     Demo {
       renderer,
       compositor: Compositor::default(),

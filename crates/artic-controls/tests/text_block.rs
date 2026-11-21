@@ -9,12 +9,12 @@ use artic_core::tree::{NodeId, UiTree};
 use artic_element::{AccessCx, Children, ElementTypes};
 use artic_layout::geometry::{Point, Rect, Size};
 use artic_layout::text::{
-  FontFamily, FontStyle, FontWeight, Paragraph, ParagraphStyle, TextAlignment, TextEngine, TextLimits, TextStyle, TextTrimming,
-  TextWrapping,
+  FontFamily, FontStyle, FontWeight, Paragraph, ParagraphStyle, StyledText, TextAlignment, TextEngine, TextLimits, TextStyle,
+  TextTrimming, TextWrapping,
 };
 use artic_layout::{ArrangeCx, MeasureCx};
 use artic_layout::{Layoutable, Orientation};
-use artic_render::{Brush, Color, Command};
+use artic_render::{Brush, Color, Command, TextBrushes};
 use artic_test::layout::Headless;
 use artic_test::layout::{Invariants, strategy};
 use proptest::prelude::*;
@@ -67,8 +67,8 @@ fn drawn_commands(layout: &mut Headless, node: NodeId) -> Vec<Command> {
 
 /// The id of the ellipsis glyph in the test font at TextBlock's default size.
 fn ellipsis() -> u32 {
-  let style = TextStyle::new(FontFamily::default(), 14.0);
-  let paragraph = artic_test::text::engine().paragraph("\u{2026}", &style, &ParagraphStyle::default(), TextLimits::NONE);
+  let text = StyledText::plain("\u{2026}", TextStyle::new(FontFamily::default(), 14.0));
+  let paragraph = artic_test::text::engine().paragraph(&text, &ParagraphStyle::default(), TextLimits::NONE);
   paragraph.runs()[0].glyphs()[0].id
 }
 
@@ -292,7 +292,7 @@ fn foreground_change_does_not_remeasure() {
   assert_eq!(stats.measured, 0);
   assert!(drawn_commands(&mut layout, root).iter().any(|command| matches!(
     command,
-    Command::Text { brush, .. } if *brush == Brush::from(Color::rgb(0, 0, 255))
+    Command::Text { brushes, .. } if *brushes == TextBrushes::from(Color::rgb(0, 0, 255))
   )));
 }
 

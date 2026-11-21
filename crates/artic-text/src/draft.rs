@@ -4,8 +4,9 @@
 //! candidates.
 //!
 //! A line keeps the clusters that start from `from` up to the whitespace that ends its text,
-//! which hangs. Each glyph remembers how many kept spaces come before it in visual order, so
-//! justification can move it later without shaping again.
+//! which hangs. A `parley` run is split where its clusters' brush, their style's index, changes, so
+//! each glyph run is in one style. Each glyph remembers how many kept spaces come before it in
+//! visual order, so justification can move it later without shaping again.
 
 use crate::faces::Faces;
 use crate::lines::Kept;
@@ -21,7 +22,7 @@ pub(crate) struct Draft {
 }
 
 impl Draft {
-  pub(crate) fn read(text: &str, layout: &Layout<()>, kept: Kept, faces: &mut Faces) -> Draft {
+  pub(crate) fn read(text: &str, layout: &Layout<usize>, kept: Kept, faces: &mut Faces) -> Draft {
     Draft {
       lines: layout
         .lines()
@@ -48,7 +49,7 @@ pub(crate) struct DraftLine {
 }
 
 impl DraftLine {
-  pub(crate) fn read(text: &str, line: &parley::Line<'_, ()>, from: usize, faces: &mut Faces) -> DraftLine {
+  pub(crate) fn read(text: &str, line: &parley::Line<'_, usize>, from: usize, faces: &mut Faces) -> DraftLine {
     let end = line.text_range().end.min(text.len());
     let start = line.text_range().start.min(end);
     let hung = start + text[start..end].trim_end().len();
@@ -73,6 +74,7 @@ impl DraftLine {
                 y: metrics.baseline + glyph.y,
               },
               spaces,
+              cluster.style().brush,
             ));
           }
           pen += glyph.advance;
@@ -85,17 +87,24 @@ impl DraftLine {
           }
         }
       }
-      if !glyphs.is_empty() {
-        let synthesis = run.synthesis();
+      if glyphs.is_empty() {
+        continue;
+      }
+      let font = faces.font(run.font());
+      let coords: Arc<[i16]> = run.normalized_coords().iter().map(|coord| coord.to_bits()).collect();
+      let synthesis = run.synthesis();
+      let synthesis = Synthesis {
+        embolden: synthesis.embolden(),
+        skew: synthesis.skew().unwrap_or(0.0),
+      };
+      for piece in glyphs.chunk_by(|a, b| a.2 == b.2) {
         runs.push(DraftRun {
-          font: faces.font(run.font()),
+          font: font.clone(),
           size: run.font_size(),
-          coords: run.normalized_coords().iter().map(|coord| coord.to_bits()).collect(),
-          synthesis: Synthesis {
-            embolden: synthesis.embolden(),
-            skew: synthesis.skew().unwrap_or(0.0),
-          },
-          glyphs,
+          coords: Arc::clone(&coords),
+          synthesis,
+          glyphs: piece.iter().map(|&(glyph, spaces, _)| (glyph, spaces)).collect(),
+          style: piece[0].2,
         });
       }
     }
@@ -140,6 +149,7 @@ pub(crate) struct DraftRun {
   coords: Arc<[i16]>,
   synthesis: Synthesis,
   glyphs: Vec<(Glyph, u32)>,
+  style: usize,
 }
 
 impl DraftRun {
@@ -152,7 +162,7 @@ impl DraftRun {
         ..glyph
       })
       .collect::<Vec<_>>();
-    GlyphRun::new(self.font, self.size, self.coords, self.synthesis, glyphs)
+    GlyphRun::new(self.font, self.size, self.coords, self.synthesis, glyphs).with_style(self.style)
   }
 }
 
