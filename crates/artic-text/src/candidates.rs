@@ -4,8 +4,7 @@
 //! paragraph that starts with Latin letters would come out left to right, with its ellipsis on the
 //! wrong side. A U+200F RIGHT-TO-LEFT MARK or U+200E LEFT-TO-RIGHT MARK in front forces the
 //! paragraph's direction; its cluster, in the style of the candidate's first span (or the line's
-//! base style when it has no text), is then left out
-//! of the line and of the cluster offsets.
+//! base style when it has no text), is then left out of the line and of the cluster offsets.
 
 use crate::draft::DraftLine;
 use crate::shaping::Shaping;

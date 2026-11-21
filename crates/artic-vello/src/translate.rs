@@ -149,11 +149,11 @@ impl Translation<'_> {
       let Some(slot) = brushes.slot(run.style()) else {
         return;
       };
-      let paint = match &painted {
-        Some((at, paint)) if *at == slot => paint,
+      let made = match &painted {
+        Some((at, made)) if *at == slot => made,
         _ => &painted.insert((slot, paint(&brushes.as_slice()[slot], bounds))).1,
       };
-      let Some((brush, transform)) = paint else {
+      let Some((brush, transform)) = made else {
         continue;
       };
       let font = run.font();

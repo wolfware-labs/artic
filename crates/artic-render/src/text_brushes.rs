@@ -126,18 +126,18 @@ mod tests {
     assert_eq!(brushes.as_slice().len(), 2);
   }
 
-  // With no brush, no style has one.
   // A style takes the slot of its own brush, or the last one past the end, so a renderer can share
   // what it made of a brush; with no brush there's no slot.
   #[test]
   fn each_style_takes_its_brushs_slot() {
-    let two = TextBrushes::from([Color::rgb(1, 2, 3), Color::rgb(4, 5, 6)]);
+    let two = TextBrushes::from([RED, BLUE]);
 
     assert_eq!([0, 1, 7].map(|style| two.slot(style)), [Some(0), Some(1), Some(1)]);
-    assert_eq!(TextBrushes::from(Color::rgb(1, 2, 3)).slot(3), Some(0));
+    assert_eq!(TextBrushes::from(RED).slot(3), Some(0));
     assert_eq!(TextBrushes::default().slot(0), None);
   }
 
+  // With no brush, no style has one.
   #[test]
   fn no_brush_paints_nothing() {
     let brushes = TextBrushes::from(Vec::new());
