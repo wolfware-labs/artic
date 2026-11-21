@@ -65,8 +65,8 @@ impl artic_platform::Host for Host {
   /// # Errors
   ///
   /// [`Error::Loop`] if winit's loop ends with an error, such as a lost connection to the display
-  /// server. winit returns that error without telling the handler it is exiting, so the surfaces
-  /// may not have been reported lost; the handler is dropped with them.
+  /// server. winit returns that error without calling `exiting`, which reports the surfaces lost,
+  /// so they may not have been; the handler is dropped with them.
   fn run(self, app: impl AppHandler + 'static) -> Result<(), Error> {
     let proxy = self.event_loop.create_proxy();
     let waker = Waker::new(move || {

@@ -26,9 +26,9 @@ pub trait Host {
   ///
   /// # Errors
   ///
-  /// The host's own failure, once the surfaces have been reported lost. `app`'s failures are its
-  /// own and reach it through its own channel; a host whose loop can't block returns `Ok(())` at
-  /// once.
+  /// The host's own failure. A loop that fails may end before the surfaces are reported lost.
+  /// `app`'s failures are its own and reach it through its own channel; a host whose loop can't
+  /// block returns `Ok(())` at once.
   fn run(self, app: impl AppHandler + 'static) -> Result<(), Self::Error>;
 }
 
