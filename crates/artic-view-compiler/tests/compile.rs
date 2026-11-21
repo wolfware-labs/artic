@@ -11,8 +11,17 @@ use common::{BADGE, Built, HOST, LABEL, PANEL, children, code_type, element, nam
 /// Compiles the document `build` makes, with `test_ui` reached as `::ui` and the paths `edit`
 /// adds.
 fn compile(build: impl Fn(SourceId) -> Document, edit: impl FnOnce(&mut CratePaths)) -> Result<String, Vec<(String, usize)>> {
+  compile_named("view.view", build, edit)
+}
+
+/// Compiles the document `build` makes from a file named `path`, as [`compile`] does.
+fn compile_named(
+  path: &str,
+  build: impl Fn(SourceId) -> Document,
+  edit: impl FnOnce(&mut CratePaths),
+) -> Result<String, Vec<(String, usize)>> {
   let mut sources = SourceMap::new();
-  let file = sources.add("view.view", "");
+  let file = sources.add(path, "");
   let mut paths = CratePaths::new();
   paths.path("test_ui", "::ui");
   edit(&mut paths);
@@ -61,6 +70,29 @@ fn hand_built_view_compiles() {
     "pub title: Handle<::ui::Label>",
   ] {
     assert!(rust.contains(expected), "{expected} in {rust}");
+  }
+}
+
+// A file name is written with its line breaks and bidirectional controls escaped, in the header
+// and the doc comments, so a newline can't end the `//` header and put its own Rust in the module.
+// Other characters, accents and quotes among them, are written as they are.
+#[test]
+fn file_name_cant_add_code() {
+  let rust = compile_named("a\nfn x() {}\n.view", form, |_| {}).expect("a valid view");
+  let file = syn::parse_file(&rust).expect("the output parses");
+  let injected = file
+    .items
+    .iter()
+    .any(|item| matches!(item, syn::Item::Fn(function) if function.sig.ident == "x"));
+  assert!(!injected, "a newline added a function:\n{rust}");
+  for (path, header) in [
+    ("a\nb.view", r"a\nb.view"),
+    ("a\u{202e}b.view", r"a\u{202e}b.view"),
+    ("cafe\u{301}'s.view", "cafe\u{301}'s.view"),
+  ] {
+    let rust = compile_named(path, form, |_| {}).expect("a valid view");
+    let expected = format!("// Generated from {header}.");
+    assert_eq!(rust.lines().next(), Some(expected.as_str()), "{path:?}");
   }
 }
 

@@ -33,6 +33,13 @@ pub enum CompileError {
   /// The linked crates register two types at one Rust path, or another duplicate.
   #[error(transparent)]
   Registry(#[from] RegistryError),
+  /// The directory's or a view's path holds a control character, such as a newline, which would
+  /// start a line of its own in Cargo's `rerun-if-changed` output.
+  #[error("the path {path:?} has a control character")]
+  ControlCharacter {
+    /// The directory's or the view's path.
+    path: PathBuf,
+  },
   /// `OUT_DIR` isn't set, so this isn't running in a build script.
   #[error("`OUT_DIR` isn't set: call `compile_dir` from a build script")]
   NoOutDir,
@@ -68,7 +75,8 @@ impl Debug for CompileError {
 /// # Errors
 ///
 /// Stops at the first view with errors, in sorted order, and returns its diagnostics; or returns
-/// the I/O error, the registry's duplicates, or a missing `OUT_DIR`.
+/// the I/O error, the directory or a view whose path holds a control character, the registry's
+/// duplicates, or a missing `OUT_DIR`.
 pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), paths: &CratePaths) -> Result<(), CompileError> {
   let out = std::env::var_os("OUT_DIR").ok_or(CompileError::NoOutDir)?;
   let registry = Registry::from_link_time()?;
@@ -78,8 +86,9 @@ pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), p
     .as_deref()
     .and_then(|manifest| dir.strip_prefix(manifest).ok())
     .unwrap_or(dir);
+  let views = compile_into(dir, &Path::new(&out).join("views"), language, &registry, paths)?;
   println!("cargo:rerun-if-changed={}", dir.display());
-  for view in compile_into(dir, &Path::new(&out).join("views"), language, &registry, paths)? {
+  for view in views {
     println!("cargo:rerun-if-changed={}", view.display());
   }
   Ok(())
@@ -102,6 +111,7 @@ pub fn compile_into(
   registry: &Registry,
   paths: &CratePaths,
 ) -> Result<Vec<PathBuf>, CompileError> {
+  checked(dir)?;
   let views = find_views(dir, language.extension())?;
   if out.exists() {
     fs::remove_dir_all(out).map_err(io_error(out))?;
@@ -125,8 +135,9 @@ pub fn compile_into(
   Ok(views)
 }
 
-/// Every file under `dir` with `extension`, in sorted order. A symlink to a directory isn't
-/// followed, so a link back to an ancestor can't loop.
+/// Every file under `dir` with `extension`, in sorted order, or an error for the first whose path
+/// holds a control character. A symlink to a directory isn't followed, so a link back to an
+/// ancestor can't loop.
 fn find_views(dir: &Path, extension: &str) -> Result<Vec<PathBuf>, CompileError> {
   let mut entries = fs::read_dir(dir)
     .and_then(|entries| {
@@ -141,6 +152,7 @@ fn find_views(dir: &Path, extension: &str) -> Result<Vec<PathBuf>, CompileError>
     if kind.is_dir() {
       views.extend(find_views(&path, extension)?);
     } else if path.extension().is_some_and(|found| found == extension) {
+      checked(&path)?;
       views.push(path);
     }
   }
@@ -164,6 +176,15 @@ fn shown(dir: &Path, relative: &Path) -> PathBuf {
   } else {
     relative.to_owned()
   }
+}
+
+/// Refuses `path` when it holds a control character: Cargo reads a build script's output a line at
+/// a time, so a newline in a path printed there starts a directive of its own.
+fn checked(path: &Path) -> Result<(), CompileError> {
+  if path.to_string_lossy().chars().any(char::is_control) {
+    return Err(CompileError::ControlCharacter { path: path.to_owned() });
+  }
+  Ok(())
 }
 
 /// Turns an I/O error into a [`CompileError`] naming `path`.
