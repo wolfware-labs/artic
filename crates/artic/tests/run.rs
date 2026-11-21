@@ -110,7 +110,7 @@ impl Renderer for Pixels {
 fn hello() -> App {
   App::new(|tree| {
     let surface = Surface::new().title("Hello").build(tree);
-    Application::new().children([surface]).build(tree)
+    Application::new().surfaces([surface]).build(tree)
   })
 }
 

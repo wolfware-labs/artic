@@ -56,8 +56,16 @@ pub(crate) struct Element {
   pub ty: Path,
   /// The property methods, in the order the document sets them.
   pub setters: Vec<Setter>,
-  /// The children its content method takes.
-  pub content: CheckedContent,
+  /// The call that takes its children, if it has any.
+  pub content: Option<ContentCall>,
+}
+
+/// The builder method named after the content field, with the children it takes.
+pub(crate) struct ContentCall {
+  /// The method.
+  pub method: Ident,
+  /// The children, never [`CheckedContent::None`].
+  pub children: CheckedContent,
 }
 
 /// A builder method call: `.method(value)`.
@@ -180,6 +188,18 @@ fn root_content(info: &TypeInfo, paths: &CratePaths, span: Span, diagnostics: &m
   Some((syn::parse_str(field).expect("a content field is an identifier"), ty))
 }
 
+/// The content call of `element`: the method named after its type's content field, when the check
+/// gave it children.
+fn content_call(element: &CheckedElement) -> Option<ContentCall> {
+  let Some(ContentInfo::Collection { field, .. }) = element.ty.info.content else {
+    return None;
+  };
+  (element.content != CheckedContent::None).then(|| ContentCall {
+    method: Ident::new(field, proc_macro2::Span::call_site()),
+    children: element.content.clone(),
+  })
+}
+
 /// Parses `text`, built from the crates' paths, as the path of an item, or records that
 /// it isn't one. The path is read as a module path, without generic arguments, since generated
 /// code writes it before `::new()` and in `use` items.
@@ -215,7 +235,7 @@ impl Lower<'_> {
     Some(Element {
       ty: ty?,
       setters,
-      content: element.content.clone(),
+      content: content_call(element),
     })
   }
 

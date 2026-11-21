@@ -107,7 +107,7 @@ impl Screen {
   /// screen reader start reading it.
   fn new<T>(mut tree: UiTree, content: Handle<T>) -> Self {
     let surface = Surface::new().title("Hello").child(content).build(&mut tree);
-    let application = Application::new().children([surface]).build(&mut tree);
+    let application = Application::new().surfaces([surface]).build(&mut tree);
     let mut runner = Runner::new(tree, Blank, Box::new(artic_text::Engine::without_fonts()), application.id());
     let edits = Rc::new(RefCell::new(Vec::<Edit>::new()));
     let pending = Rc::clone(&edits);

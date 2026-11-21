@@ -241,19 +241,19 @@ mod tests {
     );
   }
 
-  // The content method takes part in the name check, so a property can't share its name.
+  // The content method, named after its field, takes part in the name check, so it can't take a
+  // reserved name.
   #[test]
-  fn content_method_clashing_with_a_property_is_an_error() {
+  fn content_method_clashing_with_a_reserved_name_is_an_error() {
     let input: DeriveInput = parse_quote! {
       struct Panel {
-        #[ui(content)] items: Children,
-        #[ui] children: Property<f32>,
+        #[ui(content)] build: Children,
       }
     };
 
     assert_eq!(
       error(&input),
-      "`children` would be both the content method of `items` and the method of the property `children`; rename one"
+      "`build` would be both the builder's finish and the content method of `build`; rename one"
     );
   }
 }

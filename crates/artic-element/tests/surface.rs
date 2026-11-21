@@ -120,7 +120,7 @@ fn application_builder_takes_surfaces() {
   let main = Surface::new().title("Main").build(&mut tree);
   let tools = Surface::new().title("Tools").build(&mut tree);
 
-  let application = Application::new().children([main, tools]).build(&mut tree);
+  let application = Application::new().surfaces([main, tools]).build(&mut tree);
 
   for kind in TreeKind::ALL {
     assert_eq!(

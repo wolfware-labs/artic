@@ -201,7 +201,7 @@ impl<T: UiType + Object, I: IntoIterator<Item: Into<NodeId>>> WithChildren<T, I>
 | A field named like a field of a flattened group, such as an own `width` | Compile error naming both, from a `const` check against the group's `PROPERTIES`; otherwise the inherent method would hide the group's |
 | Two flattened groups with a field of the same name | The same `const` check, naming the two groups |
 | A property named `type_info` with its own key | Derive error: its constant would hide `UiType::TYPE_INFO`. With a shared key it gets no constant, so the name is free |
-| A property named like the content method, `child` or `children` | Derive error naming both |
+| A content field named like a reserved item, such as `build` | Derive error naming both; the content method is named after its field, so no property can share it |
 | Any other two generated items with one name, such as a field `PADDING`'s method and constant, or an attached `Build`'s getter and `build` | Derive error naming both |
 
 ## Bindings, resources, classes and styles

@@ -185,8 +185,8 @@ pub enum ContentInfo {
   Collection {
     /// The collection field.
     field: &'static str,
-    /// The builder method that takes the children, or `None` for a collection that isn't
-    /// `Child` or `Children`, which has no builder method, so only `add_child` fills it.
+    /// What the builder method named after the field takes, or `None` for a collection of
+    /// values, which has no builder method yet, so only `add_child` fills it.
     method: Option<ContentMethod>,
     /// Adds one child element as content, calling the field's `UiCollection::push_child` with
     /// an accessor to the field.
@@ -194,24 +194,14 @@ pub enum ContentInfo {
   },
 }
 
-/// The builder method that takes a collection content's children.
+/// What the builder method of a collection content takes. The method is named after the field,
+/// such as `children` or `inlines`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContentMethod {
-  /// `child`, for a field of type `Child`: one child.
+  /// One child, for a field of type `Child`.
   Child,
-  /// `children`, for a field of type `Children`: any number, in order.
+  /// Any number of children, in order.
   Children,
-}
-
-impl ContentMethod {
-  /// The method's name: `child` or `children`.
-  #[must_use]
-  pub const fn name(self) -> &'static str {
-    match self {
-      ContentMethod::Child => "child",
-      ContentMethod::Children => "children",
-    }
-  }
 }
 
 /// A property found on a type, with the field of the group it lives in, if any.
@@ -294,13 +284,6 @@ mod tests {
   fn crate_and_item_reads_both_ends() {
     assert_eq!(crate_and_item("artic_controls::border::Border"), ("artic_controls", "Border"));
     assert_eq!(crate_and_item("acme"), ("acme", "acme"));
-  }
-
-  // Each content method is named as the builder method the derive writes.
-  #[test]
-  fn content_method_names_its_builder_method() {
-    assert_eq!(ContentMethod::Child.name(), "child");
-    assert_eq!(ContentMethod::Children.name(), "children");
   }
 
   static PADDING: PropertyKey<f32> = PropertyKey::new("Padding", Affects::LAYOUT, Inheritance::None);

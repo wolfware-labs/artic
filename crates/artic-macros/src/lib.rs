@@ -79,10 +79,11 @@ use syn::{DeriveInput, parse_macro_input};
 /// `Property` field, named after the field, which sets the `Local` level and takes `impl Into<T>`
 /// (the `X` of `Option<X>`), or the number itself for a number type written as `f32` or
 /// `core::primitive::f32`, so a literal such as `8.0` needs no suffix; and `build(tree)`, which
-/// adds the node and returns a `Handle`. A type whose content is a field written `Child` gets
-/// `.child(node)`, and one written `Children` gets `.children(nodes)`; both return a
-/// `WithChildren`, whose `build` adds the node and links them in order, moving a child that has a
-/// parent. Any other content collection holds values, not child elements, and gets neither. A
+/// adds the node and returns a `Handle`. A type whose content is a collection gets a method named
+/// after the field: one node for a field written `Child` (`.child(node)`), and any number for any
+/// other collection (`.children(nodes)`, `.inlines(nodes)`); both return a `WithChildren`, whose
+/// `build` adds the node and links them in order, moving a child that has a parent. A `Vec`
+/// content holds values, not child elements, and gets no method. A
 /// type alias of a number isn't seen through, so a literal passed to its property needs a suffix
 /// (`8.0_f32`). Each property with its own key gets a constant for it, such as `Border::PADDING`;
 /// a shared key is named by its owner. A method and a constant have their field's visibility.

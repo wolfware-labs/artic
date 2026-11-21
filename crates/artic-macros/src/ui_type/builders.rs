@@ -3,7 +3,7 @@ use crate::members::{Content, ContentMethod, PropertyField};
 use crate::ui_type::analysis::TypeAnalysis;
 use crate::ui_type::generate::override_defaults;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::quote;
 
 /// The builder items a derived type gets, written inside its inherent `impl`: `new`, `build`, one
 /// method per `Property` field, which sets the field's `Local` level, the content method for a
@@ -62,10 +62,12 @@ fn new(analysis: &TypeAnalysis) -> TokenStream {
   }
 }
 
-/// The method that takes the children of a type whose content is a collection, or `None`. It
-/// returns a `WithChildren`, whose `build` links them once the node exists.
+/// The method that takes the children of a type whose content is a collection of them, named
+/// after the field, or `None`. It returns a `WithChildren`, whose `build` links them once the node
+/// exists.
 fn content_builder(analysis: &TypeAnalysis) -> Option<TokenStream> {
   let Some(Content::Collection {
+    ident,
     vis,
     method: Some(method),
     ..
@@ -73,7 +75,6 @@ fn content_builder(analysis: &TypeAnalysis) -> Option<TokenStream> {
   else {
     return None;
   };
-  let ident = format_ident!("{}", method.name());
   Some(match method {
     ContentMethod::Child => quote! {
       /// Sets the child, linked when the node is built.
@@ -189,7 +190,7 @@ mod tests {
     assert!(expanded.contains("pub fn high(self, value: ::std::primitive::u32)"));
   }
 
-  // A collection content field gets `children`, generic over what it is given.
+  // A collection content field gets a method named after it, generic over what it is given.
   #[test]
   fn children_builder() {
     let input: DeriveInput = parse_quote! {
@@ -202,7 +203,7 @@ mod tests {
     insta::assert_snapshot!(expand(&input));
   }
 
-  // A content collection of values, such as gradient stops, gets no content method: its values
+  // A `Vec` content holds values, such as gradient stops, and gets no content method: its values
   // aren't child elements, so they don't go through `WithChildren`.
   #[test]
   fn value_collection_gets_no_content_method() {
@@ -214,6 +215,20 @@ mod tests {
 
     let expanded = expand(&input);
 
-    assert!(!expanded.contains("fn children") && !expanded.contains("fn child("));
+    assert!(!expanded.contains("fn gradient_stops"));
+  }
+
+  // Any other collection holds child elements, and its method is named after its field.
+  #[test]
+  fn other_collections_take_children_by_their_field_name() {
+    let input: DeriveInput = parse_quote! {
+      pub struct TextBlock {
+        #[ui(content)] pub inlines: Inlines,
+      }
+    };
+
+    let expanded = expand(&input);
+
+    assert!(expanded.contains("pub fn inlines<I>(self, children: I) -> __artic::WithChildren<Self, I>"));
   }
 }

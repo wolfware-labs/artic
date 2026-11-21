@@ -40,7 +40,7 @@ impl UiCollection for Stops {
   }
 }
 
-/// A type whose content is a value collection.
+/// A type whose content is a collection of its own.
 #[derive(Debug, UiType)]
 struct Gradient {
   #[ui(content)]
@@ -149,11 +149,11 @@ fn second_child_reports_error() {
   assert!(errors.contains("`Border` takes one child"), "{errors}");
 }
 
-// A value collection comes with #57.
+// A collection of its own takes the children through the method named after its field.
 #[test]
-fn value_collection_reports_error() {
-  let errors = compile(&format!(r#"<Gradient xmlns="{TEST_UI}"><Label/></Gradient>"#)).expect_err("values");
-  assert!(errors.contains("value collections come with #57"), "{errors}");
+fn own_collection_takes_children_by_its_field_name() {
+  let rust = compile(&format!(r#"<Gradient xmlns="{TEST_UI}"><Label/></Gradient>"#)).expect("a valid view");
+  assert!(joined(&rust).contains(".stops([__e0.id()]).build(tree);"), "{rust}");
 }
 
 // An object inside a content property comes with #57.
