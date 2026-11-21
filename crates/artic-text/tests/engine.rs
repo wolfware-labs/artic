@@ -1494,6 +1494,21 @@ fn a_style_without_text_plays_no_part() {
   assert_eq!(shaped.size(), plain.size());
 }
 
+// The base style, not an empty first style, sizes what no span covers: the empty line after a
+// trailing line break is as tall as the text's own lines.
+#[test]
+fn the_base_style_sizes_the_line_after_a_break() {
+  let big = TextStyle { size: 32.0, ..style() };
+  let mut text = StyledText::new();
+  text.push("", TextStyle { size: 4.0, ..style() });
+  text.push("ab\n", big.clone());
+
+  let shaped = engine().paragraph(&text, &ParagraphStyle::default(), TextLimits::NONE);
+  let plain = engine().paragraph(&StyledText::plain("ab\n", big), &ParagraphStyle::default(), TextLimits::NONE);
+
+  assert_eq!(shaped.lines(), plain.lines());
+}
+
 // A trimmed line keeps its runs' style indices, and the ellipsis takes the style of the text
 // kept just before it.
 #[test]
