@@ -80,7 +80,7 @@ use state::PropertyState;
 /// Who supplied a property's value, from lowest to highest priority.
 ///
 /// The ordering follows priority, so a higher level compares greater:
-/// `Animation` > `Local` > `Binding` > `StyleSetter` > `Inherited` > `Default`.
+/// `Animation` > `Local` > `Binding` > `StyleSetter` > `TypeValue` > `Inherited` > `Default`.
 ///
 /// # Examples
 ///
@@ -97,6 +97,9 @@ pub enum Precedence {
   /// The value of the same kind of property on the nearest logical ancestor that has one. The tree
   /// sets this level; [`Property::set_at`] and [`Property::clear`] refuse it.
   Inherited,
+  /// A value a type gives its own instances over what they inherit, such as the weight `Bold`
+  /// gives the text inside it. A style, a binding or a local value still wins over it.
+  TypeValue,
   /// A value set by a matching style.
   StyleSetter,
   /// A value written by a data binding.
@@ -339,9 +342,10 @@ mod tests {
   static TEST: PropertyKey<i32> = PropertyKey::new("Test", Affects::LAYOUT, Inheritance::None);
 
   /// Every level, lowest first.
-  const LEVELS: [Precedence; 6] = [
+  const LEVELS: [Precedence; 7] = [
     Precedence::Default,
     Precedence::Inherited,
+    Precedence::TypeValue,
     Precedence::StyleSetter,
     Precedence::Binding,
     Precedence::Local,
@@ -385,6 +389,7 @@ mod tests {
       Precedence::Animation,
       Precedence::StyleSetter,
       Precedence::Inherited,
+      Precedence::TypeValue,
       Precedence::Binding,
     ];
 
@@ -395,6 +400,7 @@ mod tests {
       [
         Precedence::Default,
         Precedence::Inherited,
+        Precedence::TypeValue,
         Precedence::StyleSetter,
         Precedence::Binding,
         Precedence::Local,
@@ -623,6 +629,20 @@ mod tests {
     parent.set(30);
 
     assert_eq!(child.get(), 12);
+  }
+
+  // A type's own value wins over the followed property, and a style still wins over it.
+  #[test]
+  fn type_value_wins_over_the_link_and_loses_to_a_style() {
+    let parent = Property::new(&TEST, 20);
+    let child = Property::new(&TEST, 0);
+    child.follow(Some(parent));
+
+    child.set_at(Precedence::TypeValue, 700);
+    assert_eq!((child.get(), child.effective_source()), (700, Precedence::TypeValue));
+
+    child.set_at(Precedence::StyleSetter, 300);
+    assert_eq!(child.get(), 300);
   }
 
   // An effect reading a following property reruns when the followed property changes.

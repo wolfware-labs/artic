@@ -1,7 +1,7 @@
 use crate::property::{Inheritance, Precedence, Property};
 use crate::reactive::Change;
 
-const VALUE_LEVELS: usize = 4;
+const VALUE_LEVELS: usize = 5;
 
 #[derive(Debug)]
 pub struct Levels<T>
@@ -112,11 +112,12 @@ where
   }
 
   fn value_index(level: Precedence) -> Option<usize> {
-    (level as usize).checked_sub(Precedence::StyleSetter as usize)
+    (level as usize).checked_sub(Precedence::TypeValue as usize)
   }
 
   fn level_at(index: usize) -> Precedence {
     [
+      Precedence::TypeValue,
       Precedence::StyleSetter,
       Precedence::Binding,
       Precedence::Local,
@@ -139,6 +140,7 @@ mod tests {
   #[test]
   fn value_index_round_trips() {
     for level in [
+      Precedence::TypeValue,
       Precedence::StyleSetter,
       Precedence::Binding,
       Precedence::Local,

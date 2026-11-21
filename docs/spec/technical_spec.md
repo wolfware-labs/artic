@@ -344,8 +344,9 @@ A `Property<T>` is a signal plus a value-precedence stack, so several sources ca
 | 2 | Local value (`Width="100"` in XAML, `.set()` in code) |
 | 3 | Binding |
 | 4 | Style setter (most specific matching selector wins, §8) |
-| 5 | Inherited value (`inherits` properties only; an `inherits = f` property instead combines it with its own highest level, or its default) |
-| 6 | Default |
+| 5 | Type value: one a type gives its own instances over what they inherit, such as `Bold`'s weight |
+| 6 | Inherited value (`inherits` properties only; an `inherits = f` property instead combines it with its own highest level, or its default) |
+| 7 | Default |
 
 The stack lives in one signal, and each write decides whether readers can see it: only a change of the effective value or of the level supplying it marks readers dirty, so a write below the winning level wakes nobody. `affects` metadata marks the node layout- or render-dirty when the effective value changes, through the property's sink. A property that inherits is linked to its source's signal while the source supplies its effective value, so a change on an ancestor passes down the linked signals to every node it reaches. Each property kind has a `static PropertyKey<T>` (name, `affects`, `Inheritance`: none, replace or combine) shared by every node type that has it. For `inherits` properties the Inherited level holds a link to the same kind of property on the nearest logical ancestor rather than a copy, so inherited values are never stale; the tree re-points the link when a node moves in the logical tree.
 
