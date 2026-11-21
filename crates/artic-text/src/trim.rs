@@ -3,7 +3,9 @@
 //! A line's text is its own: trimming never shows another line's. Every mode drops one run of it
 //! and puts the ellipsis in its place, with the whitespace on either side of it dropped too, and
 //! every mode first tries dropping nothing, with the ellipsis after the text: that fits only for a
-//! line cut because the lines after it were dropped, which keeps its text and gains "…". The modes differ only in which runs they try and
+//! line cut because the lines after it were dropped, which keeps its text and gains "…". The ellipsis
+//! takes the style of the text kept just before it, or just after it when none is kept before, and
+//! the kept text keeps its own styles. The modes differ only in which runs they try and
 //! in what order: [`cut`] tries them, keeping the most text first, and returns the first that fits.
 //! Widths are only nearly monotonic, because of kerning and ligatures, so the binary search steps
 //! on toward keeping less while its pick doesn't fit, and back toward keeping more when nothing
@@ -13,11 +15,11 @@
 
 use crate::candidates::Candidates;
 use crate::draft::DraftLine;
-use artic_layout::text::TextTrimming;
+use artic_layout::text::{StyledText, TextTrimming};
 use std::collections::HashMap;
 use std::ops::Range;
 
-pub(crate) const ELLIPSIS: char = '\u{2026}';
+const ELLIPSIS: &str = "\u{2026}";
 
 const PREFIX_CLUSTERS: usize = 8;
 
@@ -32,34 +34,49 @@ pub(crate) struct Trimmed {
   pub(crate) lost: bool,
 }
 
-pub(crate) fn trim_line(candidates: &mut Candidates<'_>, text: &str, mode: TextTrimming, max_width: f32) -> Option<Trimmed> {
+/// Trims `text`, one line, to `max_width`. `base` is the style the line is in where its own text
+/// says none, as for a line that keeps only whitespace: the ellipsis and the direction mark take it.
+pub(crate) fn trim_line(
+  candidates: &mut Candidates<'_>,
+  text: &StyledText,
+  base: usize,
+  mode: TextTrimming,
+  max_width: f32,
+) -> Option<Trimmed> {
   if mode == TextTrimming::None {
     return None;
   }
-  let clusters = candidates.clusters(text);
+  let clusters = candidates.clusters(text, base);
   let mut tried = HashMap::new();
-  let dropped = cut(mode, text, &clusters, &mut |dropped| {
+  let dropped = cut(mode, text.text(), &clusters, &mut |dropped| {
     tried
       .entry(dropped.clone())
-      .or_insert_with(|| candidates.line(&candidate(text, dropped)))
+      .or_insert_with(|| candidates.line(&candidate(text, dropped, base), base))
       .width()
       <= max_width
   })?;
   let line = tried
     .remove(&dropped)
-    .unwrap_or_else(|| candidates.line(&candidate(text, &dropped)));
+    .unwrap_or_else(|| candidates.line(&candidate(text, &dropped, base), base));
   Some(Trimmed {
     line,
-    lost: loses_text(text, &dropped),
+    lost: loses_text(text.text(), &dropped),
   })
 }
 
-pub(crate) fn candidate(text: &str, dropped: &Range<usize>) -> String {
-  format!(
-    "{}{ELLIPSIS}{}",
-    text[..dropped.start].trim_end(),
-    text[dropped.end..].trim_start()
-  )
+pub(crate) fn candidate(text: &StyledText, dropped: &Range<usize>, base: usize) -> StyledText {
+  let whole = text.text();
+  let before = whole[..dropped.start].trim_end().len();
+  let after = whole.len() - whole[dropped.end..].trim_start().len();
+  let style = before
+    .checked_sub(1)
+    .and_then(|last| text.style_at(last))
+    .or_else(|| text.style_at(after))
+    .or_else(|| text.style_at(dropped.start))
+    .unwrap_or(base);
+  let mut candidate = text.clone();
+  candidate.replace_range(before..after, ELLIPSIS, style);
+  candidate
 }
 
 pub(crate) fn loses_text(text: &str, dropped: &Range<usize>) -> bool {
@@ -169,7 +186,20 @@ fn first_fit(tries: &[Range<usize>], fits: &mut dyn FnMut(&Range<usize>) -> bool
 #[cfg(test)]
 mod tests {
   use super::*;
+  use artic_layout::text::{FontFamily, TextStyle};
   use pretty_assertions::assert_eq;
+
+  fn style(size: f32) -> TextStyle {
+    TextStyle::new(FontFamily::default(), size)
+  }
+
+  fn plain(text: &str) -> StyledText {
+    StyledText::plain(text, style(16.0))
+  }
+
+  fn shown_candidate(text: &str, dropped: Range<usize>) -> String {
+    candidate(&plain(text), &dropped, 0).text().to_owned()
+  }
 
   fn clusters(text: &str) -> Clusters {
     let starts = text.char_indices().map(|(at, _)| at).collect::<Vec<_>>();
@@ -183,19 +213,41 @@ mod tests {
 
   fn shown(mode: TextTrimming, text: &str, room: usize) -> String {
     let dropped = cut(mode, text, &clusters(text), &mut |dropped| {
-      candidate(text, dropped).chars().count() <= room
+      shown_candidate(text, dropped.clone()).chars().count() <= room
     })
     .unwrap();
-    candidate(text, &dropped)
+    shown_candidate(text, dropped)
   }
 
   // The ellipsis takes the dropped range's place, and the whitespace beside it goes too.
   #[test]
   fn candidate_drops_whitespace_beside_the_ellipsis() {
-    assert_eq!(candidate("The quick brown", &(10..15)), "The quick…");
-    assert_eq!(candidate("one two three", &(0..4)), "…two three");
-    assert_eq!(candidate("abc", &(3..3)), "abc…");
-    assert_eq!(candidate("abc", &(0..3)), "…");
+    assert_eq!(shown_candidate("The quick brown", 10..15), "The quick…");
+    assert_eq!(shown_candidate("one two three", 0..4), "…two three");
+    assert_eq!(shown_candidate("abc", 3..3), "abc…");
+    assert_eq!(shown_candidate("abc", 0..3), "…");
+  }
+
+  // The kept text keeps its style indices, and the ellipsis takes the style of the text kept just
+  // before it, else of the text just after it, else of the dropped text.
+  #[test]
+  fn candidate_styles_the_ellipsis_from_the_text_beside_it() {
+    let mut text = StyledText::plain("ab", style(10.0));
+    text.push(" cd", style(11.0));
+    text.push("ef", style(12.0));
+    let spans = |dropped: Range<usize>| {
+      let candidate = candidate(&text, &dropped, 0);
+      (candidate.text().to_owned(), candidate.spans().collect::<Vec<_>>())
+    };
+
+    assert_eq!(spans(4..7), ("ab c…".into(), vec![(0..2, 0), (2..7, 1)]));
+    assert_eq!(spans(2..5), ("ab…ef".into(), vec![(0..5, 0), (5..7, 2)]));
+    assert_eq!(spans(0..3), ("…cdef".into(), vec![(0..5, 1), (5..7, 2)]));
+    assert_eq!(spans(0..7), ("…".into(), vec![(0..3, 0)]));
+    let mut spaced = StyledText::plain(" ", style(10.0));
+    spaced.push("cd", style(11.0));
+    let alone = candidate(&spaced, &(1..3), 0);
+    assert_eq!((alone.text(), alone.spans().collect::<Vec<_>>()), ("…", vec![(0..3, 1)]));
   }
 
   // A line loses text when the dropped range holds something other than whitespace.

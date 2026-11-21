@@ -16,7 +16,7 @@ use artic_core::Object;
 use artic_core::property::PropertyVisitor;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_layout::geometry::{Rect, Size};
-use artic_layout::text::{Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
+use artic_layout::text::{Paragraph, ParagraphStyle, StyledText, TextEngine, TextLimits};
 use artic_layout::{ArrangeCx, LayoutManager, LayoutNodes, LayoutStats, Layoutable, MeasureCx, PixelGrid};
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use std::cell::Cell;
@@ -82,7 +82,7 @@ impl LayoutNodes for Nodes {
 struct NoText;
 
 impl TextEngine for NoText {
-  fn paragraph(&mut self, _text: &str, _style: &TextStyle, _paragraph: &ParagraphStyle, _limits: TextLimits) -> Paragraph {
+  fn paragraph(&mut self, _text: &StyledText, _paragraph: &ParagraphStyle, _limits: TextLimits) -> Paragraph {
     Paragraph::default()
   }
 }

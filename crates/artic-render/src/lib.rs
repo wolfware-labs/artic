@@ -16,6 +16,7 @@ mod scene;
 mod shadow;
 mod shape;
 mod stroke;
+mod text_brushes;
 
 pub use artic_layout::finite::NumberProblem;
 pub use brush::{Brush, GradientStop, LinearGradientBrush, RadialGradientBrush, SolidColorBrush};
@@ -30,3 +31,4 @@ pub use scene::{Command, FragmentId, Layer, Scene, SceneFragment, SceneItem, dra
 pub use shadow::{BoxShadow, ParseBoxShadowError, ShadowProblem};
 pub use shape::Shape;
 pub use stroke::{LineCap, LineJoin, Stroke};
+pub use text_brushes::TextBrushes;

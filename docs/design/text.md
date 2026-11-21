@@ -5,7 +5,8 @@ Issue: #37. Builds on: [backends](backends.md) (#33), [brushes](brush.md) (#35),
 Text goes from a string, a font family list and a width to positioned glyphs broken into lines, with a size layout can use. A control shapes its text while it's measured, lets layout keep the result, and draws that same result when it records its scene, so text is shaped once per change and never by a renderer.
 
 ```rust,ignore
-let paragraph = cx.text().paragraph("Hello, world", &style, &paragraph_style, TextLimits::width(200.0));
+let text = StyledText::plain("Hello, world", style);
+let paragraph = cx.text().paragraph(&text, &paragraph_style, TextLimits::width(200.0));
 // later, in render:
 scene.text(&paragraph, Point::ZERO, foreground);
 ```
@@ -50,6 +51,8 @@ pub struct TextStyle {
   pub style: FontStyle,
 }
 
+pub struct StyledText { text: String, styles: Vec<TextStyle>, spans: Vec<(Range<usize>, usize)> }
+
 pub struct ParagraphStyle {
   pub line_height: Option<f32>,
   pub alignment: TextAlignment,
@@ -65,7 +68,7 @@ pub struct TextLimits {
 
 pub struct Paragraph { size: Size, lines: Arc<[Line]>, runs: Arc<[GlyphRun]>, right_to_left: bool, limited_width: bool, limited_height: bool }
 pub struct Line { pub top: f32, pub height: f32, pub baseline: f32, pub width: f32 }
-pub struct GlyphRun { font: FontData, size: f32, coords: Arc<[i16]>, synthesis: Synthesis, glyphs: Arc<[Glyph]> }
+pub struct GlyphRun { font: FontData, size: f32, coords: Arc<[i16]>, synthesis: Synthesis, glyphs: Arc<[Glyph]>, style: usize }
 pub struct Synthesis { pub embolden: bool, pub skew: f32 }
 pub struct Glyph { pub id: u32, pub x: f32, pub y: f32 }
 pub struct FontBytes(Arc<dyn AsRef<[u8]> + Send + Sync>);
@@ -76,9 +79,11 @@ pub struct FontData { bytes: FontBytes, index: u32, id: u64 }
 
 - `FontFamily: FromStr` reads a CSS family list: names separated by commas, each quoted with `'` or `"` or not. An unquoted name equal to a generic keyword (`serif`, `sans-serif`, `monospace`, `cursive`, `fantasy`, `system-ui`, `emoji`, `math`), ignoring case, is that generic family; a quoted one is a font named so. The default, which `TextBlock` (#46) inherits, is `system-ui`.
 - `FontWeight` is 1 to 1000, as in CSS. `FromStr` takes a number or one of WPF's `FontWeights` names, ignoring case: `Thin` 100, `ExtraLight` and `UltraLight` 200, `Light` 300, `Normal` and `Regular` 400, `Medium` 500, `SemiBold` and `DemiBold` 600, `Bold` 700, `ExtraBold` and `UltraBold` 800, `Black` and `Heavy` 900, `ExtraBlack` and `UltraBlack` 950. `FontStyle` is a `UiEnum`, as `Orientation` is.
+- `StyledText` is the text with a `TextStyle` per span: byte ranges, sorted, adjacent, on char boundaries and covering the text, each with the index of its style. It's built by pushes, so it's correct by construction: `push(text, style)` appends text in a new style and returns its index, and `plain(text, style)` is one push. An empty push still adds its style, so the indices match what the caller pushed, one brush per run for instance, but no span. An engine that shapes part of the text or adds its own, as trimming does with its ellipsis, uses `slice(range)`, which keeps the whole style table and each span's index, and `replace_range(range, text, style)`, which puts text in an existing style.
 - `TextStyle` is how the characters look, `ParagraphStyle` how the paragraph is laid out, and `TextLimits` the room layout gives it, so only `TextLimits` changes between measure and arrange. The [TextBlock design](text-block.md) (#46) defines `ParagraphStyle`, its enums and the `Paragraph` reports `right_to_left()`, `limited_width()` and `limited_height()`. `line_height: None` uses the font's own line spacing, and `max_lines: None` keeps every line. `max_width` doesn't turn wrapping on: `wrapping` does. `TextLimits::width(width)` and `TextLimits::NONE` are the two common limits.
-- `Paragraph`, `GlyphRun` and `FontData` keep their fields private and expose them through read-only accessors (`size()`, `lines()`, `runs()`, `font()`, `size()`, `coords()`, `synthesis()`, `glyphs()`, `bytes()`, `index()`, `id()`), and are built through `new` functions, so an engine outside artic can build them too and a renderer can't change a recorded paragraph.
+- `Paragraph`, `GlyphRun` and `FontData` keep their fields private and expose them through read-only accessors (`size()`, `lines()`, `runs()`, `font()`, `size()`, `coords()`, `synthesis()`, `glyphs()`, `style()`, `bytes()`, `index()`, `id()`), and are built through `new` functions and `with_*` builders, so an engine outside artic can build them too and a renderer can't change a recorded paragraph.
 - A `Paragraph` is cheap to clone: its lines and runs are behind `Arc`s. Glyph positions are in logical units, relative to the paragraph's top-left corner, with `y` on the glyph's baseline. Nothing is snapped to device pixels.
+- `style` is the index of the `StyledText` style the run's glyphs were shaped in, 0 unless `with_style` sets it, so a renderer can paint each style with its own brush.
 - `coords` are the run's variable-font axis positions, in `F2Dot14` form, so a weight drawn from a variable font comes out at that weight.
 - `synthesis` is what the font lacks and the renderer fakes: `embolden` when a bold weight was asked of a family without a bold face, and `skew`, in degrees, when italic was asked of one without an italic face. `fontique` reports both when it picks the face.
 - `FontData::new(bytes, index)` takes a new `id` from a process-wide counter. Two `FontData` are equal when their `id` and `index` are, never by comparing bytes, so `Paragraph: PartialEq` stays cheap and two recordings of the same text compare equal. `FontData`'s `Debug` is written by hand and shows the id, index and length, since the bytes have no `Debug` of their own. The bytes are the same type `peniko::Blob` holds, so a font `fontique` mapped from disk reaches vello without a copy.
@@ -99,8 +104,8 @@ pub enum WeightProblem { UnknownName, OutOfRange }
 
 ```rust,ignore
 pub trait TextEngine {
-  /// Shapes `text` in `style` and breaks it into lines within `limits`.
-  fn paragraph(&mut self, text: &str, style: &TextStyle, paragraph: &ParagraphStyle, limits: TextLimits) -> Paragraph;
+  /// Shapes `text`, each span in its style, and breaks it into lines within `limits`.
+  fn paragraph(&mut self, text: &StyledText, paragraph: &ParagraphStyle, limits: TextLimits) -> Paragraph;
 }
 
 impl MeasureCx<'_> {
@@ -178,11 +183,11 @@ impl TextEngine for Engine { /* … */ }
 
 `paragraph`:
 
-1. builds a `parley` layout at display scale 1, without quantizing, so its numbers are logical units. The family list, followed by the engine's default family, becomes a `parley` font stack; size, weight and style carry over; `line_height: None` is the font's metrics (`MetricsRelative(1.0)`);
+1. builds a `parley` layout at display scale 1, without quantizing, so its numbers are logical units. The text's base style (its first span's, or style 0 when there's no text) is the layout's default, and each span in another style pushes that style over its range; a style no text is in plays no part, so an empty run's size can't blank the paragraph. A style's family list, followed by the engine's default family, becomes a `parley` font stack; size, weight and style carry over; the brush is the style's index, so each cluster knows its style; `line_height: None` is the font's metrics (`MetricsRelative(1.0)`);
 2. breaks it at `max_width` as `wrapping` says, and keeps the first `max_lines` lines, stopping before a line whose bottom would pass `max_height` but always keeping the first;
-3. trims lines that don't fit, when `trimming` asks, as the [TextBlock design](text-block.md) §4 says. A trimmed line keeps its top, height and baseline and takes the width of what it now draws. Trimming comes before sizing, so the size and the placement below describe the trimmed lines;
+3. trims lines that don't fit, when `trimming` asks, as the [TextBlock design](text-block.md) §4 says. A trimmed line keeps its top, height and baseline and takes the width of what it now draws. Its kept text keeps its styles, and the ellipsis takes the style of the text kept just before it, or just after it when none is kept before. Trimming comes before sizing, so the size and the placement below describe the trimmed lines;
 4. sizes the paragraph: the widest kept line, or `max_width` when a justified line is stretched to it, by the sum of the kept lines' heights; then places the kept lines against that width itself. A line is the visual span of its clusters, except the whitespace that ends its text, which hangs: it takes no width and draws nothing. In a left-to-right paragraph every line's span starts at 0, and in a right-to-left one every line's span ends at the paragraph's width, whatever direction the line's own text runs. The paragraph's direction comes from its first strong character, as HTML's `dir="auto"` does. `parley`'s `align` isn't used: it aligns against `max_width` rather than the widest kept line, and it measures trailing whitespace wrongly in right-to-left runs. `parley` reorders mixed-direction runs. `ParagraphStyle`'s alignment moves each span by its free width, the paragraph's width minus its own, times `TextAlignment::factor`, and `Justify` first stretches lines to `max_width` at their spaces ([TextBlock design](text-block.md) §5);
-5. turns each `parley` glyph run into a `GlyphRun`, with its synthesis, looking its face up in the engine's font table by the blob's id and the face's index, so one face always has one `FontData` and one `id` for the engine's life. The table holds only the faces of the engine's own collection. Faces of a collection file (`.ttc`) share a blob and differ by index.
+5. turns each `parley` glyph run into a `GlyphRun`, split where its clusters' style changes so each `GlyphRun` has one style index, with its synthesis, looking its face up in the engine's font table by the blob's id and the face's index, so one face always has one `FontData` and one `id` for the engine's life. The table holds only the faces of the engine's own collection. Faces of a collection file (`.ttc`) share a blob and differ by index.
 
 It never panics and never fails:
 
@@ -191,7 +196,7 @@ It never panics and never fails:
 | A family that isn't installed | the next name in the list, then the engine's default family, then `fontique`'s fallback for the text's script |
 | A weight or style the family has no face for | the nearest face, with `synthesis` set |
 | Empty text | width 0, and the height of one line, as an empty WPF `TextBlock` |
-| A size that isn't finite or isn't above 0, or no font at all | a paragraph with no lines, of size 0 (`Paragraph::default()`) |
+| No style, a base or spanned style whose size isn't finite or isn't above 0, or no font at all | a paragraph with no lines, of size 0 (`Paragraph::default()`) |
 | A `max_width` that is NaN or infinite | no width limit: lines break only at hard line breaks and no line is trimmed for its width; when `max_lines` or `max_height` drops lines, the last kept line is still trimmed |
 | A negative `max_width` | 0: `Wrap` puts each cluster on its own line; `WrapWithOverflow` breaks at every opportunity and keeps each word whole, overhanging |
 | A `max_height` that is NaN or infinite | no limit |
@@ -208,24 +213,25 @@ In `artic-render`:
 ```rust,ignore
 pub enum Command {
   // …
-  /// Draws `paragraph`'s glyphs with its top-left corner at `origin`, painted with `brush`.
-  Text { paragraph: Paragraph, origin: Point, brush: Brush },
+  /// Draws `paragraph`'s glyphs with its top-left corner at `origin`, each glyph run painted with
+  /// the brush for its style.
+  Text { paragraph: Paragraph, origin: Point, brushes: TextBrushes },
 }
 
+pub struct TextBrushes(Vec<Brush>);
+
 impl SceneBuilder {
-  pub fn text(&mut self, paragraph: &Paragraph, origin: Point, brush: impl Into<Brush>);
+  pub fn text(&mut self, paragraph: &Paragraph, origin: Point, brushes: impl Into<TextBrushes>);
 }
 ```
 
-One command draws a whole paragraph. Any `Brush` works, and its relative points and radii resolve against `Rect::new(origin, paragraph.size())`, as a `Fill` resolves against its shape's bounds, so a gradient runs across the whole text rather than restarting with each run. A paragraph without glyphs records nothing (`Paragraph::has_glyphs`): the one an engine gives for text it can't shape, and shaped empty text alike.
-
-A brush per span of text (inline `Run`s, #47) can extend this later with a brush per run, without changing the command's shape.
+One command draws a whole paragraph. `TextBrushes` holds one brush per `StyledText` style, by index, and each glyph run takes the brush at its `style()`. A run whose index is past the last brush takes the last one, so a single brush paints all the text and the common call stays `scene.text(&paragraph, origin, foreground)`: anything that converts into a `Brush` converts into one brush, and an array or a `Vec` of brushes into a list. With no brush nothing is recorded. Any `Brush` works, and its relative points and radii resolve against `Rect::new(origin, paragraph.size())`, as a `Fill` resolves against its shape's bounds, so a gradient runs across the whole text rather than restarting with each run, whichever style the run is in. A paragraph without glyphs records nothing (`Paragraph::has_glyphs`): the one an engine gives for text it can't shape, and shaped empty text alike.
 
 ## 6. Drawing glyphs
 
 What a renderer may rely on is the same for fonts as for images in the [backends design](backends.md): shared data with a stable identity. A `FontData`'s `id` is unique and stays the same for as long as its bytes live, so a renderer may cache whatever it derives from a font (a typeface, outlines, an atlas) keyed by `id` and `index`, and decides itself when to drop it. artic's types carry nothing for any one renderer.
 
-`artic-vello` draws each run with one `draw_glyphs` call: the run's size and `coords`, the brush, and the current transform, with the glyphs moved by `origin`, so the brush resolves against the paragraph's box as a fill's does against its shape's. `synthesis` becomes vello's `font_embolden` and a skewing `glyph_transform`. Hinting is off, since it depends on the device-pixel grid, which text doesn't snap to yet. A run whose bytes `skrifa` can't read as a face at its index, which a `TextEngine` outside artic could produce, is skipped rather than failing the frame, as a shape that draws nothing is.
+`artic-vello` draws each run with one `draw_glyphs` call: the run's size and `coords`, the brush for its style, and the current transform, with the glyphs moved by `origin`, so the brush resolves against the paragraph's box as a fill's does against its shape's. `synthesis` becomes vello's `font_embolden` and a skewing `glyph_transform`. Hinting is off, since it depends on the device-pixel grid, which text doesn't snap to yet. A run whose bytes `skrifa` can't read as a face at its index, which a `TextEngine` outside artic could produce, is skipped rather than failing the frame, as a shape that draws nothing is.
 
 vello 0.11's renderer already caches glyph outlines between frames, keyed by the font blob's id, its index, the size and the variation coordinates, and drops entries left unused for 64 frames, checking every 64 frames or sooner once it holds more than 256 glyphs. So `artic-vello` keeps no cache and no map: it builds each run's blob with `Blob::from_raw_parts(bytes, id)` from the `FontData`, which clones an `Arc`, and the same id hits vello's cache in every frame. Every font vello draws carries an artic id, so ids can't collide in its cache.
 
@@ -266,7 +272,7 @@ The test font is a font under the SIL Open Font License, picked in the plan by s
 | Feature | How it fits | Tracked in |
 | --- | --- | --- |
 | Wrapping and trimming modes, alignment, the inherited font and foreground properties | the [TextBlock design](text-block.md): `ParagraphStyle`, trimming in the engine, and `TextElement`'s attached properties | #46 |
-| Inline runs with their own brush, weight and style | spans in `paragraph`, and a brush per run in `Command::Text` | #47 |
+| Inline runs with their own brush, weight and style | `StyledText` spans in `paragraph`, and `TextBrushes` in `Command::Text`; the inline types and `TextBlock` | #47 |
 | Color emoji | vello's `COLRv1` glyphs | #175 |
 | App fonts from resources | `Engine` registers them beside the system's | a later issue |
 | Outlines for CPU renderers | a `skrifa` helper, as the [backends design](backends.md) says | the first CPU renderer |

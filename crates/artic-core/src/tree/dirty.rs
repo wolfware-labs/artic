@@ -8,6 +8,11 @@
 //! clears. A mark that adds a queued stage to a node also queues the node for that stage, so the stage
 //! finds its nodes through [`UiTree::take_dirty`](super::UiTree::take_dirty) without walking the
 //! tree.
+//!
+//! A node drawn by its logical parent, such as an inline run, holds no flags of its own while it has
+//! one: its handle passes every mark to the parent's, so whatever takes the parent's marks sees the
+//! change. Without a parent it keeps its marks, and they move up when it joins one. See
+//! [`UiTree::set_drawn_by_parent`](super::UiTree::set_drawn_by_parent).
 
 use crate::arena::SlotMap;
 use crate::property::Affects;
@@ -42,8 +47,17 @@ impl Shared {
 #[derive(Debug, Clone)]
 pub struct DirtyHandle {
   node: NodeId,
-  stages: Rc<Cell<Affects>>,
+  marks: Rc<NodeMarks>,
   shared: Rc<Shared>,
+}
+
+/// What every handle to one node shares.
+#[derive(Debug, Default)]
+struct NodeMarks {
+  /// The stages the node needs redone.
+  stages: Cell<Affects>,
+  /// The parent's handle while the node is drawn by its parent, which then takes its marks.
+  into: RefCell<Option<DirtyHandle>>,
 }
 
 impl DirtyHandle {
@@ -54,8 +68,12 @@ impl DirtyHandle {
     if stages.is_empty() {
       return;
     }
-    let added = stages.without(self.stages.get());
-    self.stages.set(self.stages.get() | stages);
+    if let Some(parent) = &*self.marks.into.borrow() {
+      parent.mark(stages);
+      return;
+    }
+    let added = stages.without(self.marks.stages.get());
+    self.marks.stages.set(self.marks.stages.get() | stages);
     self.shared.pending.set(true);
     for stage in QUEUED.into_iter().filter(|stage| added.contains(*stage)) {
       self.shared.queue(stage).borrow_mut().push(self.node);
@@ -63,11 +81,11 @@ impl DirtyHandle {
   }
 
   pub(crate) fn stages(&self) -> Affects {
-    self.stages.get()
+    self.marks.stages.get()
   }
 
   pub(crate) fn clear(&self, stages: Affects) {
-    self.stages.set(self.stages.get().without(stages));
+    self.marks.stages.set(self.marks.stages.get().without(stages));
   }
 }
 
@@ -76,6 +94,7 @@ impl DirtyHandle {
 #[derive(Debug, Default)]
 pub(super) struct DirtyFlags {
   flags: SlotMap<DirtyHandle>,
+  drawn_by_parent: SlotMap<()>,
   shared: OnceCell<Rc<Shared>>,
 }
 
@@ -83,6 +102,7 @@ impl DirtyFlags {
   pub(super) const fn new() -> Self {
     Self {
       flags: SlotMap::new(),
+      drawn_by_parent: SlotMap::new(),
       shared: OnceCell::new(),
     }
   }
@@ -92,7 +112,7 @@ impl DirtyFlags {
     let shared = self.shared.get_or_init(Rc::default);
     let handle = DirtyHandle {
       node,
-      stages: Rc::new(Cell::new(Affects::NONE)),
+      marks: Rc::default(),
       shared: Rc::clone(shared),
     };
     handle.mark(Affects::LAYOUT | Affects::RENDER);
@@ -102,6 +122,36 @@ impl DirtyFlags {
 
   pub(super) fn remove(&mut self, node: NodeId) {
     self.flags.remove(node.0);
+    self.drawn_by_parent.remove(node.0);
+  }
+
+  pub(super) fn is_drawn_by_parent(&self, node: NodeId) -> bool {
+    self.drawn_by_parent.get(node.0).is_some()
+  }
+
+  pub(super) fn set_drawn_by_parent(&mut self, node: NodeId, drawn: bool) {
+    if drawn {
+      self.drawn_by_parent.insert(node.0, ());
+    } else {
+      self.drawn_by_parent.remove(node.0);
+    }
+  }
+
+  /// Passes `node`'s marks to `parent` from now on, or keeps them on `node` for `None`. The marks
+  /// `node` had move with them, so nothing it was marked for is lost.
+  pub(super) fn redirect(&self, node: NodeId, parent: Option<NodeId>) {
+    let Some(handle) = self.flags.get(node.0) else {
+      return;
+    };
+    let into = parent.and_then(|parent| self.flags.get(parent.0)).cloned();
+    if into.is_some() {
+      let stages = handle.stages();
+      handle.clear(stages);
+      *handle.marks.into.borrow_mut() = into;
+      handle.mark(stages);
+    } else {
+      *handle.marks.into.borrow_mut() = None;
+    }
   }
 
   pub(super) fn get(&self, node: NodeId) -> Affects {

@@ -120,7 +120,8 @@ pub struct Line {
   pub width: f32,
 }
 
-/// Glyphs drawn from one font face, at one size, with one set of variations.
+/// Glyphs drawn from one font face, at one size, with one set of variations, in one of the
+/// paragraph's text styles.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GlyphRun {
   font: FontData,
@@ -128,11 +129,13 @@ pub struct GlyphRun {
   coords: Arc<[i16]>,
   synthesis: Synthesis,
   glyphs: Arc<[Glyph]>,
+  style: usize,
 }
 
 impl GlyphRun {
   /// `glyphs` drawn from `font` at `size`, at the variable-font axis positions `coords`, with what
-  /// `synthesis` says the renderer fakes.
+  /// `synthesis` says the renderer fakes, in style 0. [`with_style`](GlyphRun::with_style) sets the
+  /// style.
   #[must_use]
   pub fn new(
     font: FontData,
@@ -147,7 +150,15 @@ impl GlyphRun {
       coords: coords.into(),
       synthesis,
       glyphs: glyphs.into(),
+      style: 0,
     }
+  }
+
+  /// This run, in the style at `style` of the [`StyledText`](super::StyledText) it was shaped from.
+  #[must_use]
+  pub fn with_style(mut self, style: usize) -> GlyphRun {
+    self.style = style;
+    self
   }
 
   /// The face the glyphs come from.
@@ -179,6 +190,13 @@ impl GlyphRun {
   #[must_use]
   pub fn glyphs(&self) -> &[Glyph] {
     &self.glyphs
+  }
+
+  /// The index of the style the glyphs were shaped in, among the
+  /// [`StyledText`](super::StyledText)'s styles.
+  #[must_use]
+  pub fn style(&self) -> usize {
+    self.style
   }
 }
 
@@ -459,6 +477,17 @@ mod tests {
     assert_eq!(run.coords(), [100]);
     assert_eq!(run.synthesis(), Synthesis::default());
     assert_eq!(run.glyphs().len(), 2);
+    assert_eq!(run.style(), 0);
+  }
+
+  // A run's style index is 0 unless the builder sets it, and two runs in different styles differ.
+  #[test]
+  fn glyph_run_style_is_set_by_its_builder() {
+    let font = font();
+    let styled = run(&font).with_style(3);
+
+    assert_eq!(styled.style(), 3);
+    assert_ne!(styled, run(&font));
   }
 
   // Paragraphs built from the same content and font data are equal; the same bytes under another

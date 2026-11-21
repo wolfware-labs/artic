@@ -3,8 +3,8 @@ use artic_core::property::Property;
 use artic_element::{AccessCx, ElementImpl, RenderCx};
 use artic_layout::geometry::{Point, Size};
 use artic_layout::text::{
-  FontFamily, FontStyle, FontWeight, Paragraph, ParagraphStyle, TextAlignment, TextEngine, TextLimits, TextStyle, TextTrimming,
-  TextWrapping,
+  FontFamily, FontStyle, FontWeight, Paragraph, ParagraphStyle, StyledText, TextAlignment, TextEngine, TextLimits, TextStyle,
+  TextTrimming, TextWrapping,
 };
 use artic_layout::{ArrangeCx, MeasureCx};
 use artic_macros::element;
@@ -76,7 +76,7 @@ impl TextBlock {
       max_lines: self.max_lines.get(),
     };
     Shaped {
-      paragraph: text.paragraph(&self.text.get(), &style, &paragraph, limits),
+      paragraph: text.paragraph(&StyledText::plain(self.text.get(), style), &paragraph, limits),
       limits,
     }
   }

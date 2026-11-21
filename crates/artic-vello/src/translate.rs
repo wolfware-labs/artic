@@ -2,7 +2,7 @@ use artic_layout::geometry::{CornerRadius, FillRule, PathElement, Point, Rect, R
 use artic_layout::text::Paragraph;
 use artic_render::{
   BoxShadow, Brush, Color, Command, GradientStop, Layer, LineCap, LineJoin, Paint, PhysicalSize, Scene, SceneItem, Shape,
-  Stroke, drawable_opacity,
+  Stroke, TextBrushes, drawable_opacity,
 };
 use std::sync::Arc;
 use vello::kurbo::{self, Affine, BezPath, Cap, Diagonal2, Join, PathEl, Shape as _};
@@ -44,8 +44,8 @@ pub(crate) fn translate(scene: &Scene, scale: f32, size: PhysicalSize, out: &mut
             Command::Text {
               paragraph,
               origin,
-              brush,
-            } => translation.text(paragraph, *origin, brush),
+              brushes,
+            } => translation.text(paragraph, *origin, brushes),
           }
         }
       }
@@ -141,12 +141,21 @@ impl Translation<'_> {
     self.out.pop_layer();
   }
 
-  fn text(&mut self, paragraph: &Paragraph, origin: Point, brush: &Brush) {
+  fn text(&mut self, paragraph: &Paragraph, origin: Point, brushes: &TextBrushes) {
     let size = paragraph.size();
-    let Some((brush, transform)) = paint(brush, Rect::new(origin.x, origin.y, size.width, size.height)) else {
-      return;
-    };
+    let bounds = Rect::new(origin.x, origin.y, size.width, size.height);
+    let mut painted = None;
     for run in paragraph.runs() {
+      let Some(slot) = brushes.slot(run.style()) else {
+        return;
+      };
+      let made = match &painted {
+        Some((at, made)) if *at == slot => made,
+        _ => &painted.insert((slot, paint(&brushes.as_slice()[slot], bounds))).1,
+      };
+      let Some((brush, transform)) = made else {
+        continue;
+      };
       let font = run.font();
       if skrifa::FontRef::from_index(font.bytes().as_ref(), font.index()).is_err() {
         continue;
@@ -171,11 +180,11 @@ impl Translation<'_> {
         .font_size(run.size())
         .transform(self.current)
         .glyph_transform(skew)
-        .brush_transform(transform)
+        .brush_transform(*transform)
         .font_embolden(embolden)
         .hint(false)
         .normalized_coords(run.coords())
-        .brush(&brush)
+        .brush(brush)
         .draw(Fill::NonZero, glyphs);
     }
   }
@@ -764,6 +773,30 @@ mod tests {
     let out = encoded(|translation| translation.text(&text, Point::ZERO, &nothing.into()));
 
     assert!(out.encoding().resources.glyph_runs.is_empty());
+  }
+
+  // Each run is painted with the brush for its style: a run whose brush paints nothing is skipped,
+  // and the run in the next style still draws.
+  #[test]
+  fn each_run_draws_with_its_styles_brush() {
+    let (regular, bold) = (face(artic_test_fonts::REGULAR), face(artic_test_fonts::BOLD));
+    let text = paragraph(vec![
+      run(&regular, Synthesis::default()),
+      run(&bold, Synthesis::default()).with_style(1),
+    ]);
+    let nothing = LinearGradientBrush::new(RelativePoint::relative(0.0, 0.0), RelativePoint::relative(1.0, 0.0), []);
+    let brushes = TextBrushes::from(vec![nothing.into(), Color::rgb(0, 0, 0).into()]);
+
+    let out = encoded(|translation| translation.text(&text, Point::ZERO, &brushes));
+
+    let ids: Vec<u64> = out
+      .encoding()
+      .resources
+      .glyph_runs
+      .iter()
+      .map(|run| run.font.data.id())
+      .collect();
+    assert_eq!(ids, [bold.id()]);
   }
 
   // A face vello can't read, such as bytes that aren't a font or an index past a file's faces, is

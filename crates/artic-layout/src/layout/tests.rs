@@ -1302,7 +1302,7 @@ mod collapsed {
   }
 }
 
-use crate::text::{FontFamily, Paragraph, ParagraphStyle, TextEngine, TextLimits, TextStyle};
+use crate::text::{FontFamily, Paragraph, ParagraphStyle, StyledText, TextEngine, TextLimits, TextStyle};
 
 /// A text engine that records the text it's asked to shape and answers with a paragraph with no
 /// lines.
@@ -1312,8 +1312,8 @@ struct Recorder {
 }
 
 impl TextEngine for Recorder {
-  fn paragraph(&mut self, text: &str, _style: &TextStyle, _paragraph: &ParagraphStyle, _limits: TextLimits) -> Paragraph {
-    self.asked.push(text.to_owned());
+  fn paragraph(&mut self, text: &StyledText, _paragraph: &ParagraphStyle, _limits: TextLimits) -> Paragraph {
+    self.asked.push(text.text().to_owned());
     Paragraph::default()
   }
 }
@@ -1337,8 +1337,7 @@ impl Object for Shaper {
 impl Layoutable for Shaper {
   fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {
     cx.text().paragraph(
-      "measure",
-      &TextStyle::new(FontFamily::default(), 16.0),
+      &StyledText::plain("measure", TextStyle::new(FontFamily::default(), 16.0)),
       &ParagraphStyle::default(),
       TextLimits::NONE,
     );
@@ -1353,8 +1352,7 @@ impl Layoutable for Shaper {
 
   fn arrange(&self, cx: &mut ArrangeCx<'_>, _rect: Rect) {
     cx.text().paragraph(
-      "arrange",
-      &TextStyle::new(FontFamily::default(), 16.0),
+      &StyledText::plain("arrange", TextStyle::new(FontFamily::default(), 16.0)),
       &ParagraphStyle::default(),
       TextLimits::NONE,
     );

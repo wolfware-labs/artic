@@ -1,26 +1,47 @@
-//! What a [`TextStyle`] and a [`ParagraphStyle`] become on a `parley` builder.
+//! What a [`StyledText`]'s styles and a [`ParagraphStyle`] become on a `parley` builder.
+//!
+//! The text's base style is the layout's default, and each span in another style pushes that style
+//! over its range; a style no text is in plays no part. The brush is the style's index, so each
+//! cluster knows the style it came from.
 
 use artic_layout::finite;
 use artic_layout::text::{
-  FamilyName, FontFamily, FontStyle, FontWeight, GenericFamily, ParagraphStyle, TextStyle, TextWrapping,
+  FamilyName, FontFamily, FontStyle, FontWeight, GenericFamily, ParagraphStyle, StyledText, TextStyle, TextWrapping,
 };
 use parley::{FontFamilyName, LineHeight, OverflowWrap, RangedBuilder, StyleProperty, TextWrapMode};
 use std::borrow::Cow;
 
 pub(crate) fn push(
-  builder: &mut RangedBuilder<'_, ()>,
-  style: &TextStyle,
+  builder: &mut RangedBuilder<'_, usize>,
+  text: &StyledText,
   paragraph: &ParagraphStyle,
   default_family: &FamilyName,
 ) {
-  builder.push_default(StyleProperty::FontFamily(font_stack(&style.family, default_family)));
-  builder.push_default(StyleProperty::FontSize(style.size));
-  builder.push_default(StyleProperty::FontWeight(weight(style.weight)));
-  builder.push_default(StyleProperty::FontStyle(font_style(style.style)));
+  let Some(base) = text.base_style() else {
+    return;
+  };
+  for property in properties(&text.styles()[base], base, default_family) {
+    builder.push_default(property);
+  }
+  for (range, index) in text.spans().filter(|&(_, index)| index != base) {
+    for property in properties(&text.styles()[index], index, default_family) {
+      builder.push(property, range.clone());
+    }
+  }
   builder.push_default(StyleProperty::LineHeight(line_height(paragraph.line_height)));
   let (mode, overflow) = wrap(paragraph.wrapping);
   builder.push_default(StyleProperty::TextWrapMode(mode));
   builder.push_default(StyleProperty::OverflowWrap(overflow));
+}
+
+fn properties(style: &TextStyle, index: usize, default_family: &FamilyName) -> [StyleProperty<'static, usize>; 5] {
+  [
+    StyleProperty::FontFamily(font_stack(&style.family, default_family)),
+    StyleProperty::FontSize(style.size),
+    StyleProperty::FontWeight(weight(style.weight)),
+    StyleProperty::FontStyle(font_style(style.style)),
+    StyleProperty::Brush(index),
+  ]
 }
 
 fn font_stack(family: &FontFamily, default_family: &FamilyName) -> parley::FontFamily<'static> {

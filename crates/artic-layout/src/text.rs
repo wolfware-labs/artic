@@ -1,12 +1,13 @@
 //! The values text is shaped from and into, and the engine that shapes it.
 //!
-//! A control describes its text with a [`TextStyle`], a [`ParagraphStyle`] and [`TextLimits`], asks a
-//! [`TextEngine`] for the [`Paragraph`] they make while it's measured, and draws that paragraph when
-//! it renders.
+//! A control describes its text as [`StyledText`], text with a [`TextStyle`] per span, with a
+//! [`ParagraphStyle`] and [`TextLimits`], asks a [`TextEngine`] for the [`Paragraph`] they make while
+//! it's measured, and draws that paragraph when it renders.
 
 mod font;
 mod paragraph;
 mod paragraph_style;
+mod styled;
 
 pub use font::{
   FamilyName, FamilyProblem, FontFamily, FontStyle, FontWeight, GenericFamily, ParseFontFamilyError, ParseFontWeightError,
@@ -14,6 +15,7 @@ pub use font::{
 };
 pub use paragraph::{FontBytes, FontData, Glyph, GlyphRun, Line, Paragraph, Synthesis};
 pub use paragraph_style::{ParagraphStyle, TextAlignment, TextTrimming, TextWrapping};
+pub use styled::StyledText;
 
 /// How the characters look: their font.
 #[derive(Debug, Clone, PartialEq)]
@@ -91,11 +93,12 @@ fn usable(limit: Option<f32>) -> Option<f32> {
 /// Layout holds it as `&mut dyn TextEngine` and lends it to the controls it measures and
 /// arranges. It runs on the UI thread, so it needn't be `Send`.
 pub trait TextEngine {
-  /// Shapes `text` in `style`, and lays it out as `paragraph` says within `limits`.
+  /// Shapes `text`, each span in its style, and lays it out as `paragraph` says within `limits`.
+  /// Each [`GlyphRun`] it gives reports the index of the style its glyphs come from.
   ///
-  /// It never fails: text it can't shape, such as a size that isn't above 0, gives
-  /// `Paragraph::default()`, a paragraph with no lines, of size 0.
-  fn paragraph(&mut self, text: &str, style: &TextStyle, paragraph: &ParagraphStyle, limits: TextLimits) -> Paragraph;
+  /// It never fails: text it can't shape, such as text without a style or with a size that isn't
+  /// above 0, gives `Paragraph::default()`, a paragraph with no lines, of size 0.
+  fn paragraph(&mut self, text: &StyledText, paragraph: &ParagraphStyle, limits: TextLimits) -> Paragraph;
 }
 
 #[cfg(test)]
@@ -104,17 +107,22 @@ mod tests {
   use crate::geometry::Size;
   use pretty_assertions::assert_eq;
 
-  // An engine that makes every character a square of the font size, on one line, and records
-  // what it was asked.
+  // An engine that makes every character a square of its style's font size, on one line, and
+  // records what it was asked.
   #[derive(Default)]
   struct Squares {
     asked: Vec<(String, TextLimits)>,
   }
 
   impl TextEngine for Squares {
-    fn paragraph(&mut self, text: &str, style: &TextStyle, _paragraph: &ParagraphStyle, limits: TextLimits) -> Paragraph {
-      self.asked.push((text.to_owned(), limits));
-      Paragraph::new(Size::new(text.chars().count() as f32 * style.size, style.size), [], [])
+    fn paragraph(&mut self, text: &StyledText, _paragraph: &ParagraphStyle, limits: TextLimits) -> Paragraph {
+      self.asked.push((text.text().to_owned(), limits));
+      let sizes = text
+        .text()
+        .char_indices()
+        .map(|(at, _)| text.styles()[text.style_at(at).unwrap_or(0)].size);
+      let (width, height) = sizes.fold((0.0, 0.0), |(width, height), size| (width + size, f32::max(height, size)));
+      Paragraph::new(Size::new(width, height), [], [])
     }
   }
 
@@ -168,21 +176,19 @@ mod tests {
     }
   }
 
-  // An engine is reached through `&mut dyn TextEngine`, as layout holds it, and gets the text and
-  // limits it was asked for.
+  // An engine is reached through `&mut dyn TextEngine`, as layout holds it, and gets the text, its
+  // styles and the limits it was asked for.
   #[test]
   fn text_engine_serves_as_a_trait_object() {
     let mut squares = Squares::default();
     let engine: &mut dyn TextEngine = &mut squares;
 
-    let paragraph = engine.paragraph(
-      "abc",
-      &TextStyle::new(FontFamily::default(), 10.0),
-      &ParagraphStyle::default(),
-      TextLimits::width(25.0),
-    );
+    let mut text = StyledText::plain("ab", TextStyle::new(FontFamily::default(), 10.0));
+    text.push("c", TextStyle::new(FontFamily::default(), 20.0));
 
-    assert_eq!(paragraph.size(), Size::new(30.0, 10.0));
+    let paragraph = engine.paragraph(&text, &ParagraphStyle::default(), TextLimits::width(25.0));
+
+    assert_eq!(paragraph.size(), Size::new(40.0, 20.0));
     assert_eq!(squares.asked, [(String::from("abc"), TextLimits::width(25.0))]);
   }
 }

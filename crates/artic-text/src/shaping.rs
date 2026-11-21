@@ -9,13 +9,13 @@ use crate::faces::Faces;
 use crate::lines::{self, Kept};
 use crate::properties;
 use crate::trim::Clusters;
-use artic_layout::text::{FamilyName, ParagraphStyle, TextLimits, TextStyle};
+use artic_layout::text::{FamilyName, ParagraphStyle, StyledText, TextLimits};
 use parley::{FontContext, Layout, LayoutContext};
 
 pub(crate) struct Shaping {
   fonts: FontContext,
-  layouts: LayoutContext<()>,
-  layout: Layout<()>,
+  layouts: LayoutContext<usize>,
+  layout: Layout<usize>,
   faces: Faces,
   default_family: FamilyName,
 }
@@ -45,10 +45,10 @@ impl Shaping {
     self.fonts.collection.family_ids().next().is_some()
   }
 
-  pub(crate) fn lay_out(&mut self, text: &str, style: &TextStyle, paragraph: &ParagraphStyle, limits: TextLimits) -> Kept {
-    let mut builder = self.layouts.ranged_builder(&mut self.fonts, text, 1.0, false);
-    properties::push(&mut builder, style, paragraph, &self.default_family);
-    builder.build_into(&mut self.layout, text);
+  pub(crate) fn lay_out(&mut self, text: &StyledText, paragraph: &ParagraphStyle, limits: TextLimits) -> Kept {
+    let mut builder = self.layouts.ranged_builder(&mut self.fonts, text.text(), 1.0, false);
+    properties::push(&mut builder, text, paragraph, &self.default_family);
+    builder.build_into(&mut self.layout, text.text());
     lines::break_lines(&mut self.layout, paragraph, limits)
   }
 
