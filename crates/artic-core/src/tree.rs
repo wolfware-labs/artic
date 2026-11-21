@@ -778,6 +778,35 @@ impl UiTree {
     self.dirty_flags.mark(id, stages);
   }
 
+  /// Says whether `id` is drawn by its logical parent rather than on its own, as an inline run is
+  /// drawn by the text block that holds it.
+  ///
+  /// While it is, `id` keeps no dirty flags: every stage marked on it, by a property change or
+  /// [`mark_dirty`](Self::mark_dirty), is marked on its logical parent instead, and on up while that
+  /// parent is drawn by its own. Joining or leaving a parent marks the parent for layout and
+  /// rendering, since what it draws changed, and so does turning this on or off; a node that draws
+  /// on its own again is marked too.
+  ///
+  /// # Panics
+  ///
+  /// Panics if `id` is stale.
+  #[track_caller]
+  pub fn set_drawn_by_parent(&mut self, id: NodeId, drawn: bool) {
+    self.check(id);
+    if self.dirty_flags.is_drawn_by_parent(id) == drawn {
+      return;
+    }
+    self.dirty_flags.set_drawn_by_parent(id, drawn);
+    let parent = self.parent(TreeKind::Logical, id);
+    self.dirty_flags.redirect(id, if drawn { parent } else { None });
+    if !drawn {
+      self.mark_dirty(id, Affects::LAYOUT | Affects::RENDER);
+    }
+    if let Some(parent) = parent {
+      self.mark_dirty(parent, Affects::LAYOUT | Affects::RENDER);
+    }
+  }
+
   /// Removes `stages` from the frame stages `id` needs redone, once they have been redone.
   ///
   /// # Panics
@@ -996,6 +1025,7 @@ impl UiTree {
     self.children_changed(tree, parent);
     if tree == TreeKind::Logical {
       inheritance::relink(&self.objects, &self.attached_values, &self.logical, child);
+      self.redraw_parent(child, Some(parent), parent);
     }
   }
 
@@ -1004,7 +1034,19 @@ impl UiTree {
     let parent = self.tree_mut(tree).unlink(node)?;
     self.structure_generation += 1;
     self.children_changed(tree, parent);
+    if tree == TreeKind::Logical {
+      self.redraw_parent(node, None, parent);
+    }
     Some(parent)
+  }
+
+  /// When `node` is drawn by its logical parent, points its marks at `into` and marks `parent`, the
+  /// parent it joined or left, since what that parent draws changed.
+  fn redraw_parent(&mut self, node: NodeId, into: Option<NodeId>, parent: NodeId) {
+    if self.dirty_flags.is_drawn_by_parent(node) {
+      self.dirty_flags.redirect(node, into);
+      self.mark_dirty(parent, Affects::LAYOUT | Affects::RENDER);
+    }
   }
 
   /// A node's visual children size and place it, so changing them means laying it out again.

@@ -461,3 +461,78 @@ fn render_changes_are_not_queued_for_layout() {
 
   assert_eq!(take_layout(&mut tree, id), [].into());
 }
+
+// A node drawn by its logical parent marks the parent instead of itself, through every ancestor
+// that is drawn by its own parent, so a change deep inside an inline reaches the box that draws it.
+#[test]
+fn drawn_by_parent_marks_its_drawing_ancestor() {
+  let mut tree = UiTree::new();
+  let (block, _, _) = clean_label(&mut tree);
+  let (bold, _, _) = clean_label(&mut tree);
+  let (run, font_size, foreground) = clean_label(&mut tree);
+  tree.add_child(TreeKind::Logical, block, bold);
+  tree.add_child(TreeKind::Logical, bold, run);
+  tree.set_drawn_by_parent(bold, true);
+  tree.set_drawn_by_parent(run, true);
+  tree.clear_dirty(block, Affects::LAYOUT | Affects::RENDER);
+
+  font_size.set(24);
+  foreground.set(0xff0000);
+
+  assert_eq!(tree.dirty(block), Affects::LAYOUT | Affects::RENDER);
+  assert_eq!(tree.dirty(bold), Affects::NONE);
+  assert_eq!(tree.dirty(run), Affects::NONE);
+}
+
+// Becoming drawn by its parent hands the node's own marks to the parent, and joining or leaving
+// such a parent marks it, since what it draws changed.
+#[test]
+fn drawn_by_parent_follows_the_logical_parent() {
+  let mut tree = UiTree::new();
+  let (first, _, _) = clean_label(&mut tree);
+  let (second, _, _) = clean_label(&mut tree);
+  let run = tree.alloc(Box::new(Label {
+    font_size: Property::new(&FONT_SIZE, 12),
+    foreground: Property::new(&FOREGROUND, 0),
+  }));
+  tree.set_drawn_by_parent(run, true);
+
+  tree.add_child(TreeKind::Logical, first, run);
+  assert_eq!(
+    tree.dirty(first),
+    Affects::LAYOUT | Affects::RENDER,
+    "joining marks the parent"
+  );
+  assert_eq!(tree.dirty(run), Affects::NONE, "its own marks moved up");
+
+  tree.clear_dirty(first, Affects::LAYOUT | Affects::RENDER);
+  tree.add_child(TreeKind::Logical, second, run);
+  assert_eq!(
+    tree.dirty(first),
+    Affects::LAYOUT | Affects::RENDER,
+    "leaving marks the old parent"
+  );
+  assert_eq!(tree.dirty(second), Affects::LAYOUT | Affects::RENDER, "and the new one");
+
+  tree.clear_dirty(first, Affects::LAYOUT | Affects::RENDER);
+  tree.clear_dirty(second, Affects::LAYOUT | Affects::RENDER);
+  tree.mark_dirty(run, Affects::RENDER);
+  assert_eq!(tree.dirty(first), Affects::NONE);
+  assert_eq!(tree.dirty(second), Affects::RENDER, "marks follow the current parent");
+
+  tree.clear_dirty(second, Affects::LAYOUT | Affects::RENDER);
+  tree.set_drawn_by_parent(run, false);
+  assert_eq!(
+    tree.dirty(run),
+    Affects::LAYOUT | Affects::RENDER,
+    "drawn on its own again, it needs both"
+  );
+  assert_eq!(
+    tree.dirty(second),
+    Affects::LAYOUT | Affects::RENDER,
+    "and its parent draws less"
+  );
+  tree.clear_dirty(second, Affects::LAYOUT | Affects::RENDER);
+  tree.mark_dirty(run, Affects::RENDER);
+  assert_eq!(tree.dirty(second), Affects::NONE, "it keeps its own marks");
+}
