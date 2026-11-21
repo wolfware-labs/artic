@@ -6,6 +6,7 @@ use artic_render::{
 };
 use std::collections::HashMap;
 use std::sync::{Arc, mpsc};
+use std::time::Duration;
 use vello::kurbo::Affine;
 use vello::wgpu::util::TextureBlitter;
 use vello::wgpu::{
@@ -233,16 +234,13 @@ impl Renderer {
       return Ok(());
     }
     fits(size, self.max_side)?;
-    let row_bytes = size.width as usize * 4;
-    if buffer.stride < row_bytes || buffer.data.len() < buffer.stride * size.height as usize {
-      return Err(backend("the pixel buffer is smaller than the surface"));
-    }
+    let row_bytes = row_bytes(size, buffer.stride, buffer.data.len())?;
     let texture = self.draw_offscreen(size, TextureUsages::COPY_SRC)?;
-    let padded = row_bytes.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize);
+    let padded = padded_row(row_bytes)?;
     let rows = rows_per_copy(padded, self.device.limits().max_buffer_size, size.height);
     let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
       label: Some("artic-vello readback"),
-      size: (padded * rows as usize) as u64,
+      size: padded as u64 * u64::from(rows),
       usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
       mapped_at_creation: false,
     });
@@ -275,6 +273,7 @@ impl Renderer {
     readback: &'buffer wgpu::Buffer,
     padded: usize,
   ) -> Result<wgpu::BufferSlice<'buffer>, RenderError> {
+    let bytes_per_row = u32::try_from(padded).map_err(backend)?;
     let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
     encoder.copy_texture_to_buffer(
       TexelCopyTextureInfo {
@@ -287,20 +286,24 @@ impl Renderer {
         buffer: readback,
         layout: TexelCopyBufferLayout {
           offset: 0,
-          bytes_per_row: Some(padded as u32),
+          bytes_per_row: Some(bytes_per_row),
           rows_per_image: None,
         },
       },
       extent(band),
     );
     self.queue.submit([encoder.finish()]);
-    let slice = readback.slice(..(padded * band.height as usize) as u64);
+    let slice = readback.slice(..padded as u64 * u64::from(band.height));
     let (sender, receiver) = mpsc::channel();
     slice.map_async(wgpu::MapMode::Read, move |result| {
       let _ = sender.send(result);
     });
-    self.device.poll(wgpu::PollType::wait_indefinitely()).map_err(backend)?;
-    receiver.recv().map_err(backend)?.map_err(backend)?;
+    let wait = wgpu::PollType::Wait {
+      submission_index: None,
+      timeout: Some(READBACK_TIMEOUT),
+    };
+    self.device.poll(wait).map_err(backend)?;
+    receiver.recv_timeout(READBACK_TIMEOUT).map_err(backend)?.map_err(backend)?;
     Ok(slice)
   }
 }
@@ -362,6 +365,30 @@ fn fits(size: PhysicalSize, max: u32) -> Result<(), RenderError> {
     return Err(RenderError::SurfaceTooLarge { size, max });
   }
   Ok(())
+}
+
+/// How long a readback waits for the GPU, and then for the mapped buffer, before it fails, so a
+/// GPU that never finishes can't hang the frame.
+const READBACK_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// The bytes one row of `size` takes in a pixel buffer `len` bytes long with rows `stride` bytes
+/// apart, or an error when the buffer can't hold every row. The products are checked, so they
+/// can't wrap where `usize` is 32 bits.
+fn row_bytes(size: PhysicalSize, stride: usize, len: usize) -> Result<usize, RenderError> {
+  let row = usize::try_from(size.width).ok().and_then(|width| width.checked_mul(4));
+  let needed = (stride as u64).checked_mul(u64::from(size.height));
+  match (row, needed) {
+    (Some(row), Some(needed)) if stride >= row && len as u64 >= needed => Ok(row),
+    _ => Err(backend("the pixel buffer is smaller than the surface")),
+  }
+}
+
+/// `row` bytes rounded up to the alignment wgpu copies rows at, or an error when that passes
+/// `usize`.
+fn padded_row(row: usize) -> Result<usize, RenderError> {
+  row
+    .checked_next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize)
+    .ok_or_else(|| backend("the surface's rows are too long to read back"))
 }
 
 /// How many rows `padded` bytes long one copy back from the GPU holds: all `height` of them when
@@ -632,6 +659,38 @@ mod tests {
       [(0, size(4))],
       "taller than the frame"
     );
+  }
+
+  // A buffer holds the surface when its rows fit the row and its length fits every row, compared
+  // without wrapping: sizes past `u64` and past a 32-bit `usize` are refused, not let through.
+  #[test]
+  fn a_buffer_holds_the_surface_without_wrapping() {
+    let size = PhysicalSize::new(4, 3);
+    assert_eq!(row_bytes(size, 16, 48).ok(), Some(16), "exactly the surface");
+    assert_eq!(row_bytes(size, 20, 60).ok(), Some(16), "padded rows");
+    assert!(row_bytes(size, 15, 48).is_err(), "rows too short");
+    assert!(row_bytes(size, 16, 47).is_err(), "one byte short");
+    let tall = PhysicalSize::new(4, u32::MAX);
+    assert!(row_bytes(tall, 1 << 31, 1 << 20).is_err(), "past a 32-bit usize");
+    assert!(row_bytes(tall, usize::MAX, usize::MAX).is_err(), "past u64");
+    let wide = PhysicalSize::new(u32::MAX, 1);
+    #[cfg(target_pointer_width = "32")]
+    assert!(row_bytes(wide, usize::MAX, usize::MAX).is_err(), "a row past a 32-bit usize");
+    #[cfg(target_pointer_width = "64")]
+    assert_eq!(
+      row_bytes(wide, usize::MAX, usize::MAX).ok(),
+      Some(u32::MAX as usize * 4),
+      "a row past u32"
+    );
+  }
+
+  // A row rounds up to wgpu's 256-byte copy alignment, and a row too long to round is refused.
+  #[test]
+  fn a_row_pads_to_the_copy_alignment() {
+    assert_eq!(padded_row(4).ok(), Some(256));
+    assert_eq!(padded_row(256).ok(), Some(256), "already aligned");
+    assert_eq!(padded_row(257).ok(), Some(512));
+    assert!(padded_row(usize::MAX - 3).is_err(), "past usize");
   }
 
   // Every row is copied back at once when the rows fit in the limit, and as many whole rows as fit
