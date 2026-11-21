@@ -34,34 +34,37 @@ pub(crate) struct Trimmed {
   pub(crate) lost: bool,
 }
 
+/// Trims `text`, one line, to `max_width`. `base` is the style the line is in where its own text
+/// says none, as for a line that keeps only whitespace: the ellipsis and the direction mark take it.
 pub(crate) fn trim_line(
   candidates: &mut Candidates<'_>,
   text: &StyledText,
+  base: usize,
   mode: TextTrimming,
   max_width: f32,
 ) -> Option<Trimmed> {
   if mode == TextTrimming::None {
     return None;
   }
-  let clusters = candidates.clusters(text);
+  let clusters = candidates.clusters(text, base);
   let mut tried = HashMap::new();
   let dropped = cut(mode, text.text(), &clusters, &mut |dropped| {
     tried
       .entry(dropped.clone())
-      .or_insert_with(|| candidates.line(&candidate(text, dropped)))
+      .or_insert_with(|| candidates.line(&candidate(text, dropped, base), base))
       .width()
       <= max_width
   })?;
   let line = tried
     .remove(&dropped)
-    .unwrap_or_else(|| candidates.line(&candidate(text, &dropped)));
+    .unwrap_or_else(|| candidates.line(&candidate(text, &dropped, base), base));
   Some(Trimmed {
     line,
     lost: loses_text(text.text(), &dropped),
   })
 }
 
-pub(crate) fn candidate(text: &StyledText, dropped: &Range<usize>) -> StyledText {
+pub(crate) fn candidate(text: &StyledText, dropped: &Range<usize>, base: usize) -> StyledText {
   let whole = text.text();
   let before = whole[..dropped.start].trim_end().len();
   let after = whole.len() - whole[dropped.end..].trim_start().len();
@@ -70,7 +73,7 @@ pub(crate) fn candidate(text: &StyledText, dropped: &Range<usize>) -> StyledText
     .and_then(|last| text.style_at(last))
     .or_else(|| text.style_at(after))
     .or_else(|| text.style_at(dropped.start))
-    .unwrap_or(0);
+    .unwrap_or(base);
   let mut candidate = text.clone();
   candidate.replace_range(before..after, ELLIPSIS, style);
   candidate
@@ -195,7 +198,7 @@ mod tests {
   }
 
   fn shown_candidate(text: &str, dropped: Range<usize>) -> String {
-    candidate(&plain(text), &dropped).text().to_owned()
+    candidate(&plain(text), &dropped, 0).text().to_owned()
   }
 
   fn clusters(text: &str) -> Clusters {
@@ -233,7 +236,7 @@ mod tests {
     text.push(" cd", style(11.0));
     text.push("ef", style(12.0));
     let spans = |dropped: Range<usize>| {
-      let candidate = candidate(&text, &dropped);
+      let candidate = candidate(&text, &dropped, 0);
       (candidate.text().to_owned(), candidate.spans().collect::<Vec<_>>())
     };
 
@@ -243,7 +246,7 @@ mod tests {
     assert_eq!(spans(0..7), ("…".into(), vec![(0..3, 0)]));
     let mut spaced = StyledText::plain(" ", style(10.0));
     spaced.push("cd", style(11.0));
-    let alone = candidate(&spaced, &(1..3));
+    let alone = candidate(&spaced, &(1..3), 0);
     assert_eq!((alone.text(), alone.spans().collect::<Vec<_>>()), ("…", vec![(0..3, 1)]));
   }
 

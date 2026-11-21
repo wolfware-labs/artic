@@ -91,7 +91,11 @@ fn trim(
       continue;
     }
     let limit = max_width.unwrap_or(f32::INFINITY);
-    if let Some(trimmed) = trim::trim_line(candidates, &text.slice(line.text.start..line.hung), mode, limit) {
+    let base = text
+      .style_at(line.text.start)
+      .or_else(|| text.base_style())
+      .unwrap_or_default();
+    if let Some(trimmed) = trim::trim_line(candidates, &text.slice(line.text.start..line.hung), base, mode, limit) {
       lost |= trimmed.lost;
       *line = std::mem::take(line).replaced_by(trimmed.line);
     }

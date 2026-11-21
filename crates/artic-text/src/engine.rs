@@ -126,12 +126,12 @@ mod tests {
 
     for right_to_left in [false, true] {
       let mut candidates = Candidates::new(&mut engine.shaping, None, right_to_left);
-      let line = candidates.line(&text("abc"));
+      let line = candidates.line(&text("abc"), 0);
       let glyphs = line.runs.iter().map(|run| run.glyph_count()).sum::<usize>();
 
       assert_eq!(glyphs, 3, "{right_to_left}");
-      assert_eq!(candidates.clusters(&text("ab c")).starts, [0, 1, 2, 3]);
-      let words = candidates.clusters(&text("ab c")).words;
+      assert_eq!(candidates.clusters(&text("ab c"), 0).starts, [0, 1, 2, 3]);
+      let words = candidates.clusters(&text("ab c"), 0).words;
       assert!(words.contains(&3) && !words.contains(&1), "{words:?}");
     }
   }

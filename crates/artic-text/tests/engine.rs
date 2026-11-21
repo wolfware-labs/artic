@@ -1509,6 +1509,24 @@ fn the_base_style_sizes_the_line_after_a_break() {
   assert_eq!(shaped.lines(), plain.lines());
 }
 
+// A clamped line that keeps only whitespace takes its ellipsis in the style that line is in, not
+// in a style no text is in, such as an empty first run's.
+#[test]
+fn an_ellipsis_on_a_blank_line_takes_that_lines_style() {
+  let mut text = StyledText::new();
+  text.push("", TextStyle { size: 400.0, ..style() });
+  text.push("abc\n   \ndef", style());
+  let paragraph = ParagraphStyle {
+    max_lines: NonZeroU32::new(2),
+    ..trimming(TextTrimming::CharacterEllipsis)
+  };
+
+  let shaped = engine().paragraph(&text, &paragraph, TextLimits::NONE);
+
+  assert_eq!(ellipsis_styles(&shaped), [1]);
+  assert!(styles(&shaped).iter().all(|&style| style == 1), "{:?}", styles(&shaped));
+}
+
 // A trimmed line keeps its runs' style indices, and the ellipsis takes the style of the text
 // kept just before it.
 #[test]
