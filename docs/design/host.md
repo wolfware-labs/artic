@@ -110,7 +110,7 @@ The desktop adapter, at layer 6, depending on `artic-platform`, `artic-render` a
 - A loss says whether the surface comes back: `Suspended` on suspend, `Gone` when its window is closed, destroyed or never created, or the loop exits. A window closed or destroyed while suspended is reported again, as `Gone`, so a handler never waits for a surface that won't return.
 - On Windows, a scale change reports the new scale with the window's old size, and the `Resized` that follows corrects it.
 - A window opened during a handler call reports its first `surface_changed` right after that call returns, since the context can't call the handler while it's in a call. A window that couldn't be created reports `surface_lost(…, Gone)` the same way.
-- `run` returns `Error::Loop` if winit's loop ends with an error, such as a lost connection to the display server, after the surfaces have been reported lost.
+- `run` returns `Error::Loop` if winit's loop ends with an error, such as a lost connection to the display server. winit returns that error without calling the handler's `exiting`, so the surfaces may not have been reported lost; the app is dropped with them when `run` returns.
 
 `translate` reads a winit `WindowEvent` and says what the event means: new surface facts, a close request, a frame, a move or the window's destruction. A scale change reads its new size through a callback the host passes, `|| window.inner_size()`, since winit's `ScaleFactorChanged` carries a size writer rather than a size. Unit tests build the other events and call `translate` with no window; winit builds `ScaleFactorChanged` only inside its loop, so the smoke example covers that one.
 
