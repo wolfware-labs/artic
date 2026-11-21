@@ -385,7 +385,7 @@ impl Object for Label {
 
 impl Layoutable for Label {
   fn measure(&self, cx: &mut MeasureCx<'_>, _available: Size) -> Size {
-    let text = StyledText::plain(&self.text.get(), TextStyle::new(FontFamily::default(), 16.0));
+    let text = StyledText::plain(self.text.get(), TextStyle::new(FontFamily::default(), 16.0));
     let paragraph = cx.text().paragraph(&text, &ParagraphStyle::default(), TextLimits::NONE);
     let size = paragraph.size();
     cx.set_measured(paragraph);

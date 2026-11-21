@@ -1475,6 +1475,25 @@ fn text_without_a_style_or_with_a_bad_size_gives_no_lines() {
   );
 }
 
+// A style no text is in, such as an empty run's, plays no part: a size that isn't above 0 there
+// doesn't blank the paragraph, and the text shapes as it would without it.
+#[test]
+fn a_style_without_text_plays_no_part() {
+  let mut text = StyledText::new();
+  text.push("", TextStyle { size: 0.0, ..style() });
+  text.push("ab", style());
+
+  let shaped = engine().paragraph(&text, &ParagraphStyle::default(), TextLimits::NONE);
+  let plain = engine().paragraph(
+    &StyledText::plain("ab", style()),
+    &ParagraphStyle::default(),
+    TextLimits::NONE,
+  );
+
+  assert_eq!(shaped.lines(), plain.lines());
+  assert_eq!(shaped.size(), plain.size());
+}
+
 // A trimmed line keeps its runs' style indices, and the ellipsis takes the style of the text
 // kept just before it.
 #[test]

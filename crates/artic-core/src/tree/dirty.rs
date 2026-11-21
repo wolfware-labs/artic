@@ -46,10 +46,17 @@ impl Shared {
 #[derive(Debug, Clone)]
 pub struct DirtyHandle {
   node: NodeId,
-  stages: Rc<Cell<Affects>>,
+  marks: Rc<NodeMarks>,
   shared: Rc<Shared>,
+}
+
+/// What every handle to one node shares.
+#[derive(Debug, Default)]
+struct NodeMarks {
+  /// The stages the node needs redone.
+  stages: Cell<Affects>,
   /// The parent's handle while the node is drawn by its parent, which then takes its marks.
-  into: Rc<RefCell<Option<DirtyHandle>>>,
+  into: RefCell<Option<DirtyHandle>>,
 }
 
 impl DirtyHandle {
@@ -60,13 +67,12 @@ impl DirtyHandle {
     if stages.is_empty() {
       return;
     }
-    let into = self.into.borrow().clone();
-    if let Some(parent) = into {
+    if let Some(parent) = &*self.marks.into.borrow() {
       parent.mark(stages);
       return;
     }
-    let added = stages.without(self.stages.get());
-    self.stages.set(self.stages.get() | stages);
+    let added = stages.without(self.marks.stages.get());
+    self.marks.stages.set(self.marks.stages.get() | stages);
     self.shared.pending.set(true);
     for stage in QUEUED.into_iter().filter(|stage| added.contains(*stage)) {
       self.shared.queue(stage).borrow_mut().push(self.node);
@@ -74,11 +80,11 @@ impl DirtyHandle {
   }
 
   pub(crate) fn stages(&self) -> Affects {
-    self.stages.get()
+    self.marks.stages.get()
   }
 
   pub(crate) fn clear(&self, stages: Affects) {
-    self.stages.set(self.stages.get().without(stages));
+    self.marks.stages.set(self.marks.stages.get().without(stages));
   }
 }
 
@@ -87,7 +93,6 @@ impl DirtyHandle {
 #[derive(Debug, Default)]
 pub(super) struct DirtyFlags {
   flags: SlotMap<DirtyHandle>,
-  /// The nodes drawn by their logical parent.
   drawn_by_parent: SlotMap<()>,
   shared: OnceCell<Rc<Shared>>,
 }
@@ -106,9 +111,8 @@ impl DirtyFlags {
     let shared = self.shared.get_or_init(Rc::default);
     let handle = DirtyHandle {
       node,
-      stages: Rc::new(Cell::new(Affects::NONE)),
+      marks: Rc::default(),
       shared: Rc::clone(shared),
-      into: Rc::default(),
     };
     handle.mark(Affects::LAYOUT | Affects::RENDER);
     self.flags.insert(node.0, handle.clone());
@@ -142,10 +146,10 @@ impl DirtyFlags {
     if into.is_some() {
       let stages = handle.stages();
       handle.clear(stages);
-      *handle.into.borrow_mut() = into;
+      *handle.marks.into.borrow_mut() = into;
       handle.mark(stages);
     } else {
-      *handle.into.borrow_mut() = None;
+      *handle.marks.into.borrow_mut() = None;
     }
   }
 

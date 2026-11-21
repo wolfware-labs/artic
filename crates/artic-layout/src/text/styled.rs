@@ -42,12 +42,18 @@ impl StyledText {
     StyledText::default()
   }
 
-  /// `text` in `style`, style 0.
+  /// `text` in `style`, style 0, as one [`push`](StyledText::push) makes it, keeping a `String`
+  /// it's given rather than copying it.
   #[must_use]
-  pub fn plain(text: &str, style: TextStyle) -> StyledText {
-    let mut styled = StyledText::new();
-    styled.push(text, style);
-    styled
+  pub fn plain(text: impl Into<String>, style: TextStyle) -> StyledText {
+    let text = text.into();
+    let mut spans = Vec::new();
+    join(&mut spans, (0..text.len(), 0));
+    StyledText {
+      text,
+      styles: vec![style],
+      spans,
+    }
   }
 
   /// Appends `text` in `style`, and returns the style's index. Empty text still adds its style, so
@@ -78,6 +84,18 @@ impl StyledText {
     self.spans.iter().cloned()
   }
 
+  /// The style the text is shaped in where no span says otherwise: the first span's, or style 0
+  /// when there's no text; `None` with no style. A style no text is in plays no other part, so an
+  /// empty push doesn't change what the text looks like.
+  #[must_use]
+  pub fn base_style(&self) -> Option<usize> {
+    self
+      .spans
+      .first()
+      .map(|&(_, style)| style)
+      .or((!self.styles.is_empty()).then_some(0))
+  }
+
   /// The index of the style the byte at `byte` is in, or `None` past the text's end.
   #[must_use]
   pub fn style_at(&self, byte: usize) -> Option<usize> {
@@ -93,15 +111,10 @@ impl StyledText {
   /// When `range` isn't on char boundaries of the text, as slicing a `str` does.
   #[must_use]
   pub fn slice(&self, range: Range<usize>) -> StyledText {
-    let text = self.text[range.clone()].to_owned();
-    let mut spans = Vec::new();
-    for span in self.clipped(range, 0) {
-      join(&mut spans, span);
-    }
     StyledText {
-      text,
+      text: self.text[range.clone()].to_owned(),
       styles: self.styles.clone(),
-      spans,
+      spans: self.clipped(range, 0).collect(),
     }
   }
 
@@ -156,6 +169,17 @@ mod tests {
 
   fn style(size: f32) -> TextStyle {
     TextStyle::new(FontFamily::default(), size)
+  }
+
+  // The base style is the first span's, style 0 for text with no span, and none without a style.
+  #[test]
+  fn base_style_is_the_first_spans() {
+    let mut text = StyledText::new();
+    assert_eq!(text.base_style(), None);
+    text.push("", style(1.0));
+    assert_eq!(text.base_style(), Some(0), "no text");
+    text.push("a", style(2.0));
+    assert_eq!(text.base_style(), Some(1), "the first span");
   }
 
   // "ab" in style 0, "€" (three bytes) in style 1 and "cd" in style 2.

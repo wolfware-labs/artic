@@ -241,6 +241,10 @@ mod tests {
     assert_eq!(spans(2..5), ("ab…ef".into(), vec![(0..5, 0), (5..7, 2)]));
     assert_eq!(spans(0..3), ("…cdef".into(), vec![(0..5, 1), (5..7, 2)]));
     assert_eq!(spans(0..7), ("…".into(), vec![(0..3, 0)]));
+    let mut spaced = StyledText::plain(" ", style(10.0));
+    spaced.push("cd", style(11.0));
+    let alone = candidate(&spaced, &(1..3));
+    assert_eq!((alone.text(), alone.spans().collect::<Vec<_>>()), ("…", vec![(0..3, 1)]));
   }
 
   // A line loses text when the dropped range holds something other than whitespace.

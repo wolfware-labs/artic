@@ -114,20 +114,15 @@ pub fn text_solid() -> Scene {
 /// Two lines of the test font at 16 px, painted with one diagonal gradient across both.
 #[must_use]
 pub fn text_gradient() -> Scene {
-  let style = TextStyle::new(FontFamily::default(), 16.0);
-  let paragraph = engine().paragraph(
-    &StyledText::plain("Grad ient", style),
-    &overflowing(),
-    TextLimits::width(56.0),
-  );
+  let text = StyledText::plain("Grad ient", TextStyle::new(FontFamily::default(), 16.0));
+  let paragraph = engine().paragraph(&text, &overflowing(), TextLimits::width(56.0));
   Scene::record(|builder| builder.text(&paragraph, Point::new(4.0, 4.0), gradient()))
 }
 
 /// A sentence of the test font at 12 px, wrapped to 56 px, in slate.
 #[must_use]
 pub fn text_wrapped() -> Scene {
-  let style = TextStyle::new(FontFamily::default(), 12.0);
-  let text = StyledText::plain("Wrapped to the width", style);
+  let text = StyledText::plain("Wrapped to the width", TextStyle::new(FontFamily::default(), 12.0));
   let paragraph = engine().paragraph(&text, &overflowing(), TextLimits::width(56.0));
   Scene::record(|builder| builder.text(&paragraph, Point::new(4.0, 4.0), Color::rgb(51, 65, 85)))
 }

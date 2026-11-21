@@ -80,7 +80,11 @@ impl Engine {
 impl TextEngine for Engine {
   fn paragraph(&mut self, text: &StyledText, paragraph_style: &ParagraphStyle, limits: TextLimits) -> Paragraph {
     let styles = text.styles();
-    let sized = !styles.is_empty() && styles.iter().all(|style| finite::positive(style.size).is_some());
+    let sized = text.base_style().is_some_and(|base| {
+      std::iter::once(base)
+        .chain(text.spans().map(|(_, index)| index))
+        .all(|index| finite::positive(styles[index].size).is_some())
+    });
     if !sized || !self.shaping.has_fonts() {
       return Paragraph::default();
     }

@@ -1,7 +1,7 @@
 //! What a [`StyledText`]'s styles and a [`ParagraphStyle`] become on a `parley` builder.
 //!
-//! The first style is the layout's default, and each span in another style pushes that style over
-//! its range. The brush is the style's index, so each cluster knows the style it came from.
+//! The text's base style is the layout's default, and each span in another style pushes that style
+//! over its range; a style no text is in plays no part. The brush is the style's index, so each cluster knows the style it came from.
 
 use artic_layout::finite;
 use artic_layout::text::{
@@ -16,13 +16,13 @@ pub(crate) fn push(
   paragraph: &ParagraphStyle,
   default_family: &FamilyName,
 ) {
-  let Some(first) = text.styles().first() else {
+  let Some(base) = text.base_style() else {
     return;
   };
-  for property in properties(first, 0, default_family) {
+  for property in properties(&text.styles()[base], base, default_family) {
     builder.push_default(property);
   }
-  for (range, index) in text.spans().filter(|&(_, index)| index != 0) {
+  for (range, index) in text.spans().filter(|&(_, index)| index != base) {
     for property in properties(&text.styles()[index], index, default_family) {
       builder.push(property, range.clone());
     }

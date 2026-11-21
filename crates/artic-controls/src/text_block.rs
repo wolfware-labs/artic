@@ -76,7 +76,7 @@ impl TextBlock {
       max_lines: self.max_lines.get(),
     };
     Shaped {
-      paragraph: text.paragraph(&StyledText::plain(&self.text.get(), style), &paragraph, limits),
+      paragraph: text.paragraph(&StyledText::plain(self.text.get(), style), &paragraph, limits),
       limits,
     }
   }
