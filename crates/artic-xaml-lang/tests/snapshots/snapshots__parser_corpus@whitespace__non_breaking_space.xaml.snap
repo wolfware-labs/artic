@@ -6,3 +6,4 @@ input_file: crates/artic-xaml/tests/fixtures/valid/whitespace/non_breaking_space
 valid/whitespace/non_breaking_space.xaml:2:40: error: `TextBlock` takes no text content
 2 | <TextBlock xmlns="https://artic.rs/ui">  a&#160;&#160;b  </TextBlock>
   |                                        ^^^^^^^^^^^^^^^^^^
+help: put the text in an element, such as a `TextBlock`

@@ -85,7 +85,7 @@ The font fields are a property group, `TextFormat`, so `TextBlock` and the inlin
 | `MaxLines` | a whole number above 0; `0` doesn't parse | unset: every line |
 | `LineHeight` | a distance in logical pixels from one line's top to the next | unset: the font's own spacing |
 
-`Text` isn't the content property: inline runs (#47) will be, so `<TextBlock>Hello</TextBlock>` waits for them. An unset `Option` property is "auto" here as `Width` is: XAML has no `"Auto"` spelling for them.
+`Text` isn't the content property: `Inlines` is ([inline runs](inlines.md)), and `Text` shows while there are none. An unset `Option` property is "auto" here as `Width` is: XAML has no `"Auto"` spelling for them.
 
 The properties in the table belong to the `TextBlock` alone. Avalonia makes `TextAlignment`, `LineHeight` and the others inherited attached properties too; here they stay local until a use case asks for a panel to set them. Moving one to `TextElement` later keeps `TextAlignment="Center"` on a `TextBlock` working, since the field would share the new key as the font fields do.
 
@@ -234,7 +234,6 @@ With the owner's approval, issue #46's body changes to match: the entry point is
 
 | Feature | How it fits | Tracked in |
 | --- | --- | --- |
-| Inline runs, and text as the content | a `TextStyle` per span in `paragraph`, and `Inlines` as the content property | #47 |
 | An explicit `FlowDirection` | the engine forces the direction with the same mark it puts in front of trimming candidates; `Start` and `End` follow it | #170 |
 | Pushing the accesskit node to the OS | the tree walk reads `TextBlock`'s node | #54 |
 | Theme defaults for the font and brush | setters on the root for `TextElement`'s properties | #116 |

@@ -39,6 +39,12 @@ pub enum ValueError {
   /// A second child for an element that takes one.
   #[error("this element takes a single child")]
   OneChildOnly,
+  /// A child of a kind the content doesn't take.
+  #[error("this element's content takes only {expected}")]
+  UnexpectedChild {
+    /// What the content takes, such as `Run`, `Bold` or `Italic`.
+    expected: &'static str,
+  },
 }
 
 #[cfg(test)]

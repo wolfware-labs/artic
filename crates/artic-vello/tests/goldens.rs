@@ -4,7 +4,7 @@
 
 mod common;
 
-use artic_controls::{Border, StackPanel, TextBlock};
+use artic_controls::{Bold, Border, Italic, PanelMethods, Run, StackPanel, TextBlock, TextFormatMethods};
 use artic_core::tree::UiTree;
 use artic_element::{Child, Children, ElementTypes};
 use artic_layout::HorizontalAlignment;
@@ -337,4 +337,42 @@ fn text_block_alignment() {
     })
     .collect();
   text_blocks_golden("text_block_alignment", blocks);
+}
+
+// One wrapped paragraph mixing inlines: plain, bold, italic, a red run, and a blue run inside bold,
+// on lines broken across their boundaries.
+#[test]
+fn text_block_inlines() {
+  with_renderer(|renderer| {
+    let mut tree = UiTree::new();
+    let plain = Run::new().text("Plain, ").build(&mut tree).id();
+    let bold_text = Run::new().text("bold, ").build(&mut tree).id();
+    let bold = Bold::new().inlines([bold_text]).build(&mut tree).id();
+    let italic_text = Run::new().text("italic, ").build(&mut tree).id();
+    let italic = Italic::new().inlines([italic_text]).build(&mut tree).id();
+    let red = Run::new()
+      .text("red ")
+      .foreground(Color::rgb(200, 30, 30))
+      .build(&mut tree)
+      .id();
+    let blue_text = Run::new()
+      .text("and bold blue.")
+      .foreground(Color::rgb(30, 60, 200))
+      .build(&mut tree)
+      .id();
+    let blue = Bold::new().inlines([blue_text]).build(&mut tree).id();
+    let block = TextBlock::new()
+      .font_size(16.0)
+      .text_wrapping(TextWrapping::Wrap)
+      .inlines([plain, bold, italic, red, blue])
+      .build(&mut tree)
+      .id();
+    let root = StackPanel::new()
+      .background(Color::rgb(255, 255, 255))
+      .children([block])
+      .build(&mut tree)
+      .id();
+    let image = render_tree(renderer, &mut tree, root, &ElementTypes::from_link_time(), TEXT_SIZE, 1.0).expect("renders");
+    golden!("text_block_inlines").with_tolerance(Tolerance::text()).assert(&image);
+  });
 }

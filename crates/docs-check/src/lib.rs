@@ -55,6 +55,9 @@ pub mod docs_design_golden_images {}
 #[doc = include_str!("../../../docs/design/host.md")]
 pub mod docs_design_host {}
 
+#[doc = include_str!("../../../docs/design/inlines.md")]
+pub mod docs_design_inlines {}
+
 #[doc = include_str!("../../../docs/design/layout-tests.md")]
 pub mod docs_design_layout_tests {}
 
