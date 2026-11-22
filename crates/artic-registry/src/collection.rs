@@ -31,7 +31,9 @@ pub trait UiCollection: Sized {
   /// The type that text written directly inside the collection becomes, or `None` when the
   /// collection takes no text. A UI language wraps each piece of text in an element of that type,
   /// with its content property set to the text, as `Hello <Bold>world</Bold>` gives a `Run` and a
-  /// `Bold`. The type's content must be a property.
+  /// `Bold`. The type's content must be a property, it must be creatable from markup (its `new`
+  /// is set), and [`takes`](UiCollection::takes) must accept it; a UI language reports the text
+  /// as one the collection can't take otherwise.
   #[must_use]
   fn text_wrapper() -> Option<&'static TypeInfo> {
     None

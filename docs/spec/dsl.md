@@ -151,7 +151,7 @@ assert!(matches!(run.content, Some(ContentInfo::Property(_))));
 
 Text follows the language's whitespace rules; XAML's are in [spec §4](technical_spec.md#whitespace). `TypeInfo::whitespace` decides only whitespace-only text between two child elements: with `Collapse` it adds nothing, as indentation shouldn't, and with `Significant` it counts as one space, as between a text's inlines.
 
-A collection that takes text names the type each piece of it becomes, `UiCollection::text_wrapper`, carried as `ContentInfo::Collection::text_wrapper`: a `TextBlock`'s `Inlines` wraps text in a `Run`, so `Hello <Bold>world</Bold>` gives a `Run` and a `Bold`. The wrapper's content must be a property, which the text sets. A collection with no wrapper reports text as before.
+A collection that takes text names the type each piece of it becomes, `UiCollection::text_wrapper`, carried as `ContentInfo::Collection::text_wrapper`: a `TextBlock`'s `Inlines` wraps text in a `Run`, so `Hello <Bold>world</Bold>` gives a `Run` and a `Bold`. The wrapper's content must be a property, which the text sets; it must be creatable from markup, and the collection's `takes` must accept it. A collection with no wrapper, or with one that misses a condition, reports text as before.
 
 A child the tree can't link is `ValueError::InvalidChild`, a second child where one is taken is `ValueError::OneChildOnly`, a child of a kind the collection doesn't take is `ValueError::UnexpectedChild`, and a node of the wrong type is `ValueError::WrongNode`.
 

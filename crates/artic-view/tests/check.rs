@@ -744,3 +744,17 @@ fn a_wrapper_without_a_content_property_reports_the_text() {
 
   assert_eq!(reported(&diagnostics), [at("`Shelf` takes no text content", 20)]);
 }
+
+// A wrapper markup can't create, or one the collection doesn't take, can't take the text either.
+#[test]
+fn a_wrapper_the_collection_cannot_use_reports_the_text() {
+  for (collection, name) in [(&PINBOARD, "Pinboard"), (&GALLERY, "Gallery")] {
+    let document = Document {
+      root: element(collection, 0, vec![content(5, vec![text("Hi", 20)])]),
+    };
+
+    let (_, diagnostics) = check(&document);
+
+    assert_eq!(reported(&diagnostics), [at(&format!("`{name}` takes no text content"), 20)]);
+  }
+}

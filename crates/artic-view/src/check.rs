@@ -461,7 +461,7 @@ impl Check {
     nodes: &[Content],
   ) -> CheckedContent {
     let wrapper = text_wrapper.and_then(|wrapper| match wrapper.content {
-      Some(ContentInfo::Property(property)) => Some((wrapper, property)),
+      Some(ContentInfo::Property(property)) if wrapper.new.is_some() && accepts(takes, wrapper) => Some((wrapper, property)),
       _ => None,
     });
     let mut written = Vec::new();
@@ -492,12 +492,12 @@ impl Check {
         }
         Content::Element(element) => {
           written.push(element.span);
-          if let (Some(takes), Ok(ty)) = (takes, &element.ty)
-            && !takes.iter().any(|taken| taken.rust_path == ty.info.rust_path)
+          if let Ok(ty) = &element.ty
+            && !accepts(takes, ty.info)
           {
             self.diagnostics.push(Diagnostic::error(
               element.span,
-              format!("`{}` takes only {}", info.name, type_names(takes)),
+              format!("`{}` takes only {}", info.name, type_names(takes.unwrap_or_default())),
             ));
           }
           children.extend(self.element(element, false));
@@ -552,6 +552,11 @@ fn text_piece(whitespace: Whitespace, text: &str, raw: &str, between_elements: b
 fn between_elements(nodes: &[Content], index: usize) -> bool {
   let is_element = |node: Option<&Content>| matches!(node, Some(Content::Element(_)));
   index.checked_sub(1).is_some_and(|before| is_element(nodes.get(before))) && is_element(nodes.get(index + 1))
+}
+
+/// Whether a collection that takes `takes` accepts a child of type `info`; `None` takes any.
+fn accepts(takes: Option<&[&TypeInfo]>, info: &TypeInfo) -> bool {
+  takes.is_none_or(|takes| takes.iter().any(|taken| taken.rust_path == info.rust_path))
 }
 
 /// Whether `node` is text that adds nothing, such as indentation between elements.

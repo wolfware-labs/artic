@@ -88,7 +88,7 @@ fn inline_whitespace_preserved() {
   let block = TextBlock::new().inlines([hello, bold.id()]).build(&mut tree).id();
 
   assert_eq!(flattened(&tree, block).text(), "Hello world");
-  for info in [TextBlock::TYPE_INFO, Run::TYPE_INFO, Bold::TYPE_INFO, Italic::TYPE_INFO] {
+  for info in [TextBlock::TYPE_INFO, Bold::TYPE_INFO, Italic::TYPE_INFO] {
     assert_eq!(info.whitespace, Whitespace::Significant, "{}", info.name);
   }
 }

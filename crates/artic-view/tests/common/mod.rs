@@ -131,6 +131,43 @@ pub static SHELF: TypeInfo = TypeInfo {
   ..info("Shelf", "test_ui::Shelf")
 };
 
+/// Its content sets `Text`, but it can't be created from markup.
+pub static DRAFT: TypeInfo = TypeInfo {
+  new: None,
+  content: Some(ContentInfo::Property(PropertyRef {
+    group: None,
+    info: &TEXT[0],
+  })),
+  properties: &TEXT,
+  ..info("Draft", "test_ui::Draft")
+};
+
+/// Takes any number of children, and names `Draft`, which markup can't create, for its text.
+pub static PINBOARD: TypeInfo = TypeInfo {
+  content: Some(ContentInfo::Collection {
+    field: "notes",
+    method: Some(ContentMethod::Children),
+    takes: || None,
+    text_wrapper: || Some(&DRAFT),
+    add_child,
+  }),
+  ..info("Pinboard", "test_ui::Pinboard")
+};
+
+static GALLERY_TAKES: [&TypeInfo; 1] = [&IMAGE];
+
+/// Takes only `Image`s, and names `Label`, which it doesn't take, for its text.
+pub static GALLERY: TypeInfo = TypeInfo {
+  content: Some(ContentInfo::Collection {
+    field: "images",
+    method: Some(ContentMethod::Children),
+    takes: || Some(&GALLERY_TAKES),
+    text_wrapper: || Some(&LABEL),
+    add_child,
+  }),
+  ..info("Gallery", "test_ui::Gallery")
+};
+
 /// Takes one child; a view's code type can take its place at the root.
 pub static HOST: TypeInfo = TypeInfo {
   content: Some(ContentInfo::Collection {

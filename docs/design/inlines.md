@@ -19,7 +19,7 @@ One `TextBlock` can mix styles:
 | `Italic` | inlines in italics | `Inlines` |
 | `Inlines` | the collection a `TextBlock`, `Bold` and `Italic` hold their inlines in | |
 
-`Run`, `Bold` and `Italic` flatten `TextFormat`, so each takes `FontFamily`, `FontSize`, `FontWeight`, `FontStyle` and `Foreground`, as `TextBlock` does. Each, and `TextBlock`, is `#[ui(whitespace = "significant")]`, so whitespace between two inlines counts as one space (section 7).
+`Run`, `Bold` and `Italic` flatten `TextFormat`, so each takes `FontFamily`, `FontSize`, `FontWeight`, `FontStyle` and `Foreground`, as `TextBlock` does. `TextBlock`, `Bold` and `Italic`, whose content is inlines, are `#[ui(whitespace = "significant")]`, so whitespace between two inlines counts as one space (section 7).
 
 ```rust
 # use artic_controls::{Bold, Run, TextBlock, TextFormatMethods};
@@ -112,6 +112,6 @@ A content property, such as `<Run>  two  spaces </Run>`, follows the same rules 
 | `artic-macros` | `other_collections_take_children_by_their_field_name`, `content_method_clashing_with_a_reserved_name_is_an_error`, `raw_content_method_clashing_with_a_reserved_name_is_an_error`, `code_type_root_with_another_collection_is_an_error`, `other_collection_content_takes_children`, and the trybuild cases `content_field_named_like_a_group_field` and `content_raw_field_named_like_a_group_field` |
 | `artic-registry` | `unexpected_child_names_what_the_content_takes`, `type_names_read_as_a_list`, `check_child_follows_the_list`, `group_field_check_ignores_raw_spelling` |
 | `artic-controls` | `inline_runs_flatten_with_styles`, `the_innermost_weight_wins`, `bold_own_weight_wins_and_remeasures`, `inline_whitespace_preserved`, `inlines_win_over_text_while_present`, `text_shows_again_once_the_last_inline_leaves`, `inlines_without_runs_keep_one_line`, `run_change_invalidates_measure`, `each_run_paints_with_its_foreground`, `textblock_inlines_accesskit_value`, `a_non_inline_child_is_refused`, `building_with_a_non_inline_child_leaves_the_tree_as_it_was`, `a_stale_child_is_refused_by_the_link` |
-| `artic-view` | `text_becomes_wrapper_elements`, `blank_text_between_elements_adds_nothing_when_it_collapses`, `empty_text_between_elements_adds_nothing`, `a_wrapper_without_a_content_property_reports_the_text`, `content_text_reads_the_ruled_text` |
+| `artic-view` | `text_becomes_wrapper_elements`, `blank_text_between_elements_adds_nothing_when_it_collapses`, `empty_text_between_elements_adds_nothing`, `a_wrapper_without_a_content_property_reports_the_text`, `a_wrapper_the_collection_cannot_use_reports_the_text`, `content_text_reads_the_ruled_text` |
 | `artic-xaml-lang` | `own_collection_takes_children_by_its_field_name`, `child_of_a_type_the_content_does_not_take_reports_error`, `text_in_a_text_block_becomes_runs`, `preserved_text_in_a_text_block_keeps_its_whitespace`, `significant_content_collapses_unless_preserved`, `text_in_a_collection_without_a_wrapper_reports_error`; the corpus snapshots of text in a `TextBlock` now compile to runs |
 | `artic-vello` | golden `text_block_inlines` |
