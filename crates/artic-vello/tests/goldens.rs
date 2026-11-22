@@ -243,7 +243,7 @@ fn text_blocks_golden(name: &str, blocks: Vec<Configure>) {
     for configure in &blocks {
       let child = tree.alloc(Box::new(TextBlock::default()));
       let block = tree.get_as::<TextBlock>(child).expect("a text block");
-      block.font_size.set(11.0);
+      block.format.font_size.set(11.0);
       configure(block);
       Children::add(&mut tree, root, child);
     }

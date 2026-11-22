@@ -61,6 +61,11 @@ pub struct TextBlock {
   #[ui(affects = layout)] pub text_alignment: Property<TextAlignment>,
   #[ui(affects = layout)] pub max_lines: Property<Option<NonZeroU32>>,
   #[ui(affects = layout)] pub line_height: Property<Option<f32>>,
+  #[ui(flatten)] pub format: TextFormat,
+}
+
+#[derive(Debug, UiProperties)]
+pub struct TextFormat {
   #[ui(key = TextElement::FONT_FAMILY)] pub font_family: Property<FontFamily>,
   #[ui(key = TextElement::FONT_SIZE)] pub font_size: Property<f32>,
   #[ui(key = TextElement::FONT_WEIGHT)] pub font_weight: Property<FontWeight>,
@@ -68,6 +73,8 @@ pub struct TextBlock {
   #[ui(key = TextElement::FOREGROUND)] pub foreground: Property<Brush>,
 }
 ```
+
+The font fields are a property group, `TextFormat`, so `TextBlock` and the inline runs inside it (#47) declare them once and get the same builder methods through `TextFormatMethods`.
 
 | Property | Values | Default |
 | --- | --- | --- |

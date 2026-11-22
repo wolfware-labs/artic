@@ -23,7 +23,7 @@ macro_rules! reachable {
 }
 
 reachable!(
-  artic_controls::{Border, PanelMethods, StackPanel, TextBlock, TextElement, UserControl},
+  artic_controls::{Border, PanelMethods, StackPanel, TextBlock, TextElement, TextFormatMethods, UserControl},
   artic_element::{
     AppearanceMethods, Application, Chrome, Classes, Cursor, Desktop, IdentityMethods, InteractionMethods,
     LayoutMethods, SizeToContent, Surface, Visibility,

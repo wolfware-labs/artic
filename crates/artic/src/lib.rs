@@ -55,7 +55,7 @@ pub use artic_registry::UiType;
 /// What a view needs in scope: the tree, typed handles and the builder methods of the property
 /// groups every element has, such as `.margin(…)` and `.width(…)`.
 pub mod prelude {
-  pub use artic_controls::PanelMethods;
+  pub use artic_controls::{PanelMethods, TextFormatMethods};
   pub use artic_core::tree::{Handle, UiTree};
   pub use artic_element::{AppearanceMethods, IdentityMethods, InteractionMethods, LayoutMethods};
 }

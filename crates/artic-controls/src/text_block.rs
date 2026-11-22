@@ -1,19 +1,18 @@
-use crate::TextElement;
+use crate::TextFormat;
 use artic_core::property::Property;
 use artic_element::{AccessCx, ElementImpl, RenderCx};
 use artic_layout::geometry::{Point, Size};
 use artic_layout::text::{
-  FontFamily, FontStyle, FontWeight, Paragraph, ParagraphStyle, StyledText, TextAlignment, TextEngine, TextLimits, TextStyle,
-  TextTrimming, TextWrapping,
+  Paragraph, ParagraphStyle, StyledText, TextAlignment, TextEngine, TextLimits, TextTrimming, TextWrapping,
 };
 use artic_layout::{ArrangeCx, MeasureCx};
 use artic_macros::element;
-use artic_render::{Brush, SceneBuilder};
+use artic_render::SceneBuilder;
 use std::num::NonZeroU32;
 
 /// Shows a string: shaped, wrapped to its width, cut with "…" when it runs out of room, aligned,
 /// and painted with a brush. Its font and brush come from the nearest ancestor that sets
-/// [`TextElement`]'s properties when it doesn't set them itself.
+/// [`TextElement`](crate::TextElement)'s properties when it doesn't set them itself.
 #[element]
 #[derive(Debug)]
 pub struct TextBlock {
@@ -36,21 +35,9 @@ pub struct TextBlock {
   /// The distance from one line's top to the next, or `None` for the font's own spacing.
   #[ui(affects = layout)]
   pub line_height: Property<Option<f32>>,
-  /// The families to find the font in, in order: [`TextElement::FONT_FAMILY`].
-  #[ui(key = TextElement::FONT_FAMILY)]
-  pub font_family: Property<FontFamily>,
-  /// The font size, in logical pixels: [`TextElement::FONT_SIZE`].
-  #[ui(key = TextElement::FONT_SIZE)]
-  pub font_size: Property<f32>,
-  /// The font weight: [`TextElement::FONT_WEIGHT`].
-  #[ui(key = TextElement::FONT_WEIGHT)]
-  pub font_weight: Property<FontWeight>,
-  /// Upright or slanted: [`TextElement::FONT_STYLE`].
-  #[ui(key = TextElement::FONT_STYLE)]
-  pub font_style: Property<FontStyle>,
-  /// The brush the text is painted with: [`TextElement::FOREGROUND`].
-  #[ui(key = TextElement::FOREGROUND)]
-  pub foreground: Property<Brush>,
+  /// The font and brush.
+  #[ui(flatten)]
+  pub format: TextFormat,
 }
 
 /// A paragraph and the limits it was shaped with, kept as the layout result.
@@ -62,12 +49,6 @@ struct Shaped {
 
 impl TextBlock {
   fn shape(&self, text: &mut dyn TextEngine, limits: TextLimits) -> Shaped {
-    let style = TextStyle {
-      family: self.font_family.get(),
-      size: self.font_size.get(),
-      weight: self.font_weight.get(),
-      style: self.font_style.get(),
-    };
     let paragraph = ParagraphStyle {
       line_height: self.line_height.get(),
       alignment: self.text_alignment.get(),
@@ -76,7 +57,7 @@ impl TextBlock {
       max_lines: self.max_lines.get(),
     };
     Shaped {
-      paragraph: text.paragraph(&StyledText::plain(self.text.get(), style), &paragraph, limits),
+      paragraph: text.paragraph(&StyledText::plain(self.text.get(), self.format.style()), &paragraph, limits),
       limits,
     }
   }
@@ -143,7 +124,7 @@ impl ElementImpl for TextBlock {
     };
     let factor = self.text_alignment.get().factor(paragraph.right_to_left());
     let x = (cx.size().width - paragraph.size().width) * factor;
-    scene.text(paragraph, Point::new(x, 0.0), self.foreground.get());
+    scene.text(paragraph, Point::new(x, 0.0), self.format.foreground.get());
   }
 
   fn accessibility(&self, _cx: &AccessCx<'_>, node: &mut accesskit::Node) {
