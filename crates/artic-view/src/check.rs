@@ -469,28 +469,27 @@ impl Check {
     let mut children = Vec::new();
     for (index, node) in nodes.iter().enumerate() {
       match node {
-        Content::Text { text, raw, span } => {
-          let Some(piece) = text_piece(info.whitespace, text, raw, between_elements(nodes, index)) else {
-            continue;
-          };
-          match wrapper {
-            Some((wrapper, property)) => {
-              written.push(*span);
-              children.push(self.wrapped(
-                wrapper,
-                property,
-                Text {
-                  text: piece,
-                  span: *span,
-                },
-              ));
-            }
-            None => self.diagnostics.push(
-              Diagnostic::error(*span, format!("`{}` takes no text content", info.name))
-                .with_help("put the text in an element, such as a `TextBlock`"),
-            ),
+        Content::Text { text, raw, span } => match wrapper {
+          Some((wrapper, property)) => {
+            let Some(piece) = text_piece(info.whitespace, text, raw, between_elements(nodes, index)) else {
+              continue;
+            };
+            written.push(*span);
+            children.push(self.wrapped(
+              wrapper,
+              property,
+              Text {
+                text: piece,
+                span: *span,
+              },
+            ));
           }
-        }
+          None if !text.is_empty() => self.diagnostics.push(
+            Diagnostic::error(*span, format!("`{}` takes no text content", info.name))
+              .with_help("put the text in an element, such as a `TextBlock`"),
+          ),
+          None => {}
+        },
         Content::Element(element) => {
           written.push(element.span);
           if let (Some(taken), Ok(ty)) = (takes, &element.ty)

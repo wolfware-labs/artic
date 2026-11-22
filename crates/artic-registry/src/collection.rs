@@ -33,7 +33,8 @@ pub trait UiCollection: Sized {
   /// with its content property set to the text, as `Hello <Bold>world</Bold>` gives a `Run` and a
   /// `Bold`. The type's content must be a property, it must be creatable from markup (its `new`
   /// is set), and [`takes`](UiCollection::takes) must accept it; a UI language reports the text
-  /// as one the collection can't take otherwise.
+  /// as one the collection can't take otherwise. Generated code names it at its crate's root, so
+  /// the crate must export it there.
   #[must_use]
   fn text_wrapper() -> Option<&'static TypeInfo> {
     None

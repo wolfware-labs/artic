@@ -119,7 +119,8 @@ pub static PARAGRAPH: TypeInfo = TypeInfo {
   ..info("Paragraph", "test_ui::Paragraph")
 };
 
-/// Takes any number of children, and names `Image`, which has no content property, for its text.
+/// Takes any number of children, and names `Image`, which has no content property, for its text;
+/// its whitespace is significant.
 pub static SHELF: TypeInfo = TypeInfo {
   content: Some(ContentInfo::Collection {
     field: "items",
@@ -128,6 +129,7 @@ pub static SHELF: TypeInfo = TypeInfo {
     text_wrapper: || Some(&IMAGE),
     add_child,
   }),
+  whitespace: Whitespace::Significant,
   ..info("Shelf", "test_ui::Shelf")
 };
 

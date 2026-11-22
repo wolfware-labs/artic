@@ -225,3 +225,17 @@ fn child_of_a_type_the_content_does_not_take_reports_error() {
   assert!(errors.contains("no type `Bogus`"), "{errors}");
   assert_eq!(errors.matches("takes only").count(), 1, "{errors}");
 }
+
+// Indentation before the first inline and after the last adds nothing; between two inlines it is
+// one space.
+#[test]
+fn indentation_around_inlines_is_trimmed() {
+  let rust = compile("<TextBlock xmlns=\"https://artic.rs/ui\">\n  <Bold>a</Bold>\n  <Italic>b</Italic>\n</TextBlock>")
+    .expect("a valid view");
+  let runs: Vec<&str> = rust
+    .split(".text(::std::string::String::from(\"")
+    .skip(1)
+    .map(|rest| &rest[..rest.find('"').expect("a closing quote")])
+    .collect();
+  assert_eq!(runs, ["a", " ", "b"], "{rust}");
+}
