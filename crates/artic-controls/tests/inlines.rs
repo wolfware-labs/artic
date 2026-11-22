@@ -78,7 +78,8 @@ fn the_innermost_weight_wins() {
 }
 
 // `Hello <Bold>world</Bold>` built through the builder keeps the space between the runs, and every
-// text type's whitespace is significant, so a UI language keeps blank text between inlines as a space.
+// type that holds inlines has significant whitespace, so a UI language keeps blank text between
+// inlines as a space.
 #[test]
 fn inline_whitespace_preserved() {
   let mut tree = UiTree::new();

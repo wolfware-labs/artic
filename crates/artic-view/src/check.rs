@@ -451,7 +451,8 @@ impl Check {
 
   /// Checks the child elements of a collection content and returns the children its method
   /// takes: `child` one, `children` any number, and none for no children. Text becomes an element
-  /// of the collection's `text_wrapper` type, when it has one whose content is a property.
+  /// of the collection's `text_wrapper` type, when it has one whose content is a property, that
+  /// markup can create and that `takes` accepts.
   fn children(
     &mut self,
     info: &TypeInfo,
@@ -492,12 +493,12 @@ impl Check {
         }
         Content::Element(element) => {
           written.push(element.span);
-          if let Ok(ty) = &element.ty
+          if let (Some(taken), Ok(ty)) = (takes, &element.ty)
             && !accepts(takes, ty.info)
           {
             self.diagnostics.push(Diagnostic::error(
               element.span,
-              format!("`{}` takes only {}", info.name, type_names(takes.unwrap_or_default())),
+              format!("`{}` takes only {}", info.name, type_names(taken)),
             ));
           }
           children.extend(self.element(element, false));
