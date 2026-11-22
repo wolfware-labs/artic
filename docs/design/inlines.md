@@ -45,7 +45,7 @@ An inline is a tree node, as the [value objects](value-objects.md) design decide
 
 Each `TypeInfo` gains `is`, which tells whether a node's object is of that type (`is_a::<T>` for a derived one), so the run-time checks need no list of concrete types. `takes` is a function rather than a constant: `Bold`'s descriptor holds the list, and the list holds `Bold`'s descriptor.
 
-A content field is also checked against the fields of the groups its type flattens, as an own property is: its method, named after it, would hide the group's.
+A content field is also checked against the fields of the groups its type flattens, as an own property is: its method, named after it, would hide the group's. The check compares names without `r#`, since `r#width` and `width` get the same method.
 
 With no run under it, such as a lone empty `<Bold/>`, a block shows one empty line in its own font, as empty `Text` does, rather than collapsing.
 
@@ -94,8 +94,8 @@ The derive gave a builder method only to a field written `Child` or `Children`, 
 | Crate | Tests |
 | --- | --- |
 | `artic-core` | `type_value_wins_over_the_link_and_loses_to_a_style`, `link_places_in_one_tree_and_refuses_a_cycle` |
-| `artic-macros` | `other_collections_take_children_by_their_field_name`, `content_method_clashing_with_a_reserved_name_is_an_error`, `raw_content_method_clashing_with_a_reserved_name_is_an_error`, `code_type_root_with_another_collection_is_an_error`, `other_collection_content_takes_children`, and the trybuild case `content_field_named_like_a_group_field` |
-| `artic-registry` | `unexpected_child_names_what_the_content_takes`, `type_names_read_as_a_list`, `check_child_follows_the_list` |
+| `artic-macros` | `other_collections_take_children_by_their_field_name`, `content_method_clashing_with_a_reserved_name_is_an_error`, `raw_content_method_clashing_with_a_reserved_name_is_an_error`, `code_type_root_with_another_collection_is_an_error`, `other_collection_content_takes_children`, and the trybuild cases `content_field_named_like_a_group_field` and `content_raw_field_named_like_a_group_field` |
+| `artic-registry` | `unexpected_child_names_what_the_content_takes`, `type_names_read_as_a_list`, `check_child_follows_the_list`, `group_field_check_ignores_raw_spelling` |
 | `artic-controls` | `inline_runs_flatten_with_styles`, `the_innermost_weight_wins`, `bold_own_weight_wins_and_remeasures`, `inline_whitespace_preserved`, `inlines_win_over_text_while_present`, `text_shows_again_once_the_last_inline_leaves`, `inlines_without_runs_keep_one_line`, `run_change_invalidates_measure`, `each_run_paints_with_its_foreground`, `textblock_inlines_accesskit_value`, `a_non_inline_child_is_refused`, `building_with_a_non_inline_child_leaves_the_tree_as_it_was`, `a_stale_child_is_refused_by_the_link` |
 | `artic-xaml-lang` | `own_collection_takes_children_by_its_field_name`, `child_of_a_type_the_content_does_not_take_reports_error` |
 | `artic-vello` | golden `text_block_inlines` |
