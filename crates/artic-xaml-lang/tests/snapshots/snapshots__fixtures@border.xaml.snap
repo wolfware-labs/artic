@@ -6,6 +6,7 @@ input_file: crates/artic-xaml-lang/tests/fixtures/border.xaml
 // Generated from border.xaml.
 
 use ::artic::core::tree::{Handle, UiTree};
+use ::artic::controls::TextFormatMethods as _;
 use ::artic::element::LayoutMethods as _;
 use ::artic::controls as _;
 use ::artic::core as _;

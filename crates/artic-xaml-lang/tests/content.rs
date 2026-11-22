@@ -9,6 +9,10 @@ use artic_macros::UiType;
 use artic_registry::{UiCollection, ValueError};
 use common::{TEST_UI, compile};
 
+/// A type that takes no content.
+#[derive(Debug, UiType)]
+struct Divider;
+
 /// A type whose content is a text property.
 #[derive(Debug, UiType)]
 struct Label {
@@ -24,7 +28,7 @@ struct Run {
   text: Property<String>,
 }
 
-/// A collection of values, which has no builder method.
+/// A collection of its own, which takes child elements.
 #[derive(Debug, Default)]
 struct Stops(Vec<NodeId>);
 
@@ -40,7 +44,7 @@ impl UiCollection for Stops {
   }
 }
 
-/// A type whose content is a value collection.
+/// A type whose content is a collection of its own.
 #[derive(Debug, UiType)]
 struct Gradient {
   #[ui(content)]
@@ -124,15 +128,15 @@ fn property_set_by_attribute_and_content_reports_error() {
 // Text inside a type with no content is reported.
 #[test]
 fn text_in_type_without_content_reports_error() {
-  let errors = compile(r#"<TextBlock xmlns="https://artic.rs/ui">Hi</TextBlock>"#).expect_err("no content");
-  assert!(errors.contains("`TextBlock` takes no text content"), "{errors}");
+  let errors = compile(&format!(r#"<Divider xmlns="{TEST_UI}">Hi</Divider>"#)).expect_err("no content");
+  assert!(errors.contains("`Divider` takes no text content"), "{errors}");
 }
 
 // An element inside a type with no content is reported.
 #[test]
 fn element_in_type_without_content_reports_error() {
-  let errors = compile(r#"<TextBlock xmlns="https://artic.rs/ui"><Border/></TextBlock>"#).expect_err("no content");
-  assert!(errors.contains("`TextBlock` takes no child elements"), "{errors}");
+  let errors = compile(&format!(r#"<Divider xmlns="{TEST_UI}"><Divider/></Divider>"#)).expect_err("no content");
+  assert!(errors.contains("`Divider` takes no child elements"), "{errors}");
 }
 
 // Text in a collection of elements is reported.
@@ -149,11 +153,11 @@ fn second_child_reports_error() {
   assert!(errors.contains("`Border` takes one child"), "{errors}");
 }
 
-// A value collection comes with #57.
+// A collection of its own takes the children through the method named after its field.
 #[test]
-fn value_collection_reports_error() {
-  let errors = compile(&format!(r#"<Gradient xmlns="{TEST_UI}"><Label/></Gradient>"#)).expect_err("values");
-  assert!(errors.contains("value collections come with #57"), "{errors}");
+fn own_collection_takes_children_by_its_field_name() {
+  let rust = compile(&format!(r#"<Gradient xmlns="{TEST_UI}"><Label/></Gradient>"#)).expect("a valid view");
+  assert!(joined(&rust).contains(".stops([__e0.id()]).build(tree);"), "{rust}");
 }
 
 // An object inside a content property comes with #57.
@@ -166,7 +170,21 @@ fn object_in_content_property_reports_error() {
 // Elements inside a type with no content are still checked.
 #[test]
 fn elements_in_type_without_content_are_checked() {
-  let errors = compile(r#"<TextBlock xmlns="https://artic.rs/ui"><Bogus/></TextBlock>"#).expect_err("two errors");
-  assert!(errors.contains("`TextBlock` takes no child elements"), "{errors}");
+  let errors = compile(&format!(r#"<Divider xmlns="{TEST_UI}"><Bogus/></Divider>"#)).expect_err("two errors");
+  assert!(errors.contains("`Divider` takes no child elements"), "{errors}");
   assert!(errors.contains("no type `Bogus`"), "{errors}");
+}
+
+// A child of a type the content doesn't take is reported where it's written, and its own
+// problems are still checked.
+#[test]
+fn child_of_a_type_the_content_does_not_take_reports_error() {
+  let errors = compile(r#"<TextBlock xmlns="https://artic.rs/ui"><Run Text="a"/><Border/><Bogus/></TextBlock>"#)
+    .expect_err("a border in a text block");
+  assert!(
+    errors.contains("`TextBlock` takes only `Run`, `Bold` or `Italic`"),
+    "{errors}"
+  );
+  assert!(errors.contains("no type `Bogus`"), "{errors}");
+  assert_eq!(errors.matches("takes only").count(), 1, "{errors}");
 }

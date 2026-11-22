@@ -1,7 +1,6 @@
 //! Writing a [`View`] as a formatted module body.
 
-use crate::lower::{Element, Name, Setter, View};
-use artic_registry::ContentMethod;
+use crate::lower::{ContentCall, Element, Name, Setter, View};
 use artic_view::CheckedContent;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -129,21 +128,22 @@ fn built(element: &Element, ty: &syn::Path, arguments: TokenStream) -> TokenStre
     .setters
     .iter()
     .map(|Setter { method, value }| quote!(.#method(#value)));
-  let content = content(&element.content);
+  let content = content(element.content.as_ref());
   quote!(#ty::new(#arguments) #(#setters)* #content .build(tree))
 }
 
 /// The content call of an element, or nothing.
-fn content(content: &CheckedContent) -> TokenStream {
-  match content {
+fn content(content: Option<&ContentCall>) -> TokenStream {
+  let Some(ContentCall { method, children }) = content else {
+    return TokenStream::new();
+  };
+  match children {
     CheckedContent::None => TokenStream::new(),
     CheckedContent::Child(child) => {
-      let method = format_ident!("{}", ContentMethod::Child.name());
       let child = local(*child);
       quote!(.#method(#child))
     }
     CheckedContent::Children(children) => {
-      let method = format_ident!("{}", ContentMethod::Children.name());
       let children = children.iter().map(|child| local(*child));
       quote!(.#method([#(#children.id()),*]))
     }

@@ -1,25 +1,34 @@
-use crate::TextElement;
+use crate::{Inlines, TextFormat};
 use artic_core::property::Property;
+use artic_core::tree::{NodeId, UiTree};
 use artic_element::{AccessCx, ElementImpl, RenderCx};
 use artic_layout::geometry::{Point, Size};
 use artic_layout::text::{
-  FontFamily, FontStyle, FontWeight, Paragraph, ParagraphStyle, StyledText, TextAlignment, TextEngine, TextLimits, TextStyle,
-  TextTrimming, TextWrapping,
+  Paragraph, ParagraphStyle, StyledText, TextAlignment, TextEngine, TextLimits, TextTrimming, TextWrapping,
 };
 use artic_layout::{ArrangeCx, MeasureCx};
 use artic_macros::element;
 use artic_render::{Brush, SceneBuilder};
 use std::num::NonZeroU32;
 
-/// Shows a string: shaped, wrapped to its width, cut with "…" when it runs out of room, aligned,
-/// and painted with a brush. Its font and brush come from the nearest ancestor that sets
-/// [`TextElement`]'s properties when it doesn't set them itself.
+/// Shows text: shaped, wrapped to its width, cut with "…" when it runs out of room, aligned, and
+/// painted with a brush. Its font and brush come from the nearest ancestor that sets
+/// [`TextElement`](crate::TextElement)'s properties when it doesn't set them itself.
+///
+/// The text is its inlines', each [`Run`](crate::Run) in its own font and brush, while it holds
+/// any; else it is `Text`, in the block's own. Neither changes the other, so removing the last
+/// inline shows `Text` again. Inlines with no run in them, such as an empty `Bold`, show one empty
+/// line in the block's own font.
 #[element]
 #[derive(Debug)]
+#[ui(whitespace = "significant")]
 pub struct TextBlock {
-  /// The text.
+  /// The text shown while the block holds no inlines.
   #[ui(affects = layout)]
   pub text: Property<String>,
+  /// The inlines, whose text is shown in place of `Text` while there are any.
+  #[ui(content)]
+  pub inlines: Inlines,
   /// Whether and how lines break to fit the width.
   #[ui(affects = layout)]
   pub text_wrapping: Property<TextWrapping>,
@@ -36,21 +45,9 @@ pub struct TextBlock {
   /// The distance from one line's top to the next, or `None` for the font's own spacing.
   #[ui(affects = layout)]
   pub line_height: Property<Option<f32>>,
-  /// The families to find the font in, in order: [`TextElement::FONT_FAMILY`].
-  #[ui(key = TextElement::FONT_FAMILY)]
-  pub font_family: Property<FontFamily>,
-  /// The font size, in logical pixels: [`TextElement::FONT_SIZE`].
-  #[ui(key = TextElement::FONT_SIZE)]
-  pub font_size: Property<f32>,
-  /// The font weight: [`TextElement::FONT_WEIGHT`].
-  #[ui(key = TextElement::FONT_WEIGHT)]
-  pub font_weight: Property<FontWeight>,
-  /// Upright or slanted: [`TextElement::FONT_STYLE`].
-  #[ui(key = TextElement::FONT_STYLE)]
-  pub font_style: Property<FontStyle>,
-  /// The brush the text is painted with: [`TextElement::FOREGROUND`].
-  #[ui(key = TextElement::FOREGROUND)]
-  pub foreground: Property<Brush>,
+  /// The font and brush.
+  #[ui(flatten)]
+  pub format: TextFormat,
 }
 
 /// A paragraph and the limits it was shaped with, kept as the layout result.
@@ -61,12 +58,11 @@ struct Shaped {
 }
 
 impl TextBlock {
-  fn shape(&self, text: &mut dyn TextEngine, limits: TextLimits) -> Shaped {
-    let style = TextStyle {
-      family: self.font_family.get(),
-      size: self.font_size.get(),
-      weight: self.font_weight.get(),
-      style: self.font_style.get(),
+  fn shape(&self, tree: &UiTree, node: NodeId, text: &mut dyn TextEngine, limits: TextLimits) -> Shaped {
+    let content = match Inlines::styled_text(tree, node) {
+      Some(runs) if !runs.styles().is_empty() => runs,
+      Some(_) => StyledText::plain("", self.format.style()),
+      None => StyledText::plain(self.text.get(), self.format.style()),
     };
     let paragraph = ParagraphStyle {
       line_height: self.line_height.get(),
@@ -76,7 +72,7 @@ impl TextBlock {
       max_lines: self.max_lines.get(),
     };
     Shaped {
-      paragraph: text.paragraph(&StyledText::plain(self.text.get(), style), &paragraph, limits),
+      paragraph: text.paragraph(&content, &paragraph, limits),
       limits,
     }
   }
@@ -119,7 +115,8 @@ impl TextBlock {
 
 impl ElementImpl for TextBlock {
   fn measure_override(&self, cx: &mut MeasureCx<'_>, available: Size) -> Size {
-    let shaped = self.shape(cx.text(), self.limits(available));
+    let (tree, node) = (cx.tree(), cx.node());
+    let shaped = self.shape(tree, node, cx.text(), self.limits(available));
     let size = shaped.paragraph.size();
     cx.set_measured(shaped);
     size
@@ -132,7 +129,8 @@ impl ElementImpl for TextBlock {
       .or_else(|| cx.measured::<Shaped>())
       .is_some_and(|current| self.shapes_again(current, size, device_pixel));
     if again {
-      let shaped = self.shape(cx.text(), self.limits(size));
+      let (tree, node) = (cx.tree(), cx.node());
+      let shaped = self.shape(tree, node, cx.text(), self.limits(size));
       cx.set_arranged(shaped);
     }
   }
@@ -143,11 +141,21 @@ impl ElementImpl for TextBlock {
     };
     let factor = self.text_alignment.get().factor(paragraph.right_to_left());
     let x = (cx.size().width - paragraph.size().width) * factor;
-    scene.text(paragraph, Point::new(x, 0.0), self.foreground.get());
+    let mut runs = Inlines::runs(cx.tree(), cx.node()).peekable();
+    if runs.peek().is_some() {
+      let brushes: Vec<Brush> = runs.map(|run| run.format.foreground.get()).collect();
+      scene.text(paragraph, Point::new(x, 0.0), brushes);
+    } else {
+      scene.text(paragraph, Point::new(x, 0.0), self.format.foreground.get());
+    }
   }
 
-  fn accessibility(&self, _cx: &AccessCx<'_>, node: &mut accesskit::Node) {
+  fn accessibility(&self, cx: &AccessCx<'_>, node: &mut accesskit::Node) {
     node.set_role(accesskit::Role::Label);
-    node.set_value(self.text.get());
+    let value = match Inlines::styled_text(cx.tree(), cx.node()) {
+      Some(content) => content.text().to_owned(),
+      None => self.text.get(),
+    };
+    node.set_value(value);
   }
 }

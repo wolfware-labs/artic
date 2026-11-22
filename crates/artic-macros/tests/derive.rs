@@ -9,8 +9,8 @@ use artic_element::{Child, Children};
 use artic_macros::{UiProperties, UiType};
 use artic_registry as registry_alias;
 use artic_registry::{
-  AttachedTarget, ContentInfo, OverrideDefaults, PropertyGroup, PropertyRef, Registry, TypeInfo, UiCollection, UiType,
-  ValueError, Whitespace,
+  AttachedTarget, ContentInfo, ContentMethod, OverrideDefaults, PropertyGroup, PropertyRef, Registry, TypeInfo, UiCollection,
+  UiType, ValueError, Whitespace,
 };
 use pretty_assertions::assert_eq;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -96,7 +96,7 @@ struct Border {
   pointer_pressed: Event<PointerEvent>,
 }
 
-/// A collection that keeps the children pushed into it, as a value collection keeps its values.
+/// A collection that keeps the children pushed into it.
 #[derive(Debug, Default)]
 struct Items(Vec<NodeId>);
 
@@ -518,12 +518,15 @@ fn content_children_on_a_field() {
   ));
 }
 
-// A collection that isn't `Child` or `Children` has no builder method for its content.
+// A collection that isn't `Child` takes any number of children, through a method named after it.
 #[test]
-fn value_collection_content_has_no_method() {
+fn other_collection_content_takes_children() {
   assert!(matches!(
     lookup("ItemList").content,
-    Some(ContentInfo::Collection { method: None, .. })
+    Some(ContentInfo::Collection {
+      method: Some(ContentMethod::Children),
+      ..
+    })
   ));
 }
 

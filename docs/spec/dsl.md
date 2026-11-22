@@ -129,8 +129,8 @@ The value lives on the target node, which creates it on first use under the owne
 Children or text that a language gives a type without naming a property go to its content, `TypeInfo::content`:
 
 - `ContentInfo::Property`: a property takes it, set like any property, such as a content control's `Content` once one is built.
-- `ContentInfo::Collection`: a field takes child nodes in order through `add_child`, which calls the field's `UiCollection::push_child`: a panel's `Children`, or a `Child` field such as `Border`'s, which takes one.
-- `None`: the type takes no content, and the language reports any as an error. `TextBlock` is one for now: its `Text` is an ordinary property, and its inline runs (#47) will be its content.
+- `ContentInfo::Collection`: a field takes child nodes in order through `add_child`, which calls the field's `UiCollection::push_child`: a panel's `Children`, a `Child` field such as `Border`'s, which takes one, or a `TextBlock`'s `Inlines`, which takes only `Run`, `Bold` and `Italic`. A collection that takes only some types lists them in `UiCollection::takes`, carried as `ContentInfo::Collection::takes`, and each `TypeInfo::is` tells whether a node is of its type.
+- `None`: the type takes no content, and the language reports any as an error.
 
 ```rust
 # use artic_controls as _;
@@ -143,12 +143,15 @@ let border = registry.type_by_name("artic_controls", "Border").found().unwrap();
 assert!(matches!(border.content, Some(ContentInfo::Collection { .. })));
 
 let text = registry.type_by_name("artic_controls", "TextBlock").found().unwrap();
-assert!(text.content.is_none());
+assert!(matches!(text.content, Some(ContentInfo::Collection { field: "inlines", .. })));
+
+let run = registry.type_by_name("artic_controls", "Run").found().unwrap();
+assert!(matches!(run.content, Some(ContentInfo::Property(_))));
 ```
 
 Text follows `TypeInfo::whitespace`. With `Collapse`, runs of whitespace become one space and leading and trailing whitespace is dropped; with `Significant`, text stays as written. The language applies it; XAML's rules are in [spec §4](technical_spec.md#whitespace).
 
-A child the tree can't link is `ValueError::InvalidChild`, a second child where one is taken is `ValueError::OneChildOnly`, and a node of the wrong type is `ValueError::WrongNode`.
+A child the tree can't link is `ValueError::InvalidChild`, a second child where one is taken is `ValueError::OneChildOnly`, a child of a kind the collection doesn't take is `ValueError::UnexpectedChild`, and a node of the wrong type is `ValueError::WrongNode`.
 
 ## 7. Events
 

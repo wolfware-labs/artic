@@ -18,7 +18,8 @@ use syn::{DeriveInput, parse_macro_input};
 /// - `override_defaults`: `Default` calls `OverrideDefaults::override_defaults` once after building
 ///   the fields, to change defaults the type doesn't declare, such as a flattened group's.
 /// - `whitespace = "significant"`: keep whitespace in text content (the default collapses it).
-/// - `code_type_root`: a view's code type can take the type's place at the root of the view.
+/// - `code_type_root`: a view's code type can take the type's place at the root of the view. A
+///   collection content must then be a `Child` or `Children` field.
 /// - `crate = "path"`: where generated code finds artic, if neither `artic` nor `artic-registry`
 ///   is a direct dependency under its usual name.
 /// - `attached(name = "Row", ty = usize, default = 0, affects = layout, target = children)`, once
@@ -79,10 +80,11 @@ use syn::{DeriveInput, parse_macro_input};
 /// `Property` field, named after the field, which sets the `Local` level and takes `impl Into<T>`
 /// (the `X` of `Option<X>`), or the number itself for a number type written as `f32` or
 /// `core::primitive::f32`, so a literal such as `8.0` needs no suffix; and `build(tree)`, which
-/// adds the node and returns a `Handle`. A type whose content is a field written `Child` gets
-/// `.child(node)`, and one written `Children` gets `.children(nodes)`; both return a
-/// `WithChildren`, whose `build` adds the node and links them in order, moving a child that has a
-/// parent. Any other content collection holds values, not child elements, and gets neither. A
+/// adds the node and returns a `Handle`. A type whose content is a collection gets a method named
+/// after the field: one node for a field written `Child` (`.child(node)`), and any number for any
+/// other collection (`.children(nodes)`, `.inlines(nodes)`); both return a `WithChildren`, whose
+/// `build` adds the node and links them in order, moving a child that has a parent. A `Vec`
+/// content holds values, not child elements, and gets no method. A
 /// type alias of a number isn't seen through, so a literal passed to its property needs a suffix
 /// (`8.0_f32`). Each property with its own key gets a constant for it, such as `Border::PADDING`;
 /// a shared key is named by its owner. A method and a constant have their field's visibility.

@@ -6,7 +6,7 @@ use std::str::FromStr;
 pub use crate::{
   ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, EventInfo, HasGroup, OverrideDefaults,
   PropertyGroup, PropertyGroupInfo, PropertyInfo, PropertyRef, RustExpr, ToRust, TypeInfo, UiCollection, UiType, ValueError,
-  ValueProviderInfo, Whitespace, WithChildren, register_type,
+  ValueProviderInfo, Whitespace, WithChildren, check_child, is_a, register_type,
 };
 pub use artic_core::Object;
 pub use artic_core::event::Event;
@@ -126,11 +126,21 @@ pub const fn same_code_type(code_type: Option<&str>, path: &str) -> bool {
   }
 }
 
-/// Whether a group's `properties` hold a field named `name`.
+/// `name` without a raw identifier's `r#`, which a field's method name doesn't have, in const
+/// code.
+const fn unraw(name: &str) -> &str {
+  match name.as_bytes() {
+    [b'r', b'#', ..] => name.split_at(2).1,
+    _ => name,
+  }
+}
+
+/// Whether a group's `properties` hold a field named `name`, with or without `r#` on either side,
+/// since `r#width` and `width` both get a method named `width`.
 pub const fn group_has_field(properties: &[PropertyInfo], name: &str) -> bool {
   let mut index = 0;
   while index < properties.len() {
-    if same_text(properties[index].field, name) {
+    if same_text(unraw(properties[index].field), unraw(name)) {
       return true;
     }
     index += 1;
@@ -210,6 +220,29 @@ pub fn default_beside<K: TakesDefault + ?Sized, T>(key: &K, value: T) -> T {
 mod tests {
   use super::*;
 
+  /// A group property whose field is written `field`.
+  fn property(field: &'static str) -> PropertyInfo {
+    PropertyInfo {
+      name: "Width",
+      field,
+      value_type: "f32",
+      affects: Affects::LAYOUT,
+      inherits: false,
+      literal: None,
+    }
+  }
+
+  // A raw field and a plain one of the same name clash, either way round, since both get the
+  // same method; another name doesn't.
+  #[test]
+  fn group_field_check_ignores_raw_spelling() {
+    for (group, own) in [("width", "r#width"), ("r#width", "width"), ("r#width", "r#width")] {
+      assert!(group_has_field(&[property(group)], own), "{group} and {own}");
+    }
+    assert!(!group_has_field(&[property("width")], "r#height"));
+    assert!(!group_has_field(&[property("r")], "r#"));
+  }
+
   #[derive(Debug)]
   struct Gauge;
 
@@ -220,6 +253,7 @@ mod tests {
   static GAUGE: TypeInfo = TypeInfo {
     name: "Gauge",
     rust_path: "tests::Gauge",
+    is: |_| false,
     new: None,
     content: None,
     properties: &[],

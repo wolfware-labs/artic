@@ -387,3 +387,31 @@ fn free_of_a_stale_id_panics() {
 fn tree_kind_all_lists_logical_then_visual() {
   assert_eq!(TreeKind::ALL, [TreeKind::Logical, TreeKind::Visual]);
 }
+
+// `link` places a child in one tree and leaves the other alone; a link it refuses changes nothing.
+#[test]
+fn link_places_in_one_tree_and_refuses_a_cycle() {
+  let mut tree = UiTree::new();
+  let [block, bold, run] = nodes(&mut tree);
+
+  tree.link(TreeKind::Logical, block, None, bold).expect("a free node links");
+  tree
+    .link(TreeKind::Logical, block, Some(0), run)
+    .expect("an index in range links");
+
+  assert_eq!(children(&tree, TreeKind::Logical, block), [run, bold]);
+  assert_eq!(children(&tree, TreeKind::Visual, block), []);
+  assert_eq!(
+    tree.link(TreeKind::Logical, bold, None, block),
+    Err(LinkError::Cycle {
+      tree: TreeKind::Logical,
+      parent: bold,
+      child: block
+    })
+  );
+  assert_eq!(
+    tree.link(TreeKind::Logical, bold, Some(1), run),
+    Err(LinkError::IndexOutOfRange { index: 1, len: 0 })
+  );
+  assert_eq!(children(&tree, TreeKind::Logical, block), [run, bold]);
+}

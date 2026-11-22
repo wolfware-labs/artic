@@ -39,6 +39,12 @@ pub enum ValueError {
   /// A second child for an element that takes one.
   #[error("this element takes a single child")]
   OneChildOnly,
+  /// A child of a kind the content doesn't take.
+  #[error("this element's content takes only {expected}")]
+  UnexpectedChild {
+    /// The types the content takes, in prose, such as "`Run`, `Bold` or `Italic`".
+    expected: String,
+  },
 }
 
 #[cfg(test)]
@@ -51,6 +57,16 @@ mod tests {
     let error = ValueError::NotNullable { property: "Background" };
 
     assert_eq!(error.to_string(), "Background can't be null");
+  }
+
+  // A child of a kind the content doesn't take names what it takes.
+  #[test]
+  fn unexpected_child_names_what_the_content_takes() {
+    let error = ValueError::UnexpectedChild {
+      expected: "`Item`".to_owned(),
+    };
+
+    assert_eq!(error.to_string(), "this element's content takes only `Item`");
   }
 
   // A refused child says so, and the link error is its source.

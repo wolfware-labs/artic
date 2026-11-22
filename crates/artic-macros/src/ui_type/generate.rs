@@ -2,7 +2,7 @@ use crate::crate_root::{REGISTRY, crate_root};
 use crate::members::emit::{
   affects_tokens, checks, default_impl, inheritance_tokens, key_path, key_static, properties_static, value_check, visits,
 };
-use crate::members::{Content, Members, PropertyField, value_type};
+use crate::members::{Content, GroupField, Members, PropertyField, value_type};
 use crate::ui_type::analysis::TypeAnalysis;
 use crate::ui_type::attributes::{Attached, Target, Whitespace};
 use crate::ui_type::builders::builders;
@@ -79,6 +79,20 @@ pub fn override_defaults(analysis: &TypeAnalysis) -> Option<TokenStream> {
     .then(|| quote!(<Self as __artic::OverrideDefaults>::override_defaults(&__artic_value);))
 }
 
+/// The const checks that no group in `groups` has a field named like `field`, the type's `what`,
+/// whose method would hide the group's.
+fn hides_no_group_field<'a>(groups: &'a [GroupField<'a>], what: &str, field: &Ident) -> impl Iterator<Item = TokenStream> + 'a {
+  let field_name = field.to_string();
+  let message = format!(
+    "the {what} `{}` has the name of a field of a group this type flattens; its method would hide the group's",
+    field.unraw()
+  );
+  groups.iter().map(move |group| {
+    let ty = group.ty;
+    quote!(::core::assert!(!__artic::group_has_field(<#ty as __artic::PropertyGroup>::PROPERTIES, #field_name), #message);)
+  })
+}
+
 /// For each flattened group: its `HasGroup` impl, and the const checks that no property of the
 /// type and no other group has a field of one of its names, whose methods would clash.
 fn group_items(ident: &Ident, members: &Members) -> TokenStream {
@@ -93,17 +107,18 @@ fn group_items(ident: &Ident, members: &Members) -> TokenStream {
       }
     }
   });
-  let own_field_checks = members.properties.iter().flat_map(|field| {
-    let field_name = field.ident.to_string();
-    let message = format!(
-      "the property `{}` has the name of a field of a group this type flattens; its method would hide the group's",
-      field.ident.unraw()
-    );
-    groups.iter().map(move |group| {
-      let ty = group.ty;
-      quote!(::core::assert!(!__artic::group_has_field(<#ty as __artic::PropertyGroup>::PROPERTIES, #field_name), #message);)
-    })
-  });
+  let own_field_checks = members
+    .properties
+    .iter()
+    .flat_map(|field| hides_no_group_field(groups, "property", field.ident));
+  let content_checks = match &members.content {
+    Some(Content::Collection {
+      ident: field,
+      method: Some(_),
+      ..
+    }) => hides_no_group_field(groups, "content field", field).collect(),
+    _ => Vec::new(),
+  };
   let pair_checks = groups.iter().enumerate().flat_map(|(index, first)| {
     groups[index + 1..].iter().map(move |second| {
       let (a, b) = (first.ty, second.ty);
@@ -119,6 +134,7 @@ fn group_items(ident: &Ident, members: &Members) -> TokenStream {
 
     const _: () = {
       #(#own_field_checks)*
+      #(#content_checks)*
       #(#pair_checks)*
     };
   }
@@ -173,6 +189,8 @@ fn content_functions(ident: &Ident, members: &Members) -> Option<TokenStream> {
       owner: __artic::NodeId,
       child: __artic::NodeId,
     ) -> ::core::result::Result<(), __artic::ValueError> {
+      __content_field(tree, owner).ok_or(__artic::ValueError::WrongNode)?;
+      __artic::check_child(<#ty as __artic::UiCollection>::takes(), tree, child)?;
       <#ty as __artic::UiCollection>::push_child(tree, owner, child, __content_field)
     }
   })
@@ -187,7 +205,7 @@ fn content_info(members: &Members) -> TokenStream {
       group: ::core::option::Option::None,
       info: &__PROPERTIES[#index],
     }))),
-    Some(Content::Collection { ident, method, .. }) => {
+    Some(Content::Collection { ident, ty, method, .. }) => {
       let name = ident.to_string();
       let method = match method {
         Some(method) => {
@@ -199,6 +217,7 @@ fn content_info(members: &Members) -> TokenStream {
       quote!(::core::option::Option::Some(__artic::ContentInfo::Collection {
         field: #name,
         method: #method,
+        takes: <#ty as __artic::UiCollection>::takes,
         add_child: __add_child,
       }))
     }
@@ -241,6 +260,7 @@ fn type_info(analysis: &TypeAnalysis) -> TokenStream {
     static __TYPE_INFO: __artic::TypeInfo = __artic::TypeInfo {
       name: ::core::stringify!(#ident),
       rust_path: ::core::concat!(::core::module_path!(), "::", ::core::stringify!(#ident)),
+      is: __artic::is_a::<#ident>,
       new: #new,
       content: #content,
       properties: &__PROPERTIES,

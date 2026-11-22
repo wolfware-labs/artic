@@ -1,7 +1,7 @@
 use crate::ValueError;
-use artic_core::RustExpr;
 use artic_core::property::{Affects, PropertyVisitor};
 use artic_core::tree::{NodeId, UiTree};
+use artic_core::{Object, RustExpr};
 
 /// What the registry knows about one Rust type that UI languages can name.
 ///
@@ -14,6 +14,8 @@ pub struct TypeInfo {
   /// The full Rust path where the type is defined, such as `artic_controls::border::Border`; a
   /// re-export doesn't change it.
   pub rust_path: &'static str,
+  /// Whether a node's object is of this type.
+  pub is: fn(&dyn Object) -> bool,
   /// Creates a node of this type with its default values and returns its id, or `None` for a type
   /// that can't be created from markup alone, such as one with a `#[ui(required)]` field.
   pub new: Option<fn(&mut UiTree) -> NodeId>,
@@ -150,8 +152,7 @@ pub trait PropertyGroup {
   /// import the same way it does a type's `rust_path`.
   const METHODS: &'static str;
 
-  /// Lists the group's properties, as [`Object::visit_properties`](artic_core::Object::visit_properties)
-  /// does for a node.
+  /// Lists the group's properties, as [`Object::visit_properties`] does for a node.
   fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>);
 }
 
@@ -185,33 +186,25 @@ pub enum ContentInfo {
   Collection {
     /// The collection field.
     field: &'static str,
-    /// The builder method that takes the children, or `None` for a collection that isn't
-    /// `Child` or `Children`, which has no builder method, so only `add_child` fills it.
+    /// What the builder method named after the field takes, or `None` for a collection of
+    /// values, which has no builder method, so only `add_child` fills it.
     method: Option<ContentMethod>,
+    /// The types of child the collection takes, or `None` for any: `UiCollection::takes`.
+    takes: fn() -> Option<&'static [&'static TypeInfo]>,
     /// Adds one child element as content, calling the field's `UiCollection::push_child` with
     /// an accessor to the field.
     add_child: fn(&mut UiTree, NodeId, NodeId) -> Result<(), ValueError>,
   },
 }
 
-/// The builder method that takes a collection content's children.
+/// What the builder method of a collection content takes. The method is named after the field,
+/// such as `children` or `inlines`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContentMethod {
-  /// `child`, for a field of type `Child`: one child.
+  /// One child, for a field of type `Child`.
   Child,
-  /// `children`, for a field of type `Children`: any number, in order.
+  /// Any number of children, in order.
   Children,
-}
-
-impl ContentMethod {
-  /// The method's name: `child` or `children`.
-  #[must_use]
-  pub const fn name(self) -> &'static str {
-    match self {
-      ContentMethod::Child => "child",
-      ContentMethod::Children => "children",
-    }
-  }
 }
 
 /// A property found on a type, with the field of the group it lives in, if any.
@@ -296,13 +289,6 @@ mod tests {
     assert_eq!(crate_and_item("acme"), ("acme", "acme"));
   }
 
-  // Each content method is named as the builder method the derive writes.
-  #[test]
-  fn content_method_names_its_builder_method() {
-    assert_eq!(ContentMethod::Child.name(), "child");
-    assert_eq!(ContentMethod::Children.name(), "children");
-  }
-
   static PADDING: PropertyKey<f32> = PropertyKey::new("Padding", Affects::LAYOUT, Inheritance::None);
 
   #[derive(Debug)]
@@ -323,6 +309,7 @@ mod tests {
   static BORDER: TypeInfo = TypeInfo {
     name: "Border",
     rust_path: "artic_controls::Border",
+    is: crate::is_a::<Border>,
     new: Some(new_border),
     content: None,
     properties: &[PropertyInfo {

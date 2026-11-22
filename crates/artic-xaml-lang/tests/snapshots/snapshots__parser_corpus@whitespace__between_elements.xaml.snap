@@ -3,18 +3,33 @@ source: crates/artic-xaml-lang/tests/snapshots.rs
 expression: output
 input_file: crates/artic-xaml/tests/fixtures/valid/whitespace/between_elements.xaml
 ---
-valid/whitespace/between_elements.xaml:1:40: error: `TextBlock` takes no child elements
-1 | <TextBlock xmlns="https://artic.rs/ui"><Run>Hello</Run> <Run>world</Run></TextBlock>
-  |                                        ^^^^^^^^^^^^^^^^
+// Generated from valid/whitespace/between_elements.xaml.
 
-valid/whitespace/between_elements.xaml:1:41: error: no type `Run` in `https://artic.rs/ui`
-1 | <TextBlock xmlns="https://artic.rs/ui"><Run>Hello</Run> <Run>world</Run></TextBlock>
-  |                                         ^^^ unknown type
-
-valid/whitespace/between_elements.xaml:1:57: error: `TextBlock` takes no child elements
-1 | <TextBlock xmlns="https://artic.rs/ui"><Run>Hello</Run> <Run>world</Run></TextBlock>
-  |                                                         ^^^^^^^^^^^^^^^^
-
-valid/whitespace/between_elements.xaml:1:58: error: no type `Run` in `https://artic.rs/ui`
-1 | <TextBlock xmlns="https://artic.rs/ui"><Run>Hello</Run> <Run>world</Run></TextBlock>
-  |                                                          ^^^ unknown type
+use ::artic::core::tree::{Handle, UiTree};
+use ::artic::controls as _;
+use ::artic::core as _;
+use ::artic::element as _;
+use ::artic::layout as _;
+use ::artic::render as _;
+/// The type the view's code is, which takes the root's place, as the view names it.
+#[allow(dead_code, reason = "only a code type's macro reads it")]
+pub const CODE_TYPE: Option<&str> = None;
+/// The nodes of `valid/whitespace/between_elements.xaml`: its root and one handle per named element.
+#[derive(Clone, Copy, Debug)]
+pub struct View {
+    /// The view's root.
+    pub root: Handle<::artic::controls::TextBlock>,
+}
+/// Builds `valid/whitespace/between_elements.xaml` in `tree` and returns its nodes.
+pub fn build(tree: &mut UiTree) -> View {
+    let __e0 = ::artic::controls::Run::new()
+        .text(::std::string::String::from("Hello"))
+        .build(tree);
+    let __e1 = ::artic::controls::Run::new()
+        .text(::std::string::String::from("world"))
+        .build(tree);
+    let __e2 = ::artic::controls::TextBlock::new()
+        .inlines([__e0.id(), __e1.id()])
+        .build(tree);
+    View { root: __e2 }
+}

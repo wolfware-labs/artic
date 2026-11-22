@@ -203,7 +203,7 @@ fn font_size_inherited_from_parent() {
 
   layout.run(panel, WINDOW, 1.0);
 
-  assert_eq!(get(&mut layout, block).font_size.get(), 30.0);
+  assert_eq!(get(&mut layout, block).format.font_size.get(), 30.0);
   assert_eq!(drawn(&mut layout, block).0.runs()[0].size(), 30.0);
 }
 
@@ -213,7 +213,7 @@ fn own_font_size_wins_over_inherited() {
   let mut layout = Headless::new();
   let (panel, block) = in_panel(&mut layout, "Hi");
   TextElement::set_font_size(layout.tree(), panel, 30.0);
-  get(&mut layout, block).font_size.set(10.0);
+  get(&mut layout, block).format.font_size.set(10.0);
 
   layout.run(panel, WINDOW, 1.0);
 
@@ -226,13 +226,13 @@ fn cleared_font_size_inherits_again() {
   let mut layout = Headless::new();
   let (panel, block) = in_panel(&mut layout, "Hi");
   TextElement::set_font_size(layout.tree(), panel, 30.0);
-  get(&mut layout, block).font_size.set(10.0);
+  get(&mut layout, block).format.font_size.set(10.0);
   layout.run(panel, WINDOW, 1.0);
 
-  get(&mut layout, block).font_size.clear(Precedence::Local);
+  get(&mut layout, block).format.font_size.clear(Precedence::Local);
   layout.run(panel, WINDOW, 1.0);
 
-  assert_eq!(get(&mut layout, block).font_size.get(), 30.0);
+  assert_eq!(get(&mut layout, block).format.font_size.get(), 30.0);
   assert_eq!(drawn(&mut layout, block).0.runs()[0].size(), 30.0);
 }
 
@@ -244,7 +244,7 @@ fn attached_font_size_on_a_textblock_is_its_own() {
 
   TextElement::set_font_size(layout.tree(), block, 22.0);
 
-  assert_eq!(get(&mut layout, block).font_size.get(), 22.0);
+  assert_eq!(get(&mut layout, block).format.font_size.get(), 22.0);
 }
 
 // Changing the panel's font size measures the TextBlock again.
@@ -284,7 +284,7 @@ fn foreground_change_does_not_remeasure() {
   layout.run(root, WINDOW, 1.0);
   layout.tree().clear_dirty(root, Affects::RENDER);
 
-  get(&mut layout, root).foreground.set(Color::rgb(0, 0, 255).into());
+  get(&mut layout, root).format.foreground.set(Color::rgb(0, 0, 255).into());
   let needs_drawing = layout.tree().dirty(root).contains(Affects::RENDER);
   let stats = layout.run(root, WINDOW, 1.0);
 

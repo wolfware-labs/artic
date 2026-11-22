@@ -1,4 +1,4 @@
-use crate::{ContentInfo, UiType};
+use crate::{ContentInfo, UiType, check_child};
 use artic_core::Object;
 use artic_core::error::Chain;
 use artic_core::tree::{Handle, NodeId, UiTree};
@@ -29,16 +29,18 @@ impl<T: UiType + Object, I: IntoIterator<Item: Into<NodeId>>> WithChildren<T, I>
   ///
   /// # Panics
   ///
-  /// When a child isn't in the tree or is listed twice, or when the type's content isn't a
-  /// collection of child elements. The checks run before the node is allocated, so a failed build
-  /// leaves the tree as it was. They cover every way a `Child` or `Children` field refuses a child
-  /// made through the generated methods, since `.child` passes one child at most. A `WithChildren`
-  /// made by hand with two children for a `Child` field passes them and panics once the node and
-  /// its first child are in the tree.
+  /// When a child isn't in the tree, is listed twice or is of a type the content doesn't take, or
+  /// when the type's content isn't a collection of child elements. The checks run before the node
+  /// is allocated, so a failed build leaves the tree as it was. With a collection that keeps
+  /// [`UiCollection::push_child`](crate::UiCollection::push_child)'s contract, they cover every
+  /// way it refuses a child made through the generated methods, since `.child` passes one child
+  /// at most. A `WithChildren` made by hand with two children for a `Child` field passes them and
+  /// panics once the node and its first child are in the tree, as does a collection that refuses
+  /// a child for a reason of its own.
   #[must_use = "the handle is needed to link or reach the node"]
   pub fn build(self, tree: &mut UiTree) -> Handle<T> {
     let name = T::TYPE_INFO.name;
-    let Some(ContentInfo::Collection { add_child, .. }) = T::TYPE_INFO.content else {
+    let Some(ContentInfo::Collection { add_child, takes, .. }) = T::TYPE_INFO.content else {
       panic!("`{name}` takes no child elements");
     };
     let children: Vec<NodeId> = self.children.into_iter().map(Into::into).collect();
@@ -48,11 +50,18 @@ impl<T: UiType + Object, I: IntoIterator<Item: Into<NodeId>>> WithChildren<T, I>
         !children[..index].contains(child),
         "a child of the `{name}` being built is listed twice"
       );
+      if let Err(error) = check_child(takes(), tree, *child) {
+        panic!("a child of the `{name}` being built is refused: {}", Chain(&error));
+      }
     }
     let node = tree.alloc_typed(self.node);
     for child in children {
-      add_child(tree, node.id(), child)
-        .unwrap_or_else(|error| panic!("`{name}`'s content refused a child that passed the checks: {}", Chain(&error)));
+      add_child(tree, node.id(), child).unwrap_or_else(|error| {
+        panic!(
+          "`{name}`'s content refused a child that passed the checks, which `UiCollection::push_child` doesn't allow: {}",
+          Chain(&error)
+        )
+      });
     }
     node
   }

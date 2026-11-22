@@ -118,23 +118,17 @@ pub enum Content<'a> {
   },
 }
 
-/// The method that takes a type's child elements, as the registry's `ContentMethod` names it.
+/// What the builder method named after a collection content field takes, as the registry's
+/// `ContentMethod` says.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ContentMethod {
-  /// `child`, for a field written `Child`.
+  /// One child, for a field written `Child`.
   Child,
-  /// `children`, for a field written `Children`.
+  /// Any number of children, in order.
   Children,
 }
 
 impl ContentMethod {
-  pub fn name(self) -> &'static str {
-    match self {
-      ContentMethod::Child => "child",
-      ContentMethod::Children => "children",
-    }
-  }
-
   /// The registry's variant, for the type's descriptor.
   pub fn variant(self) -> Ident {
     match self {
@@ -222,7 +216,7 @@ impl<'a> Members<'a> {
             ident,
             vis: &field.vis,
             ty: &field.ty,
-            method: content_method(&field.ty),
+            method: collection_method(&field.ty),
           }))
         }
       };
@@ -250,14 +244,12 @@ impl Members<'_> {
       .map(|item| (item.to_owned(), format!("`PropertyGroup::{item}`")))
       .collect();
     if let Some(Content::Collection {
-      ident,
-      method: Some(method),
-      ..
+      ident, method: Some(_), ..
     }) = &self.content
     {
       take(
         &mut taken,
-        method.name().to_owned(),
+        unraw_name(ident),
         format!("the content method of `{ident}`"),
         ident.span(),
       )?;
@@ -266,7 +258,7 @@ impl Members<'_> {
       let ident = field.ident;
       take(
         &mut taken,
-        ident.unraw().to_string(),
+        unraw_name(ident),
         format!("the method of the property `{ident}`"),
         ident.span(),
       )?;
@@ -324,7 +316,7 @@ fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttributes)
     let key = match attributes.key {
       Some(path) => Key::Shared(path),
       None => {
-        let constant = screaming_snake_case(&ident.unraw().to_string());
+        let constant = screaming_snake_case(&unraw_name(ident));
         Key::Own {
           key_static: format_ident!("__KEY_{constant}"),
           constant: format_ident!("{constant}"),
@@ -392,7 +384,7 @@ fn resolve_content(marked: Vec<(Span, Marked<'_>)>) -> syn::Result<Option<Conten
 fn check_collections(collections: &[(&Type, bool)]) -> syn::Result<()> {
   for (ty, is_content) in collections {
     if !is_content {
-      let message = match content_method(ty) {
+      let message = match named_collection(ty) {
         Some(method) => format!(
           "a `{}` field must be the type's content: mark it `#[ui(content)]`",
           method.variant()
@@ -412,11 +404,11 @@ fn check_collections(collections: &[(&Type, bool)]) -> syn::Result<()> {
 /// marked `#[ui(content)]`, since children reach a type only through its content; a group holds
 /// neither children nor events.
 fn reject_unmarked_member(field: &Field, kind: Kind) -> syn::Result<()> {
-  let held_by_types_only = content_method(&field.ty).is_some() || generic_argument(&field.ty, "Event").is_some();
+  let held_by_types_only = named_collection(&field.ty).is_some() || generic_argument(&field.ty, "Event").is_some();
   if kind == Kind::Group && held_by_types_only {
     return Err(Error::new_spanned(&field.ty, "a property group holds only `Property` fields"));
   }
-  if let Some(method) = content_method(&field.ty) {
+  if let Some(method) = named_collection(&field.ty) {
     return Err(Error::new_spanned(
       &field.ty,
       format_args!(
@@ -436,10 +428,19 @@ fn reject_unmarked_member(field: &Field, kind: Kind) -> syn::Result<()> {
   Ok(())
 }
 
-/// The method that takes a collection field's children: `Child` for a field written `Child`,
-/// `Children` for one written `Children`, and `None` for any other collection, whose values
-/// aren't child elements.
-fn content_method(ty: &Type) -> Option<ContentMethod> {
+/// What the builder method of a collection content field takes: one child for a field written
+/// `Child`, children for any other collection, and nothing for a `Vec`, which holds values rather
+/// than child elements.
+fn collection_method(ty: &Type) -> Option<ContentMethod> {
+  match named_collection(ty) {
+    Some(method) => Some(method),
+    None if generic_argument(ty, "Vec").is_some() => None,
+    None => Some(ContentMethod::Children),
+  }
+}
+
+/// The element collection a field's type names: `Child` or `Children`, else `None`.
+pub fn named_collection(ty: &Type) -> Option<ContentMethod> {
   let Type::Path(path) = ty else {
     return None;
   };
@@ -448,6 +449,11 @@ fn content_method(ty: &Type) -> Option<ContentMethod> {
     "Children" => Some(ContentMethod::Children),
     _ => None,
   }
+}
+
+/// The name `ident` stands for, without the `r#` of a raw identifier.
+pub fn unraw_name(ident: &Ident) -> String {
+  ident.unraw().to_string()
 }
 
 /// What text or an element sets for a value of type `ty`: `X` for `Option<X>`, whose `None` is

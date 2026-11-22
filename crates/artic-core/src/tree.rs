@@ -591,6 +591,19 @@ impl UiTree {
     Ok(())
   }
 
+  /// Makes `child` the child of `parent` in `tree`, at `index` or at the end, moving it from any
+  /// parent it had there; its links in the other tree don't change. Like
+  /// [`insert_child`](UiTree::insert_child), but a link it refuses is an error rather than a panic.
+  ///
+  /// # Errors
+  ///
+  /// Every case [`insert_child`](UiTree::insert_child) panics on. Nothing changes then.
+  pub fn link(&mut self, tree: TreeKind, parent: NodeId, index: Option<usize>, child: NodeId) -> Result<(), LinkError> {
+    self.check_link(tree, parent, index, child)?;
+    self.place(tree, parent, index, child);
+    Ok(())
+  }
+
   /// Detaches `child` from `parent` in both trees; the node stays in the tree.
   ///
   /// # Errors

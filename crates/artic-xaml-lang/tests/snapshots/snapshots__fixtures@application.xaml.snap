@@ -42,6 +42,6 @@ pub fn build(tree: &mut UiTree) -> Handle<crate::HelloApp> {
         .title(::std::string::String::from("Tools"))
         .build(tree);
     crate::HelloApp::new(View { greeting: __e0 })
-        .children([__e1.id(), __e2.id()])
+        .surfaces([__e1.id(), __e2.id()])
         .build(tree)
 }

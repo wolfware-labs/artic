@@ -1,13 +1,13 @@
 use crate::crate_root::{ELEMENT, crate_root};
 use crate::element::expand_struct;
 use crate::members::attributes::parse_field_attributes;
+use crate::members::unraw_name;
 use crate::ui_type::attributes::parse_type_attributes;
 use artic_ident::{is_keyword, snake_case};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use std::fs;
 use std::path::{Path, PathBuf};
-use syn::ext::IdentExt;
 use syn::{DeriveInput, Error, Fields, FieldsNamed, Ident, ItemStruct, LitStr, parse_quote};
 
 /// Where the macro is expanded: what the compiler and Cargo say about the struct's crate.
@@ -111,7 +111,7 @@ pub fn expand(argument: TokenStream, item: TokenStream, site: &Site) -> syn::Res
   let compiled = format!("/views/{}", with_rs_extension(&view));
   let module_doc = format!("The compiled `{view}`.");
   let create_doc = format!("Builds `{view}` in `tree`, with this type at the root.");
-  let name = ident.unraw().to_string();
+  let name = unraw_name(&ident);
   let message = format!("`{}` must name `", view.replace('{', "{{").replace('}', "}}"));
   let message_end = format!("::{name}` as its code type");
   Ok(quote_spanned! {ident.span()=>
@@ -172,7 +172,7 @@ fn compiled_members(compiled: &Path, view: &str, ident: &Ident) -> syn::Result<O
 
 /// The module the compiled view goes in: the struct's name in snake case, raw if it's a keyword.
 fn module_ident(ident: &Ident) -> syn::Result<Ident> {
-  let name = snake_case(&ident.unraw().to_string());
+  let name = snake_case(&unraw_name(ident));
   match name.as_str() {
     "self" | "super" | "crate" => Err(Error::new_spanned(
       ident,

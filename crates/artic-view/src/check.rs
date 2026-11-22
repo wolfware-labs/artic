@@ -4,7 +4,7 @@
 use crate::document::{Content, Element, Member, Problem, Text, TypeUse};
 use crate::{Document, field_name, unsupported};
 use artic_diagnostics::{Diagnostic, Diagnostics, Span};
-use artic_registry::{ContentInfo, ContentMethod, PropertyRef, TypeInfo, Whitespace};
+use artic_registry::{ContentInfo, ContentMethod, PropertyRef, TypeInfo, Whitespace, type_names};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 
@@ -62,9 +62,9 @@ pub enum CheckedContent {
   /// No content call.
   #[default]
   None,
-  /// `child`, with the child's index.
+  /// One child, for a `Child` field, with the child's index.
   Child(usize),
-  /// `children`, with the children's indices in document order; never empty.
+  /// Any number of children, with their indices in document order; never empty.
   Children(Vec<usize>),
 }
 
@@ -397,8 +397,10 @@ impl Check {
         }
       }
       Some(ContentInfo::Collection {
-        method: Some(method), ..
-      }) => members.content = self.children(info, method, nodes),
+        method: Some(method),
+        takes,
+        ..
+      }) => members.content = self.children(info, method, takes(), nodes),
     }
   }
 
@@ -449,7 +451,13 @@ impl Check {
 
   /// Checks the child elements of a collection content and returns the children its method
   /// takes: `child` one, `children` any number, and none for no children.
-  fn children(&mut self, info: &TypeInfo, method: ContentMethod, nodes: &[Content]) -> CheckedContent {
+  fn children(
+    &mut self,
+    info: &TypeInfo,
+    method: ContentMethod,
+    takes: Option<&[&TypeInfo]>,
+    nodes: &[Content],
+  ) -> CheckedContent {
     let mut written = Vec::new();
     let mut children = Vec::new();
     for node in nodes {
@@ -462,6 +470,14 @@ impl Check {
         }
         Content::Element(element) => {
           written.push(element.span);
+          if let (Some(takes), Ok(ty)) = (takes, &element.ty)
+            && !takes.iter().any(|taken| taken.rust_path == ty.info.rust_path)
+          {
+            self.diagnostics.push(Diagnostic::error(
+              element.span,
+              format!("`{}` takes only {}", info.name, type_names(takes)),
+            ));
+          }
           children.extend(self.element(element, false));
         }
         Content::Text { .. } | Content::Unsupported(_) => {}

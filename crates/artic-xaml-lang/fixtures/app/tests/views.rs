@@ -19,7 +19,7 @@ fn card_builds_its_tree() {
   assert_eq!(view.root.get(&tree).padding.get(), Thickness::uniform(8.0));
   assert_eq!(view.list.get(&tree).spacing.get(), 6.0);
   assert_eq!(view.title.get(&tree).text.get(), "Welcome");
-  assert_eq!(view.title.get(&tree).font_size.get(), 18.0);
+  assert_eq!(view.title.get(&tree).format.font_size.get(), 18.0);
   assert_eq!(view.body.get(&tree).text.get(), "Signed in");
 }
 

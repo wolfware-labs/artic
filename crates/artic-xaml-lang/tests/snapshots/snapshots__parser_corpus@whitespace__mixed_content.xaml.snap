@@ -6,15 +6,14 @@ input_file: crates/artic-xaml/tests/fixtures/valid/whitespace/mixed_content.xaml
 valid/whitespace/mixed_content.xaml:1:40: error: `TextBlock` takes no text content
 1 | <TextBlock xmlns="https://artic.rs/ui">
   |                                        ^
+help: put the text in an element, such as a `TextBlock`
 
-valid/whitespace/mixed_content.xaml:2:9: error: `TextBlock` takes no child elements
+valid/whitespace/mixed_content.xaml:2:15: error: `Bold` takes no text content
 2 |   Hello <Bold> world </Bold> !
-  |         ^^^^^^^^^^^^^^^^^^^^
-
-valid/whitespace/mixed_content.xaml:2:10: error: no type `Bold` in `https://artic.rs/ui`
-2 |   Hello <Bold> world </Bold> !
-  |          ^^^^ unknown type
+  |               ^^^^^^^
+help: put the text in an element, such as a `TextBlock`
 
 valid/whitespace/mixed_content.xaml:2:29: error: `TextBlock` takes no text content
 2 |   Hello <Bold> world </Bold> !
   |                             ^^
+help: put the text in an element, such as a `TextBlock`
