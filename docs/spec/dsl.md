@@ -129,7 +129,7 @@ The value lives on the target node, which creates it on first use under the owne
 Children or text that a language gives a type without naming a property go to its content, `TypeInfo::content`:
 
 - `ContentInfo::Property`: a property takes it, set like any property, such as a content control's `Content` once one is built.
-- `ContentInfo::Collection`: a field takes child nodes in order through `add_child`, which calls the field's `UiCollection::push_child`: a panel's `Children`, a `Child` field such as `Border`'s, which takes one, or a `TextBlock`'s `Inlines`, which takes only `Run`, `Bold` and `Italic`.
+- `ContentInfo::Collection`: a field takes child nodes in order through `add_child`, which calls the field's `UiCollection::push_child`: a panel's `Children`, a `Child` field such as `Border`'s, which takes one, or a `TextBlock`'s `Inlines`, which takes only `Run`, `Bold` and `Italic`. A collection that takes only some types lists them in `UiCollection::takes`, carried as `ContentInfo::Collection::takes`, and each `TypeInfo::is` tells whether a node is of its type.
 - `None`: the type takes no content, and the language reports any as an error.
 
 ```rust

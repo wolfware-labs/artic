@@ -1,5 +1,6 @@
 //! Hand-built documents over hand-built types, as a language's front end would read them.
 
+use artic_core::Object;
 use artic_core::property::Affects;
 use artic_core::tree::{NodeId, UiTree};
 use artic_diagnostics::{Diagnostic, Diagnostics, SourceMap, Span};
@@ -7,6 +8,10 @@ use artic_registry::{ContentInfo, ContentMethod, EventInfo, PropertyInfo, Proper
 use artic_view::document::{Content, Element, Member, Problem, Text, TypeUse};
 
 /// Creates no node: the checker never builds a tree.
+fn no_object(_object: &dyn Object) -> bool {
+  unreachable!("the checker never reads a node")
+}
+
 fn new_node(_tree: &mut UiTree) -> NodeId {
   unreachable!("the checker never creates a node")
 }
@@ -21,6 +26,7 @@ const fn info(name: &'static str, rust_path: &'static str) -> TypeInfo {
   TypeInfo {
     name,
     rust_path,
+    is: no_object,
     new: Some(new_node),
     content: None,
     properties: &[],
@@ -57,6 +63,7 @@ pub static PANEL: TypeInfo = TypeInfo {
   content: Some(ContentInfo::Collection {
     field: "children",
     method: Some(ContentMethod::Children),
+    takes: || None,
     add_child,
   }),
   properties: &PANEL_PROPERTIES,
@@ -69,6 +76,7 @@ pub static FRAME: TypeInfo = TypeInfo {
   content: Some(ContentInfo::Collection {
     field: "child",
     method: Some(ContentMethod::Child),
+    takes: || None,
     add_child,
   }),
   ..info("Frame", "test_ui::Frame")
@@ -100,6 +108,7 @@ pub static HOST: TypeInfo = TypeInfo {
   content: Some(ContentInfo::Collection {
     field: "child",
     method: Some(ContentMethod::Child),
+    takes: || None,
     add_child,
   }),
   code_type_root: true,
@@ -123,6 +132,7 @@ pub static BAG: TypeInfo = TypeInfo {
   content: Some(ContentInfo::Collection {
     field: "items",
     method: None,
+    takes: || None,
     add_child,
   }),
   code_type_root: true,
@@ -143,6 +153,7 @@ pub static STOPS: TypeInfo = TypeInfo {
   content: Some(ContentInfo::Collection {
     field: "stops",
     method: None,
+    takes: || None,
     add_child,
   }),
   ..info("Stops", "test_ui::Stops")

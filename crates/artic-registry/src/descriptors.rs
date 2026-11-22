@@ -1,7 +1,7 @@
 use crate::ValueError;
-use artic_core::RustExpr;
 use artic_core::property::{Affects, PropertyVisitor};
 use artic_core::tree::{NodeId, UiTree};
+use artic_core::{Object, RustExpr};
 
 /// What the registry knows about one Rust type that UI languages can name.
 ///
@@ -14,6 +14,8 @@ pub struct TypeInfo {
   /// The full Rust path where the type is defined, such as `artic_controls::border::Border`; a
   /// re-export doesn't change it.
   pub rust_path: &'static str,
+  /// Whether a node's object is of this type.
+  pub is: fn(&dyn Object) -> bool,
   /// Creates a node of this type with its default values and returns its id, or `None` for a type
   /// that can't be created from markup alone, such as one with a `#[ui(required)]` field.
   pub new: Option<fn(&mut UiTree) -> NodeId>,
@@ -188,6 +190,8 @@ pub enum ContentInfo {
     /// What the builder method named after the field takes, or `None` for a collection of
     /// values, which has no builder method, so only `add_child` fills it.
     method: Option<ContentMethod>,
+    /// The types of child the collection takes, or `None` for any: `UiCollection::takes`.
+    takes: fn() -> Option<&'static [&'static TypeInfo]>,
     /// Adds one child element as content, calling the field's `UiCollection::push_child` with
     /// an accessor to the field.
     add_child: fn(&mut UiTree, NodeId, NodeId) -> Result<(), ValueError>,
@@ -306,6 +310,7 @@ mod tests {
   static BORDER: TypeInfo = TypeInfo {
     name: "Border",
     rust_path: "artic_controls::Border",
+    is: crate::is_a::<Border>,
     new: Some(new_border),
     content: None,
     properties: &[PropertyInfo {

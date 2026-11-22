@@ -1,0 +1,5 @@
+error[E0080]: evaluation panicked: the content field `width` has the name of a field of a group this type flattens; its method would hide the group's
+  --> tests/ui/content_field_named_like_a_group_field.rs:11:17
+   |
+11 | #[derive(Debug, UiType)]
+   |                 ^^^^^^ evaluation of `_::_` failed here

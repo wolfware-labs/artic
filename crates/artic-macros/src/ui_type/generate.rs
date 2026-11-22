@@ -104,6 +104,27 @@ fn group_items(ident: &Ident, members: &Members) -> TokenStream {
       quote!(::core::assert!(!__artic::group_has_field(<#ty as __artic::PropertyGroup>::PROPERTIES, #field_name), #message);)
     })
   });
+  let content_checks = match &members.content {
+    Some(Content::Collection {
+      ident: field,
+      method: Some(_),
+      ..
+    }) => {
+      let field_name = field.to_string();
+      let message = format!(
+        "the content field `{}` has the name of a field of a group this type flattens; its method would hide the group's",
+        field.unraw()
+      );
+      groups
+        .iter()
+        .map(|group| {
+          let ty = group.ty;
+          quote!(::core::assert!(!__artic::group_has_field(<#ty as __artic::PropertyGroup>::PROPERTIES, #field_name), #message);)
+        })
+        .collect()
+    }
+    _ => Vec::new(),
+  };
   let pair_checks = groups.iter().enumerate().flat_map(|(index, first)| {
     groups[index + 1..].iter().map(move |second| {
       let (a, b) = (first.ty, second.ty);
@@ -119,6 +140,7 @@ fn group_items(ident: &Ident, members: &Members) -> TokenStream {
 
     const _: () = {
       #(#own_field_checks)*
+      #(#content_checks)*
       #(#pair_checks)*
     };
   }
@@ -173,6 +195,7 @@ fn content_functions(ident: &Ident, members: &Members) -> Option<TokenStream> {
       owner: __artic::NodeId,
       child: __artic::NodeId,
     ) -> ::core::result::Result<(), __artic::ValueError> {
+      __artic::check_child(<#ty as __artic::UiCollection>::takes(), tree, child)?;
       <#ty as __artic::UiCollection>::push_child(tree, owner, child, __content_field)
     }
   })
@@ -187,7 +210,7 @@ fn content_info(members: &Members) -> TokenStream {
       group: ::core::option::Option::None,
       info: &__PROPERTIES[#index],
     }))),
-    Some(Content::Collection { ident, method, .. }) => {
+    Some(Content::Collection { ident, ty, method, .. }) => {
       let name = ident.to_string();
       let method = match method {
         Some(method) => {
@@ -199,6 +222,7 @@ fn content_info(members: &Members) -> TokenStream {
       quote!(::core::option::Option::Some(__artic::ContentInfo::Collection {
         field: #name,
         method: #method,
+        takes: <#ty as __artic::UiCollection>::takes,
         add_child: __add_child,
       }))
     }
@@ -241,6 +265,7 @@ fn type_info(analysis: &TypeAnalysis) -> TokenStream {
     static __TYPE_INFO: __artic::TypeInfo = __artic::TypeInfo {
       name: ::core::stringify!(#ident),
       rust_path: ::core::concat!(::core::module_path!(), "::", ::core::stringify!(#ident)),
+      is: __artic::is_a::<#ident>,
       new: #new,
       content: #content,
       properties: &__PROPERTIES,

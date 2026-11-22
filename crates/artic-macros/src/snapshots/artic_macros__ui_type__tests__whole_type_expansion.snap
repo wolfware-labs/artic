@@ -79,6 +79,11 @@ const _: () = {
             "text"),
             "the property `text` has the name of a field of a group this type flattens; its method would hide the group's"
         );
+        ::core::assert!(
+            ! __artic::group_has_field(< Layout as __artic::PropertyGroup > ::PROPERTIES,
+            "children"),
+            "the content field `children` has the name of a field of a group this type flattens; its method would hide the group's"
+        );
     };
     static __PROPERTIES: [__artic::PropertyInfo; 4usize] = [
         __artic::PropertyInfo {
@@ -190,6 +195,7 @@ const _: () = {
         owner: __artic::NodeId,
         child: __artic::NodeId,
     ) -> ::core::result::Result<(), __artic::ValueError> {
+        __artic::check_child(<Children as __artic::UiCollection>::takes(), tree, child)?;
         <Children as __artic::UiCollection>::push_child(
             tree,
             owner,
@@ -295,6 +301,7 @@ const _: () = {
         rust_path: ::core::concat!(
             ::core::module_path!(), "::", ::core::stringify!(Panel)
         ),
+        is: __artic::is_a::<Panel>,
         new: ::core::option::Option::Some(__new),
         content: __artic::one_content(
             &[
@@ -303,6 +310,7 @@ const _: () = {
                     method: ::core::option::Option::Some(
                         __artic::ContentMethod::Children,
                     ),
+                    takes: <Children as __artic::UiCollection>::takes,
                     add_child: __add_child,
                 }),
                 __artic::group_content(

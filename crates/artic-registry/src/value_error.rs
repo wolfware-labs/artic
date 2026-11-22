@@ -42,8 +42,8 @@ pub enum ValueError {
   /// A child of a kind the content doesn't take.
   #[error("this element's content takes only {expected}")]
   UnexpectedChild {
-    /// What the content takes, such as `Run`, `Bold` or `Italic`.
-    expected: &'static str,
+    /// The types the content takes, in prose, such as "`Run`, `Bold` or `Italic`".
+    expected: String,
   },
 }
 
@@ -62,7 +62,9 @@ mod tests {
   // A child of a kind the content doesn't take names what it takes.
   #[test]
   fn unexpected_child_names_what_the_content_takes() {
-    let error = ValueError::UnexpectedChild { expected: "`Item`" };
+    let error = ValueError::UnexpectedChild {
+      expected: "`Item`".to_owned(),
+    };
 
     assert_eq!(error.to_string(), "this element's content takes only `Item`");
   }

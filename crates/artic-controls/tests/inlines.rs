@@ -196,8 +196,95 @@ fn a_non_inline_child_is_refused() {
   assert_eq!(
     add_child(&mut tree, block, panel),
     Err(ValueError::UnexpectedChild {
-      expected: "`Run`, `Bold` or `Italic`"
+      expected: "`Run`, `Bold` or `Italic`".to_owned()
     })
   );
   assert_eq!(tree.children(TreeKind::Logical, block).count(), 0);
+}
+
+// Building a block with a child of another type panics before anything is allocated.
+#[test]
+fn building_with_a_non_inline_child_leaves_the_tree_as_it_was() {
+  let mut tree = UiTree::new();
+  let panel = tree.alloc(Box::new(StackPanel::default()));
+  let before = tree.len();
+
+  let built = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let _ = TextBlock::new().inlines([panel]).build(&mut tree);
+  }));
+
+  assert!(built.is_err());
+  assert_eq!(tree.len(), before);
+}
+
+// A node that isn't in the tree is refused by the link, not by its type.
+#[test]
+fn a_stale_child_is_refused_by_the_link() {
+  let mut tree = UiTree::new();
+  let block = TextBlock::new().build(&mut tree).id();
+  let stale = run(&mut tree, "gone");
+  tree.free(stale);
+  let Some(ContentInfo::Collection { add_child, .. }) = TextBlock::TYPE_INFO.content else {
+    panic!("TextBlock's content is a collection");
+  };
+
+  assert!(matches!(add_child(&mut tree, block, stale), Err(ValueError::InvalidChild(_))));
+}
+
+/// The accessibility value of the block at `node`.
+fn value(tree: &UiTree, node: NodeId) -> Option<String> {
+  let types = ElementTypes::from_link_time();
+  let element = types.element(tree.get(node).expect("a node")).expect("an element");
+  element
+    .accessibility(&AccessCx::new(tree, node, Size::new(10.0, 10.0)))
+    .value()
+    .map(str::to_owned)
+}
+
+// Once the last inline leaves, the block measures and reads `Text` again.
+#[test]
+fn text_shows_again_once_the_last_inline_leaves() {
+  let mut layout = Headless::new();
+  let inline = run(layout.tree(), "a much longer inline");
+  let block = TextBlock::new().text("own").inlines([inline]).build(layout.tree()).id();
+  layout.run(block, WINDOW, 1.0);
+  let with_inline = layout.manager().desired(block).expect("measured");
+
+  layout.tree().detach(TreeKind::Logical, inline);
+  let stats = layout.run(block, WINDOW, 1.0);
+
+  assert_eq!(stats.measured, 1);
+  assert!(layout.manager().desired(block).expect("measured").width < with_inline.width);
+  assert_eq!(value(layout.tree(), block).as_deref(), Some("own"));
+}
+
+// Inlines with no run in them keep the block one line high, as empty text does.
+#[test]
+fn inlines_without_runs_keep_one_line() {
+  let mut layout = Headless::new();
+  let empty = laid_out(&mut layout, &[]);
+  let one_line = layout.manager().desired(empty).expect("measured");
+  let bold = Bold::new().build(layout.tree()).id();
+  let block = laid_out(&mut layout, &[bold]);
+
+  let size = layout.manager().desired(block).expect("measured");
+
+  assert!(size.height > 0.0);
+  assert_eq!(size, one_line);
+}
+
+// A weight set on Bold itself wins over its type value, and measures the block again.
+#[test]
+fn bold_own_weight_wins_and_remeasures() {
+  let mut layout = Headless::new();
+  let inner = run(layout.tree(), "inside");
+  let bold = Bold::new().inlines([inner]).build(layout.tree()).id();
+  let block = laid_out(&mut layout, &[bold]);
+
+  let bold_node = layout.tree().get_as::<Bold>(bold).expect("a bold");
+  bold_node.format.font_weight.set(FontWeight::BLACK);
+  let stats = layout.run(block, WINDOW, 1.0);
+
+  assert_eq!(stats.measured, 1);
+  assert_eq!(pieces(&flattened(layout.tree(), block))[0].1, FontWeight::BLACK);
 }

@@ -2,6 +2,7 @@
 
 #![allow(dead_code, reason = "each test binary uses part of it")]
 
+use artic_core::Object;
 use artic_core::property::Affects;
 use artic_core::tree::{NodeId, UiTree};
 use artic_diagnostics::{Diagnostic, Diagnostics, SourceId, SourceMap, Span};
@@ -12,6 +13,10 @@ use artic_view::Language;
 use artic_view::document::{Content, Document, Element, Member, Text, TypeUse};
 
 /// Creates no node: the compiler never builds a tree.
+fn no_object(_object: &dyn Object) -> bool {
+  unreachable!("the compiler never reads a node")
+}
+
 fn new_node(_tree: &mut UiTree) -> NodeId {
   unreachable!("the compiler never creates a node")
 }
@@ -39,6 +44,7 @@ const fn info(name: &'static str, rust_path: &'static str) -> TypeInfo {
   TypeInfo {
     name,
     rust_path,
+    is: no_object,
     new: Some(new_node),
     content: None,
     properties: &[],
@@ -81,6 +87,7 @@ pub static PANEL: TypeInfo = TypeInfo {
   content: Some(ContentInfo::Collection {
     field: "children",
     method: Some(ContentMethod::Children),
+    takes: || None,
     add_child,
   }),
   properties: &WIDTH,
@@ -93,6 +100,7 @@ pub static HOST: TypeInfo = TypeInfo {
   content: Some(ContentInfo::Collection {
     field: "child",
     method: Some(ContentMethod::Child),
+    takes: || None,
     add_child,
   }),
   groups: &LAYOUT,

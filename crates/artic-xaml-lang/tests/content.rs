@@ -174,3 +174,17 @@ fn elements_in_type_without_content_are_checked() {
   assert!(errors.contains("`Divider` takes no child elements"), "{errors}");
   assert!(errors.contains("no type `Bogus`"), "{errors}");
 }
+
+// A child of a type the content doesn't take is reported where it's written, and its own
+// problems are still checked.
+#[test]
+fn child_of_a_type_the_content_does_not_take_reports_error() {
+  let errors = compile(r#"<TextBlock xmlns="https://artic.rs/ui"><Run Text="a"/><Border/><Bogus/></TextBlock>"#)
+    .expect_err("a border in a text block");
+  assert!(
+    errors.contains("`TextBlock` takes only `Run`, `Bold` or `Italic`"),
+    "{errors}"
+  );
+  assert!(errors.contains("no type `Bogus`"), "{errors}");
+  assert_eq!(errors.matches("takes only").count(), 1, "{errors}");
+}

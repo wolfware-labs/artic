@@ -17,7 +17,8 @@ use std::num::NonZeroU32;
 ///
 /// The text is its inlines', each [`Run`](crate::Run) in its own font and brush, while it holds
 /// any; else it is `Text`, in the block's own. Neither changes the other, so removing the last
-/// inline shows `Text` again.
+/// inline shows `Text` again. Inlines with no run in them, such as an empty `Bold`, show one empty
+/// line in the block's own font.
 #[element]
 #[derive(Debug)]
 #[ui(whitespace = "significant")]
@@ -58,7 +59,11 @@ struct Shaped {
 
 impl TextBlock {
   fn shape(&self, tree: &UiTree, node: NodeId, text: &mut dyn TextEngine, limits: TextLimits) -> Shaped {
-    let content = Inlines::styled_text(tree, node).unwrap_or_else(|| StyledText::plain(self.text.get(), self.format.style()));
+    let content = match Inlines::styled_text(tree, node) {
+      Some(runs) if !runs.styles().is_empty() => runs,
+      Some(_) => StyledText::plain("", self.format.style()),
+      None => StyledText::plain(self.text.get(), self.format.style()),
+    };
     let paragraph = ParagraphStyle {
       line_height: self.line_height.get(),
       alignment: self.text_alignment.get(),

@@ -17,7 +17,7 @@ mod with_children;
 
 /// What [`PropertyInfo::literal`] writes with, re-exported so a code generator needs only this crate.
 pub use artic_core::{RustExpr, ToRust};
-pub use collection::UiCollection;
+pub use collection::{UiCollection, check_child, is_a, type_names};
 pub use defaults::OverrideDefaults;
 pub use descriptors::{
   ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, EventInfo, HasGroup, PropertyGroup,
@@ -40,7 +40,7 @@ use linkme::distributed_slice;
 /// use artic_core::Object;
 /// use artic_core::property::PropertyVisitor;
 /// use artic_core::tree::{NodeId, UiTree};
-/// use artic_registry::{Registry, TypeInfo, Whitespace};
+/// use artic_registry::{Registry, TypeInfo, Whitespace, is_a};
 ///
 /// #[derive(Debug)]
 /// struct Gauge;
@@ -51,6 +51,7 @@ use linkme::distributed_slice;
 /// static GAUGE: TypeInfo = TypeInfo {
 ///   name: "Gauge",
 ///   rust_path: "my_app::views::Gauge",
+///   is: is_a::<Gauge>,
 ///   new: Some(|tree: &mut UiTree| -> NodeId { tree.alloc(Box::new(Gauge)) }),
 ///   content: None,
 ///   properties: &[],
@@ -97,7 +98,7 @@ pub static UI_TYPES: [&'static TypeInfo];
 /// use artic_core::Object;
 /// use artic_core::property::PropertyVisitor;
 /// use artic_core::tree::{NodeId, UiTree};
-/// use artic_registry::{Registry, TypeInfo, Whitespace};
+/// use artic_registry::{Registry, TypeInfo, Whitespace, is_a};
 ///
 /// #[derive(Debug)]
 /// struct Dial;
@@ -108,6 +109,7 @@ pub static UI_TYPES: [&'static TypeInfo];
 /// static DIAL: TypeInfo = TypeInfo {
 ///   name: "Dial",
 ///   rust_path: "my_app::views::Dial",
+///   is: is_a::<Dial>,
 ///   new: Some(|tree: &mut UiTree| -> NodeId { tree.alloc(Box::new(Dial)) }),
 ///   content: None,
 ///   properties: &[],

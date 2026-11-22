@@ -6,7 +6,7 @@ use std::str::FromStr;
 pub use crate::{
   ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, EventInfo, HasGroup, OverrideDefaults,
   PropertyGroup, PropertyGroupInfo, PropertyInfo, PropertyRef, RustExpr, ToRust, TypeInfo, UiCollection, UiType, ValueError,
-  ValueProviderInfo, Whitespace, WithChildren, register_type,
+  ValueProviderInfo, Whitespace, WithChildren, check_child, is_a, register_type,
 };
 pub use artic_core::Object;
 pub use artic_core::event::Event;
@@ -220,6 +220,7 @@ mod tests {
   static GAUGE: TypeInfo = TypeInfo {
     name: "Gauge",
     rust_path: "tests::Gauge",
+    is: |_| false,
     new: None,
     content: None,
     properties: &[],

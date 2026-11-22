@@ -158,6 +158,7 @@ mod tests {
     TypeInfo {
       name,
       rust_path,
+      is: crate::is_a::<Node>,
       new: Some(new_node),
       content: None,
       properties: &[],

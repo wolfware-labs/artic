@@ -11,7 +11,7 @@ use artic_core::property::{Precedence, Property};
 use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_layout::text::{FontStyle, FontWeight, StyledText};
 use artic_macros::UiType;
-use artic_registry::{OverrideDefaults, UiCollection, ValueError};
+use artic_registry::{OverrideDefaults, TypeInfo, UiCollection, UiType, ValueError};
 
 /// Marks the inlines a type holds, as a UI language writes them: a [`Run`], [`Bold`] or
 /// [`Italic`] becomes the type's logical child, drawn by the text block above it, so a change to
@@ -41,12 +41,12 @@ impl Inlines {
   }
 }
 
-/// Whether `node` is one of the inlines.
-fn is_inline(tree: &UiTree, node: NodeId) -> bool {
-  tree.get_as::<Run>(node).is_some() || tree.get_as::<Bold>(node).is_some() || tree.get_as::<Italic>(node).is_some()
-}
-
 impl UiCollection for Inlines {
+  fn takes() -> Option<&'static [&'static TypeInfo]> {
+    static INLINES: [&TypeInfo; 3] = [Run::TYPE_INFO, Bold::TYPE_INFO, Italic::TYPE_INFO];
+    Some(&INLINES)
+  }
+
   fn push_child(
     tree: &mut UiTree,
     owner: NodeId,
@@ -54,11 +54,6 @@ impl UiCollection for Inlines {
     field: for<'a> fn(&'a mut UiTree, NodeId) -> Option<&'a mut Self>,
   ) -> Result<(), ValueError> {
     field(tree, owner).ok_or(ValueError::WrongNode)?;
-    if tree.contains(child) && !is_inline(tree, child) {
-      return Err(ValueError::UnexpectedChild {
-        expected: "`Run`, `Bold` or `Italic`",
-      });
-    }
     tree
       .link(TreeKind::Logical, owner, None, child)
       .map_err(ValueError::InvalidChild)?;
