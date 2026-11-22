@@ -106,10 +106,15 @@ mod tests {
     }))
   }
 
+  /// The descriptors of `Leaf` and of two types no node here has, `Other` and `Third`.
+  fn infos() -> [&'static TypeInfo; 3] {
+    [info("Leaf", is_a::<Leaf>), info("Other", |_| false), info("Third", |_| false)]
+  }
+
   // One name stands alone, two take "or", and more take commas before the "or".
   #[test]
   fn type_names_read_as_a_list() {
-    let [leaf, other, third] = [info("Leaf", is_a::<Leaf>), info("Other", |_| false), info("Third", |_| false)];
+    let [leaf, other, third] = infos();
     assert_eq!(type_names(&[]), "");
     assert_eq!(type_names(&[leaf]), "`Leaf`");
     assert_eq!(type_names(&[leaf, other]), "`Leaf` or `Other`");
@@ -120,7 +125,7 @@ mod tests {
   // passes a collection that lists none, as does a node not in the tree.
   #[test]
   fn check_child_follows_the_list() {
-    let [leaf_info, other, third] = [info("Leaf", is_a::<Leaf>), info("Other", |_| false), info("Third", |_| false)];
+    let [leaf_info, other, third] = infos();
     let mut tree = UiTree::new();
     let leaf = tree.alloc(Box::new(Leaf));
     let stale = tree.alloc(Box::new(Leaf));

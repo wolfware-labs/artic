@@ -297,13 +297,13 @@ fn descriptors_create_styled_inlines() {
   let infos = [Run::TYPE_INFO, Bold::TYPE_INFO, Italic::TYPE_INFO];
   let [run, bold, italic] = infos.map(|info| (info.new.expect("created from defaults"))(&mut tree));
 
-  let format = |node| {
+  let recognized_by = |node| {
     let object = tree.get(node).expect("a node");
     infos.map(|info| (info.is)(object))
   };
-  assert_eq!(format(run), [true, false, false]);
-  assert_eq!(format(bold), [false, true, false]);
-  assert_eq!(format(italic), [false, false, true]);
+  assert_eq!(recognized_by(run), [true, false, false]);
+  assert_eq!(recognized_by(bold), [false, true, false]);
+  assert_eq!(recognized_by(italic), [false, false, true]);
   let bold = tree.get_as::<Bold>(bold).expect("a bold");
   let italic = tree.get_as::<Italic>(italic).expect("an italic");
   assert_eq!(bold.format.font_weight.get(), FontWeight::BOLD);
