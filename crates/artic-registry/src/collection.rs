@@ -31,9 +31,15 @@ pub trait UiCollection: Sized {
   /// Adds `child` as content of `owner`. An implementation calls `field` first and returns
   /// [`ValueError::WrongNode`] when it gives `None`, before changing anything.
   ///
+  /// Beyond the owner, [`takes`](UiCollection::takes) and the tree's own link checks, it refuses a
+  /// child only when the field holds as many as it takes, as `Child` refuses a second one.
+  /// `WithChildren::build` relies on this: it checks the rest before it allocates the node, so a
+  /// refusal after that leaves part of a build in the tree, and it panics on one as a bug in the
+  /// collection.
+  ///
   /// # Errors
   ///
-  /// When `owner` isn't the field's owner type, or the collection refuses `child`.
+  /// When `owner` isn't the field's owner type, the tree refuses the link, or the field is full.
   fn push_child(
     tree: &mut UiTree,
     owner: NodeId,
