@@ -152,8 +152,7 @@ pub trait PropertyGroup {
   /// import the same way it does a type's `rust_path`.
   const METHODS: &'static str;
 
-  /// Lists the group's properties, as [`Object::visit_properties`](artic_core::Object::visit_properties)
-  /// does for a node.
+  /// Lists the group's properties, as [`Object::visit_properties`] does for a node.
   fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>);
 }
 

@@ -33,9 +33,8 @@ impl<T: UiType + Object, I: IntoIterator<Item: Into<NodeId>>> WithChildren<T, I>
   /// when the type's content isn't a collection of child elements. The checks run before the node
   /// is allocated, so a failed build leaves the tree as it was. They cover every way a `Child` or
   /// `Children` field refuses a child made through the generated methods, since `.child` passes
-  /// one child at most. A `WithChildren`
-  /// made by hand with two children for a `Child` field passes them and panics once the node and
-  /// its first child are in the tree.
+  /// one child at most. A `WithChildren` made by hand with two children for a `Child` field passes
+  /// them and panics once the node and its first child are in the tree.
   #[must_use = "the handle is needed to link or reach the node"]
   pub fn build(self, tree: &mut UiTree) -> Handle<T> {
     let name = T::TYPE_INFO.name;
@@ -50,7 +49,7 @@ impl<T: UiType + Object, I: IntoIterator<Item: Into<NodeId>>> WithChildren<T, I>
         "a child of the `{name}` being built is listed twice"
       );
       if let Err(error) = check_child(takes(), tree, *child) {
-        panic!("a child of the `{name}` being built is refused: {error}");
+        panic!("a child of the `{name}` being built is refused: {}", Chain(&error));
       }
     }
     let node = tree.alloc_typed(self.node);

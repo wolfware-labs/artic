@@ -12,11 +12,12 @@ use artic_registry::{
 use artic_view::Language;
 use artic_view::document::{Content, Document, Element, Member, Text, TypeUse};
 
-/// Creates no node: the compiler never builds a tree.
+/// Reads no node: the compiler never builds a tree.
 fn no_object(_object: &dyn Object) -> bool {
   unreachable!("the compiler never reads a node")
 }
 
+/// Creates no node: the compiler never builds a tree.
 fn new_node(_tree: &mut UiTree) -> NodeId {
   unreachable!("the compiler never creates a node")
 }

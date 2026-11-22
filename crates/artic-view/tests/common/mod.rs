@@ -7,11 +7,12 @@ use artic_diagnostics::{Diagnostic, Diagnostics, SourceMap, Span};
 use artic_registry::{ContentInfo, ContentMethod, EventInfo, PropertyInfo, PropertyRef, TypeInfo, ValueError, Whitespace};
 use artic_view::document::{Content, Element, Member, Problem, Text, TypeUse};
 
-/// Creates no node: the checker never builds a tree.
+/// Reads no node: the checker never builds a tree.
 fn no_object(_object: &dyn Object) -> bool {
   unreachable!("the checker never reads a node")
 }
 
+/// Creates no node: the checker never builds a tree.
 fn new_node(_tree: &mut UiTree) -> NodeId {
   unreachable!("the checker never creates a node")
 }

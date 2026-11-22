@@ -143,6 +143,7 @@ The block above is a view without a code type. The builder design's sample is a 
 | `x:Key` outside a resource dictionary | "resources come with #111" |
 | Text inside a type with no content, or text in a collection of elements | the type takes no text content |
 | A second child for a `Child` content | the type takes one child |
+| A child of a type its collection doesn't list, such as a `Border` in a `TextBlock` | the type takes only the listed types, naming them |
 | A collection content of values, such as gradient stops | "value collections come with #57" |
 | A value provider written as an element, the root included, `<x:Null/>` too | the type is a value provider, not an element |
 | An element inside a type with no content | the type takes no child elements |
