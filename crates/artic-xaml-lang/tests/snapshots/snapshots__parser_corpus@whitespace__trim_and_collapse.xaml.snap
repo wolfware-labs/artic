@@ -3,7 +3,28 @@ source: crates/artic-xaml-lang/tests/snapshots.rs
 expression: output
 input_file: crates/artic-xaml/tests/fixtures/valid/whitespace/trim_and_collapse.xaml
 ---
-valid/whitespace/trim_and_collapse.xaml:1:40: error: `TextBlock` takes no text content
-1 | <TextBlock xmlns="https://artic.rs/ui">
-  |                                        ^
-help: put the text in an element, such as a `TextBlock`
+// Generated from valid/whitespace/trim_and_collapse.xaml.
+
+use ::artic::core::tree::{Handle, UiTree};
+use ::artic::controls as _;
+use ::artic::core as _;
+use ::artic::element as _;
+use ::artic::layout as _;
+use ::artic::render as _;
+/// The type the view's code is, which takes the root's place, as the view names it.
+#[allow(dead_code, reason = "only a code type's macro reads it")]
+pub const CODE_TYPE: Option<&str> = None;
+/// The nodes of `valid/whitespace/trim_and_collapse.xaml`: its root and one handle per named element.
+#[derive(Clone, Copy, Debug)]
+pub struct View {
+    /// The view's root.
+    pub root: Handle<::artic::controls::TextBlock>,
+}
+/// Builds `valid/whitespace/trim_and_collapse.xaml` in `tree` and returns its nodes.
+pub fn build(tree: &mut UiTree) -> View {
+    let __e0 = ::artic::controls::Run::new()
+        .text(::std::string::String::from("Hello world"))
+        .build(tree);
+    let __e1 = ::artic::controls::TextBlock::new().inlines([__e0.id()]).build(tree);
+    View { root: __e1 }
+}

@@ -19,7 +19,7 @@ One `TextBlock` can mix styles:
 | `Italic` | inlines in italics | `Inlines` |
 | `Inlines` | the collection a `TextBlock`, `Bold` and `Italic` hold their inlines in | |
 
-`Run`, `Bold` and `Italic` flatten `TextFormat`, so each takes `FontFamily`, `FontSize`, `FontWeight`, `FontStyle` and `Foreground`, as `TextBlock` does. Each, and `TextBlock`, is `#[ui(whitespace = "significant")]`, so `Hello <Bold>world</Bold>` keeps its space once the languages read it (#49, #59).
+`Run`, `Bold` and `Italic` flatten `TextFormat`, so each takes `FontFamily`, `FontSize`, `FontWeight`, `FontStyle` and `Foreground`, as `TextBlock` does. Each, and `TextBlock`, is `#[ui(whitespace = "significant")]`, so whitespace between two inlines counts as one space (section 7).
 
 ```rust
 # use artic_controls::{Bold, Run, TextBlock, TextFormatMethods};
@@ -80,16 +80,31 @@ While a `TextBlock` holds any inline, it shows its inlines' text, and `Text` is 
 
 The derive gave a builder method only to a field written `Child` or `Children`, chosen by the type's name. Every collection of child elements now gets one named after its field: `.child(node)` for a `Child` field, and `.children(..)`, `.surfaces(..)` or `.inlines(..)` taking any number. A `Vec` content holds values and gets none until #57. The view compiler calls the method by the content field's name, so it needs no list of collection types either. A `code_type_root` type's content collection must still be a `Child` or `Children` field, which the derive now checks: a view's code type takes the root's content as a field of one of those two types, and `ContentMethod::Children` no longer tells `Children` apart from another collection.
 
-## 7. What waits
+## 7. Text inside a block
+
+Text written inside a `TextBlock`, `Bold` or `Italic` becomes a `Run`, as in WPF. `Inlines` names `Run` as its `UiCollection::text_wrapper`; the view checker turns each piece of text in a collection with a wrapper into an element of that type with its content property set to the text, so `Hello <Bold>world</Bold>` gives a `Run`, then a `Bold` holding another `Run`. The checker knows no inline type: a collection with no wrapper reports text as before.
+
+Whitespace follows WPF:
+
+| Written | Text |
+| --- | --- |
+| `<TextBlock>  Hello   world  </TextBlock>` | `Hello world`: runs collapse to one space, and the content is trimmed at the block's tags |
+| `<TextBlock>Hello <Bold>world</Bold></TextBlock>` | `Hello world`: text beside an element keeps the space on that side |
+| `<TextBlock><Run>Hello</Run> <Run>world</Run></TextBlock>` | `Hello world`: whitespace-only text between two inlines counts as one space, because the types are `Whitespace::Significant` |
+| the same split over lines, with indentation | `Hello world` |
+| `<TextBlock xml:space="preserve">` with the same content | as written, line breaks and indentation included |
+
+A content property, such as `<Run>  two  spaces </Run>`, follows the same rules and reads `two spaces`; before, a significant type read its text as written whatever `xml:space` said.
+
+## 8. What waits
 
 | Feature | Tracked in |
 | --- | --- |
-| Bare text inside a `TextBlock`, `Bold` or `Italic` becomes a `Run`, with its whitespace kept | #47 |
-| The loader applying significant whitespace | #59 |
+| The loader wrapping text and keeping the space between inlines | #59 |
 | Hyperlinks and other inline types | not in v1 |
 | Right-to-left runs | #170 |
 
-## 8. Testing
+## 9. Testing
 
 | Crate | Tests |
 | --- | --- |
@@ -97,5 +112,6 @@ The derive gave a builder method only to a field written `Child` or `Children`, 
 | `artic-macros` | `other_collections_take_children_by_their_field_name`, `content_method_clashing_with_a_reserved_name_is_an_error`, `raw_content_method_clashing_with_a_reserved_name_is_an_error`, `code_type_root_with_another_collection_is_an_error`, `other_collection_content_takes_children`, and the trybuild cases `content_field_named_like_a_group_field` and `content_raw_field_named_like_a_group_field` |
 | `artic-registry` | `unexpected_child_names_what_the_content_takes`, `type_names_read_as_a_list`, `check_child_follows_the_list`, `group_field_check_ignores_raw_spelling` |
 | `artic-controls` | `inline_runs_flatten_with_styles`, `the_innermost_weight_wins`, `bold_own_weight_wins_and_remeasures`, `inline_whitespace_preserved`, `inlines_win_over_text_while_present`, `text_shows_again_once_the_last_inline_leaves`, `inlines_without_runs_keep_one_line`, `run_change_invalidates_measure`, `each_run_paints_with_its_foreground`, `textblock_inlines_accesskit_value`, `a_non_inline_child_is_refused`, `building_with_a_non_inline_child_leaves_the_tree_as_it_was`, `a_stale_child_is_refused_by_the_link` |
-| `artic-xaml-lang` | `own_collection_takes_children_by_its_field_name`, `child_of_a_type_the_content_does_not_take_reports_error` |
+| `artic-view` | `text_becomes_wrapper_elements`, `blank_text_between_elements_adds_nothing_when_it_collapses`, `a_wrapper_without_a_content_property_reports_the_text`, `content_text_reads_the_ruled_text` |
+| `artic-xaml-lang` | `own_collection_takes_children_by_its_field_name`, `child_of_a_type_the_content_does_not_take_reports_error`, `text_in_a_text_block_becomes_runs`, `preserved_text_in_a_text_block_keeps_its_whitespace`, `significant_content_collapses_unless_preserved`, `text_in_a_collection_without_a_wrapper_reports_error`; the corpus snapshots of text in a `TextBlock` now compile to runs |
 | `artic-vello` | golden `text_block_inlines` |

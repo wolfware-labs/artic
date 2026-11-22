@@ -30,7 +30,8 @@
 //! - An element's content is trimmed at its start and end tags only, so text beside a child
 //!   element keeps the space on that side.
 //! - Whitespace-only text, such as indentation between elements, has an empty `text`: it adds
-//!   nothing, and types whose whitespace is significant read `raw` instead.
+//!   nothing, except between two elements of a type whose whitespace is significant, where it
+//!   counts as one space.
 //! - `xml:space="preserve"` keeps text as written in its subtree, and `xml:space="default"`
 //!   restores the rules.
 //!

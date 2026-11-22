@@ -104,11 +104,48 @@ fn text_content_sets_content_property() {
   );
 }
 
-// A type whose whitespace is significant gets its text as written.
+// A type whose whitespace is significant still collapses its text, as XAML does, and
+// `xml:space="preserve"` keeps it as written.
 #[test]
-fn significant_content_keeps_raw_text() {
+fn significant_content_collapses_unless_preserved() {
   let rust = compile(&format!(r#"<Run xmlns="{TEST_UI}">  two  spaces </Run>"#)).expect("a valid view");
+  assert!(rust.contains(r#""two spaces""#), "{rust}");
+  let rust = compile(&format!(
+    r#"<Run xmlns="{TEST_UI}" xml:space="preserve">  two  spaces </Run>"#
+  ))
+  .expect("a valid view");
   assert!(rust.contains(r#""  two  spaces ""#), "{rust}");
+}
+
+// Text in a `TextBlock` becomes runs beside its inlines, with one space kept between two inlines
+// and the markup's line breaks and indentation collapsed.
+#[test]
+fn text_in_a_text_block_becomes_runs() {
+  let rust =
+    compile("<TextBlock xmlns=\"https://artic.rs/ui\">\n  Hello\n  <Bold>world</Bold>\n  <Italic>again</Italic>\n</TextBlock>")
+      .expect("a valid view");
+  let runs: Vec<&str> = rust
+    .split(".text(::std::string::String::from(\"")
+    .skip(1)
+    .map(|rest| &rest[..rest.find('"').expect("a closing quote")])
+    .collect();
+  assert_eq!(runs, ["Hello ", "world", " ", "again"], "{rust}");
+}
+
+// Under `xml:space="preserve"`, text in a `TextBlock` keeps its line breaks and indentation.
+#[test]
+fn preserved_text_in_a_text_block_keeps_its_whitespace() {
+  let rust =
+    compile("<TextBlock xmlns=\"https://artic.rs/ui\" xml:space=\"preserve\">\n  Hello <Bold>world</Bold></TextBlock>")
+      .expect("a valid view");
+  assert!(rust.contains(r#"String::from("\n  Hello ")"#), "{rust}");
+}
+
+// Text in a collection with no text wrapper is still reported.
+#[test]
+fn text_in_a_collection_without_a_wrapper_reports_error() {
+  let errors = compile(r#"<StackPanel xmlns="https://artic.rs/ui">Hi</StackPanel>"#).expect_err("text");
+  assert!(errors.contains("`StackPanel` takes no text content"), "{errors}");
 }
 
 // Blank content of a collapsing type sets nothing.

@@ -47,6 +47,10 @@ impl UiCollection for Inlines {
     Some(&INLINES)
   }
 
+  fn text_wrapper() -> Option<&'static TypeInfo> {
+    Some(Run::TYPE_INFO)
+  }
+
   fn push_child(
     tree: &mut UiTree,
     owner: NodeId,

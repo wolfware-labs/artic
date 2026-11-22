@@ -65,6 +65,7 @@ pub static PANEL: TypeInfo = TypeInfo {
     field: "children",
     method: Some(ContentMethod::Children),
     takes: || None,
+    text_wrapper: || None,
     add_child,
   }),
   properties: &PANEL_PROPERTIES,
@@ -78,6 +79,7 @@ pub static FRAME: TypeInfo = TypeInfo {
     field: "child",
     method: Some(ContentMethod::Child),
     takes: || None,
+    text_wrapper: || None,
     add_child,
   }),
   ..info("Frame", "test_ui::Frame")
@@ -93,7 +95,7 @@ pub static LABEL: TypeInfo = TypeInfo {
   ..info("Label", "test_ui::Label")
 };
 
-/// Its content sets `Text`, whitespace as written.
+/// Its content sets `Text`; its whitespace is significant.
 pub static CODE: TypeInfo = TypeInfo {
   content: Some(ContentInfo::Property(PropertyRef {
     group: None,
@@ -104,12 +106,38 @@ pub static CODE: TypeInfo = TypeInfo {
   ..info("Code", "test_ui::Code")
 };
 
+/// Takes any number of children, and text as `Code` elements; its whitespace is significant.
+pub static PARAGRAPH: TypeInfo = TypeInfo {
+  content: Some(ContentInfo::Collection {
+    field: "inlines",
+    method: Some(ContentMethod::Children),
+    takes: || None,
+    text_wrapper: || Some(&CODE),
+    add_child,
+  }),
+  whitespace: Whitespace::Significant,
+  ..info("Paragraph", "test_ui::Paragraph")
+};
+
+/// Takes any number of children, and names `Image`, which has no content property, for its text.
+pub static SHELF: TypeInfo = TypeInfo {
+  content: Some(ContentInfo::Collection {
+    field: "items",
+    method: Some(ContentMethod::Children),
+    takes: || None,
+    text_wrapper: || Some(&IMAGE),
+    add_child,
+  }),
+  ..info("Shelf", "test_ui::Shelf")
+};
+
 /// Takes one child; a view's code type can take its place at the root.
 pub static HOST: TypeInfo = TypeInfo {
   content: Some(ContentInfo::Collection {
     field: "child",
     method: Some(ContentMethod::Child),
     takes: || None,
+    text_wrapper: || None,
     add_child,
   }),
   code_type_root: true,
@@ -134,6 +162,7 @@ pub static BAG: TypeInfo = TypeInfo {
     field: "items",
     method: None,
     takes: || None,
+    text_wrapper: || None,
     add_child,
   }),
   code_type_root: true,
@@ -155,6 +184,7 @@ pub static STOPS: TypeInfo = TypeInfo {
     field: "stops",
     method: None,
     takes: || None,
+    text_wrapper: || None,
     add_child,
   }),
   ..info("Stops", "test_ui::Stops")

@@ -74,7 +74,8 @@ pub enum Content {
   Text {
     /// The text after the language's whitespace rules; empty for blank text.
     text: String,
-    /// The text as written, which a type whose whitespace is significant reads.
+    /// The text as written. Blank text written between two elements of a type whose whitespace is
+    /// significant counts as one space.
     raw: String,
     /// Where it is written.
     span: Span,

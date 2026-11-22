@@ -312,6 +312,7 @@ const _: () = {
                         __artic::ContentMethod::Children,
                     ),
                     takes: <Children as __artic::UiCollection>::takes,
+                    text_wrapper: <Children as __artic::UiCollection>::text_wrapper,
                     add_child: __add_child,
                 }),
                 __artic::group_content(
