@@ -1,5 +1,5 @@
+use crate::members::unraw_name;
 use proc_macro2::Span;
-use syn::ext::IdentExt;
 use syn::meta::ParseNestedMeta;
 use syn::parse::ParseStream;
 use syn::{Error, Expr, Field, Ident, LitStr, Meta, Path, Token};
@@ -67,7 +67,7 @@ pub fn parse_spec_setting(meta: &ParseNestedMeta, spec: &mut PropertySpec) -> sy
 /// Reads one stage of `affects`, which is written in lowercase: `layout`, not `Layout`.
 fn parse_stage(input: ParseStream) -> syn::Result<Ident> {
   let stage: Ident = input.parse()?;
-  let name = stage.unraw().to_string();
+  let name = unraw_name(&stage);
   let lowercase = name.to_lowercase();
   if name != lowercase {
     return Err(Error::new_spanned(

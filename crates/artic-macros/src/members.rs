@@ -249,7 +249,7 @@ impl Members<'_> {
     {
       take(
         &mut taken,
-        ident.to_string(),
+        unraw_name(ident),
         format!("the content method of `{ident}`"),
         ident.span(),
       )?;
@@ -258,7 +258,7 @@ impl Members<'_> {
       let ident = field.ident;
       take(
         &mut taken,
-        ident.unraw().to_string(),
+        unraw_name(ident),
         format!("the method of the property `{ident}`"),
         ident.span(),
       )?;
@@ -316,7 +316,7 @@ fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttributes)
     let key = match attributes.key {
       Some(path) => Key::Shared(path),
       None => {
-        let constant = screaming_snake_case(&ident.unraw().to_string());
+        let constant = screaming_snake_case(&unraw_name(ident));
         Key::Own {
           key_static: format_ident!("__KEY_{constant}"),
           constant: format_ident!("{constant}"),
@@ -440,7 +440,7 @@ fn collection_method(ty: &Type) -> Option<ContentMethod> {
 }
 
 /// The element collection a field's type names: `Child` or `Children`, else `None`.
-fn named_collection(ty: &Type) -> Option<ContentMethod> {
+pub fn named_collection(ty: &Type) -> Option<ContentMethod> {
   let Type::Path(path) = ty else {
     return None;
   };
@@ -449,6 +449,11 @@ fn named_collection(ty: &Type) -> Option<ContentMethod> {
     "Children" => Some(ContentMethod::Children),
     _ => None,
   }
+}
+
+/// The name `ident` stands for, without the `r#` of a raw identifier.
+pub fn unraw_name(ident: &Ident) -> String {
+  ident.unraw().to_string()
 }
 
 /// What text or an element sets for a value of type `ty`: `X` for `Option<X>`, whose `None` is

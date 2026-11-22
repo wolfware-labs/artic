@@ -1,6 +1,5 @@
-use crate::members::{Kind, Members};
+use crate::members::{Content, Kind, Members, named_collection, unraw_name};
 use crate::ui_type::attributes::{TypeAttributes, parse_type_attributes};
-use syn::ext::IdentExt;
 use syn::{DeriveInput, Error, Ident};
 
 /// A struct read for `UiType`: its fields and its struct attributes.
@@ -24,13 +23,14 @@ pub fn analyze(input: &DeriveInput) -> syn::Result<TypeAnalysis<'_>> {
     ]
     .map(|(item, role)| {
       (
-        item.unraw().to_string(),
+        unraw_name(item),
         format!("the {role} of the attached property `{name}`"),
         attached.name.span(),
       )
     })
   }))?;
   check_positional(&input.ident, &attributes, &members)?;
+  check_code_type_root(&attributes, &members)?;
   Ok(TypeAnalysis {
     ident: &input.ident,
     members,
@@ -53,6 +53,17 @@ fn check_attached(attributes: &TypeAttributes) -> syn::Result<()> {
     }
   }
   Ok(())
+}
+
+/// Rejects a code type root whose content is a collection other than `Child` or `Children`: a
+/// view's code type takes the root's content as a field of one of those two types.
+fn check_code_type_root(attributes: &TypeAttributes, members: &Members) -> syn::Result<()> {
+  match &members.content {
+    Some(Content::Collection { ty, .. }) if attributes.code_type_root && named_collection(ty).is_none() => Err(
+      Error::new_spanned(ty, "a `code_type_root` type's content must be a `Child` or `Children` field"),
+    ),
+    _ => Ok(()),
+  }
 }
 
 /// Rejects a positional argument that isn't a property, or that is listed twice.
@@ -254,6 +265,45 @@ mod tests {
     assert_eq!(
       error(&input),
       "`build` would be both the builder's finish and the content method of `build`; rename one"
+    );
+  }
+
+  // A code type root's content can't be a collection of its own: the code type takes it as a
+  // `Child` or `Children` field.
+  #[test]
+  fn code_type_root_with_another_collection_is_an_error() {
+    let input: DeriveInput = parse_quote! {
+      #[ui(code_type_root)]
+      struct Host {
+        #[ui(content)] items: Items,
+      }
+    };
+    let children: DeriveInput = parse_quote! {
+      #[ui(code_type_root)]
+      struct Host {
+        #[ui(content)] items: Children,
+      }
+    };
+
+    assert_eq!(
+      error(&input),
+      "a `code_type_root` type's content must be a `Child` or `Children` field"
+    );
+    assert!(analyze(&children).is_ok());
+  }
+
+  // A raw content field is checked by the name it stands for, as its method is.
+  #[test]
+  fn raw_content_method_clashing_with_a_reserved_name_is_an_error() {
+    let input: DeriveInput = parse_quote! {
+      struct Panel {
+        #[ui(content)] r#build: Children,
+      }
+    };
+
+    assert_eq!(
+      error(&input),
+      "`build` would be both the builder's finish and the content method of `r#build`; rename one"
     );
   }
 }

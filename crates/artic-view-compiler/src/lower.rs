@@ -56,7 +56,7 @@ pub(crate) struct Element {
   pub ty: Path,
   /// The property methods, in the order the document sets them.
   pub setters: Vec<Setter>,
-  /// The call that takes its children, if it has any.
+  /// The call that takes its children, for a type whose content is a collection.
   pub content: Option<ContentCall>,
 }
 
@@ -64,7 +64,7 @@ pub(crate) struct Element {
 pub(crate) struct ContentCall {
   /// The method.
   pub method: Ident,
-  /// The children, never [`CheckedContent::None`].
+  /// The children, if any.
   pub children: CheckedContent,
 }
 
@@ -185,19 +185,24 @@ fn root_content(info: &TypeInfo, paths: &CratePaths, span: Span, diagnostics: &m
     ContentMethod::Children => "artic_element::Children",
   };
   let ty = parse_path(&paths.item(ty), span, diagnostics)?;
-  Some((syn::parse_str(field).expect("a content field is an identifier"), ty))
+  Some((field_ident(field), ty))
 }
 
-/// The content call of `element`: the method named after its type's content field, when the check
-/// gave it children.
+/// The content call of `element`, a method named after its type's content field, or `None` when
+/// the content isn't a collection.
 fn content_call(element: &CheckedElement) -> Option<ContentCall> {
   let Some(ContentInfo::Collection { field, .. }) = element.ty.info.content else {
     return None;
   };
-  (element.content != CheckedContent::None).then(|| ContentCall {
-    method: Ident::new(field, proc_macro2::Span::call_site()),
+  Some(ContentCall {
+    method: field_ident(field),
     children: element.content.clone(),
   })
+}
+
+/// A content field's name, as the registry writes it (`r#` kept), as an identifier.
+fn field_ident(field: &str) -> Ident {
+  syn::parse_str(field).expect("a content field is an identifier")
 }
 
 /// Parses `text`, built from the crates' paths, as the path of an item, or records that

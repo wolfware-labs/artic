@@ -62,9 +62,9 @@ pub enum CheckedContent {
   /// No content call.
   #[default]
   None,
-  /// `child`, with the child's index.
+  /// One child, for a `Child` field, with the child's index.
   Child(usize),
-  /// `children`, with the children's indices in document order; never empty.
+  /// Any number of children, with their indices in document order; never empty.
   Children(Vec<usize>),
 }
 

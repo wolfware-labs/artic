@@ -12,7 +12,6 @@ use artic_core::tree::{NodeId, TreeKind, UiTree};
 use artic_layout::text::{FontStyle, FontWeight, StyledText};
 use artic_macros::UiType;
 use artic_registry::{OverrideDefaults, UiCollection, ValueError};
-use std::iter;
 
 /// Marks the inlines a type holds, as a UI language writes them: a [`Run`], [`Bold`] or
 /// [`Italic`] becomes the type's logical child, drawn by the text block above it, so a change to
@@ -24,19 +23,9 @@ impl Inlines {
   /// The runs under `owner`, in reading order: its inlines, with the runs inside each [`Bold`]
   /// or [`Italic`] in their place.
   pub fn runs(tree: &UiTree, owner: NodeId) -> impl Iterator<Item = &Run> {
-    let mut pending: Vec<NodeId> = tree.children(TreeKind::Logical, owner).collect();
-    pending.reverse();
-    iter::from_fn(move || {
-      loop {
-        let node = pending.pop()?;
-        if let Some(run) = tree.get_as::<Run>(node) {
-          return Some(run);
-        }
-        let start = pending.len();
-        pending.extend(tree.children(TreeKind::Logical, node));
-        pending[start..].reverse();
-      }
-    })
+    tree
+      .descendants(TreeKind::Logical, owner)
+      .filter_map(|node| tree.get_as::<Run>(node))
   }
 
   /// The text of the runs under `owner`, each piece in its run's style, or `None` when `owner`

@@ -51,7 +51,7 @@ Font properties and `Foreground` inherit down the logical tree, so a `Run` insid
 
 ## 4. Flattening
 
-`Inlines::runs(tree, owner)` walks the logical tree under `owner` depth first and yields each `Run` in reading order, skipping into `Bold` and `Italic`. Each run is one push to a `StyledText` in its own `TextStyle`, so its index is both its style's index and its brush's:
+`Inlines::runs(tree, owner)` walks the logical tree under `owner` depth first (`UiTree::descendants`) and yields each `Run` in reading order, those inside `Bold` and `Italic` included. Each run is one push to a `StyledText` in its own `TextStyle`, so its index is both its style's index and its brush's:
 
 | Reads the runs | For |
 | --- | --- |
@@ -64,7 +64,7 @@ While a `TextBlock` holds any inline, it shows its inlines' text, and `Text` is 
 
 ## 6. Builder methods named after the field
 
-The derive gave a builder method only to a field written `Child` or `Children`, chosen by the type's name. Every collection of child elements now gets one named after its field: `.child(node)` for a `Child` field, and `.children(..)`, `.surfaces(..)` or `.inlines(..)` taking any number. A `Vec` content holds values and gets none until #57. The view compiler calls the method by the content field's name, so it needs no list of collection types either.
+The derive gave a builder method only to a field written `Child` or `Children`, chosen by the type's name. Every collection of child elements now gets one named after its field: `.child(node)` for a `Child` field, and `.children(..)`, `.surfaces(..)` or `.inlines(..)` taking any number. A `Vec` content holds values and gets none until #57. The view compiler calls the method by the content field's name, so it needs no list of collection types either. A `code_type_root` type's content collection must still be a `Child` or `Children` field, which the derive now checks: a view's code type takes the root's content as a field of one of those two types, and `ContentMethod::Children` no longer tells `Children` apart from another collection.
 
 ## 7. What waits
 
@@ -80,7 +80,8 @@ The derive gave a builder method only to a field written `Child` or `Children`, 
 | Crate | Tests |
 | --- | --- |
 | `artic-core` | `type_value_wins_over_the_link_and_loses_to_a_style`, `link_places_in_one_tree_and_refuses_a_cycle` |
-| `artic-macros` | `other_collections_take_children_by_their_field_name`, `content_method_clashing_with_a_reserved_name_is_an_error`, `other_collection_content_takes_children` |
+| `artic-macros` | `other_collections_take_children_by_their_field_name`, `content_method_clashing_with_a_reserved_name_is_an_error`, `raw_content_method_clashing_with_a_reserved_name_is_an_error`, `code_type_root_with_another_collection_is_an_error`, `other_collection_content_takes_children` |
+| `artic-registry` | `unexpected_child_names_what_the_content_takes` |
 | `artic-controls` | `inline_runs_flatten_with_styles`, `the_innermost_weight_wins`, `inline_whitespace_preserved`, `inlines_win_over_text_while_present`, `run_change_invalidates_measure`, `each_run_paints_with_its_foreground`, `textblock_inlines_accesskit_value`, `a_non_inline_child_is_refused` |
 | `artic-xaml-lang` | `own_collection_takes_children_by_its_field_name` |
 | `artic-vello` | golden `text_block_inlines` |

@@ -59,6 +59,14 @@ mod tests {
     assert_eq!(error.to_string(), "Background can't be null");
   }
 
+  // A child of a kind the content doesn't take names what it takes.
+  #[test]
+  fn unexpected_child_names_what_the_content_takes() {
+    let error = ValueError::UnexpectedChild { expected: "`Item`" };
+
+    assert_eq!(error.to_string(), "this element's content takes only `Item`");
+  }
+
   // A refused child says so, and the link error is its source.
   #[test]
   fn invalid_child_shows_its_cause_once() {

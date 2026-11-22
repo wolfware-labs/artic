@@ -186,7 +186,7 @@ pub enum ContentInfo {
     /// The collection field.
     field: &'static str,
     /// What the builder method named after the field takes, or `None` for a collection of
-    /// values, which has no builder method yet, so only `add_child` fills it.
+    /// values, which has no builder method, so only `add_child` fills it.
     method: Option<ContentMethod>,
     /// Adds one child element as content, calling the field's `UiCollection::push_child` with
     /// an accessor to the field.

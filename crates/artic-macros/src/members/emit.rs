@@ -1,8 +1,7 @@
 use crate::members::attributes::Inherits;
-use crate::members::{Content, Key, Members, PropertyField, generic_argument};
+use crate::members::{Content, Key, Members, PropertyField, generic_argument, unraw_name};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
-use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 use syn::{Ident, Type};
 
@@ -243,7 +242,7 @@ pub fn affects_tokens(affects: &[Ident]) -> TokenStream {
   let stages: Vec<TokenStream> = affects
     .iter()
     .map(|stage| {
-      let constant = format_ident!("{}", stage.unraw().to_string().to_uppercase(), span = stage.span());
+      let constant = format_ident!("{}", unraw_name(stage).to_uppercase(), span = stage.span());
       quote_spanned!(stage.span()=> __artic::Affects::#constant)
     })
     .collect();
