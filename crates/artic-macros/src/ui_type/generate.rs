@@ -189,6 +189,7 @@ fn content_functions(ident: &Ident, members: &Members) -> Option<TokenStream> {
       owner: __artic::NodeId,
       child: __artic::NodeId,
     ) -> ::core::result::Result<(), __artic::ValueError> {
+      __content_field(tree, owner).ok_or(__artic::ValueError::WrongNode)?;
       __artic::check_child(<#ty as __artic::UiCollection>::takes(), tree, child)?;
       <#ty as __artic::UiCollection>::push_child(tree, owner, child, __content_field)
     }

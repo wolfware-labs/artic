@@ -288,3 +288,36 @@ fn bold_own_weight_wins_and_remeasures() {
   assert_eq!(stats.measured, 1);
   assert_eq!(pieces(&flattened(layout.tree(), block))[0].1, FontWeight::BLACK);
 }
+
+// Bold and Italic created from their descriptors, as a UI language creates them, carry their
+// weight and slant, and each descriptor recognizes only its own nodes.
+#[test]
+fn descriptors_create_styled_inlines() {
+  let mut tree = UiTree::new();
+  let infos = [Run::TYPE_INFO, Bold::TYPE_INFO, Italic::TYPE_INFO];
+  let [run, bold, italic] = infos.map(|info| (info.new.expect("created from defaults"))(&mut tree));
+
+  let format = |node| {
+    let object = tree.get(node).expect("a node");
+    infos.map(|info| (info.is)(object))
+  };
+  assert_eq!(format(run), [true, false, false]);
+  assert_eq!(format(bold), [false, true, false]);
+  assert_eq!(format(italic), [false, false, true]);
+  let bold = tree.get_as::<Bold>(bold).expect("a bold");
+  let italic = tree.get_as::<Italic>(italic).expect("an italic");
+  assert_eq!(bold.format.font_weight.get(), FontWeight::BOLD);
+  assert_eq!(italic.format.font_style.get(), FontStyle::Italic);
+}
+
+// A wrong owner is reported before a wrong child, as `UiCollection::push_child` asks.
+#[test]
+fn a_wrong_owner_is_reported_before_a_wrong_child() {
+  let mut tree = UiTree::new();
+  let panel = tree.alloc(Box::new(StackPanel::default()));
+  let Some(ContentInfo::Collection { add_child, .. }) = TextBlock::TYPE_INFO.content else {
+    panic!("TextBlock's content is a collection");
+  };
+
+  assert_eq!(add_child(&mut tree, panel, panel), Err(ValueError::WrongNode));
+}

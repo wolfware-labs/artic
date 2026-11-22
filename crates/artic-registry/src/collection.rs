@@ -88,8 +88,9 @@ mod tests {
     fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
-  const fn info(name: &'static str, is: fn(&dyn Object) -> bool) -> TypeInfo {
-    TypeInfo {
+  /// A descriptor named `name` that recognizes nodes with `is`, kept for the whole test run.
+  fn info(name: &'static str, is: fn(&dyn Object) -> bool) -> &'static TypeInfo {
+    Box::leak(Box::new(TypeInfo {
       name,
       rust_path: name,
       is,
@@ -102,39 +103,37 @@ mod tests {
       value_provider: None,
       whitespace: Whitespace::Collapse,
       code_type_root: false,
-    }
+    }))
   }
-
-  static LEAF: TypeInfo = info("Leaf", is_a::<Leaf>);
-  static OTHER: TypeInfo = info("Other", |_| false);
-  static THIRD: TypeInfo = info("Third", |_| false);
 
   // One name stands alone, two take "or", and more take commas before the "or".
   #[test]
   fn type_names_read_as_a_list() {
+    let [leaf, other, third] = [info("Leaf", is_a::<Leaf>), info("Other", |_| false), info("Third", |_| false)];
     assert_eq!(type_names(&[]), "");
-    assert_eq!(type_names(&[&LEAF]), "`Leaf`");
-    assert_eq!(type_names(&[&LEAF, &OTHER]), "`Leaf` or `Other`");
-    assert_eq!(type_names(&[&LEAF, &OTHER, &THIRD]), "`Leaf`, `Other` or `Third`");
+    assert_eq!(type_names(&[leaf]), "`Leaf`");
+    assert_eq!(type_names(&[leaf, other]), "`Leaf` or `Other`");
+    assert_eq!(type_names(&[leaf, other, third]), "`Leaf`, `Other` or `Third`");
   }
 
   // A child of a listed type passes, one of another type is refused with the list, and any child
   // passes a collection that lists none, as does a node not in the tree.
   #[test]
   fn check_child_follows_the_list() {
+    let [leaf_info, other, third] = [info("Leaf", is_a::<Leaf>), info("Other", |_| false), info("Third", |_| false)];
     let mut tree = UiTree::new();
     let leaf = tree.alloc(Box::new(Leaf));
     let stale = tree.alloc(Box::new(Leaf));
     tree.free(stale);
 
-    assert_eq!(check_child(Some(&[&LEAF]), &tree, leaf), Ok(()));
+    assert_eq!(check_child(Some(&[leaf_info]), &tree, leaf), Ok(()));
     assert_eq!(
-      check_child(Some(&[&OTHER, &THIRD]), &tree, leaf),
+      check_child(Some(&[other, third]), &tree, leaf),
       Err(ValueError::UnexpectedChild {
         expected: "`Other` or `Third`".to_owned()
       })
     );
     assert_eq!(check_child(None, &tree, leaf), Ok(()));
-    assert_eq!(check_child(Some(&[&OTHER]), &tree, stale), Ok(()));
+    assert_eq!(check_child(Some(&[other]), &tree, stale), Ok(()));
   }
 }
