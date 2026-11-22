@@ -98,7 +98,7 @@ fn content_text_sets_the_content_property() {
 }
 
 // A content property reads the text after the language's rules, whitespace significant or not:
-// only `xml:space="preserve"`, which the front end applies, keeps it as written.
+// only a rule of the front end's own keeps it as written.
 #[test]
 fn content_text_reads_the_ruled_text() {
   let raw = Content::Text {
@@ -697,16 +697,27 @@ fn text_becomes_wrapper_elements() {
   let (view, diagnostics) = check(&document);
 
   assert_eq!(reported(&diagnostics), []);
-  let root = view.elements.last().expect("the root");
-  let CheckedContent::Children(children) = &root.content else {
-    panic!("children");
-  };
-  let pieces: Vec<Option<&str>> = children
+  assert_eq!(view.elements[4].content, CheckedContent::Children(vec![0, 1, 2, 3]));
+  let pieces: Vec<Option<&str>> = view
+    .elements
     .iter()
-    .map(|&child| view.elements[child].properties.first().map(|(_, value)| value.text.as_str()))
+    .map(|element| element.properties.first().map(|(_, value)| value.text.as_str()))
     .collect();
-  assert_eq!(pieces, [Some("Hello "), None, Some(" "), None]);
-  assert_eq!(view.elements[children[0]].ty.info.name, "Code");
+  assert_eq!(pieces, [Some("Hello "), None, Some(" "), None, None]);
+  assert_eq!(view.elements[0].ty.info.name, "Code");
+}
+
+// Text written as nothing between two elements adds no space, even in a significant type.
+#[test]
+fn empty_text_between_elements_adds_nothing() {
+  let image = || Content::Element(element(&IMAGE, 30, Vec::new()));
+  let document = Document {
+    root: element(&PARAGRAPH, 0, vec![content(5, vec![image(), text("", 40), image()])]),
+  };
+
+  let (view, _) = check(&document);
+
+  assert_eq!(view.elements[2].content, CheckedContent::Children(vec![0, 1]));
 }
 
 // Blank text between two elements adds nothing in a type whose whitespace collapses.
@@ -719,10 +730,7 @@ fn blank_text_between_elements_adds_nothing_when_it_collapses() {
 
   let (view, _) = check(&document);
 
-  assert_eq!(
-    view.elements.last().expect("the root").content,
-    CheckedContent::Children(vec![0, 1])
-  );
+  assert_eq!(view.elements[2].content, CheckedContent::Children(vec![0, 1]));
 }
 
 // A text wrapper whose content isn't a property can't take the text, which is reported.

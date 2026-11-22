@@ -468,8 +468,8 @@ impl Check {
     let mut children = Vec::new();
     for (index, node) in nodes.iter().enumerate() {
       match node {
-        Content::Text { span, .. } => {
-          let Some(piece) = text_piece(info, nodes, index) else {
+        Content::Text { text, raw, span } => {
+          let Some(piece) = text_piece(info.whitespace, text, raw, between_elements(nodes, index)) else {
             continue;
           };
           match wrapper {
@@ -537,20 +537,21 @@ impl Check {
   }
 }
 
-/// The text node at `index` of a collection content of `info` as it counts: its text after the
-/// language's rules, or, for a type whose whitespace is significant, one space for blank text
-/// written between two elements, so `<Run>Hello</Run> <Run>world</Run>` keeps its space. `None`
-/// when it adds nothing.
-fn text_piece(info: &TypeInfo, nodes: &[Content], index: usize) -> Option<String> {
-  let Content::Text { text, raw, .. } = &nodes[index] else {
-    return None;
-  };
+/// A text node of a collection content as it counts: its `text` after the language's rules, or,
+/// in a type whose `whitespace` is significant, one space for blank text written
+/// `between_elements`, so `<Run>Hello</Run> <Run>world</Run>` keeps its space. `None` when it adds
+/// nothing.
+fn text_piece(whitespace: Whitespace, text: &str, raw: &str, between_elements: bool) -> Option<String> {
   if !text.is_empty() {
-    return Some(text.clone());
+    return Some(text.to_owned());
   }
+  (whitespace == Whitespace::Significant && between_elements && !raw.is_empty()).then(|| " ".to_owned())
+}
+
+/// Whether the node at `index` of `nodes` has an element on each side.
+fn between_elements(nodes: &[Content], index: usize) -> bool {
   let is_element = |node: Option<&Content>| matches!(node, Some(Content::Element(_)));
-  let between = index > 0 && is_element(nodes.get(index - 1)) && is_element(nodes.get(index + 1));
-  (info.whitespace == Whitespace::Significant && between && !raw.is_empty()).then(|| " ".to_owned())
+  index.checked_sub(1).is_some_and(|before| is_element(nodes.get(before))) && is_element(nodes.get(index + 1))
 }
 
 /// Whether `node` is text that adds nothing, such as indentation between elements.

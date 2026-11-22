@@ -20,7 +20,7 @@ struct Label {
   text: Property<String>,
 }
 
-/// A type whose content is text with its whitespace kept.
+/// A type whose content is a text property and whose whitespace is significant.
 #[derive(Debug, UiType)]
 #[ui(whitespace = "significant")]
 struct Run {
