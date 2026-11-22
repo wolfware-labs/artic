@@ -452,7 +452,7 @@ impl Check {
   /// Checks the child elements of a collection content and returns the children its method
   /// takes: `child` one, `children` any number, and none for no children. Text becomes an element
   /// of the collection's `text_wrapper` type, when it has one whose content is a property, that
-  /// markup can create and that `takes` accepts.
+  /// markup can create and that `takes` accepts; without one, text that isn't blank is reported.
   fn children(
     &mut self,
     info: &TypeInfo,

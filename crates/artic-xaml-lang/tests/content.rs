@@ -56,6 +56,15 @@ fn joined(rust: &str) -> String {
   rust.split_whitespace().collect()
 }
 
+/// Each text `rust` sets through a `text` builder method, in order.
+fn texts(rust: &str) -> Vec<&str> {
+  rust
+    .split(".text(::std::string::String::from(\"")
+    .skip(1)
+    .map(|rest| &rest[..rest.find('"').expect("a closing quote")])
+    .collect()
+}
+
 // A `Child` content takes the child's handle, after the property methods.
 #[test]
 fn child_comes_after_properties() {
@@ -124,12 +133,7 @@ fn text_in_a_text_block_becomes_runs() {
   let rust =
     compile("<TextBlock xmlns=\"https://artic.rs/ui\">\n  Hello\n  <Bold>world</Bold>\n  <Italic>again</Italic>\n</TextBlock>")
       .expect("a valid view");
-  let runs: Vec<&str> = rust
-    .split(".text(::std::string::String::from(\"")
-    .skip(1)
-    .map(|rest| &rest[..rest.find('"').expect("a closing quote")])
-    .collect();
-  assert_eq!(runs, ["Hello ", "world", " ", "again"], "{rust}");
+  assert_eq!(texts(&rust), ["Hello ", "world", " ", "again"], "{rust}");
 }
 
 // Under `xml:space="preserve"`, text in a `TextBlock` keeps its line breaks and indentation.
@@ -232,10 +236,5 @@ fn child_of_a_type_the_content_does_not_take_reports_error() {
 fn indentation_around_inlines_is_trimmed() {
   let rust = compile("<TextBlock xmlns=\"https://artic.rs/ui\">\n  <Bold>a</Bold>\n  <Italic>b</Italic>\n</TextBlock>")
     .expect("a valid view");
-  let runs: Vec<&str> = rust
-    .split(".text(::std::string::String::from(\"")
-    .skip(1)
-    .map(|rest| &rest[..rest.find('"').expect("a closing quote")])
-    .collect();
-  assert_eq!(runs, ["a", " ", "b"], "{rust}");
+  assert_eq!(texts(&rust), ["a", " ", "b"], "{rust}");
 }
