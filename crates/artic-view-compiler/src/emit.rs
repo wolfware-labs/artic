@@ -47,28 +47,27 @@ pub(crate) fn emit(view: &View, source: &SourceFile) -> String {
     .as_ref()
     .map(|code_type| built(root_element, &code_type.path, quote!(View { #(#names,)* })));
   let root_is_tail = code_type_root.is_some() && root_element.attached.is_empty();
-  let lets = view
-    .elements
-    .iter()
-    .enumerate()
-    .filter(|(index, _)| !root_is_tail || *index != root)
-    .map(|(index, element)| {
-      let local = local(index);
-      let built = match &code_type_root {
-        Some(code_type_root) if index == root => code_type_root.clone(),
-        _ => built(element, &element.ty, quote!()),
-      };
-      let attached = element
-        .attached
-        .iter()
-        .map(|AttachedCall { owner, setter, value }| quote!(#owner::#setter(tree, #local.id(), #value);));
-      let marker = marker(index);
-      quote! {
-        #marker
-        let #local = #built;
-        #(#attached)*
-      }
-    });
+  let let_order: Vec<usize> = (0..view.elements.len())
+    .filter(|&index| !root_is_tail || index != root)
+    .collect();
+  let lets = let_order.iter().map(|&index| {
+    let element = &view.elements[index];
+    let local = local(index);
+    let built = match &code_type_root {
+      Some(code_type_root) if index == root => code_type_root.clone(),
+      _ => built(element, &element.ty, quote!()),
+    };
+    let attached = element
+      .attached
+      .iter()
+      .map(|AttachedCall { owner, setter, value }| quote!(#owner::#setter(tree, #local.id(), #value);));
+    let marker = marker(index);
+    quote! {
+      #marker
+      let #local = #built;
+      #(#attached)*
+    }
+  });
   let members = view.code_type.as_ref().map(|code_type| {
     let root_ty = &root_element.ty;
     let content = code_type.content.iter().map(|(field, ty)| {
@@ -150,12 +149,7 @@ pub(crate) fn emit(view: &View, source: &SourceFile) -> String {
     }
   };
   let module: syn::File = syn::parse2(tokens).expect("the generated module parses");
-  let mut order: Vec<usize> = (0..view.elements.len())
-    .filter(|&index| !root_is_tail || index != root)
-    .collect();
-  if root_is_tail {
-    order.push(root);
-  }
+  let order: Vec<usize> = let_order.iter().copied().chain(root_is_tail.then_some(root)).collect();
   let comments: Vec<String> = order
     .iter()
     .map(|&index| {

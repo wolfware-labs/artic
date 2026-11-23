@@ -184,6 +184,23 @@ impl Language for Named {
   }
 }
 
+/// A language that reads no document and reports nothing, against `Language::read`'s contract.
+pub struct Silent;
+
+impl Language for Silent {
+  fn extension(&self) -> &str {
+    "view"
+  }
+
+  fn read(&self, _sources: &SourceMap, _file: SourceId, _registry: &Registry) -> (Option<Document>, Diagnostics) {
+    (None, Diagnostics::new())
+  }
+
+  fn crates(&self) -> Vec<&str> {
+    Vec::new()
+  }
+}
+
 /// The bytes `at..at + 1` of `file`.
 pub fn span(file: SourceId, at: usize) -> Span {
   Span::new(file, at, at + 1)

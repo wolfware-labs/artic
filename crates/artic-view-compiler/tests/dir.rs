@@ -4,7 +4,7 @@
 mod common;
 
 use artic_view_compiler::{CompileError, CratePaths, compile_dir, compile_into};
-use common::{Named, registry};
+use common::{Named, Silent, registry};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -205,11 +205,15 @@ fn compile_dir_needs_out_dir() {
   assert!(matches!(result, Err(CompileError::NoOutDir)), "{result:?}");
 }
 
+/// Set in the child that `exit_reports_and_fails_the_build_script` runs, which then calls `exit`.
+const EXIT_CHILD: &str = "ARTIC_EXIT_CHILD";
+
 // `exit` ends the process with code 1, the rendered problems on stderr and Cargo's one-line summary
-// on stdout. The test runs itself again as a child, which exits.
+// on stdout. The test runs itself again as a child, which exits; the harness prints the test's name
+// on the line the child's first output continues, so the summary ends a line rather than starts one.
 #[test]
 fn exit_reports_and_fails_the_build_script() {
-  if std::env::var_os("ARTIC_EXIT_CHILD").is_some() {
+  if std::env::var_os(EXIT_CHILD).is_some() {
     let root = setup("exit", &[("a.view", "Gauge")]);
     run(&root, &root.join("views")).expect_err("a has an error").exit();
   }
@@ -220,40 +224,17 @@ fn exit_reports_and_fails_the_build_script() {
       "--nocapture",
       "--test-threads=1",
     ])
-    .env("ARTIC_EXIT_CHILD", "1")
+    .env(EXIT_CHILD, "1")
     .output()
     .expect("the test binary runs");
   let stdout = String::from_utf8_lossy(&output.stdout);
   let stderr = String::from_utf8_lossy(&output.stderr);
   assert_eq!(output.status.code(), Some(1), "{stdout}\n{stderr}");
   assert!(stderr.contains("a.view:1:1: error: no type `Gauge`"), "{stderr}");
-  // The harness prints the test's name on the line the child's first output continues.
   assert!(
     stdout.lines().any(|line| line.ends_with("cargo::error=1 error in 1 view")),
     "{stdout}"
   );
-}
-
-/// A language that reads no document and reports nothing, against `Language::read`'s contract.
-struct Silent;
-
-impl artic_view::Language for Silent {
-  fn extension(&self) -> &str {
-    "view"
-  }
-
-  fn read(
-    &self,
-    _sources: &artic_diagnostics::SourceMap,
-    _file: artic_diagnostics::SourceId,
-    _registry: &artic_registry::Registry,
-  ) -> (Option<artic_view::document::Document>, artic_diagnostics::Diagnostics) {
-    (None, artic_diagnostics::Diagnostics::new())
-  }
-
-  fn crates(&self) -> Vec<&str> {
-    Vec::new()
-  }
 }
 
 // A view its language fails to read without reporting why still fails the build, at the view,
