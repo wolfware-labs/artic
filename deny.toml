@@ -46,7 +46,7 @@ allow-wildcard-paths = true
 # arrives through vello.
 deny = [
     { crate = "winit", wrappers = ["artic-winit", "accesskit_winit"] },
-    # Without this, any crate could reach winit through the adapter.
+    # Without this, any crate could reach winit through accesskit_winit.
     { crate = "accesskit_winit", wrappers = ["artic-winit"] },
     { crate = "vello", wrappers = ["artic-vello"] },
     { crate = "wgpu", wrappers = ["vello"] },

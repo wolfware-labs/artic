@@ -148,7 +148,7 @@ A surface lent to a `Surface` node and given back to the spare list keeps the la
 - **Threads.** The handlers may run on another thread, so the state they share with the loop is an atomic. The tree itself is built only on the loop's thread, in the frame.
 - **Checking again on hand-over.** A screen reader can stop and start again between the pass's `is_active` and its `update`, which leaves the adapter waiting for a whole tree while the pass hands it an incremental one, and accesskit panics on that. `update` calls the adapter's `update_if_active`, whose closure runs under the same lock as the activation handler, and checks the window's state again inside it. When the window is no longer `Active` and the update has no `tree`, it hands over a tree of the root alone instead: a `Window` with the root id the window kept from the last update it handed over that had `tree` set; the full update after the new `AccessibilityRequested` replaces it.
 
-`accesskit_winit` 0.34 is the line built on `accesskit` 0.25, the version the workspace uses; 0.33 would bring a second `accesskit`. `deny.toml` lets `winit` in only through wrappers; `accesskit_winit` joins `artic-winit` in that list.
+`accesskit_winit` 0.34 is the line built on `accesskit` 0.25, the version the workspace uses; 0.33 would bring a second `accesskit`. `deny.toml` lets `winit` in only through wrappers; `accesskit_winit` joins `artic-winit` in that list, and is itself let in only through `artic-winit`.
 
 ## 7. Testing
 
