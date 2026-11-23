@@ -15,11 +15,11 @@ The job runs `cargo check --target wasm32-unknown-unknown` on these crates:
 | `artic-ident` | |
 | `artic-i18n` | |
 | `artic-layout` | |
+| `artic-render` | |
 | `artic-text` | `fontique` has no system font source on wasm; see font loading below. |
 | `artic-xaml` | |
-| `artic-render` | Checked alone with `--no-default-features`, so no other crate's features turn a backend on (Cargo unifies the features of the crates one command checks). |
 
-A `cargo check` catches a dependency that doesn't compile for the target. It doesn't catch one that compiles and fails at run time: `std::thread::spawn` and `std::time::Instant::now` both compile and fail in a browser. Those are in the audit below. Backend crates that do compile for wasm, `winit` and `wgpu` among them, are kept out of the portable crates by the `cargo deny` bans in `deny.toml`, which the `Deny` job enforces: only `artic-winit` may depend on `winit`, only `artic-vello` on `vello`, and only `vello` on `wgpu`.
+A `cargo check` catches a dependency that doesn't compile for the target. It doesn't catch one that compiles and fails at run time: `std::thread::spawn` and `std::time::Instant::now` both compile and fail in a browser. Those are in the audit below. Backend crates that do compile for wasm, `winit` and `wgpu` among them, are kept out of the portable crates by the `cargo deny` bans in `deny.toml`, which the `Deny` job enforces: only `artic-winit` reaches `winit`, only `artic-vello` reaches `vello`, and `wgpu` arrives only through `vello`.
 
 ## Not checked yet
 
@@ -27,11 +27,11 @@ A `cargo check` catches a dependency that doesn't compile for the target. It doe
 | --- | --- | --- |
 | `artic-registry` | `UI_TYPES` is gathered with `linkme`, which has no wasm32 support (`distributed_slice is not implemented for this platform`). | #241 |
 | `artic-element` | `ELEMENT_TYPES`, which layout and the runner read at run time to find a node's `Element`, is a `linkme` slice too. | #241 |
-| `artic-style`, `artic-controls`, `artic-theme`, `artic-view`, `artic-platform` | They depend on `artic-registry` or `artic-element`, and compile for wasm32 as far as their own code goes. | #241 |
+| `artic`, `artic-style`, `artic-controls`, `artic-theme`, `artic-view`, `artic-platform`, `artic-xaml-runtime` | They depend on `artic-registry` or `artic-element`. | #241 |
 
 Once #241 gives both slices a wasm mechanism, these crates join the job.
 
-Native-only by design, and never checked: `artic-winit` and `artic-vello` (backend adapters, docs/architecture.md), `artic-xaml-runtime` (hot reload watches `views/` with `notify`), `artic-view-compiler` and `artic-xaml-lang` (build scripts), `artic-macros` (a proc macro, which runs on the build machine), `artic-cli`, `artic-lsp`, and the test and example crates.
+Native-only by design, and never checked: `artic-winit` and `artic-vello` (backend adapters, [architecture](../architecture.md)), `artic-view-compiler` and `artic-xaml-lang` (build scripts), `artic-macros` (a proc macro, which runs on the build machine), `artic-cli`, `artic-lsp`, and the test and example crates.
 
 ## Audit of the app-facing APIs
 

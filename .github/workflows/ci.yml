@@ -400,11 +400,7 @@ jobs:
         run: >-
           cargo check --target wasm32-unknown-unknown
           -p artic-core -p artic-diagnostics -p artic-ident -p artic-i18n
-          -p artic-layout -p artic-text -p artic-xaml
-      # Alone, so no other crate's features turn a backend on.
-      - name: Render without backends
-        if: ${{ !cancelled() }}
-        run: cargo check --target wasm32-unknown-unknown -p artic-render --no-default-features
+          -p artic-layout -p artic-render -p artic-text -p artic-xaml
 
   docs:
     name: Docs
