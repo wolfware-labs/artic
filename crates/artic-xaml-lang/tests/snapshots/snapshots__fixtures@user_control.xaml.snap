@@ -34,17 +34,21 @@ pub struct View {
 }
 /// Builds `user_control.xaml` in `tree`, with its code type at the root.
 pub fn build(tree: &mut UiTree) -> Handle<crate::views::LoginView> {
+    // user_control.xaml:4:6
     let __e0 = ::artic::controls::TextBlock::new()
         .text(::std::string::String::from("Email"))
         .build(tree);
+    // user_control.xaml:5:6
     let __e1 = ::artic::controls::TextBlock::new()
         .text(::std::string::String::from("Sign in"))
         .build(tree);
+    // user_control.xaml:3:4
     let __e2 = ::artic::controls::StackPanel::new()
         .spacing(8.0_f32)
         .margin(::artic::layout::Thickness::new(16.0_f32, 16.0_f32, 16.0_f32, 16.0_f32))
         .children([__e0.id(), __e1.id()])
         .build(tree);
+    // user_control.xaml:2:2
     crate::views::LoginView::new(View { email: __e0, r#type: __e1 })
         .child(__e2)
         .build(tree)

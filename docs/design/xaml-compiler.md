@@ -204,7 +204,7 @@ use acme_controls as _;
 fn main() {
   let mut namespaces = artic::xaml::namespaces();
   namespaces.alias("https://acme.com/ui", &["acme_controls"]);
-  artic::xaml::compile_dir("src/views", &namespaces).unwrap();
+  artic::xaml::compile_dir("src/views", &namespaces).unwrap_or_else(|error| error.exit());
 }
 ```
 
@@ -245,6 +245,12 @@ fn main() {
 | 5 | `compile_dir`, `rerun-if-changed`, linking through the map, the facade's `xaml-compiler` feature, and the integration crate; closes #49 |
 
 `AttachedPropertyInfo` got its `literal` with #50, its first user.
+
+## Errors in `cargo build` (#51)
+
+`compile_dir` compiles every view and returns the problems of all of them together, each rendered at the view's path in the crate (`src/views/login.xaml:12:9: error: ...`, with the line and a caret under it), so one build shows every broken view. It still returns a `Result`, as Cargo advises a build-script library to. A build script ends with `CompileError::exit`, `compile_dir(..).unwrap_or_else(|error| error.exit())`: it prints the rendered problems on stderr, which Cargo shows under the failed script, adds one `cargo::error=` line, "3 errors in 2 views", which Cargo prints as its own error, and exits 1. A panic would wrap them in "thread 'main' panicked at build.rs"; one `cargo::error=` per rendered line would prefix every source line and caret with `error:`.
+
+When rustc refuses the code a view compiles to, it points into `$OUT_DIR/views/...`. Each element's statements there follow a `// src/views/login.xaml:12:9` comment naming where the element is written, so a reader goes up from rustc's line to the comment and opens the view there. No table maps generated lines to view positions: nothing reads one yet, and the tools that would (#197, #185) can add it. The formatter drops comments, so the emitter writes a `__artic_source!(index);` statement where each comment goes, which the formatter keeps on a line of its own, and turns each into its comment after formatting.
 
 ## Attached properties (#50)
 

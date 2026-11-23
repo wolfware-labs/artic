@@ -22,9 +22,11 @@ pub struct View {
 }
 /// Builds `valid/whitespace/trim_and_collapse.xaml` in `tree` and returns its nodes.
 pub fn build(tree: &mut UiTree) -> View {
+    // valid/whitespace/trim_and_collapse.xaml:1:40
     let __e0 = ::artic::controls::Run::new()
         .text(::std::string::String::from("Hello world"))
         .build(tree);
+    // valid/whitespace/trim_and_collapse.xaml:1:2
     let __e1 = ::artic::controls::TextBlock::new().inlines([__e0.id()]).build(tree);
     View { root: __e1 }
 }

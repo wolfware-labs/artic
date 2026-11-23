@@ -1,5 +1,5 @@
 // `compile_dir`'s file work: every view under a directory compiled into a mirrored layout,
-// sorted, stopping at the first view with errors.
+// sorted, with the errors of every view reported together.
 
 mod common;
 
@@ -40,16 +40,33 @@ fn nested_views_mirror_the_layout() {
   assert!(!root.join("out/notes.rs").exists());
 }
 
-// The first view with errors, in sorted order, stops the run and names its file; views before it
-// are already written.
+// Every view is compiled: the errors of each failing view are reported together, at its path,
+// and the views without errors are still written.
 #[test]
-fn first_failing_view_stops_the_run() {
-  let root = setup("failing", &[("a.view", PANEL), ("b.view", "Gauge"), ("c.view", PANEL)]);
-  let error = run(&root, &root.join("views")).expect_err("b has errors");
+fn multiple_diagnostics_reported() {
+  let root = setup(
+    "failing",
+    &[("a.view", PANEL), ("b.view", "Gauge"), ("c.view", PANEL), ("d.view", "Knob")],
+  );
+  let error = run(&root, &root.join("views")).expect_err("b and d have errors");
   let message = error.to_string();
-  assert!(message.contains("b.view") && message.contains("no type `Gauge`"), "{message}");
+  assert!(message.contains("b.view:1:1: error: no type `Gauge`"), "{message}");
+  assert!(message.contains("d.view:1:1: error: no type `Knob`"), "{message}");
+  assert!(message.find("b.view") < message.find("d.view"), "{message}");
+  assert_eq!(error.summary(), "2 errors in 2 views");
   assert!(root.join("out/a.rs").is_file());
-  assert!(!root.join("out/c.rs").exists());
+  assert!(root.join("out/c.rs").is_file());
+}
+
+// The summary counts in the singular too, and is the message itself for an error that isn't a
+// view's.
+#[test]
+fn summary_counts_errors_and_views() {
+  let root = setup("summary", &[("a.view", "Gauge")]);
+  let error = run(&root, &root.join("views")).expect_err("a has an error");
+  assert_eq!(error.summary(), "1 error in 1 view");
+  let missing = run(&root, &root.join("absent")).expect_err("no directory");
+  assert_eq!(missing.summary(), missing.to_string());
 }
 
 // A directory that doesn't exist is an I/O error naming it, and Debug, which build scripts print,

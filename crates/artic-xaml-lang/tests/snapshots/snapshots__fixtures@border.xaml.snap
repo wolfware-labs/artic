@@ -26,11 +26,13 @@ pub struct View {
 }
 /// Builds `border.xaml` in `tree` and returns its nodes.
 pub fn build(tree: &mut UiTree) -> View {
+    // border.xaml:4:4
     let __e0 = ::artic::controls::TextBlock::new()
         .text(::std::string::String::from("Welcome"))
         .font_size(18.0_f32)
         .text_wrapping(::artic::layout::TextWrapping::Wrap)
         .build(tree);
+    // border.xaml:2:2
     let __e1 = ::artic::controls::Border::new()
         .padding(::artic::layout::Thickness::new(12.0_f32, 8.0_f32, 12.0_f32, 8.0_f32))
         .corner_radius(

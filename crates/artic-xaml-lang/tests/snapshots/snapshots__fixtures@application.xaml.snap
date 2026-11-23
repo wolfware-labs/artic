@@ -31,16 +31,20 @@ pub struct View {
 }
 /// Builds `application.xaml` in `tree`, with its code type at the root.
 pub fn build(tree: &mut UiTree) -> Handle<crate::HelloApp> {
+    // application.xaml:4:6
     let __e0 = ::artic::controls::TextBlock::new()
         .text(::std::string::String::from("Hello"))
         .build(tree);
+    // application.xaml:3:4
     let __e1 = ::artic::element::Surface::new()
         .title(::std::string::String::from("Main"))
         .child(__e0)
         .build(tree);
+    // application.xaml:6:4
     let __e2 = ::artic::element::Surface::new()
         .title(::std::string::String::from("Tools"))
         .build(tree);
+    // application.xaml:2:2
     crate::HelloApp::new(View { greeting: __e0 })
         .surfaces([__e1.id(), __e2.id()])
         .build(tree)

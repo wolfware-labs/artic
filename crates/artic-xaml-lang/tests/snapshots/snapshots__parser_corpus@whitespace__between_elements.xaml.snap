@@ -22,15 +22,19 @@ pub struct View {
 }
 /// Builds `valid/whitespace/between_elements.xaml` in `tree` and returns its nodes.
 pub fn build(tree: &mut UiTree) -> View {
+    // valid/whitespace/between_elements.xaml:1:41
     let __e0 = ::artic::controls::Run::new()
         .text(::std::string::String::from("Hello"))
         .build(tree);
+    // valid/whitespace/between_elements.xaml:1:56
     let __e1 = ::artic::controls::Run::new()
         .text(::std::string::String::from(" "))
         .build(tree);
+    // valid/whitespace/between_elements.xaml:1:58
     let __e2 = ::artic::controls::Run::new()
         .text(::std::string::String::from("world"))
         .build(tree);
+    // valid/whitespace/between_elements.xaml:1:2
     let __e3 = ::artic::controls::TextBlock::new()
         .inlines([__e0.id(), __e1.id(), __e2.id()])
         .build(tree);

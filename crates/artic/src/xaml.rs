@@ -14,11 +14,13 @@ pub use artic_xaml_lang::Xaml;
 /// form of [`crate::view::compile_dir`] for XAML. It reads `CARGO_PKG_NAME` for
 /// [`Xaml::with_app_crate`]; the long form passes `env!("CARGO_PKG_NAME")` itself.
 ///
-/// An app's `build.rs`, with `artic` as a build-dependency and its `xaml-compiler` feature on:
+/// An app's `build.rs`, with `artic` as a build-dependency and its `xaml-compiler` feature on. It
+/// ends with [`CompileError::exit`](crate::view::CompileError::exit) when a view has errors, so
+/// `cargo build` shows each at its `.xaml` line:
 ///
 /// ```no_run
 /// let namespaces = artic::xaml::namespaces();
-/// artic::xaml::compile_dir("src/views", &namespaces).unwrap();
+/// artic::xaml::compile_dir("src/views", &namespaces).unwrap_or_else(|error| error.exit());
 /// ```
 ///
 /// The long form takes the paths too, for an app that renamed its `artic` dependency, and names
@@ -34,7 +36,7 @@ pub use artic_xaml_lang::Xaml;
 ///   paths.path(krate, &format!("::ui::{module}"));
 /// }
 /// let xaml = Xaml::new(namespaces()).with_app_crate(env!("CARGO_PKG_NAME"));
-/// compile_dir("src/views", &xaml, &paths).unwrap();
+/// compile_dir("src/views", &xaml, &paths).unwrap_or_else(|error| error.exit());
 /// ```
 ///
 /// # Errors

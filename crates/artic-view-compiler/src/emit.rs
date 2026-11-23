@@ -1,17 +1,23 @@
 //! Writing a [`View`] as a formatted module body.
 
 use crate::lower::{AttachedCall, ContentCall, Element, Name, Setter, View};
+use artic_diagnostics::SourceFile;
 use artic_view::CheckedContent;
-use proc_macro2::TokenStream;
+use proc_macro2::{Literal, TokenStream};
 use quote::{format_ident, quote};
 use std::path::{Component, Path};
 use syn::ext::IdentExt;
 
-/// The module body for `view`, compiled from the file at `path`. The path is written with its
-/// control characters and bidirectional controls escaped in its header and doc comments, so it
-/// can't end a comment and add code.
-pub(crate) fn emit(view: &View, path: &Path) -> String {
-  let file = escaped(&display(path));
+/// The module body for `view`, compiled from `source`. The path is written with its control
+/// characters and bidirectional controls escaped in its header and comments, so it can't end a
+/// comment and add code. Each element's statements follow a `// path:line:col` comment naming
+/// where the element is written, so a rustc error in them leads back to the view.
+pub(crate) fn emit(view: &View, source: &SourceFile) -> String {
+  let file = escaped(&display(source.path()));
+  let marker = |index: usize| {
+    let index = Literal::usize_unsuffixed(index);
+    quote!(__artic_source!(#index);)
+  };
   let root = view.root;
   let tree_module = &view.tree;
   let traits = view.traits.values();
@@ -56,7 +62,9 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
         .attached
         .iter()
         .map(|AttachedCall { owner, setter, value }| quote!(#owner::#setter(tree, #local.id(), #value);));
+      let marker = marker(index);
       quote! {
+        #marker
         let #local = #built;
         #(#attached)*
       }
@@ -89,7 +97,10 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
         quote!(),
         quote!(Handle<#path>),
         match &code_type_root {
-          Some(code_type_root) if root_is_tail => code_type_root.clone(),
+          Some(code_type_root) if root_is_tail => {
+            let marker = marker(root);
+            quote!(#marker #code_type_root)
+          }
           _ => {
             let root_local = local(root);
             quote!(#root_local)
@@ -139,7 +150,34 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
     }
   };
   let module: syn::File = syn::parse2(tokens).expect("the generated module parses");
-  format!("// Generated from {file}.\n\n{}", prettyplease::unparse(&module))
+  let body = with_sources(&prettyplease::unparse(&module), |index| {
+    let position = source.line_col(view.elements[index].span.start);
+    format!("{file}:{}:{}", position.line, position.column)
+  });
+  format!("// Generated from {file}.\n\n{body}")
+}
+
+/// `code` with each `__artic_source!(index);` line, which the formatter keeps on a line of its own,
+/// made a comment naming `source(index)`, at the same indent.
+fn with_sources(code: &str, source: impl Fn(usize) -> String) -> String {
+  let mut out = String::with_capacity(code.len());
+  for line in code.lines() {
+    let body = line.trim_start();
+    let index = body
+      .strip_prefix("__artic_source!(")
+      .and_then(|rest| rest.strip_suffix(");"))
+      .and_then(|index| index.parse().ok());
+    match index {
+      Some(index) => {
+        out.push_str(&line[..line.len() - body.len()]);
+        out.push_str("// ");
+        out.push_str(&source(index));
+      }
+      None => out.push_str(line),
+    }
+    out.push('\n');
+  }
+  out
 }
 
 /// The expression that builds `element` as `ty`, created with `ty::new(#arguments)`, then each

@@ -46,6 +46,7 @@ fn bare_element_builds_its_root() {
   }
   /// Builds `view.xaml` in `tree` and returns its nodes.
   pub fn build(tree: &mut UiTree) -> View {
+      // view.xaml:1:2
       let __e0 = ::artic::controls::Border::new().build(tree);
       View { root: __e0 }
   }

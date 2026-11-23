@@ -22,16 +22,21 @@ pub struct View {
 }
 /// Builds `valid/whitespace/mixed_content.xaml` in `tree` and returns its nodes.
 pub fn build(tree: &mut UiTree) -> View {
+    // valid/whitespace/mixed_content.xaml:1:40
     let __e0 = ::artic::controls::Run::new()
         .text(::std::string::String::from("Hello "))
         .build(tree);
+    // valid/whitespace/mixed_content.xaml:2:15
     let __e1 = ::artic::controls::Run::new()
         .text(::std::string::String::from("world"))
         .build(tree);
+    // valid/whitespace/mixed_content.xaml:2:10
     let __e2 = ::artic::controls::Bold::new().inlines([__e1.id()]).build(tree);
+    // valid/whitespace/mixed_content.xaml:2:29
     let __e3 = ::artic::controls::Run::new()
         .text(::std::string::String::from(" !"))
         .build(tree);
+    // valid/whitespace/mixed_content.xaml:1:2
     let __e4 = ::artic::controls::TextBlock::new()
         .inlines([__e0.id(), __e2.id(), __e3.id()])
         .build(tree);

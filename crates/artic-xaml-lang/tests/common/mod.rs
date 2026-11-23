@@ -2,6 +2,8 @@
 
 #![allow(dead_code, reason = "each test binary uses part of it")]
 
+pub mod app;
+
 use artic::view::CratePaths;
 use artic::xaml::NamespaceMap;
 use artic_core::tree::{NodeId, UiTree};
