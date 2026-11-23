@@ -204,3 +204,32 @@ fn compile_dir_needs_out_dir() {
 
   assert!(matches!(result, Err(CompileError::NoOutDir)), "{result:?}");
 }
+
+// `exit` ends the process with code 1, the rendered problems on stderr and Cargo's one-line summary
+// on stdout. The test runs itself again as a child, which exits.
+#[test]
+fn exit_reports_and_fails_the_build_script() {
+  if std::env::var_os("ARTIC_EXIT_CHILD").is_some() {
+    let root = setup("exit", &[("a.view", "Gauge")]);
+    run(&root, &root.join("views")).expect_err("a has an error").exit();
+  }
+  let output = std::process::Command::new(std::env::current_exe().expect("the test binary"))
+    .args([
+      "exit_reports_and_fails_the_build_script",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1",
+    ])
+    .env("ARTIC_EXIT_CHILD", "1")
+    .output()
+    .expect("the test binary runs");
+  let stdout = String::from_utf8_lossy(&output.stdout);
+  let stderr = String::from_utf8_lossy(&output.stderr);
+  assert_eq!(output.status.code(), Some(1), "{stdout}\n{stderr}");
+  assert!(stderr.contains("a.view:1:1: error: no type `Gauge`"), "{stderr}");
+  // The harness prints the test's name on the line the child's first output continues.
+  assert!(
+    stdout.lines().any(|line| line.ends_with("cargo::error=1 error in 1 view")),
+    "{stdout}"
+  );
+}
