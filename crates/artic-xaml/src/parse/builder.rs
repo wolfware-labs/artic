@@ -12,7 +12,6 @@ use xmlparser::{ElementEnd, StrSpan, Token, Tokenizer};
 /// A prefix bound by an `xmlns` attribute, `None` for the default namespace, and what it stands for.
 type Binding = (Option<String>, XamlNamespace);
 
-/// An element whose end tag hasn't been reached yet.
 /// Text read inside an element and not yet added to it: CDATA and text chunks run together.
 struct PendingText {
   /// The decoded text so far.
@@ -25,6 +24,7 @@ struct PendingText {
   visible: Option<usize>,
 }
 
+/// An element whose end tag hasn't been reached yet.
 struct Open {
   /// The tag name as written, to match the end tag.
   tag: String,
@@ -157,11 +157,7 @@ impl<'a> Builder<'a> {
         Ok(())
       }
       Token::Cdata { text, span } => {
-        let visible = text
-          .as_str()
-          .char_indices()
-          .find(|&(_, character)| !whitespace::is_whitespace(character))
-          .map(|(index, _)| text.start() + index);
+        let visible = whitespace::first_visible(text.as_str()).map(|index| text.start() + index);
         self.add_text(normalize_line_endings(text.as_str()), span.start(), span.end(), visible);
         Ok(())
       }
@@ -546,11 +542,7 @@ impl<'a> Builder<'a> {
   fn text(&mut self, text: StrSpan) {
     match decode(text.as_str(), text.start(), Kind::Text) {
       Ok(decoded) => {
-        let visible = decoded
-          .text
-          .char_indices()
-          .find(|&(_, character)| !whitespace::is_whitespace(character))
-          .map(|(index, _)| decoded.offsets.source_offset(index));
+        let visible = whitespace::first_visible(&decoded.text).map(|index| decoded.offsets.source_offset(index));
         self.add_text(decoded.text, text.start(), text.end(), visible);
       }
       Err(error) => {

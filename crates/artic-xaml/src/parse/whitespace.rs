@@ -37,8 +37,14 @@ pub(super) fn normalize(nodes: &mut [XamlNode]) {
 
 /// Whether `character` is whitespace to XML: a space, tab, carriage return or line feed. Other
 /// Unicode spaces, such as the non-breaking space, are content.
-pub(super) fn is_whitespace(character: char) -> bool {
+fn is_whitespace(character: char) -> bool {
   matches!(character, ' ' | '\t' | '\r' | '\n')
+}
+
+/// The byte index in `text` of its first character that isn't XML whitespace, or `None` when it
+/// is blank.
+pub(super) fn first_visible(text: &str) -> Option<usize> {
+  text.find(|character| !is_whitespace(character))
 }
 
 /// `text` with each run of whitespace replaced by one space.
@@ -96,6 +102,15 @@ mod tests {
         _ => None,
       })
       .collect()
+  }
+
+  // The first visible character is the first that isn't a space, tab, carriage return or line feed;
+  // a non-breaking space is visible, and blank text has none.
+  #[test]
+  fn first_visible_skips_only_xml_whitespace() {
+    assert_eq!(first_visible(" \t\r\nHi"), Some(4));
+    assert_eq!(first_visible("\n\u{a0}Hi"), Some(1));
+    assert_eq!(first_visible(" \n "), None);
   }
 
   // Runs of whitespace, tabs and line breaks included, collapse to one space.
