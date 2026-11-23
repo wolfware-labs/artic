@@ -62,7 +62,8 @@ jobs:
               - 'rust-toolchain.toml'
               - 'rustfmt.toml'
               - '.cargo/**'
-              - '.github/workflows/ci.yml'
+              # Every workflow, not only this one: Lint checks their checkouts.
+              - '.github/workflows/**'
               - '.github/actions/**'
               - '.github/scripts/**'
               - 'scripts/**'
@@ -396,6 +397,9 @@ jobs:
       - name: UI-language neutral
         if: ${{ !cancelled() }}
         run: scripts/check-ui-neutral.sh
+      - name: Checkout credentials
+        if: ${{ !cancelled() }}
+        run: scripts/check-checkout-credentials.sh
       - name: Clippy
         if: ${{ !cancelled() }}
         run: cargo clippy --workspace --all-targets -- -D warnings

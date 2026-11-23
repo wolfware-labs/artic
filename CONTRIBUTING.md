@@ -28,6 +28,7 @@ CI runs these on every pull request. Run them locally before pushing:
 | Host examples | `cargo run -p artic-examples --example smoke` (with `ARTIC_SMOKE_FRAMES=60`), `--example frames` and `--example hello` (with `ARTIC_HELLO_SECONDS=3`) | Test (Windows, macOS, Ubuntu: under X11 and Wayland) |
 | Layering | `cargo test -p docs-check --test layers` and `cargo deny check bans` | Docs, Test, Deny |
 | UI-language neutral | `scripts/check-ui-neutral.sh` | Lint |
+| Checkout credentials (every `actions/checkout` sets `persist-credentials: false`) | `scripts/check-checkout-credentials.sh` | Lint |
 | Docs | `cargo doc --workspace --no-deps --exclude docs-check` with `RUSTDOCFLAGS=-D warnings` | Docs |
 | Code in documents | `cargo test -p docs-check` | Docs |
 | Links in documents | `lychee --offline --include-fragments --root-dir "$PWD" '*.md' 'docs/**/*.md'` | Docs |
