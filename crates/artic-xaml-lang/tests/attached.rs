@@ -4,38 +4,15 @@
 
 mod common;
 
-use artic_core::tree::{NodeId, UiTree};
 use artic_macros::UiType;
-use artic_registry::{UiCollection, ValueError};
-use common::{TEST_UI, compile};
-
-/// Holds the children pushed into it.
-#[derive(Debug, Default)]
-struct Slots(Vec<NodeId>);
-
-impl UiCollection for Slots {
-  fn push_child(
-    tree: &mut UiTree,
-    owner: NodeId,
-    child: NodeId,
-    field: for<'a> fn(&'a mut UiTree, NodeId) -> Option<&'a mut Self>,
-  ) -> Result<(), ValueError> {
-    field(tree, owner).ok_or(ValueError::WrongNode)?.0.push(child);
-    Ok(())
-  }
-}
+use common::{Nodes, TEST_UI, compile, joined};
 
 /// Owns `Rack.Slot`, which only its children may carry.
 #[derive(Debug, UiType)]
 #[ui(attached(name = "Slot", ty = usize, target = children))]
 struct Rack {
   #[ui(content)]
-  slots: Slots,
-}
-
-/// `rust` without whitespace, so assertions don't depend on where the formatter breaks lines.
-fn joined(rust: &str) -> String {
-  rust.split_whitespace().collect()
+  slots: Nodes,
 }
 
 // The attribute and the property element set the property alike, with the owner's setter called
@@ -148,4 +125,22 @@ fn own_property_set_by_both_forms_is_set_twice() {
 fn own_type_unknown_member_is_an_unknown_property() {
   let errors = compile(r#"<Border xmlns="https://artic.rs/ui" Border.Bogus="1"/>"#).expect_err("unknown");
   assert!(errors.contains("`Border` has no property `Bogus`"), "{errors}");
+}
+
+// A code type at the root is built as a local when an attached property is set on it, so the
+// setter is called on it before `build` returns it.
+#[test]
+fn a_code_type_root_takes_its_attached_properties() {
+  let rust = compile(concat!(
+    r#"<UserControl xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup""#,
+    r#" x:Class="app::views::login::LoginView" TextElement.FontSize="20"><Border/></UserControl>"#,
+  ))
+  .expect("a valid view");
+  assert!(
+    joined(&rust).contains(
+      "let__e1=crate::views::login::LoginView::new(View{}).child(__e0).build(tree);\
+       ::artic::controls::TextElement::set_font_size(tree,__e1.id(),20.0_f32);__e1}"
+    ),
+    "{rust}"
+  );
 }

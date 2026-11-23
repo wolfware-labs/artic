@@ -2,7 +2,7 @@
 
 mod common;
 
-use common::compile;
+use common::{compile, joined};
 
 /// A view whose `Border` child is named `name`.
 fn named(name: &str) -> Result<String, String> {
@@ -15,7 +15,7 @@ fn named(name: &str) -> Result<String, String> {
 #[test]
 fn name_becomes_typed_field() {
   let rust = named("card").expect("a valid view");
-  let joined: String = rust.split_whitespace().collect();
+  let joined = joined(&rust);
   assert!(joined.contains("pubcard:Handle<::artic::controls::Border>,"), "{rust}");
   assert!(joined.contains("View{root:__e1,card:__e0}"), "{rust}");
 }
@@ -103,7 +103,7 @@ fn class_names_the_code_type() {
     r#"<Border x:Name="card"/>"#,
   )
   .expect("a valid view");
-  let joined: String = rust.split_whitespace().collect();
+  let joined = joined(&rust);
   assert!(
     joined.contains(r#"CODE_TYPE:Option<&str>=Some("app::views::login::LoginView");"#),
     "{rust}"
@@ -143,7 +143,7 @@ fn class_on_a_border_root_is_reported() {
 #[test]
 fn field_modifier_sets_the_field_visibility() {
   let rust = named_with(r#"x:Name="card" x:FieldModifier="pub(crate)""#).expect("a valid view");
-  let joined: String = rust.split_whitespace().collect();
+  let joined = joined(&rust);
   assert!(joined.contains("pub(crate)card:Handle<::artic::controls::Border>,"), "{rust}");
 }
 

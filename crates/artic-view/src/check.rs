@@ -313,7 +313,7 @@ impl Check {
         return;
       }
     };
-    let Some(info) = owner.info.attached_properties.iter().find(|property| property.name == name) else {
+    let Some(info) = owner.info.attached_property(name) else {
       self.diagnostics.push(
         Diagnostic::error(span, format!("`{}` has no attached property `{name}`", owner.info.name))
           .with_label("unknown attached property"),

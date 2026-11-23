@@ -49,7 +49,7 @@ pub enum Member {
     /// The value, or what the checker reports once it finds the property.
     value: Result<Text, Problem>,
   },
-  /// An attached property set to text, such as `Grid.Row="1"`.
+  /// An attached property set to text, such as `Grid.Row`.
   Attached {
     /// The type that owns the property, or what the checker reports when it isn't found.
     owner: Result<TypeUse, Problem>,

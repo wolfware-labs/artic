@@ -105,16 +105,10 @@ impl Reader<'_> {
   /// directive the document doesn't hold yet: `x:DataType` (#94) and `x:Uid` (#168).
   fn member(&self, member: &XamlMember, written: &TypeRef, ty: &Result<TypeUse, Problem>) -> Option<Member> {
     match &member.key {
-      MemberKey::Attached { owner, name } if same_type(owner, written) && !is_attached(ty, name) => Some(Member::Property {
-        name: name.clone(),
-        span: member.span,
-        value: value(member),
-      }),
-      MemberKey::Property(name) => Some(Member::Property {
-        name: name.clone(),
-        span: member.span,
-        value: value(member),
-      }),
+      MemberKey::Attached { owner, name } if owner.is_same_type(written) && !is_attached(ty, name) => {
+        Some(property(name, member))
+      }
+      MemberKey::Property(name) => Some(property(name, member)),
       MemberKey::Attached { owner, name } => Some(Member::Attached {
         owner: resolve(owner, self.registry, self.namespaces, self.app_crate),
         name: name.clone(),
@@ -182,16 +176,19 @@ fn text(member: &XamlMember, problem: &str) -> Result<Text, Problem> {
   }
 }
 
-/// Whether two type references name the same type, whatever prefixes they're written with.
-fn same_type(a: &TypeRef, b: &TypeRef) -> bool {
-  a.namespace == b.namespace && a.name == b.name
+/// The property `name` of the element `member` is written on, set to what `member` holds.
+fn property(name: &str, member: &XamlMember) -> Member {
+  Member::Property {
+    name: name.to_owned(),
+    span: member.span,
+    value: value(member),
+  }
 }
 
 /// Whether `ty`, when found, has an attached property `name` and no property of its own by that
 /// name: `Owner.Name` on an element of the owner's own type sets that attached property, as a grid
 /// in a grid sets its `Grid.Row`, and the element's own property otherwise.
 fn is_attached(ty: &Result<TypeUse, Problem>, name: &str) -> bool {
-  ty.as_ref().is_ok_and(|ty| {
-    ty.info.property(name).is_none() && ty.info.attached_properties.iter().any(|property| property.name == name)
-  })
+  ty.as_ref()
+    .is_ok_and(|ty| ty.info.property(name).is_none() && ty.info.attached_property(name).is_some())
 }

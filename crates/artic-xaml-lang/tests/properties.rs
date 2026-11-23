@@ -8,7 +8,7 @@ use artic_core::event::Event;
 use artic_core::property::Property;
 use artic_macros::UiType;
 use artic_registry::{RustExpr, ToRust};
-use common::{TEST_UI, compile};
+use common::{TEST_UI, compile, joined};
 use std::str::FromStr;
 
 /// What a test event passes its handlers.
@@ -47,7 +47,7 @@ struct Knob {
 #[test]
 fn attribute_becomes_builder_call() {
   let rust = compile(r#"<Border xmlns="https://artic.rs/ui" Padding="4,8" CornerRadius="2"/>"#).expect("a valid view");
-  let joined: String = rust.split_whitespace().collect();
+  let joined = joined(&rust);
   assert!(joined.contains(".padding(::artic::layout::Thickness::"), "{rust}");
   assert!(joined.contains(".corner_radius(::artic::layout::CornerRadius::"), "{rust}");
 }

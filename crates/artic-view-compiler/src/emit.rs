@@ -36,9 +36,11 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
     })
     .collect();
   let root_element = &view.elements[root];
-  // A code type at the root is built last, as the value `build` returns, unless attached
-  // properties are set on it once it's built.
-  let root_is_tail = view.code_type.is_some() && root_element.attached.is_empty();
+  let code_type_root = view
+    .code_type
+    .as_ref()
+    .map(|code_type| built(root_element, &code_type.path, quote!(View { #(#names,)* })));
+  let root_is_tail = code_type_root.is_some() && root_element.attached.is_empty();
   let lets = view
     .elements
     .iter()
@@ -46,8 +48,8 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
     .filter(|(index, _)| !root_is_tail || *index != root)
     .map(|(index, element)| {
       let local = local(index);
-      let built = match &view.code_type {
-        Some(code_type) if index == root => built(element, &code_type.path, quote!(View { #(#names,)* })),
+      let built = match &code_type_root {
+        Some(code_type_root) if index == root => code_type_root.clone(),
         _ => built(element, &element.ty, quote!()),
       };
       let attached = element
@@ -86,11 +88,12 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
         quote!(Some(#written)),
         quote!(),
         quote!(Handle<#path>),
-        if root_is_tail {
-          built(root_element, path, quote!(View { #(#names,)* }))
-        } else {
-          let root_local = local(root);
-          quote!(#root_local)
+        match &code_type_root {
+          Some(code_type_root) if root_is_tail => code_type_root.clone(),
+          _ => {
+            let root_local = local(root);
+            quote!(#root_local)
+          }
         },
         format!(" The named nodes of `{file}`, one handle each."),
         format!(" Builds `{file}` in `tree`, with its code type at the root."),

@@ -186,6 +186,13 @@ mod tests {
     assert!(!is_keyword("Type") && !is_keyword("union") && !is_keyword("email"));
   }
 
+  // An attached property's setter is `set_` and the snake_case name.
+  #[test]
+  fn attached_setter_is_set_and_the_snake_case_name() {
+    assert_eq!(attached_setter("ColumnSpan"), "set_column_span");
+    assert_eq!(attached_setter("Row"), "set_row");
+  }
+
   // A constant's name is the snake_case name in capitals.
   #[test]
   fn screaming_snake_case_is_snake_case_in_capitals() {

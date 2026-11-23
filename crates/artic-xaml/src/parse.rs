@@ -66,7 +66,7 @@ fn same_member(a: &MemberKey, b: &MemberKey) -> bool {
         owner: b_owner,
         name: b_name,
       },
-    ) => a_owner.namespace == b_owner.namespace && a_owner.name == b_owner.name && a_name == b_name,
+    ) => a_owner.is_same_type(b_owner) && a_name == b_name,
     _ => a == b,
   }
 }
