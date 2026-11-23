@@ -39,7 +39,7 @@ pub enum XamlNode {
     /// unless `xml:space="preserve"` is in effect; whitespace-only text is then empty, which adds
     /// nothing. For an attribute value, the same as `raw`.
     text: String,
-    /// The text with its whitespace as written, for types whose whitespace is significant.
+    /// The text with its whitespace as written, which tells blank text that was written from none.
     raw: String,
     /// Where it was written; its length can differ from `text`'s when entities were decoded.
     span: Span,

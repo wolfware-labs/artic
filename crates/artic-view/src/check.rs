@@ -390,7 +390,7 @@ impl Check {
     };
     match info.content {
       None => self.no_content(info, nodes),
-      Some(ContentInfo::Property(property)) => self.content_text(info, property, span, nodes, members),
+      Some(ContentInfo::Property(property)) => self.content_text(property, span, nodes, members),
       Some(ContentInfo::Collection { method: None, .. }) => {
         if nodes.iter().any(|node| !is_blank(node)) {
           self.diagnostics.push(unsupported::value_collection(span));
@@ -399,8 +399,9 @@ impl Check {
       Some(ContentInfo::Collection {
         method: Some(method),
         takes,
+        text_wrapper,
         ..
-      }) => members.content = self.children(info, method, takes(), nodes),
+      }) => members.content = self.children(info, method, takes(), text_wrapper(), nodes),
     }
   }
 
@@ -425,15 +426,14 @@ impl Check {
     }
   }
 
-  /// Sets the content property from the text inside the element: `raw` for a type whose
-  /// whitespace is significant, `text` otherwise, and nothing when that is empty. Text set this
-  /// way counts as setting the property, so an attribute that sets it too is "set twice".
-  fn content_text(&mut self, info: &TypeInfo, property: PropertyRef, span: Span, nodes: &[Content], members: &mut Members) {
-    let significant = info.whitespace == Whitespace::Significant;
+  /// Sets the content property from the text inside the element, after the language's whitespace
+  /// rules, and nothing when that is empty. Text set this way counts as setting the property, so
+  /// an attribute that sets it too is "set twice".
+  fn content_text(&mut self, property: PropertyRef, span: Span, nodes: &[Content], members: &mut Members) {
     let mut value = String::new();
     for node in nodes {
       match node {
-        Content::Text { text, raw, .. } => value.push_str(if significant { raw } else { text }),
+        Content::Text { text, .. } => value.push_str(text),
         Content::Element(element) => {
           self.diagnostics.push(unsupported::value_object(element.span));
           return;
@@ -450,37 +450,59 @@ impl Check {
   }
 
   /// Checks the child elements of a collection content and returns the children its method
-  /// takes: `child` one, `children` any number, and none for no children.
+  /// takes: `child` one, `children` any number, and none for no children. Text becomes an element
+  /// of the collection's `text_wrapper` type, when it has one whose content is a property, that
+  /// markup can create and that `takes` accepts; without one, text that isn't blank is reported.
   fn children(
     &mut self,
     info: &TypeInfo,
     method: ContentMethod,
     takes: Option<&[&TypeInfo]>,
+    text_wrapper: Option<&'static TypeInfo>,
     nodes: &[Content],
   ) -> CheckedContent {
+    let wrapper = text_wrapper.and_then(|wrapper| match wrapper.content {
+      Some(ContentInfo::Property(property)) if wrapper.new.is_some() && accepts(takes, wrapper) => Some((wrapper, property)),
+      _ => None,
+    });
     let mut written = Vec::new();
     let mut children = Vec::new();
-    for node in nodes {
+    for (index, node) in nodes.iter().enumerate() {
       match node {
-        Content::Text { text, span, .. } if !text.is_empty() => {
-          self.diagnostics.push(
+        Content::Text { text, raw, span } => match wrapper {
+          Some((wrapper, property)) => {
+            let Some(piece) = text_piece(info.whitespace, text, raw, between_elements(nodes, index)) else {
+              continue;
+            };
+            written.push(*span);
+            children.push(self.wrapped(
+              wrapper,
+              property,
+              Text {
+                text: piece,
+                span: *span,
+              },
+            ));
+          }
+          None if !text.is_empty() => self.diagnostics.push(
             Diagnostic::error(*span, format!("`{}` takes no text content", info.name))
               .with_help("put the text in an element, such as a `TextBlock`"),
-          );
-        }
+          ),
+          None => {}
+        },
         Content::Element(element) => {
           written.push(element.span);
-          if let (Some(takes), Ok(ty)) = (takes, &element.ty)
-            && !takes.iter().any(|taken| taken.rust_path == ty.info.rust_path)
+          if let (Some(taken), Ok(ty)) = (takes, &element.ty)
+            && !accepts(takes, ty.info)
           {
             self.diagnostics.push(Diagnostic::error(
               element.span,
-              format!("`{}` takes only {}", info.name, type_names(takes)),
+              format!("`{}` takes only {}", info.name, type_names(taken)),
             ));
           }
           children.extend(self.element(element, false));
         }
-        Content::Text { .. } | Content::Unsupported(_) => {}
+        Content::Unsupported(_) => {}
       }
     }
     let single = method == ContentMethod::Child;
@@ -498,6 +520,43 @@ impl Check {
       _ => CheckedContent::Children(children),
     }
   }
+
+  /// Adds an element of `wrapper` type whose content `property` is `text`, and returns its index.
+  fn wrapped(&mut self, wrapper: &'static TypeInfo, property: PropertyRef, text: Text) -> usize {
+    let ty = TypeUse {
+      info: wrapper,
+      module: None,
+      span: text.span,
+    };
+    self.elements.push(CheckedElement {
+      ty,
+      properties: vec![(property, text)],
+      content: CheckedContent::None,
+    });
+    self.elements.len() - 1
+  }
+}
+
+/// A text node of a collection content as it counts: its `text` after the language's rules, or,
+/// in a type whose `whitespace` is significant, one space for blank text written
+/// `between_elements`, so `<Run>Hello</Run> <Run>world</Run>` keeps its space. `None` when it adds
+/// nothing.
+fn text_piece(whitespace: Whitespace, text: &str, raw: &str, between_elements: bool) -> Option<String> {
+  if !text.is_empty() {
+    return Some(text.to_owned());
+  }
+  (whitespace == Whitespace::Significant && between_elements && !raw.is_empty()).then(|| " ".to_owned())
+}
+
+/// Whether the node at `index` of `nodes` has an element on each side.
+fn between_elements(nodes: &[Content], index: usize) -> bool {
+  let is_element = |node: Option<&Content>| matches!(node, Some(Content::Element(_)));
+  index.checked_sub(1).is_some_and(|before| is_element(nodes.get(before))) && is_element(nodes.get(index + 1))
+}
+
+/// Whether a collection that takes `takes` accepts a child of type `info`; `None` takes any.
+fn accepts(takes: Option<&[&TypeInfo]>, info: &TypeInfo) -> bool {
+  takes.is_none_or(|takes| takes.iter().any(|taken| taken.rust_path == info.rust_path))
 }
 
 /// Whether `node` is text that adds nothing, such as indentation between elements.

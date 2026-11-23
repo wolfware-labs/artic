@@ -38,13 +38,14 @@ pub struct TypeInfo {
   pub code_type_root: bool,
 }
 
-/// How the parser treats whitespace in text content.
+/// How a UI language treats whitespace-only text between two child elements, such as the space
+/// between two runs of a text. Other text follows the language's own rules either way.
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq)]
 pub enum Whitespace {
-  /// Runs of whitespace collapse to one space, and leading and trailing whitespace is dropped.
+  /// It adds nothing, as indentation between elements shouldn't.
   #[default]
   Collapse,
-  /// Text keeps its whitespace as written.
+  /// It counts as one space, as between words in a text's inlines.
   Significant,
 }
 
@@ -191,6 +192,9 @@ pub enum ContentInfo {
     method: Option<ContentMethod>,
     /// The types of child the collection takes, or `None` for any: `UiCollection::takes`.
     takes: fn() -> Option<&'static [&'static TypeInfo]>,
+    /// The type text written inside the collection becomes, or `None` when it takes no text:
+    /// `UiCollection::text_wrapper`.
+    text_wrapper: fn() -> Option<&'static TypeInfo>,
     /// Adds one child element as content, calling the field's `UiCollection::push_child` with
     /// an accessor to the field.
     add_child: fn(&mut UiTree, NodeId, NodeId) -> Result<(), ValueError>,

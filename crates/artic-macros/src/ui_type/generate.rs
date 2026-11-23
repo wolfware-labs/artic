@@ -218,6 +218,7 @@ fn content_info(members: &Members) -> TokenStream {
         field: #name,
         method: #method,
         takes: <#ty as __artic::UiCollection>::takes,
+        text_wrapper: <#ty as __artic::UiCollection>::text_wrapper,
         add_child: __add_child,
       }))
     }

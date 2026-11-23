@@ -78,7 +78,8 @@ fn the_innermost_weight_wins() {
 }
 
 // `Hello <Bold>world</Bold>` built through the builder keeps the space between the runs, and every
-// type inlines go in keeps its text's whitespace.
+// type that holds inlines has significant whitespace, so a UI language keeps blank text between
+// inlines as a space.
 #[test]
 fn inline_whitespace_preserved() {
   let mut tree = UiTree::new();
@@ -88,7 +89,7 @@ fn inline_whitespace_preserved() {
   let block = TextBlock::new().inlines([hello, bold.id()]).build(&mut tree).id();
 
   assert_eq!(flattened(&tree, block).text(), "Hello world");
-  for info in [TextBlock::TYPE_INFO, Run::TYPE_INFO, Bold::TYPE_INFO, Italic::TYPE_INFO] {
+  for info in [TextBlock::TYPE_INFO, Bold::TYPE_INFO, Italic::TYPE_INFO] {
     assert_eq!(info.whitespace, Whitespace::Significant, "{}", info.name);
   }
 }

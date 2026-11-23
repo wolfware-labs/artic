@@ -47,6 +47,10 @@ impl UiCollection for Inlines {
     Some(&INLINES)
   }
 
+  fn text_wrapper() -> Option<&'static TypeInfo> {
+    Some(Run::TYPE_INFO)
+  }
+
   fn push_child(
     tree: &mut UiTree,
     owner: NodeId,
@@ -65,7 +69,6 @@ impl UiCollection for Inlines {
 /// A piece of text in its own font and brush, which it inherits from the inline or text block
 /// it's in unless it sets them.
 #[derive(Debug, UiType)]
-#[ui(whitespace = "significant")]
 pub struct Run {
   /// The text.
   #[ui(content, affects = layout)]

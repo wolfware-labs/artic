@@ -20,7 +20,7 @@ struct Label {
   text: Property<String>,
 }
 
-/// A type whose content is text with its whitespace kept.
+/// A type whose content is a text property and whose whitespace is significant.
 #[derive(Debug, UiType)]
 #[ui(whitespace = "significant")]
 struct Run {
@@ -54,6 +54,15 @@ struct Gradient {
 /// `rust` without whitespace, so assertions don't depend on where the formatter breaks lines.
 fn joined(rust: &str) -> String {
   rust.split_whitespace().collect()
+}
+
+/// Each text `rust` sets through a `text` builder method, in order.
+fn texts(rust: &str) -> Vec<&str> {
+  rust
+    .split(".text(::std::string::String::from(\"")
+    .skip(1)
+    .map(|rest| &rest[..rest.find('"').expect("a closing quote")])
+    .collect()
 }
 
 // A `Child` content takes the child's handle, after the property methods.
@@ -104,11 +113,43 @@ fn text_content_sets_content_property() {
   );
 }
 
-// A type whose whitespace is significant gets its text as written.
+// A type whose whitespace is significant still collapses its text, as XAML does, and
+// `xml:space="preserve"` keeps it as written.
 #[test]
-fn significant_content_keeps_raw_text() {
+fn significant_content_collapses_unless_preserved() {
   let rust = compile(&format!(r#"<Run xmlns="{TEST_UI}">  two  spaces </Run>"#)).expect("a valid view");
+  assert!(rust.contains(r#""two spaces""#), "{rust}");
+  let rust = compile(&format!(
+    r#"<Run xmlns="{TEST_UI}" xml:space="preserve">  two  spaces </Run>"#
+  ))
+  .expect("a valid view");
   assert!(rust.contains(r#""  two  spaces ""#), "{rust}");
+}
+
+// Text in a `TextBlock` becomes runs beside its inlines, with one space kept between two inlines
+// and the markup's line breaks and indentation collapsed.
+#[test]
+fn text_in_a_text_block_becomes_runs() {
+  let rust =
+    compile("<TextBlock xmlns=\"https://artic.rs/ui\">\n  Hello\n  <Bold>world</Bold>\n  <Italic>again</Italic>\n</TextBlock>")
+      .expect("a valid view");
+  assert_eq!(texts(&rust), ["Hello ", "world", " ", "again"], "{rust}");
+}
+
+// Under `xml:space="preserve"`, text in a `TextBlock` keeps its line breaks and indentation.
+#[test]
+fn preserved_text_in_a_text_block_keeps_its_whitespace() {
+  let rust =
+    compile("<TextBlock xmlns=\"https://artic.rs/ui\" xml:space=\"preserve\">\n  Hello <Bold>world</Bold></TextBlock>")
+      .expect("a valid view");
+  assert!(rust.contains(r#"String::from("\n  Hello ")"#), "{rust}");
+}
+
+// Text in a collection with no text wrapper is still reported.
+#[test]
+fn text_in_a_collection_without_a_wrapper_reports_error() {
+  let errors = compile(r#"<StackPanel xmlns="https://artic.rs/ui">Hi</StackPanel>"#).expect_err("text");
+  assert!(errors.contains("`StackPanel` takes no text content"), "{errors}");
 }
 
 // Blank content of a collapsing type sets nothing.
@@ -187,4 +228,13 @@ fn child_of_a_type_the_content_does_not_take_reports_error() {
   );
   assert!(errors.contains("no type `Bogus`"), "{errors}");
   assert_eq!(errors.matches("takes only").count(), 1, "{errors}");
+}
+
+// Indentation before the first inline and after the last adds nothing; between two inlines it is
+// one space.
+#[test]
+fn indentation_around_inlines_is_trimmed() {
+  let rust = compile("<TextBlock xmlns=\"https://artic.rs/ui\">\n  <Bold>a</Bold>\n  <Italic>b</Italic>\n</TextBlock>")
+    .expect("a valid view");
+  assert_eq!(texts(&rust), ["a", " ", "b"], "{rust}");
 }

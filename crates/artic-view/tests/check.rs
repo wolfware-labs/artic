@@ -97,9 +97,10 @@ fn content_text_sets_the_content_property() {
   assert_eq!((value.text.as_str(), value.span), ("Hello", span(20, 21)));
 }
 
-// A type whose whitespace is significant reads the text as written.
+// A content property reads the text after the language's rules, whitespace significant or not:
+// only a rule of the front end's own keeps it as written.
 #[test]
-fn significant_whitespace_reads_the_raw_text() {
+fn content_text_reads_the_ruled_text() {
   let raw = Content::Text {
     text: "a b".to_owned(),
     raw: " a  b ".to_owned(),
@@ -111,7 +112,7 @@ fn significant_whitespace_reads_the_raw_text() {
 
   let (view, _) = check(&document);
 
-  assert_eq!(view.elements[0].properties[0].1.text, " a  b ");
+  assert_eq!(view.elements[0].properties[0].1.text, "a b");
 }
 
 // Content text sets the content property as an attribute does, so setting both is "set twice".
@@ -680,4 +681,115 @@ fn front_end_problems_are_reported() {
   assert_eq!(reported(&diagnostics), [at("takes text", 5), at("takes text", 9)]);
   assert_eq!(view.code_type, None);
   assert_eq!(view.names[0].visibility, None);
+}
+
+// Text in a collection with a text wrapper becomes wrapper elements beside the children, and in a
+// significant type blank text between two elements counts as one space; blank text at the edges
+// adds nothing.
+#[test]
+fn text_becomes_wrapper_elements() {
+  let image = || Content::Element(element(&IMAGE, 30, Vec::new()));
+  let nodes = vec![blank(10), text("Hello ", 20), image(), blank(40), image(), blank(50)];
+  let document = Document {
+    root: element(&PARAGRAPH, 0, vec![content(5, nodes)]),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  assert_eq!(reported(&diagnostics), []);
+  assert_eq!(view.elements[4].content, CheckedContent::Children(vec![0, 1, 2, 3]));
+  let pieces: Vec<Option<&str>> = view
+    .elements
+    .iter()
+    .map(|element| element.properties.first().map(|(_, value)| value.text.as_str()))
+    .collect();
+  assert_eq!(pieces, [Some("Hello "), None, Some(" "), None, None]);
+  assert_eq!(view.elements[0].ty.info.name, "Code");
+}
+
+// Text written as nothing between two elements adds no space, even in a significant type.
+#[test]
+fn empty_text_between_elements_adds_nothing() {
+  let image = || Content::Element(element(&IMAGE, 30, Vec::new()));
+  let document = Document {
+    root: element(&PARAGRAPH, 0, vec![content(5, vec![image(), text("", 40), image()])]),
+  };
+
+  let (view, _) = check(&document);
+
+  assert_eq!(view.elements[2].content, CheckedContent::Children(vec![0, 1]));
+}
+
+// Blank text between two elements adds nothing in a type whose whitespace collapses.
+#[test]
+fn blank_text_between_elements_adds_nothing_when_it_collapses() {
+  let image = || Content::Element(element(&IMAGE, 30, Vec::new()));
+  let document = Document {
+    root: element(&PANEL, 0, vec![content(5, vec![image(), blank(40), image()])]),
+  };
+
+  let (view, _) = check(&document);
+
+  assert_eq!(view.elements[2].content, CheckedContent::Children(vec![0, 1]));
+}
+
+// A text wrapper whose content isn't a property can't take the text, which is reported.
+#[test]
+fn a_wrapper_without_a_content_property_reports_the_text() {
+  let document = Document {
+    root: element(&SHELF, 0, vec![content(5, vec![text("Hi", 20)])]),
+  };
+
+  let (_, diagnostics) = check(&document);
+
+  assert_eq!(reported(&diagnostics), [at("`Shelf` takes no text content", 20)]);
+}
+
+// A wrapper markup can't create, or one the collection doesn't take, can't take the text either.
+#[test]
+fn a_wrapper_the_collection_cannot_use_reports_the_text() {
+  for (collection, name) in [(&PINBOARD, "Pinboard"), (&GALLERY, "Gallery")] {
+    let document = Document {
+      root: element(collection, 0, vec![content(5, vec![text("Hi", 20)])]),
+    };
+
+    let (_, diagnostics) = check(&document);
+
+    assert_eq!(reported(&diagnostics), [at(&format!("`{name}` takes no text content"), 20)]);
+  }
+}
+
+// Blank text before the first element and after the last adds nothing, even where whitespace is
+// significant: only blank text with an element on each side counts as a space.
+#[test]
+fn blank_text_at_the_edges_adds_nothing() {
+  let image = || Content::Element(element(&IMAGE, 30, Vec::new()));
+  let document = Document {
+    root: element(
+      &PARAGRAPH,
+      0,
+      vec![content(5, vec![blank(10), image(), text("x", 40), image(), blank(50)])],
+    ),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  assert_eq!(reported(&diagnostics), []);
+  assert_eq!(view.elements[3].content, CheckedContent::Children(vec![0, 1, 2]));
+  assert_eq!(view.elements[1].properties[0].1.text, "x");
+}
+
+// Blank text between two elements of a significant type with no usable wrapper adds nothing and
+// isn't reported: there is no text to report.
+#[test]
+fn blank_text_without_a_wrapper_is_not_reported() {
+  let image = || Content::Element(element(&IMAGE, 30, Vec::new()));
+  let document = Document {
+    root: element(&SHELF, 0, vec![content(5, vec![image(), blank(40), image()])]),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  assert_eq!(reported(&diagnostics), []);
+  assert_eq!(view.elements[2].content, CheckedContent::Children(vec![0, 1]));
 }
