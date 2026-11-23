@@ -19,7 +19,7 @@ The job runs `cargo check --target wasm32-unknown-unknown` on these crates:
 | `artic-text` | `fontique` has no system font source on wasm; see font loading below. |
 | `artic-xaml` | |
 
-A `cargo check` catches a dependency that doesn't compile for the target. It doesn't catch one that compiles and fails at run time: `std::thread::spawn` and `std::time::Instant::now` both compile and fail in a browser. Those are in the audit below. Backend crates that do compile for wasm, `winit` and `wgpu` among them, are kept out of the portable crates by the `cargo deny` bans in `deny.toml`, which the `Deny` job enforces: only `artic-winit` reaches `winit`, only `artic-vello` reaches `vello`, and `wgpu` arrives only through `vello`.
+A `cargo check` catches a dependency that doesn't compile for the target. It doesn't catch one that compiles and fails at run time: `std::thread::spawn` and `std::time::Instant::now` both compile and fail in a browser. Those are in the audit below. Backend crates that do compile for wasm, `winit` and `wgpu` among them, are kept out of the portable crates by the `cargo deny` bans in `deny.toml`, which the `Deny` job enforces: only `artic-winit` reaches `winit`, directly or through `accesskit_winit`, only `artic-vello` reaches `vello`, and only `vello` depends on the `wgpu` crate. The bans name crates, so a crate that took one of wgpu's own parts (`wgpu-core`, `wgpu-hal`, `wgpu-types`) directly would get past them.
 
 ## Not checked yet
 
