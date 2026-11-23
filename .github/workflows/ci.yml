@@ -396,11 +396,13 @@ jobs:
       - uses: ./.github/actions/setup-rust
       - name: Add the target
         run: rustup target add wasm32-unknown-unknown
+      # One crate per check: Cargo unifies the features of the crates one command checks, so a
+      # crate could pass only because another one turned a feature on.
       - name: Portable crates
-        run: >-
-          cargo check --target wasm32-unknown-unknown
-          -p artic-core -p artic-diagnostics -p artic-ident -p artic-i18n
-          -p artic-layout -p artic-render -p artic-text -p artic-xaml
+        run: |
+          for crate in artic-core artic-diagnostics artic-ident artic-i18n artic-layout artic-render artic-text artic-xaml; do
+            cargo check --target wasm32-unknown-unknown -p "$crate"
+          done
 
   docs:
     name: Docs

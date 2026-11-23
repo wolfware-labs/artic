@@ -6,7 +6,7 @@ artic has no web host in v1, but a later version must add one without changing a
 
 ## What the `Wasm` job checks
 
-The job runs `cargo check --target wasm32-unknown-unknown` on these crates:
+The job runs `cargo check --target wasm32-unknown-unknown` on each of these crates on its own, since Cargo unifies the features of the crates one command checks and a crate could pass only because another one turned a feature on:
 
 | Crate | Notes |
 | --- | --- |
