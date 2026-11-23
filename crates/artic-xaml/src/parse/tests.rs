@@ -792,3 +792,29 @@ fn table_holds_no_namespace() {
     );
   }
 }
+
+/// Where the visible text of `source`'s root's content starts, as the source text from there.
+fn visible(source: &str) -> &str {
+  let root = root(source);
+  let content = members(&root)
+    .iter()
+    .find(|member| member.key == MemberKey::Content)
+    .expect("content");
+  let XamlNode::Value { trimmed, .. } = &content.value[0] else {
+    panic!("text content");
+  };
+  &source[trimmed.start..trimmed.end]
+}
+
+// A text's visible text starts at its first character that isn't XML whitespace, in the source:
+// past a CRLF, an entity or CDATA that decodes to whitespace, and not past a non-breaking space,
+// which is content. Blank text has an empty visible span at its end.
+#[test]
+fn trimmed_span_starts_at_the_visible_text() {
+  assert_eq!(visible("<A xmlns=\"urn:ui\">\r\n  Hi</A>"), "Hi");
+  assert_eq!(visible("<A xmlns=\"urn:ui\">&#32;&#10;Hi</A>"), "Hi");
+  assert_eq!(visible("<A xmlns=\"urn:ui\"><![CDATA[ \n]]>Hi</A>"), "Hi");
+  assert_eq!(visible("<A xmlns=\"urn:ui\"><![CDATA[  Hi]]></A>"), "Hi]]>");
+  assert_eq!(visible("<A xmlns=\"urn:ui\">\n&#160;Hi</A>"), "&#160;Hi");
+  assert_eq!(visible("<A xmlns=\"urn:ui\" xml:space=\"preserve\">  \n  </A>"), "");
+}

@@ -284,7 +284,7 @@ flowchart LR
 2. Type and property names resolve against the registry of all dependency crates. Because the registry is link-time, the compiler runs in a build script that links `artic-controls` and the app's own control crates as build-dependencies.
 3. Output is plain Rust in the [builder shape](../design/builder-api.md): `let sign_in = Button::new().content("Sign in").build(tree);`, one statement per element, children before their parents. No string lookups survive to runtime.
 4. Bindings compile to typed closures (`|vm: &LoginVm| vm.email.get()`) over the `x:DataType` in scope, whether declared, inherited or inferred (§6, D2). A binding with no resolvable `x:DataType` is a compile error that names the attribute to add and where. Unknown property on a known `x:DataType` is a compile error. There is no reflective fallback (D1).
-5. Generated code is deterministic and gitignored; diagnostics point at the `.xaml` line/column via `#[track_caller]`-style span tables so `cargo build` errors read like `src/views/login.xaml:12:9: unknown property 'Foo' on Button`.
+5. Generated code is deterministic and gitignored. Diagnostics point at the `.xaml` line and column, so `cargo build` errors read like rustc's: `` src/views/login.xaml:12:9: error: `Button` has no property `Foo` ``, with the line and a caret under it, every view's errors in one build. In the generated code, a `// src/views/login.xaml:12:9` comment above each element's statements leads a rustc error there back to the view.
 
 ### Runtime loader (dev path)
 

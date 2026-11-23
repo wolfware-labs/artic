@@ -1,10 +1,10 @@
 // `compile_dir`'s file work: every view under a directory compiled into a mirrored layout,
-// sorted, stopping at the first view with errors.
+// sorted, with the errors of every view reported together.
 
 mod common;
 
 use artic_view_compiler::{CompileError, CratePaths, compile_dir, compile_into};
-use common::{Named, registry};
+use common::{Named, Silent, registry};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -40,16 +40,33 @@ fn nested_views_mirror_the_layout() {
   assert!(!root.join("out/notes.rs").exists());
 }
 
-// The first view with errors, in sorted order, stops the run and names its file; views before it
-// are already written.
+// Every view is compiled: the errors of each failing view are reported together, at its path,
+// and the views without errors are still written.
 #[test]
-fn first_failing_view_stops_the_run() {
-  let root = setup("failing", &[("a.view", PANEL), ("b.view", "Gauge"), ("c.view", PANEL)]);
-  let error = run(&root, &root.join("views")).expect_err("b has errors");
+fn every_failing_view_is_reported() {
+  let root = setup(
+    "failing",
+    &[("a.view", PANEL), ("b.view", "Gauge"), ("c.view", PANEL), ("d.view", "Knob")],
+  );
+  let error = run(&root, &root.join("views")).expect_err("b and d have errors");
   let message = error.to_string();
-  assert!(message.contains("b.view") && message.contains("no type `Gauge`"), "{message}");
+  assert!(message.contains("b.view:1:1: error: no type `Gauge`"), "{message}");
+  assert!(message.contains("d.view:1:1: error: no type `Knob`"), "{message}");
+  assert!(message.find("b.view") < message.find("d.view"), "{message}");
+  assert_eq!(error.summary(), "2 errors in 2 views");
   assert!(root.join("out/a.rs").is_file());
-  assert!(!root.join("out/c.rs").exists());
+  assert!(root.join("out/c.rs").is_file());
+}
+
+// The summary counts in the singular too, and is the message itself for an error that isn't a
+// view's.
+#[test]
+fn summary_counts_errors_and_views() {
+  let root = setup("summary", &[("a.view", "Gauge")]);
+  let error = run(&root, &root.join("views")).expect_err("a has an error");
+  assert_eq!(error.summary(), "1 error in 1 view");
+  let missing = run(&root, &root.join("absent")).expect_err("no directory");
+  assert_eq!(missing.summary(), missing.to_string());
 }
 
 // A directory that doesn't exist is an I/O error naming it, and Debug, which build scripts print,
@@ -186,4 +203,57 @@ fn compile_dir_needs_out_dir() {
   let result = compile_dir("views", &Named, &CratePaths::new());
 
   assert!(matches!(result, Err(CompileError::NoOutDir)), "{result:?}");
+}
+
+/// Set in the child that `exit_reports_and_fails_the_build_script` runs, which then calls `exit`.
+const EXIT_CHILD: &str = "ARTIC_EXIT_CHILD";
+
+// `exit` ends the process with code 1, the rendered problems on stderr and Cargo's one-line summary
+// on stdout. The test runs itself again as a child, which exits; the harness prints the test's name
+// on the line the child's first output continues, so the summary ends a line rather than starts one.
+#[test]
+fn exit_reports_and_fails_the_build_script() {
+  if std::env::var_os(EXIT_CHILD).is_some() {
+    let root = setup("exit", &[("a.view", "Gauge")]);
+    run(&root, &root.join("views")).expect_err("a has an error").exit();
+  }
+  let output = std::process::Command::new(std::env::current_exe().expect("the test binary"))
+    .args([
+      "exit_reports_and_fails_the_build_script",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1",
+    ])
+    .env(EXIT_CHILD, "1")
+    .output()
+    .expect("the test binary runs");
+  let stdout = String::from_utf8_lossy(&output.stdout);
+  let stderr = String::from_utf8_lossy(&output.stderr);
+  assert_eq!(output.status.code(), Some(1), "{stdout}\n{stderr}");
+  assert!(stderr.contains("a.view:1:1: error: no type `Gauge`"), "{stderr}");
+  assert!(
+    stdout.lines().any(|line| line.ends_with("cargo::error=1 error in 1 view")),
+    "{stdout}"
+  );
+}
+
+// A view its language fails to read without reporting why still fails the build, at the view,
+// rather than passing and leaving its output missing.
+#[test]
+fn a_view_read_with_no_error_still_fails() {
+  let root = setup("silent", &[("a.view", PANEL)]);
+  let error = compile_into(
+    &root.join("views"),
+    &root.join("out"),
+    &Silent,
+    &registry(),
+    &CratePaths::new(),
+  )
+  .expect_err("a view wasn't compiled");
+  let message = error.to_string();
+  assert!(
+    message.contains("a.view:1:1: error: this view wasn't compiled, and its language reported no error"),
+    "{message}"
+  );
+  assert_eq!(error.summary(), "1 error in 1 view");
 }

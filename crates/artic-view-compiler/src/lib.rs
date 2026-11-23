@@ -7,6 +7,30 @@
 //! children first, and the root as the code type when it has one. Every problem in the document is
 //! reported in one pass. [`compile_dir`] does it for every view of a directory, from a build
 //! script. [`CratePaths`] says how generated code reaches each crate.
+//!
+//! # Errors in `cargo build`
+//!
+//! A view's problems are reported at the view's path in the crate, as rustc reports its own, with
+//! the line under them: `src/views/login.ui:12:9: error: ...`. [`compile_dir`] gathers the
+//! problems of every view, so one build shows them all, and a build script ends with
+//! [`CompileError::exit`], which prints them on stderr, adds Cargo's one-line summary, and fails
+//! the build.
+//!
+//! # A rustc error in a compiled view
+//!
+//! When the views compile but rustc refuses the code they make, such as a code type that doesn't
+//! fit its view, rustc points into the generated file, `$OUT_DIR/views/src/views/login.rs`. Each
+//! element's statements there follow a comment naming where the element is written:
+//!
+//! ```text
+//! // src/views/login.ui:12:9
+//! let __e3 = ::artic::controls::Border::new()
+//!     .padding(::artic::layout::Thickness::new(12.0_f32, 8.0_f32, 12.0_f32, 8.0_f32))
+//!     .build(tree);
+//! ```
+//!
+//! Read up from the line rustc names to the nearest such comment, and open the view at that line
+//! and column. Cargo prints `$OUT_DIR` in full, under `target/<profile>/build/<package>-<hash>/out`.
 
 mod dir;
 mod emit;
@@ -48,7 +72,7 @@ pub fn compile_str(
   diagnostics.extend(lowered);
   let diagnostics = sorted(diagnostics);
   match view {
-    Some(view) if !diagnostics.has_errors() => Ok(emit::emit(&view, sources.get(file).path())),
+    Some(view) if !diagnostics.has_errors() => Ok(emit::emit(&view, sources.get(file))),
     _ => Err(diagnostics),
   }
 }

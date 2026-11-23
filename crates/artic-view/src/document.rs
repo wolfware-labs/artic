@@ -88,7 +88,8 @@ pub enum Content {
     /// The text as written. Blank text written between two elements of a type whose whitespace is
     /// significant counts as one space.
     raw: String,
-    /// Where it is written.
+    /// Where it is written, from its first character that isn't whitespace by the language's rules:
+    /// where its visible text starts. An empty span at its end for blank text.
     span: Span,
   },
   /// A child element.

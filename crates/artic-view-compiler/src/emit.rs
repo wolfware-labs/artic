@@ -1,17 +1,23 @@
 //! Writing a [`View`] as a formatted module body.
 
 use crate::lower::{AttachedCall, ContentCall, Element, Name, Setter, View};
+use artic_diagnostics::SourceFile;
 use artic_view::CheckedContent;
-use proc_macro2::TokenStream;
+use proc_macro2::{Literal, TokenStream};
 use quote::{format_ident, quote};
 use std::path::{Component, Path};
 use syn::ext::IdentExt;
 
-/// The module body for `view`, compiled from the file at `path`. The path is written with its
-/// control characters and bidirectional controls escaped in its header and doc comments, so it
-/// can't end a comment and add code.
-pub(crate) fn emit(view: &View, path: &Path) -> String {
-  let file = escaped(&display(path));
+/// The module body for `view`, compiled from `source`. The path is written with its control
+/// characters and bidirectional controls escaped in its header and comments, so it can't end a
+/// comment and add code. Each element's statements follow a `// path:line:col` comment naming
+/// where the element is written, so a rustc error in them leads back to the view.
+pub(crate) fn emit(view: &View, source: &SourceFile) -> String {
+  let file = escaped(&display(source.path()));
+  let marker = |index: usize| {
+    let index = Literal::usize_unsuffixed(index);
+    quote!(__artic_source!(#index);)
+  };
   let root = view.root;
   let tree_module = &view.tree;
   let traits = view.traits.values();
@@ -41,26 +47,27 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
     .as_ref()
     .map(|code_type| built(root_element, &code_type.path, quote!(View { #(#names,)* })));
   let root_is_tail = code_type_root.is_some() && root_element.attached.is_empty();
-  let lets = view
-    .elements
-    .iter()
-    .enumerate()
-    .filter(|(index, _)| !root_is_tail || *index != root)
-    .map(|(index, element)| {
-      let local = local(index);
-      let built = match &code_type_root {
-        Some(code_type_root) if index == root => code_type_root.clone(),
-        _ => built(element, &element.ty, quote!()),
-      };
-      let attached = element
-        .attached
-        .iter()
-        .map(|AttachedCall { owner, setter, value }| quote!(#owner::#setter(tree, #local.id(), #value);));
-      quote! {
-        let #local = #built;
-        #(#attached)*
-      }
-    });
+  let let_order: Vec<usize> = (0..view.elements.len())
+    .filter(|&index| !root_is_tail || index != root)
+    .collect();
+  let lets = let_order.iter().map(|&index| {
+    let element = &view.elements[index];
+    let local = local(index);
+    let built = match &code_type_root {
+      Some(code_type_root) if index == root => code_type_root.clone(),
+      _ => built(element, &element.ty, quote!()),
+    };
+    let attached = element
+      .attached
+      .iter()
+      .map(|AttachedCall { owner, setter, value }| quote!(#owner::#setter(tree, #local.id(), #value);));
+    let marker = marker(index);
+    quote! {
+      #marker
+      let #local = #built;
+      #(#attached)*
+    }
+  });
   let members = view.code_type.as_ref().map(|code_type| {
     let root_ty = &root_element.ty;
     let content = code_type.content.iter().map(|(field, ty)| {
@@ -89,7 +96,10 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
         quote!(),
         quote!(Handle<#path>),
         match &code_type_root {
-          Some(code_type_root) if root_is_tail => code_type_root.clone(),
+          Some(code_type_root) if root_is_tail => {
+            let marker = marker(root);
+            quote!(#marker #code_type_root)
+          }
           _ => {
             let root_local = local(root);
             quote!(#root_local)
@@ -139,7 +149,41 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
     }
   };
   let module: syn::File = syn::parse2(tokens).expect("the generated module parses");
-  format!("// Generated from {file}.\n\n{}", prettyplease::unparse(&module))
+  let order: Vec<usize> = let_order.iter().copied().chain(root_is_tail.then_some(root)).collect();
+  let comments: Vec<String> = order
+    .iter()
+    .map(|&index| {
+      let position = source.line_col(view.elements[index].span.start);
+      format!("{file}:{}:{}", position.line, position.column)
+    })
+    .collect();
+  let body = with_sources(&prettyplease::unparse(&module), &order, &comments);
+  format!("// Generated from {file}.\n\n{body}")
+}
+
+/// `code` with its markers made comments: the `__artic_source!(index);` statements of `build`'s
+/// body, which the formatter puts each on a line of its own at the body's indent, in the order
+/// `order` emitted them, each becoming `// ` and the comment at the same position in `comments`.
+/// A line inside a multi-line string literal that reads like a marker is left alone, since only
+/// the next expected marker at the body's indent matches.
+fn with_sources(code: &str, order: &[usize], comments: &[String]) -> String {
+  const INDENT: &str = "    ";
+  let mut out = String::with_capacity(code.len());
+  let mut next = 0;
+  for line in code.lines() {
+    let expected = order.get(next).map(|index| format!("{INDENT}__artic_source!({index});"));
+    if expected.as_deref() == Some(line) {
+      out.push_str(INDENT);
+      out.push_str("// ");
+      out.push_str(&comments[next]);
+      next += 1;
+    } else {
+      out.push_str(line);
+    }
+    out.push('\n');
+  }
+  assert_eq!(next, order.len(), "every marker the emitter wrote is in the formatted code");
+  out
 }
 
 /// The expression that builds `element` as `ty`, created with `ty::new(#arguments)`, then each
@@ -201,4 +245,44 @@ fn display(path: &Path) -> String {
     .map(|component| component.as_os_str().to_string_lossy())
     .collect::<Vec<_>>()
     .join("/")
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use pretty_assertions::assert_eq;
+
+  // Each marker at the body's indent becomes its comment, in the order emitted. A line that reads
+  // like a marker inside a multi-line string literal stays as it is: one at another indent, or one
+  // that names an element other than the next expected.
+  #[test]
+  fn markers_become_comments_in_order() {
+    let code = concat!(
+      "fn build() {\n",
+      "    __artic_source!(1);\n",
+      "    let a = r\"x\n",
+      "__artic_source!(0);\n",
+      "    __artic_source!(1);\n",
+      "\";\n",
+      "    __artic_source!(0);\n",
+      "    a\n",
+      "}\n",
+    );
+    let comments = ["v.ui:2:3".to_owned(), "v.ui:1:2".to_owned()];
+
+    let written = with_sources(code, &[1, 0], &comments);
+
+    let expected = concat!(
+      "fn build() {\n",
+      "    // v.ui:2:3\n",
+      "    let a = r\"x\n",
+      "__artic_source!(0);\n",
+      "    __artic_source!(1);\n",
+      "\";\n",
+      "    // v.ui:1:2\n",
+      "    a\n",
+      "}\n",
+    );
+    assert_eq!(written, expected);
+  }
 }

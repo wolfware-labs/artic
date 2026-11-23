@@ -172,3 +172,25 @@ fn key_reports_error() {
     compile(r#"<Border xmlns="https://artic.rs/ui" xmlns:x="https://artic.rs/markup" x:Key="card"/>"#).expect_err("a key");
   assert!(errors.contains("resources come with #111"), "{errors}");
 }
+
+// A problem is rendered at the view's path, line and column, with the line under it.
+#[test]
+fn diagnostic_renders_file_line_col() {
+  let xaml = "<StackPanel xmlns=\"https://artic.rs/ui\">\n  <Border\n    Foo=\"1\"/>\n</StackPanel>";
+  let errors = common::compile_with(xaml, "views/login.xaml", |_, _| {}).expect_err("an unknown property");
+  assert_eq!(
+    errors.lines().next(),
+    Some("views/login.xaml:3:5: error: `Border` has no property `Foo`")
+  );
+  assert!(errors.contains("3 |     Foo=\"1\"/>"), "{errors}");
+}
+
+// Two problems in one view are both reported, in source order.
+#[test]
+fn multiple_diagnostics_reported() {
+  let errors = compile(r#"<StackPanel xmlns="https://artic.rs/ui"><Border Foo="1"/><Border Bar="2"/></StackPanel>"#)
+    .expect_err("two unknown properties");
+  let foo = errors.find("`Border` has no property `Foo`").expect("the first");
+  let bar = errors.find("`Border` has no property `Bar`").expect("the second");
+  assert!(foo < bar, "{errors}");
+}

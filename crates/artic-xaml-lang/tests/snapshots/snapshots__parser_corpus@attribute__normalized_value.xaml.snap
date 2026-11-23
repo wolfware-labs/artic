@@ -22,6 +22,7 @@ pub struct View {
 }
 /// Builds `valid/attribute/normalized_value.xaml` in `tree` and returns its nodes.
 pub fn build(tree: &mut UiTree) -> View {
+    // valid/attribute/normalized_value.xaml:2:2
     let __e0 = ::artic::controls::TextBlock::new()
         .text(::std::string::String::from("two lines tab & \nbreak"))
         .build(tree);

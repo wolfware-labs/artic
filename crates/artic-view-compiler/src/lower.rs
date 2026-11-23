@@ -54,6 +54,8 @@ pub(crate) struct CodeType {
 pub(crate) struct Element {
   /// The type's path in generated code.
   pub ty: Path,
+  /// Where the element is written: its type's name.
+  pub span: Span,
   /// The property methods, in the order the document sets them.
   pub setters: Vec<Setter>,
   /// The call that takes its children, for a type whose content is a collection.
@@ -257,6 +259,7 @@ impl Lower<'_> {
       .collect();
     Some(Element {
       ty: ty?,
+      span: element.ty.span,
       setters,
       content: content_call(element),
       attached,

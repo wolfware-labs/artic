@@ -3,7 +3,7 @@
 use crate::CratePaths;
 use crate::compile_str;
 use artic_core::error::Chain;
-use artic_diagnostics::{Diagnostics, SourceMap};
+use artic_diagnostics::{Diagnostic, Diagnostics, Severity, SourceMap, Span};
 use artic_registry::{Registry, RegistryError};
 use artic_view::Language;
 use std::fmt::{self, Debug, Display, Formatter};
@@ -13,12 +13,12 @@ use std::{fs, io};
 /// Why [`compile_dir`] stopped.
 #[derive(thiserror::Error)]
 pub enum CompileError {
-  /// A view has errors.
+  /// Views have errors.
   #[error("{}", .diagnostics.render(.sources))]
   Diagnostics {
-    /// The view's source, which the diagnostics point into.
+    /// The views' sources, which the diagnostics point into.
     sources: SourceMap,
-    /// Every problem in the view.
+    /// Every problem in every view, view by view.
     diagnostics: Diagnostics,
   },
   /// A file or directory couldn't be read or written.
@@ -54,6 +54,41 @@ impl Debug for CompileError {
   }
 }
 
+impl CompileError {
+  /// Reports the error as Cargo shows a build script's errors, and ends the build script: the
+  /// rendered diagnostics, or the message and its causes, on stderr, which Cargo prints under the
+  /// failed script, then a one-line [`summary`](CompileError::summary) as `cargo::error=`, and
+  /// exit code 1. A build script ends with it when [`compile_dir`] fails:
+  ///
+  /// ```no_run
+  /// # use artic_view_compiler::{CratePaths, compile_dir};
+  /// # fn language() -> &'static dyn artic_view::Language { unimplemented!() }
+  /// compile_dir("src/views", language(), &CratePaths::new()).unwrap_or_else(|error| error.exit());
+  /// ```
+  pub fn exit(self) -> ! {
+    eprintln!("{self:?}");
+    println!("cargo::error={}", self.summary());
+    std::process::exit(1)
+  }
+
+  /// One line saying what failed: how many errors in how many views, or the error's message with
+  /// its lines joined by `; `, since a registry error lists one duplicate per line.
+  #[must_use]
+  pub fn summary(&self) -> String {
+    let CompileError::Diagnostics { diagnostics, .. } = self else {
+      return self.to_string().lines().collect::<Vec<_>>().join("; ");
+    };
+    let errors: Vec<_> = diagnostics
+      .iter()
+      .filter(|diagnostic| diagnostic.severity == Severity::Error)
+      .collect();
+    let mut views: Vec<_> = errors.iter().map(|diagnostic| diagnostic.span.source).collect();
+    views.dedup();
+    let plural = |count: usize, word: &str| format!("{count} {word}{}", if count == 1 { "" } else { "s" });
+    format!("{} in {}", plural(errors.len(), "error"), plural(views.len(), "view"))
+  }
+}
+
 /// Compiles every file of `language` under `dir` into `$OUT_DIR/views/`, for a build script.
 ///
 /// `dir` is read relative to the crate, where Cargo runs build scripts. Each view is written at
@@ -74,7 +109,7 @@ impl Debug for CompileError {
 ///
 /// # Errors
 ///
-/// Stops at the first view with errors, in sorted order, and returns its diagnostics; or returns
+/// Returns the diagnostics of every view with errors, together, view by view in sorted order; or
 /// the I/O error, the directory or a view whose path holds a control character, the registry's
 /// duplicates, or a missing `OUT_DIR`.
 pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), paths: &CratePaths) -> Result<(), CompileError> {
@@ -96,7 +131,8 @@ pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), p
 
 /// Compiles every file of `language` under `dir` into `out`, each at the path its header names it
 /// by, and returns the views read, sorted. `out` is replaced, so a view removed since the last
-/// run leaves no output behind. Stops at the first view with errors.
+/// run leaves no output behind. Every view is compiled, and the problems of all of them are
+/// returned together, so a build shows every broken view at once.
 ///
 /// This is [`compile_dir`]'s work with every input passed in, for a tool that isn't a build
 /// script: it reads no environment and prints nothing for Cargo.
@@ -116,21 +152,37 @@ pub fn compile_into(
   if out.exists() {
     fs::remove_dir_all(out).map_err(io_error(out))?;
   }
+  let mut sources = SourceMap::new();
+  let mut problems = Diagnostics::new();
   for view in &views {
     let relative = view.strip_prefix(dir).expect("a view found under its directory");
     let text = fs::read_to_string(view).map_err(io_error(view))?;
-    let mut sources = SourceMap::new();
     let shown = shown(dir, relative);
     let file = sources.add(shown.clone(), text);
     let rust = match compile_str(&sources, file, language, registry, paths) {
       Ok(rust) => rust,
-      Err(diagnostics) => return Err(CompileError::Diagnostics { sources, diagnostics }),
+      Err(diagnostics) => {
+        if !diagnostics.has_errors() {
+          problems.push(Diagnostic::error(
+            Span::new(file, 0, 0),
+            "this view wasn't compiled, and its language reported no error",
+          ));
+        }
+        problems.extend(diagnostics);
+        continue;
+      }
     };
     let target = out.join(shown).with_extension("rs");
     if let Some(parent) = target.parent() {
       fs::create_dir_all(parent).map_err(io_error(parent))?;
     }
     fs::write(&target, rust).map_err(io_error(&target))?;
+  }
+  if !problems.is_empty() {
+    return Err(CompileError::Diagnostics {
+      sources,
+      diagnostics: problems,
+    });
   }
   Ok(views)
 }
@@ -198,7 +250,22 @@ fn io_error(path: &Path) -> impl FnOnce(io::Error) -> CompileError + '_ {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use artic_registry::Duplicate;
   use pretty_assertions::assert_eq;
+
+  // A registry error lists one duplicate per line; its summary joins them, since Cargo shows one
+  // line of `cargo::error=`.
+  #[test]
+  fn summary_is_one_line() {
+    let error = CompileError::Registry(RegistryError {
+      duplicates: vec![Duplicate::RustPath { path: "a::B" }, Duplicate::RustPath { path: "a::C" }],
+    });
+
+    assert_eq!(
+      error.summary(),
+      "two types are registered for the Rust path `a::B`; two types are registered for the Rust path `a::C`"
+    );
+  }
 
   // A directory in the crate names each view by its path in the crate; one outside it, absolute
   // or reached through `..`, by its path under the directory.
