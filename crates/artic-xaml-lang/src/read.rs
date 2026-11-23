@@ -146,10 +146,10 @@ impl Reader<'_> {
   /// Reads one node written inside an element.
   fn content(&self, node: &XamlNode) -> Content {
     match node {
-      XamlNode::Value { text, raw, span } => Content::Text {
+      XamlNode::Value { text, raw, trimmed, .. } => Content::Text {
         text: text.clone(),
         raw: raw.clone(),
-        span: *span,
+        span: *trimmed,
       },
       XamlNode::Object { .. } => Content::Element(self.element(node)),
       XamlNode::MarkupExtension { ty, span, .. } => Content::Unsupported(unsupported::markup_extension(ty, *span).into()),

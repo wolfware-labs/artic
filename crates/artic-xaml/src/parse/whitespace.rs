@@ -37,7 +37,7 @@ pub(super) fn normalize(nodes: &mut [XamlNode]) {
 
 /// Whether `character` is whitespace to XML: a space, tab, carriage return or line feed. Other
 /// Unicode spaces, such as the non-breaking space, are content.
-fn is_whitespace(character: char) -> bool {
+pub(super) fn is_whitespace(character: char) -> bool {
   matches!(character, ' ' | '\t' | '\r' | '\n')
 }
 
@@ -74,11 +74,7 @@ mod tests {
     let mut nodes: Vec<_> = parts
       .iter()
       .map(|part| match part {
-        Some(raw) => XamlNode::Value {
-          text: (*raw).to_owned(),
-          raw: (*raw).to_owned(),
-          span,
-        },
+        Some(raw) => XamlNode::value((*raw).to_owned(), span),
         None => XamlNode::Object {
           ty: TypeRef {
             prefix: None,

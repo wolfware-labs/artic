@@ -13,6 +13,18 @@ use xmlparser::{ElementEnd, StrSpan, Token, Tokenizer};
 type Binding = (Option<String>, XamlNamespace);
 
 /// An element whose end tag hasn't been reached yet.
+/// Text read inside an element and not yet added to it: CDATA and text chunks run together.
+struct PendingText {
+  /// The decoded text so far.
+  text: String,
+  /// Where its first chunk starts in the source.
+  start: usize,
+  /// Where its last chunk ends.
+  end: usize,
+  /// Where its first character that isn't XML whitespace was written, once one is read.
+  visible: Option<usize>,
+}
+
 struct Open {
   /// The tag name as written, to match the end tag.
   tag: String,
@@ -25,7 +37,7 @@ struct Open {
   /// How whitespace in its text is treated: its own `xml:space`, or its parent's.
   space: Space,
   /// Text and CDATA read since the last element boundary: the decoded text and its span.
-  pending_text: Option<(String, usize, usize)>,
+  pending_text: Option<PendingText>,
   kind: OpenKind,
 }
 
@@ -145,7 +157,12 @@ impl<'a> Builder<'a> {
         Ok(())
       }
       Token::Cdata { text, span } => {
-        self.add_text(normalize_line_endings(text.as_str()), span.start(), span.end());
+        let visible = text
+          .as_str()
+          .char_indices()
+          .find(|&(_, character)| !whitespace::is_whitespace(character))
+          .map(|(index, _)| text.start() + index);
+        self.add_text(normalize_line_endings(text.as_str()), span.start(), span.end(), visible);
         Ok(())
       }
       Token::DtdStart { span, .. } | Token::EmptyDtd { span, .. } => Err(
@@ -528,7 +545,14 @@ impl<'a> Builder<'a> {
 
   fn text(&mut self, text: StrSpan) {
     match decode(text.as_str(), text.start(), Kind::Text) {
-      Ok(decoded) => self.add_text(decoded.text, text.start(), text.end()),
+      Ok(decoded) => {
+        let visible = decoded
+          .text
+          .char_indices()
+          .find(|&(_, character)| !whitespace::is_whitespace(character))
+          .map(|(index, _)| decoded.offsets.source_offset(index));
+        self.add_text(decoded.text, text.start(), text.end(), visible);
+      }
       Err(error) => {
         let span = self.span(error.start, error.end);
         self.diagnostics.push(Diagnostic::error(span, error.message));
@@ -536,18 +560,27 @@ impl<'a> Builder<'a> {
     }
   }
 
-  /// Adds decoded text, written at bytes `start..end`, to the innermost element's pending text.
-  fn add_text(&mut self, text: String, start: usize, end: usize) {
+  /// Adds decoded text, written at bytes `start..end`, to the innermost element's pending text,
+  /// with `visible` where its first character that isn't XML whitespace was written, if it has one.
+  fn add_text(&mut self, text: String, start: usize, end: usize, visible: Option<usize>) {
     let open = self
       .stack
       .last_mut()
       .expect("the tokenizer reads text only inside an element");
     match &mut open.pending_text {
-      Some((pending, _, pending_end)) => {
-        pending.push_str(&text);
-        *pending_end = end;
+      Some(pending) => {
+        pending.text.push_str(&text);
+        pending.end = end;
+        pending.visible = pending.visible.or(visible);
       }
-      None => open.pending_text = Some((text, start, end)),
+      None => {
+        open.pending_text = Some(PendingText {
+          text,
+          start,
+          end,
+          visible,
+        });
+      }
     }
   }
 
@@ -557,10 +590,16 @@ impl<'a> Builder<'a> {
     let Some(open) = self.stack.last_mut() else {
       return;
     };
-    let Some((text, start, end)) = open.pending_text.take() else {
+    let Some(PendingText {
+      text,
+      start,
+      end,
+      visible,
+    }) = open.pending_text.take()
+    else {
       return;
     };
-    let node = XamlNode::value(text, Span::new(file, start, end));
+    let node = XamlNode::text(text, Span::new(file, start, end), visible.unwrap_or(end));
     match &mut open.kind {
       OpenKind::Object { content, .. } => content.push(node),
       OpenKind::PropertyElement { value, .. } => value.push(node),

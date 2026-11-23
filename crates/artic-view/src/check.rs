@@ -577,12 +577,14 @@ impl Check {
               continue;
             };
             written.push(*span);
-            let leading = raw.len() - raw.trim_start().len();
-            let span = Span {
-              start: (span.start + leading).min(span.end),
-              ..*span
-            };
-            children.push(self.wrapped(wrapper, property, Text { text: piece, span }));
+            children.push(self.wrapped(
+              wrapper,
+              property,
+              Text {
+                text: piece,
+                span: *span,
+              },
+            ));
           }
           None if !text.is_empty() => self.diagnostics.push(
             Diagnostic::error(*span, format!("`{}` takes no text content", info.name))

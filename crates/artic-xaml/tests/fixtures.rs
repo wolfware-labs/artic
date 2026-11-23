@@ -75,7 +75,7 @@ impl Printer<'_> {
           self.member(member, depth + 1);
         }
       }
-      XamlNode::Value { text, raw, span } => {
+      XamlNode::Value { text, raw, span, .. } => {
         let raw = if raw == text { String::new() } else { format!(" raw {raw:?}") };
         self.line(depth, format!("Value {text:?}{raw} {}", self.at(*span)));
       }

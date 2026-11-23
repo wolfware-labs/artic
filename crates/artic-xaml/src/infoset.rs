@@ -43,6 +43,10 @@ pub enum XamlNode {
     raw: String,
     /// Where it was written; its length can differ from `text`'s when entities were decoded.
     span: Span,
+    /// Where its first character that isn't XML whitespace was written, to its end: where its
+    /// visible text starts. An empty span at its end for blank text, and the same as `span` for an
+    /// attribute value.
+    trimmed: Span,
   },
   /// A markup extension, such as `{Binding Name}`: an attribute value, or an argument, that starts
   /// with `{`. A value that starts with the `{}` escape is a [`XamlNode::Value`] instead.
@@ -64,10 +68,16 @@ impl XamlNode {
   /// A value whose whitespace isn't normalized, such as an attribute value: `text` and `raw` are
   /// the same.
   pub(crate) fn value(text: String, span: Span) -> XamlNode {
+    XamlNode::text(text, span, span.start)
+  }
+
+  /// A text node whose visible text, past its leading XML whitespace, starts at byte `visible`.
+  pub(crate) fn text(text: String, span: Span, visible: usize) -> XamlNode {
     XamlNode::Value {
       raw: text.clone(),
       text,
       span,
+      trimmed: Span::new(span.source, visible.min(span.end), span.end),
     }
   }
 
