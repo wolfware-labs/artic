@@ -91,6 +91,9 @@ pub mod docs_design_value_objects {}
 #[doc = include_str!("../../../docs/design/view-pipeline.md")]
 pub mod docs_design_view_pipeline {}
 
+#[doc = include_str!("../../../docs/design/web-portability.md")]
+pub mod docs_design_web_portability {}
+
 #[doc = include_str!("../../../docs/design/xaml-compiler.md")]
 pub mod docs_design_xaml_compiler {}
 

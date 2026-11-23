@@ -141,7 +141,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 - `artic-xaml` does not depend on the registry. Type references stay unresolved in the infoset, so parser tests need no registry.
 - Release builds will link `artic-xaml-runtime` only when the app enables `xaml-runtime`; `xaml-hot-reload` is for development builds. Compiled views never touch the loader.
 - The facade's default features add no UI language, host or renderer. Each one comes with an opt-in feature named after it, such as `xaml`, so adding a language or a renderer never costs an app that doesn't use it. The facade depends on a crate only to re-export it or to use it in its own code, `artic::run`, which builds the `Runner` of `artic-platform` with the text engine of `artic-text`; an app never names either.
-- App-facing crates stay free of native-only dependencies, so a web target can be added later without app changes (D24 in the spec).
+- App-facing crates stay free of native-only dependencies, so a web target can be added later without app changes (D24 in the spec). The `Wasm` CI job checks them; [web portability](design/web-portability.md) lists the crates it checks and the gaps left.
 - Backend adapters (`artic-winit`, `artic-vello`, and any third-party adapter) depend only on the public API of `artic-render` and `artic-platform`. Nothing in artic depends on an adapter: each target's launcher names its host and renderer ([backend design](design/backends.md)). `artic-render` and `artic-platform` have no backend dependencies (`wgpu`, `vello`, `winit` and the OS crates live in adapters). Examples that need both a host and a renderer live in `artic-examples`, so no adapter depends on another.
 
 ### Dev-dependencies against the layers

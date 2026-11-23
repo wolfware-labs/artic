@@ -384,6 +384,28 @@ jobs:
         if: ${{ !cancelled() }}
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+  # The crates app code uses must stay buildable for a later web host (D24). The ones that reach
+  # `linkme` wait for #241; docs/design/web-portability.md lists both sets.
+  wasm:
+    name: Wasm
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-rust
+      - name: Add the target
+        run: rustup target add wasm32-unknown-unknown
+      # One crate per check: Cargo unifies the features of the crates one command checks, so a
+      # crate could pass only because another one turned a feature on.
+      - name: Portable crates
+        run: |
+          failed=0
+          for crate in artic-core artic-diagnostics artic-ident artic-i18n artic-layout artic-render artic-text artic-xaml; do
+            cargo check --target wasm32-unknown-unknown -p "$crate" || failed=1
+          done
+          exit "$failed"
+
   docs:
     name: Docs
     needs: changes
