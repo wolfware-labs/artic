@@ -12,6 +12,9 @@ use artic_xaml_lang::Xaml;
 /// A URI standing for the test crate, whose own `#[derive(UiType)]` types it names.
 pub const TEST_UI: &str = "https://test.example/ui";
 
+/// The test crate's root as a `using:` namespace: a second way to write the types [`TEST_UI`] names.
+pub const TEST_USING: &str = concat!("using:", env!("CARGO_CRATE_NAME"));
+
 /// Compiles `xaml` as `view.xaml` with artic's map and paths and [`TEST_UI`]: the Rust, or the
 /// rendered diagnostics.
 pub fn compile(xaml: &str) -> Result<String, String> {

@@ -6,7 +6,7 @@ mod common;
 
 use artic_core::property::Property;
 use artic_macros::{UiProperties, UiType};
-use common::{Nodes, TEST_UI, compile, joined};
+use common::{Nodes, TEST_UI, TEST_USING, compile, joined};
 
 /// Owns `Rack.Slot`, which only its children may carry.
 #[derive(Debug, UiType)]
@@ -79,7 +79,7 @@ fn attached_property_set_twice_is_error() {
 #[test]
 fn attached_property_set_twice_through_two_spellings_is_error() {
   let errors = compile(&format!(
-    r#"<Rack xmlns="{TEST_UI}" xmlns:p="using:attached"><Rack Rack.Slot="1" p:Rack.Slot="2"/></Rack>"#
+    r#"<Rack xmlns="{TEST_UI}" xmlns:p="{TEST_USING}"><Rack Rack.Slot="1" p:Rack.Slot="2"/></Rack>"#
   ))
   .expect_err("set twice");
   assert!(errors.contains("`Rack.Slot` is set twice"), "{errors}");
@@ -98,7 +98,7 @@ struct Gauge {
 #[test]
 fn own_type_through_another_spelling_is_the_property() {
   let rust = compile(&format!(
-    r#"<Gauge xmlns="{TEST_UI}" xmlns:p="using:attached" p:Gauge.Level="1"/>"#
+    r#"<Gauge xmlns="{TEST_UI}" xmlns:p="{TEST_USING}" p:Gauge.Level="1"/>"#
   ))
   .expect("a valid view");
   assert!(joined(&rust).contains(".level(1_usize)"), "{rust}");
