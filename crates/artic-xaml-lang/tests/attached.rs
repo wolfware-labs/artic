@@ -4,7 +4,8 @@
 
 mod common;
 
-use artic_macros::UiType;
+use artic_core::property::Property;
+use artic_macros::{UiProperties, UiType};
 use common::{Nodes, TEST_UI, compile, joined};
 
 /// Owns `Rack.Slot`, which only its children may carry.
@@ -70,7 +71,60 @@ fn attached_property_set_twice_is_error() {
     r#"<Border xmlns="https://artic.rs/ui" TextElement.FontSize="12"><TextElement.FontSize>14</TextElement.FontSize></Border>"#,
   )
   .expect_err("set twice");
-  assert!(errors.contains("set twice"), "{errors}");
+  assert!(errors.contains("this member is set twice on the same element"), "{errors}");
+}
+
+// Two spellings of one owner, a URI and a `using:` module, set one property: the checker, which
+// sees the types, reports it at the second value.
+#[test]
+fn attached_property_set_twice_through_two_spellings_is_error() {
+  let errors = compile(&format!(
+    r#"<Rack xmlns="{TEST_UI}" xmlns:p="using:attached"><Rack Rack.Slot="1" p:Rack.Slot="2"/></Rack>"#
+  ))
+  .expect_err("set twice");
+  assert!(errors.contains("`Rack.Slot` is set twice"), "{errors}");
+  assert!(errors.contains(":1:97:"), "{errors}");
+}
+
+/// Has a property of its own, `Level`.
+#[derive(Debug, UiType)]
+struct Gauge {
+  #[ui]
+  level: Property<usize>,
+}
+
+// An owner written another way than the element's type, but resolving to it, is still the
+// element's own type.
+#[test]
+fn own_type_through_another_spelling_is_the_property() {
+  let rust = compile(&format!(
+    r#"<Gauge xmlns="{TEST_UI}" xmlns:p="using:attached" p:Gauge.Level="1"/>"#
+  ))
+  .expect("a valid view");
+  assert!(joined(&rust).contains(".level(1_usize)"), "{rust}");
+}
+
+/// A group with a property named like `Bay`'s attached property.
+#[derive(Debug, UiProperties)]
+struct Slotted {
+  #[ui]
+  slot: Property<usize>,
+}
+
+/// Owns `Bay.Slot` and flattens a group whose own `Slot` shares the name.
+#[derive(Debug, UiType)]
+#[ui(attached(name = "Slot", ty = usize, target = any))]
+struct Bay {
+  #[ui(flatten)]
+  slotted: Slotted,
+}
+
+// On an element of the owner's type, its own property wins over an attached one of the same name.
+#[test]
+fn own_property_wins_over_an_attached_one_of_the_same_name() {
+  let rust = compile(&format!(r#"<Bay xmlns="{TEST_UI}" Bay.Slot="1"/>"#)).expect("a valid view");
+  assert!(joined(&rust).contains(".slot(1_usize)"), "{rust}");
+  assert!(!rust.contains("set_slot"), "{rust}");
 }
 
 // A value that doesn't parse is reported at the value, for the attached property.

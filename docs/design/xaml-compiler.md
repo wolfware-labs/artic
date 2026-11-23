@@ -138,7 +138,7 @@ The block above is a view without a code type. The builder design's sample is a 
 | An event, such as `Click="on_click"` | "event handlers come with #82" |
 | An attached property its owner doesn't declare | "`TextElement` has no attached property `FontColor`", at the name |
 | An attached property its target rule doesn't allow there | "`Grid.Row` can only be set on a child of a `Grid`", at the name |
-| An attached property set twice | "`TextElement.FontSize` is set twice", at the second, pointing at both |
+| An attached property set twice | the parser's "this member is set twice on the same element" when both are written alike; when two spellings resolve to one owner, "`Rack.Slot` is set twice", at the second value, pointing at the first |
 | A markup extension | "`{StaticResource}` comes with #112" (`{Binding}` #94, `{DynamicResource}` #113, `{TemplateBinding}` #85, `{x:Static}`, `{x:Null}`, `{x:Type}` #62); any other: unknown value provider |
 | `<x:String>` and the other `x:` primitives, also written as a markup extension (`{x:String a}`) | "XAML primitives come with #62" |
 | An object value for a property, such as `<Border.Background><SolidColorBrush/></Border.Background>` | "value objects come with #57" |
@@ -248,7 +248,7 @@ fn main() {
 
 ## Attached properties (#50)
 
-`Owner.Name="1"` and `<Owner.Name>1</Owner.Name>` are one member, which the parser keeps as `MemberKey::Attached` whatever the owner. Only the registry knows whether the element's own type has a property of that name, so the reader decides: written on an element of the owner's type, it is that element's property when the type has one by the name (`<Border.Background>`), and stays attached otherwise (`Grid.Row` on a grid nested in a grid, as in WPF). Every other owner makes `Member::Attached { owner, name, span, value }`.
+`Owner.Name="1"` and `<Owner.Name>1</Owner.Name>` are one member, which the parser keeps as `MemberKey::Attached` whatever the owner. Only the registry knows what the element's own type declares, so the reader decides. When the owner resolves to the element's type (compared as written when either isn't found), the member is attached if the type has an attached property by that name and no property of its own by it (`Grid.Row` on a grid nested in a grid, as in WPF), and is the element's own member otherwise (`<Border.Background>`; an unknown `Border.Bogus` is reported as an unknown property). Every other owner makes `Member::Attached { owner, name, span, value }`.
 
 The checker finds the property among the owner's `attached_properties` and checks its `target`: `ChildrenOfOwner` allows it only on an element written directly inside an element of the owner's type, so not on the root; inside an element whose type wasn't found it can't tell, and keeps it. It keeps each one as a `CheckedAttached` on its element.
 

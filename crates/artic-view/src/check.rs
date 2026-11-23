@@ -348,7 +348,7 @@ impl Check {
       .find(|set| set.owner.info.rust_path == owner.info.rust_path && set.info.name == name)
     {
       self.diagnostics.push(
-        Diagnostic::error(span, format!("`{}.{name}` is set twice", owner.info.name))
+        Diagnostic::error(value.span, format!("`{}.{name}` is set twice", owner.info.name))
           .with_label("set again here")
           .with_secondary(first.value.span, "first set here"),
       );

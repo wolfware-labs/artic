@@ -883,7 +883,7 @@ fn attached_problems_are_reported() {
       at("`Rack` has no attached property `Bogus`", 10),
       at("no type `Dock`", 20),
       at("value objects come with #57", 31),
-      at("`Rack.Tag` is set twice", 50),
+      at("`Rack.Tag` is set twice", 51),
     ]
   );
   assert_eq!(view.elements[0].attached.len(), 1);

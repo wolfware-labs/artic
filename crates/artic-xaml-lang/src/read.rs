@@ -102,19 +102,29 @@ impl Reader<'_> {
   }
 
   /// Reads one member of an element written as `written` and resolved to `ty`, or `None` for a
-  /// directive the document doesn't hold yet: `x:DataType` (#94) and `x:Uid` (#168).
+  /// directive the document doesn't hold yet: `x:DataType` (#94) and `x:Uid` (#168). A dotted
+  /// member is the element's own when its owner is the element's type, compared as resolved, or as
+  /// written when either isn't found.
   fn member(&self, member: &XamlMember, written: &TypeRef, ty: &Result<TypeUse, Problem>) -> Option<Member> {
     match &member.key {
-      MemberKey::Attached { owner, name } if owner.is_same_type(written) && !is_attached(ty, name) => {
-        Some(property(name, member))
-      }
       MemberKey::Property(name) => Some(property(name, member)),
-      MemberKey::Attached { owner, name } => Some(Member::Attached {
-        owner: resolve(owner, self.registry, self.namespaces, self.app_crate),
-        name: name.clone(),
-        span: member.span,
-        value: value(member),
-      }),
+      MemberKey::Attached { owner, name } => {
+        let resolved = resolve(owner, self.registry, self.namespaces, self.app_crate);
+        let own_type = match (&resolved, ty) {
+          (Ok(owner), Ok(ty)) => owner.info.rust_path == ty.info.rust_path,
+          _ => owner.is_same_type(written),
+        };
+        Some(if own_type && !is_attached(ty, name) {
+          property(name, member)
+        } else {
+          Member::Attached {
+            owner: resolved,
+            name: name.clone(),
+            span: member.span,
+            value: value(member),
+          }
+        })
+      }
       MemberKey::Directive(Directive::Name) => Some(Member::Name(text(member, "`x:Name` takes a name written as text"))),
       MemberKey::Directive(Directive::Class) => Some(Member::CodeType(text(
         member,
