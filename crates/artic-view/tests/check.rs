@@ -888,3 +888,23 @@ fn attached_problems_are_reported() {
   );
   assert_eq!(view.elements[0].attached.len(), 1);
 }
+
+// Two different attached properties of one owner on one element are both kept: only the same
+// property twice is "set twice".
+#[test]
+fn two_attached_properties_of_one_owner_are_both_kept() {
+  let child = element(
+    &IMAGE,
+    20,
+    vec![attached(&RACK, "Slot", 30, "1"), attached(&RACK, "Tag", 40, "a")],
+  );
+  let document = Document {
+    root: element(&RACK, 0, vec![content(10, vec![Content::Element(child)])]),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  assert_eq!(reported(&diagnostics), []);
+  let names: Vec<&str> = view.elements[0].attached.iter().map(|set| set.info.name).collect();
+  assert_eq!(names, ["Slot", "Tag"]);
+}
