@@ -121,13 +121,6 @@ fn event_reports_error() {
   assert!(errors.contains("event handlers come with #82"), "{errors}");
 }
 
-// An attached property comes with #50.
-#[test]
-fn attached_property_reports_error() {
-  let errors = compile(r#"<Border xmlns="https://artic.rs/ui" TextElement.FontSize="12"/>"#).expect_err("attached");
-  assert!(errors.contains("attached properties come with #50"), "{errors}");
-}
-
 // Each markup extension names the issue that adds it, and any other is an unknown value provider.
 #[test]
 fn markup_extensions_report_their_issue() {

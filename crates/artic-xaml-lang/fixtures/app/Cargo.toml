@@ -12,10 +12,12 @@ publish = false
 [dependencies]
 artic.workspace = true
 artic-xaml-compiler-fixture-controls = { path = "../controls" }
+artic-xaml-compiler-fixture-docking = { path = "../docking" }
 
 [build-dependencies]
 artic = { workspace = true, features = ["xaml-compiler"] }
 artic-xaml-compiler-fixture-controls = { path = "../controls" }
+artic-xaml-compiler-fixture-docking = { path = "../docking" }
 
 [dev-dependencies]
 artic-core.workspace = true

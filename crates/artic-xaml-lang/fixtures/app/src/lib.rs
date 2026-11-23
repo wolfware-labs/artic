@@ -12,6 +12,11 @@ pub mod views {
     include!(concat!(env!("OUT_DIR"), "/views/src/views/card.rs"));
   }
 
+  /// `src/views/docking.xaml`.
+  pub mod docking {
+    include!(concat!(env!("OUT_DIR"), "/views/src/views/docking.rs"));
+  }
+
   pub mod login;
 }
 

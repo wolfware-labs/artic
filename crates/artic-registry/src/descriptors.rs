@@ -238,6 +238,10 @@ pub struct AttachedPropertyInfo {
   pub value_type: &'static str,
   /// Which elements it may be set on.
   pub target: AttachedTarget,
+  /// Parses text for the property and writes the Rust expression that builds the value the
+  /// owner's setter takes, as [`PropertyInfo::literal`] does; for an `Option<V>` property, `Some`
+  /// of the `V`. `Some` only with this crate's `literals` feature.
+  pub literal: Option<WriteLiteral>,
 }
 
 /// Which elements an attached property may be set on.

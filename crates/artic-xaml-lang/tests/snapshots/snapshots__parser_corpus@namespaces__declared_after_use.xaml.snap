@@ -7,6 +7,6 @@ valid/namespaces/declared_after_use.xaml:2:2: error: no type `Card` in `using:ap
 2 | <a:Card a:Dock.Side="Left" xmlns:a="using:app::widgets"/>
   |  ^^^^^^ unknown type
 
-valid/namespaces/declared_after_use.xaml:2:9: error: attached properties come with #50
+valid/namespaces/declared_after_use.xaml:2:9: error: no type `Dock` in `using:app::widgets`
 2 | <a:Card a:Dock.Side="Left" xmlns:a="using:app::widgets"/>
-  |         ^^^^^^^^^^^
+  |         ^^^^^^ unknown type

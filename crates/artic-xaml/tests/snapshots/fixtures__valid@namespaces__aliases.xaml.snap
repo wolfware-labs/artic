@@ -6,5 +6,5 @@ input_file: crates/artic-xaml/tests/fixtures/valid/namespaces/aliases.xaml
 Object a:Button [https://artic.rs/ui] 2:2..2:10
   xmlns:a "https://artic.rs/ui" 2:11..2:40
   xmlns:b "https://artic.rs/ui" 2:41..2:70
-  Content 2:72..2:88
+  attached b:Button.Content [https://artic.rs/ui] 2:72..2:88
     Value "x" 2:89..2:90

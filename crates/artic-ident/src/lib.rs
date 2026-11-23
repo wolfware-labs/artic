@@ -56,6 +56,13 @@ pub fn snake_case(name: &str) -> String {
   snake
 }
 
+/// The helper that sets attached property `name` on a node, as its owner's derive writes it:
+/// `ColumnSpan` gives `set_column_span`.
+#[must_use]
+pub fn attached_setter(name: &str) -> String {
+  format!("set_{}", snake_case(name))
+}
+
 /// `ColumnSpan` as `COLUMN_SPAN`: the [`snake_case`] name in capitals, for a constant.
 #[must_use]
 pub fn screaming_snake_case(name: &str) -> String {

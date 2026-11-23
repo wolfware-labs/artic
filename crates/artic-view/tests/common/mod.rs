@@ -4,7 +4,10 @@ use artic_core::Object;
 use artic_core::property::Affects;
 use artic_core::tree::{NodeId, UiTree};
 use artic_diagnostics::{Diagnostic, Diagnostics, SourceMap, Span};
-use artic_registry::{ContentInfo, ContentMethod, EventInfo, PropertyInfo, PropertyRef, TypeInfo, ValueError, Whitespace};
+use artic_registry::{
+  AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, EventInfo, PropertyInfo, PropertyRef, TypeInfo, ValueError,
+  Whitespace,
+};
 use artic_view::document::{Content, Element, Member, Problem, Text, TypeUse};
 
 /// Reads no node: the checker never builds a tree.
@@ -170,6 +173,35 @@ pub static GALLERY: TypeInfo = TypeInfo {
   ..info("Gallery", "test_ui::Gallery")
 };
 
+static RACK_ATTACHED: [AttachedPropertyInfo; 2] = [
+  AttachedPropertyInfo {
+    name: "Slot",
+    value_type: "usize",
+    target: AttachedTarget::ChildrenOfOwner,
+    literal: None,
+  },
+  AttachedPropertyInfo {
+    name: "Tag",
+    value_type: "String",
+    target: AttachedTarget::Any,
+    literal: None,
+  },
+];
+
+/// Takes any number of children, and owns `Rack.Slot`, only for them, and `Rack.Tag`, for any
+/// element.
+pub static RACK: TypeInfo = TypeInfo {
+  content: Some(ContentInfo::Collection {
+    field: "slots",
+    method: Some(ContentMethod::Children),
+    takes: || None,
+    text_wrapper: || None,
+    add_child,
+  }),
+  attached_properties: &RACK_ATTACHED,
+  ..info("Rack", "test_ui::Rack")
+};
+
 /// Takes one child; a view's code type can take its place at the root.
 pub static HOST: TypeInfo = TypeInfo {
   content: Some(ContentInfo::Collection {
@@ -268,6 +300,23 @@ pub fn undeclared(at: usize) -> Element {
   }
 }
 
+/// The attached property `owner.name` named at `at`, set to `value` at `at + 1`.
+pub fn attached(owner: &'static TypeInfo, name: &str, at: usize, value: &str) -> Member {
+  Member::Attached {
+    owner: Ok(TypeUse {
+      info: owner,
+      module: None,
+      span: span(at, at + 1),
+    }),
+    name: name.to_owned(),
+    span: span(at, at + 1),
+    value: Ok(Text {
+      text: value.to_owned(),
+      span: span(at + 1, at + 2),
+    }),
+  }
+}
+
 /// The property `name` named at `at`, set to `value` at `at + 1`.
 pub fn property(name: &str, at: usize, value: &str) -> Member {
   Member::Property {
@@ -315,7 +364,7 @@ pub fn visibility(text: &str, at: usize) -> Member {
 
 /// A member the document can't hold yet, reported at `at`.
 pub fn unsupported(at: usize) -> Member {
-  Member::Unsupported(Diagnostic::error(span(at, at + 1), "attached properties come with #50").into())
+  Member::Unsupported(Diagnostic::error(span(at, at + 1), "resource keys come with #111").into())
 }
 
 /// Content starting at `at`.

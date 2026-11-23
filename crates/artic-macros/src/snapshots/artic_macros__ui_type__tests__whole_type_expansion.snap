@@ -130,11 +130,13 @@ const _: () = {
             name: "Row",
             value_type: ::core::stringify!(usize),
             target: __artic::AttachedTarget::ChildrenOfOwner,
+            literal: __artic::literal!(usize),
         },
         __artic::AttachedPropertyInfo {
             name: "ColumnSpan",
             value_type: ::core::stringify!(usize),
             target: __artic::AttachedTarget::Any,
+            literal: __artic::literal!(usize),
         },
     ];
     static __GROUPS: [__artic::PropertyGroupInfo; 1usize] = [

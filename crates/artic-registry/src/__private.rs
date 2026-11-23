@@ -102,6 +102,40 @@ macro_rules! __literal {
 
 pub use crate::__literal as literal;
 
+/// The function `AttachedPropertyInfo::literal` holds for an attached property of type
+/// `Option<$value>`: it writes the `$value` text gives inside `Some(...)`, since the owner's setter
+/// takes the whole `Option`. `None` without the `literals` feature.
+#[cfg(feature = "literals")]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __optional_literal {
+  ($value:ty) => {
+    ::core::option::Option::Some({
+      fn literal(text: &str, out: &mut $crate::RustExpr) -> ::core::result::Result<(), ::std::string::String> {
+        let inner = $crate::__literal!($value).expect("the literals feature gives every value a literal");
+        out.raw("::core::option::Option::Some(");
+        inner(text, out)?;
+        out.raw(")");
+        ::core::result::Result::Ok(())
+      }
+      literal as $crate::WriteLiteral
+    })
+  };
+}
+
+/// The function `AttachedPropertyInfo::literal` holds for an attached property of type
+/// `Option<$value>`: `None` without the `literals` feature.
+#[cfg(not(feature = "literals"))]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __optional_literal {
+  ($value:ty) => {
+    ::core::option::Option::None
+  };
+}
+
+pub use crate::__optional_literal as optional_literal;
+
 /// Whether `a` and `b` are the same text, in const code.
 const fn same_text(a: &str, b: &str) -> bool {
   let (a, b) = (a.as_bytes(), b.as_bytes());

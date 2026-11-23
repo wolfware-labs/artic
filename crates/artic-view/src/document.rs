@@ -49,6 +49,17 @@ pub enum Member {
     /// The value, or what the checker reports once it finds the property.
     value: Result<Text, Problem>,
   },
+  /// An attached property set to text, such as `Grid.Row="1"`.
+  Attached {
+    /// The type that owns the property, or what the checker reports when it isn't found.
+    owner: Result<TypeUse, Problem>,
+    /// The property's name after the owner, such as `Row`.
+    name: String,
+    /// Where the member is named: an unknown or misplaced property is reported here.
+    span: Span,
+    /// The value, or what the checker reports once it finds the property.
+    value: Result<Text, Problem>,
+  },
   /// The name the view's code reaches the element by.
   Name(Result<Text, Problem>),
   /// The Rust type the view's code is, such as `app::views::login::LoginView`: written on the

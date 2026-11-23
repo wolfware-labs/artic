@@ -232,6 +232,7 @@ mod tests {
       name: "Row",
       value_type: "usize",
       target: AttachedTarget::ChildrenOfOwner,
+      literal: None,
     }],
     ..info("Grid", "artic_controls::Grid")
   };
@@ -359,11 +360,13 @@ mod tests {
           name: "Row",
           value_type: "usize",
           target: AttachedTarget::ChildrenOfOwner,
+          literal: None,
         },
         AttachedPropertyInfo {
           name: "Row",
           value_type: "usize",
           target: AttachedTarget::ChildrenOfOwner,
+          literal: None,
         },
       ],
       ..info("Grid", "artic_controls::Grid")

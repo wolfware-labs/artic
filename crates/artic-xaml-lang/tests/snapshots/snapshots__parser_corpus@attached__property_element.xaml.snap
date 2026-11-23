@@ -11,6 +11,6 @@ valid/attached/property_element.xaml:2:4: error: no type `Button` in `https://ar
 2 |   <Button>
   |    ^^^^^^ unknown type
 
-valid/attached/property_element.xaml:3:6: error: attached properties come with #50
+valid/attached/property_element.xaml:3:6: error: no type `Grid` in `https://artic.rs/ui`
 3 |     <Grid.Row>1</Grid.Row>
-  |      ^^^^^^^^
+  |      ^^^^ unknown type

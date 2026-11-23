@@ -98,7 +98,10 @@ pub struct Member {
 pub enum MemberKey {
   /// A property of the object's own type, such as `Width`.
   Property(String),
-  /// A property that another type owns, set on this object, such as `Grid.Row`.
+  /// A dotted member, `Owner.Name`: a property `Owner` owns, set on this object, such as
+  /// `Grid.Row`. When `Owner` is the object's own type, a back end reads it as the object's
+  /// property if the type has one of that name, as `<Border.Background>` is, since only the
+  /// registry knows; otherwise it stays attached, as `Grid.Row` on a `Grid` is.
   Attached {
     /// The type that declares the property, unresolved.
     owner: TypeRef,

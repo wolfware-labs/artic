@@ -28,7 +28,7 @@ A crate's layer is its depth: one more than the deepest artic crate it depends o
 | 5 | `artic-controls`, `artic-platform`, `artic-cli` | Controls, the `Host` seam and frame pipeline, and the CLI |
 | 6 | `artic-theme`, `artic-test`, `artic-winit` | The default theme, test utilities, and the default host adapter |
 | 7 | `artic` | The facade that apps depend on |
-| outside | `artic-examples`, `artic-registry-fixture-a`, `artic-registry-fixture-b`, `artic-registry-linking`, `artic-xaml-compiler-fixture-app`, `artic-xaml-compiler-fixture-controls`, `docs-check` | Test-only packages, `publish = false`: the examples, the fixtures and docs-check |
+| outside | `artic-examples`, `artic-registry-fixture-a`, `artic-registry-fixture-b`, `artic-registry-linking`, `artic-xaml-compiler-fixture-app`, `artic-xaml-compiler-fixture-controls`, `artic-xaml-compiler-fixture-docking`, `docs-check` | Test-only packages, `publish = false`: the examples, the fixtures and docs-check |
 
 ## Dependency graph
 

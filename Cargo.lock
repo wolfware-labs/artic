@@ -565,6 +565,7 @@ dependencies = [
  "artic-core",
  "artic-registry",
  "artic-xaml-compiler-fixture-controls",
+ "artic-xaml-compiler-fixture-docking",
 ]
 
 [[package]]
@@ -572,6 +573,15 @@ name = "artic-xaml-compiler-fixture-controls"
 version = "0.1.0"
 dependencies = [
  "artic-core",
+ "artic-macros",
+ "artic-registry",
+]
+
+[[package]]
+name = "artic-xaml-compiler-fixture-docking"
+version = "0.1.0"
+dependencies = [
+ "artic-element",
  "artic-macros",
  "artic-registry",
 ]

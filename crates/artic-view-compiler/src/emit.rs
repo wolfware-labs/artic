@@ -1,6 +1,6 @@
 //! Writing a [`View`] as a formatted module body.
 
-use crate::lower::{ContentCall, Element, Name, Setter, View};
+use crate::lower::{AttachedCall, ContentCall, Element, Name, Setter, View};
 use artic_view::CheckedContent;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -35,17 +35,30 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
       quote!(#field: #local)
     })
     .collect();
+  let root_element = &view.elements[root];
+  // A code type at the root is built last, as the value `build` returns, unless attached
+  // properties are set on it once it's built.
+  let root_is_tail = view.code_type.is_some() && root_element.attached.is_empty();
   let lets = view
     .elements
     .iter()
     .enumerate()
-    .filter(|(index, _)| view.code_type.is_none() || *index != root)
+    .filter(|(index, _)| !root_is_tail || *index != root)
     .map(|(index, element)| {
       let local = local(index);
-      let built = built(element, &element.ty, quote!());
-      quote!(let #local = #built;)
+      let built = match &view.code_type {
+        Some(code_type) if index == root => built(element, &code_type.path, quote!(View { #(#names,)* })),
+        _ => built(element, &element.ty, quote!()),
+      };
+      let attached = element
+        .attached
+        .iter()
+        .map(|AttachedCall { owner, setter, value }| quote!(#owner::#setter(tree, #local.id(), #value);));
+      quote! {
+        let #local = #built;
+        #(#attached)*
+      }
     });
-  let root_element = &view.elements[root];
   let members = view.code_type.as_ref().map(|code_type| {
     let root_ty = &root_element.ty;
     let content = code_type.content.iter().map(|(field, ty)| {
@@ -73,7 +86,12 @@ pub(crate) fn emit(view: &View, path: &Path) -> String {
         quote!(Some(#written)),
         quote!(),
         quote!(Handle<#path>),
-        built(root_element, path, quote!(View { #(#names,)* })),
+        if root_is_tail {
+          built(root_element, path, quote!(View { #(#names,)* }))
+        } else {
+          let root_local = local(root);
+          quote!(#root_local)
+        },
         format!(" The named nodes of `{file}`, one handle each."),
         format!(" Builds `{file}` in `tree`, with its code type at the root."),
       )

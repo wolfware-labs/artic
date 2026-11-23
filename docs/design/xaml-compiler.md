@@ -136,7 +136,9 @@ The block above is a view without a code type. The builder design's sample is a 
 | A literal its type's `FromStr` refuses | the `FromStr` error, at the attribute |
 | Text for a property that takes an element | "this property takes an element, not text" |
 | An event, such as `Click="on_click"` | "event handlers come with #82" |
-| An attached property | "attached properties come with #50" |
+| An attached property its owner doesn't declare | "`TextElement` has no attached property `FontColor`", at the name |
+| An attached property its target rule doesn't allow there | "`Grid.Row` can only be set on a child of a `Grid`", at the name |
+| An attached property set twice | "`TextElement.FontSize` is set twice", at the second, pointing at both |
 | A markup extension | "`{StaticResource}` comes with #112" (`{Binding}` #94, `{DynamicResource}` #113, `{TemplateBinding}` #85, `{x:Static}`, `{x:Null}`, `{x:Type}` #62); any other: unknown value provider |
 | `<x:String>` and the other `x:` primitives, also written as a markup extension (`{x:String a}`) | "XAML primitives come with #62" |
 | An object value for a property, such as `<Border.Background><SolidColorBrush/></Border.Background>` | "value objects come with #57" |
@@ -242,4 +244,14 @@ fn main() {
 | 4 | `compile_str`: resolving, the `View` struct and post-order builder calls, literals, content and collections, the diagnostics above, snapshots and `output_is_deterministic` |
 | 5 | `compile_dir`, `rerun-if-changed`, linking through the map, the facade's `xaml-compiler` feature, and the integration crate; closes #49 |
 
-`AttachedPropertyInfo` gets its `literal` with #50, its first user.
+`AttachedPropertyInfo` got its `literal` with #50, its first user.
+
+## Attached properties (#50)
+
+`Owner.Name="1"` and `<Owner.Name>1</Owner.Name>` are one member, which the parser keeps as `MemberKey::Attached` whatever the owner. Only the registry knows whether the element's own type has a property of that name, so the reader decides: written on an element of the owner's type, it is that element's property when the type has one by the name (`<Border.Background>`), and stays attached otherwise (`Grid.Row` on a grid nested in a grid, as in WPF). Every other owner makes `Member::Attached { owner, name, span, value }`.
+
+The checker finds the property among the owner's `attached_properties` and checks its `target`: `ChildrenOfOwner` allows it only on an element written directly inside an element of the owner's type, so not on the root; inside an element whose type wasn't found it can't tell, and keeps it. It keeps each one as a `CheckedAttached` on its element.
+
+The owner's setter is called on the element once it is built, as the [builder API](builder-api.md) designed: `Owner::set_name(tree, element.id(), value)`, right after the element's `let`. The setter's name is `artic_ident::attached_setter(name)`, the function the derive names it with. The value comes from `AttachedPropertyInfo::literal`, which writes `Some(v)` for an `Option<V>` property, since its setter takes the whole option. A code type at the root, built as `build`'s value, becomes a `let` too when attached properties are set on it.
+
+No artic control declares a property only for its children yet (`Grid` comes with #67), so the fixture app has a test-only `Dock` with `Dock.Slot` in its own crate, `artic-xaml-compiler-fixture-docking`.
