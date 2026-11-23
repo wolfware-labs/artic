@@ -108,7 +108,7 @@ impl CompileError {
 ///
 /// # Errors
 ///
-/// Stops at the first view with errors, in sorted order, and returns its diagnostics; or returns
+/// Returns the diagnostics of every view with errors, together, view by view in sorted order; or
 /// the I/O error, the directory or a view whose path holds a control character, the registry's
 /// duplicates, or a missing `OUT_DIR`.
 pub fn compile_dir(dir: impl AsRef<Path>, language: &(impl Language + ?Sized), paths: &CratePaths) -> Result<(), CompileError> {

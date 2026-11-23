@@ -10,12 +10,7 @@ use std::fs;
 // source line and a caret under it, and Cargo's summary after them.
 #[test]
 fn every_view_error_reaches_cargo_build() {
-  let app = App::new(
-    "build-errors",
-    "",
-    "fn main() {\n  artic::xaml::compile_dir(\"src/views\", &artic::xaml::namespaces()).unwrap_or_else(|error| error.exit());\n}\n",
-    "src/views",
-  );
+  let app = App::new("build-errors", "", "src/views");
   fs::write(app.dir.join("src/main.rs"), "fn main() {}\n").expect("the app's main");
   fs::write(
     app.dir.join("src/views/login.xaml"),

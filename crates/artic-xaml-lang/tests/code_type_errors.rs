@@ -17,12 +17,7 @@ fn write_app() -> App {
     .iter()
     .map(|case| format!("[[bin]]\nname = \"{case}\"\npath = \"src/bin/{case}.rs\"\n\n"))
     .collect();
-  let app = App::new(
-    "code-type-errors",
-    &bins,
-    "fn main() {\n  artic::xaml::compile_dir(\"src/bin\", &artic::xaml::namespaces()).unwrap_or_else(|error| error.exit());\n}\n",
-    "src/bin",
-  );
+  let app = App::new("code-type-errors", &bins, "src/bin");
   let cases = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/code_type_errors");
   for entry in fs::read_dir(&cases).expect("the cases") {
     let path = entry.expect("a case").path();
@@ -57,13 +52,12 @@ fn errors(app: &App, case: &str) -> String {
     + "\n"
 }
 
-/// `line` with the build script's output directory, `.../build/<package>-<hash>/out`, written
-/// `$OUT_DIR`.
+/// `line` with the build script's output directory, `$TARGET/.../build/<package>-<hash>/out`,
+/// written `$OUT_DIR`.
 fn out_dir(line: &str) -> String {
-  let Some(start) = line.find("/apps-target/").or_else(|| line.find("$DIR/target/")) else {
+  let Some(start) = line.find("$TARGET/") else {
     return line.to_owned();
   };
-  let start = line[..start].rfind(' ').map_or(0, |space| space + 1);
   match line[start..].find("/out/") {
     Some(end) => format!("{}$OUT_DIR{}", &line[..start], &line[start + end + "/out".len()..]),
     None => line.to_owned(),

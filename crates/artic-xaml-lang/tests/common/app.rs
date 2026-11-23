@@ -23,7 +23,7 @@ const OUTER_PACKAGE: [&str; 11] = [
 ];
 
 /// The repository root.
-pub fn repository() -> &'static Path {
+fn repository() -> &'static Path {
   Path::new(env!("CARGO_MANIFEST_DIR"))
     .ancestors()
     .nth(2)
@@ -31,32 +31,42 @@ pub fn repository() -> &'static Path {
 }
 
 /// `path` as TOML and messages write it, with `/` separators.
-pub fn slashes(path: &Path) -> String {
+fn slashes(path: &Path) -> String {
   path.to_string_lossy().replace('\\', "/")
 }
 
-/// An app named `name` that depends on artic, with `build_script` as its `build.rs`.
+/// The target directory every app shares, so artic is built once for all of them.
+fn target() -> PathBuf {
+  Path::new(env!("CARGO_TARGET_TMPDIR")).join("apps-target")
+}
+
+/// An app that depends on artic, whose build script compiles its views with
+/// `artic::xaml::compile_dir` and ends with `CompileError::exit` when they have errors.
 pub struct App {
   /// Its directory.
   pub dir: PathBuf,
 }
 
 impl App {
-  /// Writes the app's manifest, build script and the workspace's lock file under the test's
-  /// temporary directory, with `targets` (such as `[[bin]]` tables) in the manifest, and removes
-  /// `fresh`, a folder under it whose files the test writes again.
-  pub fn new(name: &str, targets: &str, build_script: &str, fresh: &str) -> App {
+  /// Writes the app `name`'s manifest, with `targets` (such as `[[bin]]` tables) in it, its build
+  /// script compiling the views under `views`, and the workspace's lock file, under the test's
+  /// temporary directory. `views` is emptied, for the test to write the views again.
+  pub fn new(name: &str, targets: &str, views: &str) -> App {
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
-    let fresh = dir.join(fresh);
-    if fresh.exists() {
-      fs::remove_dir_all(&fresh).expect("the old files removed");
+    let views_dir = dir.join(views);
+    if views_dir.exists() {
+      fs::remove_dir_all(&views_dir).expect("the old views removed");
     }
-    fs::create_dir_all(&fresh).expect("the app's directory");
+    fs::create_dir_all(&views_dir).expect("the app's directory");
     let artic = slashes(&repository().join("crates/artic"));
     let manifest = format!(
       "[package]\nname = \"{name}\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n\
        [workspace]\n\n{targets}[dependencies]\nartic = {{ path = '{artic}' }}\n\n\
        [build-dependencies]\nartic = {{ path = '{artic}', features = [\"xaml-compiler\"] }}\n"
+    );
+    let build_script = format!(
+      "fn main() {{\n  artic::xaml::compile_dir(\"{views}\", &artic::xaml::namespaces())\n    \
+       .unwrap_or_else(|error| error.exit());\n}}\n"
     );
     fs::write(dir.join("Cargo.toml"), manifest).expect("the manifest");
     fs::write(dir.join("build.rs"), build_script).expect("the build script");
@@ -64,8 +74,8 @@ impl App {
     App { dir }
   }
 
-  /// Runs `cargo` with `args` in the app, without the outer package's variables, and with a
-  /// target directory every app shares, so artic is built once for all of them.
+  /// Runs `cargo` with `args` in the app, without the outer package's variables, in the
+  /// `target` directory every app shares.
   pub fn cargo(&self, args: &[&str]) -> Output {
     let mut command = Command::new(env!("CARGO"));
     for (name, _) in std::env::vars_os() {
@@ -77,15 +87,17 @@ impl App {
     command
       .args(args)
       .current_dir(&self.dir)
-      .env("CARGO_TARGET_DIR", Path::new(env!("CARGO_TARGET_TMPDIR")).join("apps-target"))
+      .env("CARGO_TARGET_DIR", target())
       .output()
       .expect("cargo runs")
   }
 
-  /// `output`'s stderr with the app's directory written `$DIR` and `/` separators.
+  /// `output`'s stderr with `/` separators, the app's directory written `$DIR` and the shared
+  /// target directory `$TARGET`.
   pub fn stderr(&self, output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr)
       .replace('\\', "/")
       .replace(&slashes(&self.dir), "$DIR")
+      .replace(&slashes(&target()), "$TARGET")
   }
 }
