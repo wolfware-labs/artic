@@ -22,7 +22,7 @@ pub struct View {
 }
 /// Builds `valid/whitespace/non_breaking_space.xaml` in `tree` and returns its nodes.
 pub fn build(tree: &mut UiTree) -> View {
-    // valid/whitespace/non_breaking_space.xaml:2:40
+    // valid/whitespace/non_breaking_space.xaml:2:42
     let __e0 = ::artic::controls::Run::new()
         .text(::std::string::String::from("a\u{a0}\u{a0}b"))
         .build(tree);

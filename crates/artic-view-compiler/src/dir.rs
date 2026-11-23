@@ -3,7 +3,7 @@
 use crate::CratePaths;
 use crate::compile_str;
 use artic_core::error::Chain;
-use artic_diagnostics::{Diagnostics, Severity, SourceMap};
+use artic_diagnostics::{Diagnostic, Diagnostics, Severity, SourceMap, Span};
 use artic_registry::{Registry, RegistryError};
 use artic_view::Language;
 use std::fmt::{self, Debug, Display, Formatter};
@@ -71,11 +71,12 @@ impl CompileError {
     std::process::exit(1)
   }
 
-  /// One line saying what failed: how many errors in how many views, or the error's message.
+  /// One line saying what failed: how many errors in how many views, or the error's message with
+  /// its lines joined by `; `, since a registry error lists one duplicate per line.
   #[must_use]
   pub fn summary(&self) -> String {
     let CompileError::Diagnostics { diagnostics, .. } = self else {
-      return self.to_string();
+      return self.to_string().lines().collect::<Vec<_>>().join("; ");
     };
     let errors: Vec<_> = diagnostics
       .iter()
@@ -161,6 +162,12 @@ pub fn compile_into(
     let rust = match compile_str(&sources, file, language, registry, paths) {
       Ok(rust) => rust,
       Err(diagnostics) => {
+        if !diagnostics.has_errors() {
+          problems.push(Diagnostic::error(
+            Span::new(file, 0, 0),
+            "this view wasn't compiled, and its language reported no error",
+          ));
+        }
         problems.extend(diagnostics);
         continue;
       }
@@ -243,7 +250,22 @@ fn io_error(path: &Path) -> impl FnOnce(io::Error) -> CompileError + '_ {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use artic_registry::Duplicate;
   use pretty_assertions::assert_eq;
+
+  // A registry error lists one duplicate per line; its summary joins them, since Cargo shows one
+  // line of `cargo::error=`.
+  #[test]
+  fn summary_is_one_line() {
+    let error = CompileError::Registry(RegistryError {
+      duplicates: vec![Duplicate::RustPath { path: "a::B" }, Duplicate::RustPath { path: "a::C" }],
+    });
+
+    assert_eq!(
+      error.summary(),
+      "two types are registered for the Rust path `a::B`; two types are registered for the Rust path `a::C`"
+    );
+  }
 
   // A directory in the crate names each view by its path in the crate; one outside it, absolute
   // or reached through `..`, by its path under the directory.

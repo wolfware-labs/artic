@@ -43,7 +43,7 @@ fn nested_views_mirror_the_layout() {
 // Every view is compiled: the errors of each failing view are reported together, at its path,
 // and the views without errors are still written.
 #[test]
-fn multiple_diagnostics_reported() {
+fn every_failing_view_is_reported() {
   let root = setup(
     "failing",
     &[("a.view", PANEL), ("b.view", "Gauge"), ("c.view", PANEL), ("d.view", "Knob")],
@@ -232,4 +232,47 @@ fn exit_reports_and_fails_the_build_script() {
     stdout.lines().any(|line| line.ends_with("cargo::error=1 error in 1 view")),
     "{stdout}"
   );
+}
+
+/// A language that reads no document and reports nothing, against `Language::read`'s contract.
+struct Silent;
+
+impl artic_view::Language for Silent {
+  fn extension(&self) -> &str {
+    "view"
+  }
+
+  fn read(
+    &self,
+    _sources: &artic_diagnostics::SourceMap,
+    _file: artic_diagnostics::SourceId,
+    _registry: &artic_registry::Registry,
+  ) -> (Option<artic_view::document::Document>, artic_diagnostics::Diagnostics) {
+    (None, artic_diagnostics::Diagnostics::new())
+  }
+
+  fn crates(&self) -> Vec<&str> {
+    Vec::new()
+  }
+}
+
+// A view its language fails to read without reporting why still fails the build, at the view,
+// rather than passing and leaving its output missing.
+#[test]
+fn a_view_read_with_no_error_still_fails() {
+  let root = setup("silent", &[("a.view", PANEL)]);
+  let error = compile_into(
+    &root.join("views"),
+    &root.join("out"),
+    &Silent,
+    &registry(),
+    &CratePaths::new(),
+  )
+  .expect_err("a view wasn't compiled");
+  let message = error.to_string();
+  assert!(
+    message.contains("a.view:1:1: error: this view wasn't compiled, and its language reported no error"),
+    "{message}"
+  );
+  assert_eq!(error.summary(), "1 error in 1 view");
 }

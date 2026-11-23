@@ -24,7 +24,9 @@
 //!
 //! ```text
 //! // src/views/login.ui:12:9
-//! let __e3 = ::artic::controls::Border::new().padding(4.0_f32).build(tree);
+//! let __e3 = ::artic::controls::Border::new()
+//!     .padding(::artic::layout::Thickness::new(12.0_f32, 8.0_f32, 12.0_f32, 8.0_f32))
+//!     .build(tree);
 //! ```
 //!
 //! Read up from the line rustc names to the nearest such comment, and open the view at that line

@@ -26,7 +26,7 @@ pub fn build(tree: &mut UiTree) -> View {
     let __e0 = ::artic::controls::Run::new()
         .text(::std::string::String::from("Hello"))
         .build(tree);
-    // valid/whitespace/between_elements.xaml:1:56
+    // valid/whitespace/between_elements.xaml:1:57
     let __e1 = ::artic::controls::Run::new()
         .text(::std::string::String::from(" "))
         .build(tree);

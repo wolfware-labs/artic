@@ -184,3 +184,13 @@ fn diagnostic_renders_file_line_col() {
   );
   assert!(errors.contains("3 |     Foo=\"1\"/>"), "{errors}");
 }
+
+// Two problems in one view are both reported, in source order.
+#[test]
+fn multiple_diagnostics_reported() {
+  let errors = compile(r#"<StackPanel xmlns="https://artic.rs/ui"><Border Foo="1"/><Border Bar="2"/></StackPanel>"#)
+    .expect_err("two unknown properties");
+  let foo = errors.find("`Border` has no property `Foo`").expect("the first");
+  let bar = errors.find("`Border` has no property `Bar`").expect("the second");
+  assert!(foo < bar, "{errors}");
+}

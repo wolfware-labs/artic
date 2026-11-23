@@ -150,33 +150,45 @@ pub(crate) fn emit(view: &View, source: &SourceFile) -> String {
     }
   };
   let module: syn::File = syn::parse2(tokens).expect("the generated module parses");
-  let body = with_sources(&prettyplease::unparse(&module), |index| {
-    let position = source.line_col(view.elements[index].span.start);
-    format!("{file}:{}:{}", position.line, position.column)
-  });
+  let mut order: Vec<usize> = (0..view.elements.len())
+    .filter(|&index| !root_is_tail || index != root)
+    .collect();
+  if root_is_tail {
+    order.push(root);
+  }
+  let comments: Vec<String> = order
+    .iter()
+    .map(|&index| {
+      let position = source.line_col(view.elements[index].span.start);
+      format!("{file}:{}:{}", position.line, position.column)
+    })
+    .collect();
+  let body = with_sources(&prettyplease::unparse(&module), &order, &comments);
   format!("// Generated from {file}.\n\n{body}")
 }
 
-/// `code` with each `__artic_source!(index);` line, which the formatter keeps on a line of its own,
-/// made a comment naming `source(index)`, at the same indent.
-fn with_sources(code: &str, source: impl Fn(usize) -> String) -> String {
+/// `code` with its markers made comments: the `__artic_source!(index);` statements of `build`'s
+/// body, which the formatter puts each on a line of its own at the body's indent, in the order
+/// `order` emitted them, each becoming `// ` and the comment at the same position in `comments`.
+/// A line inside a multi-line string literal that reads like a marker is left alone, since only
+/// the next expected marker at the body's indent matches.
+fn with_sources(code: &str, order: &[usize], comments: &[String]) -> String {
+  const INDENT: &str = "    ";
   let mut out = String::with_capacity(code.len());
+  let mut next = 0;
   for line in code.lines() {
-    let body = line.trim_start();
-    let index = body
-      .strip_prefix("__artic_source!(")
-      .and_then(|rest| rest.strip_suffix(");"))
-      .and_then(|index| index.parse().ok());
-    match index {
-      Some(index) => {
-        out.push_str(&line[..line.len() - body.len()]);
-        out.push_str("// ");
-        out.push_str(&source(index));
-      }
-      None => out.push_str(line),
+    let expected = order.get(next).map(|index| format!("{INDENT}__artic_source!({index});"));
+    if expected.as_deref() == Some(line) {
+      out.push_str(INDENT);
+      out.push_str("// ");
+      out.push_str(&comments[next]);
+      next += 1;
+    } else {
+      out.push_str(line);
     }
     out.push('\n');
   }
+  assert_eq!(next, order.len(), "every marker the emitter wrote is in the formatted code");
   out
 }
 
@@ -239,4 +251,44 @@ fn display(path: &Path) -> String {
     .map(|component| component.as_os_str().to_string_lossy())
     .collect::<Vec<_>>()
     .join("/")
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use pretty_assertions::assert_eq;
+
+  // Each marker at the body's indent becomes its comment, in the order emitted. A line that reads
+  // like a marker inside a multi-line string literal stays as it is: one at another indent, or one
+  // that names an element other than the next expected.
+  #[test]
+  fn markers_become_comments_in_order() {
+    let code = concat!(
+      "fn build() {\n",
+      "    __artic_source!(1);\n",
+      "    let a = r\"x\n",
+      "__artic_source!(0);\n",
+      "    __artic_source!(1);\n",
+      "\";\n",
+      "    __artic_source!(0);\n",
+      "    a\n",
+      "}\n",
+    );
+    let comments = ["v.ui:2:3".to_owned(), "v.ui:1:2".to_owned()];
+
+    let written = with_sources(code, &[1, 0], &comments);
+
+    let expected = concat!(
+      "fn build() {\n",
+      "    // v.ui:2:3\n",
+      "    let a = r\"x\n",
+      "__artic_source!(0);\n",
+      "    __artic_source!(1);\n",
+      "\";\n",
+      "    // v.ui:1:2\n",
+      "    a\n",
+      "}\n",
+    );
+    assert_eq!(written, expected);
+  }
 }
