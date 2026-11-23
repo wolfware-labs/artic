@@ -33,6 +33,7 @@ members = [
     "crates/artic-xaml-lang",
     "crates/artic-xaml-lang/fixtures/app",
     "crates/artic-xaml-lang/fixtures/controls",
+    "crates/artic-xaml-lang/fixtures/docking",
     "crates/artic-xaml-runtime",
     "crates/docs-check",
 ]

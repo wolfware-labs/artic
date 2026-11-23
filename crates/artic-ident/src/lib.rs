@@ -56,6 +56,13 @@ pub fn snake_case(name: &str) -> String {
   snake
 }
 
+/// The helper that sets attached property `name` on a node, as its owner's derive writes it:
+/// `ColumnSpan` gives `set_column_span`.
+#[must_use]
+pub fn attached_setter(name: &str) -> String {
+  format!("set_{}", snake_case(name))
+}
+
 /// `ColumnSpan` as `COLUMN_SPAN`: the [`snake_case`] name in capitals, for a constant.
 #[must_use]
 pub fn screaming_snake_case(name: &str) -> String {
@@ -177,6 +184,13 @@ mod tests {
   fn is_keyword_matches_the_list() {
     assert!(is_keyword("type") && is_keyword("Self") && is_keyword("gen"));
     assert!(!is_keyword("Type") && !is_keyword("union") && !is_keyword("email"));
+  }
+
+  // An attached property's setter is `set_` and the snake_case name.
+  #[test]
+  fn attached_setter_is_set_and_the_snake_case_name() {
+    assert_eq!(attached_setter("ColumnSpan"), "set_column_span");
+    assert_eq!(attached_setter("Row"), "set_row");
   }
 
   // A constant's name is the snake_case name in capitals.

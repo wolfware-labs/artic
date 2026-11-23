@@ -5,5 +5,5 @@ input_file: crates/artic-xaml/tests/fixtures/valid/attached/own_type.xaml
 ---
 Object Button [https://artic.rs/ui] 2:2..2:8
   xmlns "https://artic.rs/ui" 2:9..2:36
-  Width 2:37..2:49
+  attached Button.Width [https://artic.rs/ui] 2:37..2:49
     Value "2" 2:51..2:52

@@ -4,7 +4,9 @@
 use crate::document::{Content, Element, Member, Problem, Text, TypeUse};
 use crate::{Document, field_name, unsupported};
 use artic_diagnostics::{Diagnostic, Diagnostics, Span};
-use artic_registry::{ContentInfo, ContentMethod, PropertyRef, TypeInfo, Whitespace, type_names};
+use artic_registry::{
+  AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, PropertyRef, TypeInfo, Whitespace, type_names,
+};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 
@@ -52,8 +54,32 @@ pub struct CheckedElement {
   pub ty: TypeUse,
   /// Each property with the text it's set to, in member order.
   pub properties: Vec<(PropertyRef, Text)>,
+  /// Each attached property set on it, in member order.
+  pub attached: Vec<CheckedAttached>,
   /// The children its content method takes.
   pub content: CheckedContent,
+}
+
+/// An attached property set on an element: its owner, the property and the text it's set to.
+#[derive(Debug, Clone)]
+pub struct CheckedAttached {
+  /// The type that owns the property, as the document names it.
+  pub owner: TypeUse,
+  /// The property.
+  pub info: &'static AttachedPropertyInfo,
+  /// The text it's set to.
+  pub value: Text,
+}
+
+/// Where an element is written, which an attached property's target rule checks.
+#[derive(Debug, Clone, Copy)]
+enum Parent {
+  /// It's the view's root.
+  Root,
+  /// It's inside an element of this type.
+  Of(&'static TypeInfo),
+  /// It's inside an element whose type wasn't found.
+  Unknown,
 }
 
 /// The children an element's content method takes.
@@ -81,7 +107,7 @@ pub fn check(document: &Document) -> (CheckedView, Diagnostics) {
     reported: HashSet::new(),
     code_type: None,
   };
-  let root = check.element(&document.root, true);
+  let root = check.element(&document.root, Parent::Root);
   let view = CheckedView {
     elements: check.elements,
     root,
@@ -111,6 +137,7 @@ struct Members {
   properties: Vec<(PropertyRef, Text)>,
   /// Where each property was set, by field, to report one set twice.
   set: HashMap<&'static str, Span>,
+  attached: Vec<CheckedAttached>,
   content: CheckedContent,
   name: Option<(Text, String)>,
   /// Whether the element is named, validly or not.
@@ -120,9 +147,10 @@ struct Members {
 }
 
 impl Check {
-  /// Checks an element and the elements in its content, returning its index, or `None` when its
-  /// type wasn't found. Only the `root` may name the view's code type.
-  fn element(&mut self, element: &Element, root: bool) -> Option<usize> {
+  /// Checks an element written in `parent` and the elements in its content, returning its index,
+  /// or `None` when its type wasn't found. Only the root may name the view's code type.
+  fn element(&mut self, element: &Element, parent: Parent) -> Option<usize> {
+    let root = matches!(parent, Parent::Root);
     let ty = match &element.ty {
       Ok(ty) => Some(ty),
       Err(problem) => {
@@ -146,6 +174,12 @@ impl Check {
             self.property(info, name, *span, value, &mut gathered);
           }
         }
+        Member::Attached {
+          owner,
+          name,
+          span,
+          value,
+        } => self.attached(owner, name, *span, value, parent, &mut gathered),
         Member::Name(name) => {
           gathered.named = true;
           if root && self.code_type.is_some() {
@@ -211,6 +245,7 @@ impl Check {
     self.elements.push(CheckedElement {
       ty: ty.clone(),
       properties: gathered.properties,
+      attached: gathered.attached,
       content: gathered.content,
     });
     let index = self.elements.len() - 1;
@@ -257,6 +292,73 @@ impl Check {
       Ok(text) => self.set(property, text.clone(), members),
       Err(problem) => self.report(problem),
     }
+  }
+
+  /// Sets the attached property `name` of `owner` on an element written in `parent`, reporting an
+  /// owner that wasn't found, a property it doesn't have, one its target rule doesn't allow there,
+  /// and one set twice.
+  fn attached(
+    &mut self,
+    owner: &Result<TypeUse, Problem>,
+    name: &str,
+    span: Span,
+    value: &Result<Text, Problem>,
+    parent: Parent,
+    members: &mut Members,
+  ) {
+    let owner = match owner {
+      Ok(owner) => owner,
+      Err(problem) => {
+        self.report(problem);
+        return;
+      }
+    };
+    let Some(info) = owner.info.attached_property(name) else {
+      self.diagnostics.push(
+        Diagnostic::error(span, format!("`{}` has no attached property `{name}`", owner.info.name))
+          .with_label("unknown attached property"),
+      );
+      return;
+    };
+    let allowed = match (info.target, parent) {
+      (AttachedTarget::Any, _) | (AttachedTarget::ChildrenOfOwner, Parent::Unknown) => true,
+      (AttachedTarget::ChildrenOfOwner, Parent::Of(parent)) => parent.rust_path == owner.info.rust_path,
+      (AttachedTarget::ChildrenOfOwner, Parent::Root) => false,
+    };
+    if !allowed {
+      self.diagnostics.push(
+        Diagnostic::error(
+          span,
+          format!("`{0}.{name}` can only be set on a child of a `{0}`", owner.info.name),
+        )
+        .with_label("not inside one"),
+      );
+      return;
+    }
+    let value = match value {
+      Ok(value) => value,
+      Err(problem) => {
+        self.report(problem);
+        return;
+      }
+    };
+    if let Some(first) = members
+      .attached
+      .iter()
+      .find(|set| set.owner.info.rust_path == owner.info.rust_path && set.info.name == name)
+    {
+      self.diagnostics.push(
+        Diagnostic::error(value.span, format!("`{}.{name}` is set twice", owner.info.name))
+          .with_label("set again here")
+          .with_secondary(first.value.span, "first set here"),
+      );
+      return;
+    }
+    members.attached.push(CheckedAttached {
+      owner: owner.clone(),
+      info,
+      value: value.clone(),
+    });
   }
 
   /// Sets `property` to `text`, reporting a property set twice.
@@ -383,7 +485,7 @@ impl Check {
     let Some(info) = info else {
       for node in nodes {
         if let Content::Element(element) = node {
-          self.element(element, false);
+          self.element(element, Parent::Unknown);
         }
       }
       return;
@@ -406,7 +508,7 @@ impl Check {
   }
 
   /// Reports content inside a type that takes none, still checking the elements.
-  fn no_content(&mut self, info: &TypeInfo, nodes: &[Content]) {
+  fn no_content(&mut self, info: &'static TypeInfo, nodes: &[Content]) {
     for node in nodes {
       match node {
         Content::Text { text, span, .. } if !text.is_empty() => {
@@ -419,7 +521,7 @@ impl Check {
             element.span,
             format!("`{}` takes no child elements", info.name),
           ));
-          self.element(element, false);
+          self.element(element, Parent::Of(info));
         }
         Content::Text { .. } | Content::Unsupported(_) => {}
       }
@@ -455,7 +557,7 @@ impl Check {
   /// markup can create and that `takes` accepts; without one, text that isn't blank is reported.
   fn children(
     &mut self,
-    info: &TypeInfo,
+    info: &'static TypeInfo,
     method: ContentMethod,
     takes: Option<&[&TypeInfo]>,
     text_wrapper: Option<&'static TypeInfo>,
@@ -500,7 +602,7 @@ impl Check {
               format!("`{}` takes only {}", info.name, type_names(taken)),
             ));
           }
-          children.extend(self.element(element, false));
+          children.extend(self.element(element, Parent::Of(info)));
         }
         Content::Unsupported(_) => {}
       }
@@ -531,6 +633,7 @@ impl Check {
     self.elements.push(CheckedElement {
       ty,
       properties: vec![(property, text)],
+      attached: Vec::new(),
       content: CheckedContent::None,
     });
     self.elements.len() - 1

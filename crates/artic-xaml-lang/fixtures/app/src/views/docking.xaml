@@ -1,0 +1,8 @@
+<!-- A dock whose children carry its attached Slot, in both forms, under an inherited font size. -->
+<Dock xmlns="https://fixture.example/docking" xmlns:ui="https://artic.rs/ui" xmlns:x="https://artic.rs/markup"
+      ui:TextElement.FontSize="16">
+  <ui:TextBlock x:Name="top" Dock.Slot="1" Text="Top"/>
+  <ui:TextBlock x:Name="rest" Text="Rest">
+    <Dock.Slot>2</Dock.Slot>
+  </ui:TextBlock>
+</Dock>

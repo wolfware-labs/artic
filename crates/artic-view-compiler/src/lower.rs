@@ -3,10 +3,10 @@
 
 use crate::CratePaths;
 use artic_diagnostics::{Diagnostic, Diagnostics, Span};
-use artic_ident::is_path_keyword;
-use artic_registry::{ContentInfo, ContentMethod, PropertyInfo, PropertyRef, RustExpr, TypeInfo};
+use artic_ident::{attached_setter, is_path_keyword};
+use artic_registry::{ContentInfo, ContentMethod, PropertyRef, RustExpr, TypeInfo, WriteLiteral};
 use artic_view::document::{Text, TypeUse};
-use artic_view::{CheckedContent, CheckedElement, CheckedName, CheckedView, FieldVisibility};
+use artic_view::{CheckedAttached, CheckedContent, CheckedElement, CheckedName, CheckedView, FieldVisibility};
 use std::collections::{BTreeMap, BTreeSet};
 use syn::parse::Parser;
 use syn::{Expr, Ident, Path, PathSegment, Visibility, parse_quote};
@@ -58,6 +58,19 @@ pub(crate) struct Element {
   pub setters: Vec<Setter>,
   /// The call that takes its children, for a type whose content is a collection.
   pub content: Option<ContentCall>,
+  /// The attached properties set on it, each a call once it's built.
+  pub attached: Vec<AttachedCall>,
+}
+
+/// A call that sets an attached property on an element once it's built:
+/// `Owner::set_name(tree, element, value)`.
+pub(crate) struct AttachedCall {
+  /// The owner's path.
+  pub owner: Path,
+  /// The owner's setter, named after the property.
+  pub setter: Ident,
+  /// The expression that builds the value.
+  pub value: Expr,
 }
 
 /// The builder method named after the content field, with the children it takes.
@@ -237,10 +250,16 @@ impl Lower<'_> {
       .iter()
       .filter_map(|(property, value)| self.setter(element.ty.info, *property, value))
       .collect();
+    let attached = element
+      .attached
+      .iter()
+      .filter_map(|attached| self.attached(attached))
+      .collect();
     Some(Element {
       ty: ty?,
       setters,
       content: content_call(element),
+      attached,
     })
   }
 
@@ -260,7 +279,7 @@ impl Lower<'_> {
     if let Some(group) = property.group {
       self.import_group(info, group, value.span);
     }
-    let value = self.literal(property.info, &value.text, value.span)?;
+    let value = self.literal(property.info.name, property.info.value_type, property.info.literal, value)?;
     let method = syn::parse_str(property.info.field).expect("a registry field is an identifier");
     Some(Setter { method, value })
   }
@@ -280,36 +299,48 @@ impl Lower<'_> {
     }
   }
 
-  /// Parses `text` for `property` and returns the expression that builds the value.
-  fn literal(&mut self, property: &PropertyInfo, text: &str, span: Span) -> Option<Expr> {
-    let Some(write) = property.literal else {
+  /// Parses `text` for the property `name`, whose value type is `value_type`, with `write`, and
+  /// returns the expression that builds the value.
+  fn literal(&mut self, name: &str, value_type: &str, write: Option<WriteLiteral>, text: &Text) -> Option<Expr> {
+    let Some(write) = write else {
       self.diagnostics.push(
-        Diagnostic::error(span, format!("`{}` can't be written as Rust", property.name))
+        Diagnostic::error(text.span, format!("`{name}` can't be written as Rust"))
           .with_help("build the registry with `artic-registry`'s `literals` feature"),
       );
       return None;
     };
     let mut out = self.expr.clone();
-    if let Err(message) = write(text, &mut out) {
+    if let Err(message) = write(&text.text, &mut out) {
       self
         .diagnostics
-        .push(Diagnostic::error(span, message).with_label(format!("for `{}`", property.name)));
+        .push(Diagnostic::error(text.span, message).with_label(format!("for `{name}`")));
       return None;
     }
     let expr = syn::parse_str(out.as_str()).ok();
     if expr.is_none() {
       self.diagnostics.push(
         Diagnostic::error(
-          span,
-          format!(
-            "the value of `{}` was written as invalid Rust: `{}`",
-            property.name,
-            out.as_str()
-          ),
+          text.span,
+          format!("the value of `{name}` was written as invalid Rust: `{}`", out.as_str()),
         )
-        .with_help(format!("`{}`'s `ToRust` impl writes invalid Rust", property.value_type)),
+        .with_help(format!("`{value_type}`'s `ToRust` impl writes invalid Rust")),
       );
     }
     expr
+  }
+
+  /// The call that sets `attached` on its element once it's built, or `None` when its owner's
+  /// path or its value isn't valid Rust.
+  fn attached(&mut self, attached: &CheckedAttached) -> Option<AttachedCall> {
+    let info = attached.info;
+    let owner = self.type_path(&attached.owner);
+    let name = format!("{}.{}", attached.owner.info.name, info.name);
+    let value = self.literal(&name, info.value_type, info.literal, &attached.value)?;
+    let setter = syn::parse_str(&attached_setter(info.name)).expect("an attached property's setter is an identifier");
+    Some(AttachedCall {
+      owner: owner?,
+      setter,
+      value,
+    })
   }
 }

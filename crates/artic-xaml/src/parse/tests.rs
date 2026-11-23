@@ -125,7 +125,8 @@ fn markup_attributes_are_directives() {
   );
 }
 
-// `Owner.Name` attributes are attached properties, unless the owner is the element's own type.
+// `Owner.Name` attributes are attached members, the element's own type as owner included: only the
+// registry knows whether that type has a property of the name, so the back ends decide.
 #[test]
 fn dotted_attributes_are_attached_properties() {
   let source = r#"<Button xmlns="urn:ui" xmlns:d="urn:dock" Grid.Row="1" d:Dock.Side="Left" Button.Width="2"/>"#;
@@ -134,6 +135,10 @@ fn dotted_attributes_are_attached_properties() {
   let span = |owner: &str| {
     let start = source.find(owner).expect("owner in source");
     Span::new(first_file(), start, start + owner.len())
+  };
+  let owner_of = |member: &str| {
+    let start = source.find(member).expect("member in source");
+    Span::new(first_file(), start, start + member.find('.').expect("a dotted member"))
   };
   assert_eq!(
     keys(&root),
@@ -146,20 +151,28 @@ fn dotted_attributes_are_attached_properties() {
         "Side",
         span("d:Dock")
       ),
-      property("Width"),
+      attached(None, "Button", ui(), "Width", owner_of("Button.Width")),
     ]
   );
 }
 
-// `<Type.Name>` elements are property elements; any other owner makes them attached.
+// `<Type.Name>` elements are dotted members, whatever their owner, with the value inside.
 #[test]
 fn property_elements() {
   let source = "<Button xmlns=\"urn:ui\"><Button.Content><Image/></Button.Content><Grid.Row>1</Grid.Row></Button>";
   let root = root(source);
 
-  let start = source.find("Grid").expect("owner in source");
-  let owner = Span::new(first_file(), start, start + "Grid".len());
-  assert_eq!(keys(&root), [property("Content"), attached(None, "Grid", ui(), "Row", owner)]);
+  let owner_of = |member: &str| {
+    let start = source.find(member).expect("member in source");
+    Span::new(first_file(), start, start + member.find('.').expect("a dotted member"))
+  };
+  assert_eq!(
+    keys(&root),
+    [
+      attached(None, "Button", ui(), "Content", owner_of("Button.Content")),
+      attached(None, "Grid", ui(), "Row", owner_of("Grid.Row")),
+    ]
+  );
   assert_eq!(type_name(&members(&root)[0].value[0]), "Image");
   assert_eq!(text(&members(&root)[1].value[0]), "1");
 }
@@ -169,7 +182,7 @@ fn property_elements() {
 fn content_is_one_member_in_document_order() {
   let root = root("<Panel xmlns=\"urn:ui\">a<Image/>b<Panel.Tag>t</Panel.Tag></Panel>");
 
-  assert_eq!(keys(&root), [property("Tag"), MemberKey::Content]);
+  assert!(matches!(&keys(&root)[..], [MemberKey::Attached { name, .. }, MemberKey::Content] if name == "Tag"));
   let content = &members(&root)[1].value;
   assert_eq!(content.len(), 3);
   assert_eq!(text(&content[0]), "a");
@@ -404,13 +417,13 @@ fn duplicate_members() {
   let twice = "this member is set twice on the same element".to_owned();
   assert_eq!(found, [(twice.clone(), "Width"), (twice, "Grid.Row")]);
 
-  let source = r#"<Button xmlns="urn:ui" Tag="1"><Button.Tag>2</Button.Tag></Button>"#;
+  let source = r#"<Button xmlns="urn:ui"><Grid.Row>1</Grid.Row><Grid.Row>2</Grid.Row></Button>"#;
   let mut sources = SourceMap::new();
   let file = sources.add("test.xaml", source);
   let diagnostics = parse(&sources, file).expect_err("duplicate");
   let error = diagnostics.iter().next().expect("one error");
-  assert_eq!(&source[error.span.start..error.span.end], "Button.Tag");
-  assert_eq!(&source[error.labels[0].span.start..error.labels[0].span.end], "Tag");
+  assert_eq!(&source[error.span.start..error.span.end], "Grid.Row");
+  assert_eq!(error.span.start, source.rfind("<Grid.Row>").expect("the second") + 1);
 }
 
 // Misplaced attributes and elements are all reported, not only the first.
@@ -497,12 +510,12 @@ fn directives_follow_the_markup_namespace() {
   assert_eq!(found, [("`x:Name` names no property".to_owned(), "x:Name")]);
 }
 
-// Two prefixes for one namespace name the same types, so the owner check compares namespaces.
+// Two prefixes for one namespace resolve an owner to the same namespace as the element's type.
 #[test]
 fn prefixes_are_aliases() {
   let root = root(r#"<a:Button xmlns:a="urn:ui" xmlns:b="urn:ui"><b:Button.Content>x</b:Button.Content></a:Button>"#);
 
-  assert_eq!(keys(&root), [property("Content")]);
+  assert!(matches!(&keys(&root)[0], MemberKey::Attached { owner, .. } if owner.namespace == ui() && owner.name == "Button"));
 }
 
 // An undeclared prefix, or a missing default namespace, is reported once, at its first use.

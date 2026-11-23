@@ -1,2 +1,2 @@
-<!-- An owner that is the element's own type is a plain property. -->
+<!-- An owner that is the element's own type stays a dotted member: the back end decides with the registry. -->
 <Button xmlns="https://artic.rs/ui" Button.Width="2"/>

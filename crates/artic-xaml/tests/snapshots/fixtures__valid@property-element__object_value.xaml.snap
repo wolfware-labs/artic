@@ -5,7 +5,7 @@ input_file: crates/artic-xaml/tests/fixtures/valid/property-element/object_value
 ---
 Object Button [https://artic.rs/ui] 1:2..1:8
   xmlns "https://artic.rs/ui" 1:9..1:36
-  Content 2:4..2:18
+  attached Button.Content [https://artic.rs/ui] 2:4..2:18
     Value "" raw "\n    " 2:19..3:5
     Object Image [https://artic.rs/ui] 3:6..3:11
       Source 3:12..3:18

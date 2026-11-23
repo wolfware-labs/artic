@@ -214,20 +214,9 @@ impl<'a> Builder<'a> {
         span: self.span(tag_span.start, local.start() + owner.len()),
       };
       self.resolve_type(&[], &mut owner_type);
-      let Some(Open {
-        kind: OpenKind::Object { ty: parent, .. },
-        ..
-      }) = self.stack.last()
-      else {
-        unreachable!("a property element is always opened inside an object element");
-      };
-      let key = if same_type(parent, &owner_type) {
-        MemberKey::Property(name.to_owned())
-      } else {
-        MemberKey::Attached {
-          owner: owner_type,
-          name: name.to_owned(),
-        }
+      let key = MemberKey::Attached {
+        owner: owner_type,
+        name: name.to_owned(),
       };
       (Vec::new(), OpenKind::PropertyElement { key, value: Vec::new() })
     } else {
@@ -247,7 +236,7 @@ impl<'a> Builder<'a> {
           }
           continue;
         }
-        let Some(member) = self.member(&scope, &ty, attribute) else {
+        let Some(member) = self.member(&scope, attribute) else {
           continue;
         };
         match duplicate_of(&members, &member) {
@@ -336,9 +325,9 @@ impl<'a> Builder<'a> {
     (scope, namespaces, others)
   }
 
-  /// Turns an attribute of an object element of type `ty` into a member, with `scope` the
-  /// element's own bindings. Returns `None` after recording why it can't be one.
-  fn member(&mut self, scope: &[Binding], ty: &TypeRef, attribute: Attribute<'a>) -> Option<Member> {
+  /// Turns an attribute of an object element into a member, with `scope` the element's own
+  /// bindings. Returns `None` after recording why it can't be one.
+  fn member(&mut self, scope: &[Binding], attribute: Attribute<'a>) -> Option<Member> {
     let Attribute { prefix, local, value } = attribute;
     let name_span = self.span(name_start(&attribute), local.end());
     let decoded = self.decode_value(value)?;
@@ -359,13 +348,9 @@ impl<'a> Builder<'a> {
           span: self.span(name_span.start, name_span.start + prefix_len(prefix) + owner.len()),
         };
         self.resolve_type(scope, &mut owner_type);
-        if same_type(ty, &owner_type) {
-          MemberKey::Property(property.to_owned())
-        } else {
-          MemberKey::Attached {
-            owner: owner_type,
-            name: property.to_owned(),
-          }
+        MemberKey::Attached {
+          owner: owner_type,
+          name: property.to_owned(),
         }
       }
       ("", name) => MemberKey::Property(name.to_owned()),
@@ -632,11 +617,6 @@ fn name_start(attribute: &Attribute) -> usize {
   } else {
     attribute.prefix.start()
   }
-}
-
-/// Whether two type references name the same type, whatever prefixes they're written with.
-fn same_type(a: &TypeRef, b: &TypeRef) -> bool {
-  a.namespace == b.namespace && a.name == b.name
 }
 
 /// The length of `prefix:` in front of a name, or 0 without a prefix.

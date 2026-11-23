@@ -5,7 +5,7 @@ input_file: crates/artic-xaml/tests/fixtures/valid/content/after_property_elemen
 ---
 Object Panel [https://artic.rs/ui] 2:2..2:7
   xmlns "https://artic.rs/ui" 2:8..2:35
-  Tag 2:42..2:51
+  attached Panel.Tag [https://artic.rs/ui] 2:42..2:51
     Value "tag" 2:52..2:55
   content 2:36..2:79
     Value "first" 2:36..2:41

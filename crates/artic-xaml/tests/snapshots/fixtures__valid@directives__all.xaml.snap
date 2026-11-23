@@ -10,7 +10,7 @@ Object UserControl [https://artic.rs/ui] 1:2..1:13
     Value "app::views::Main" 1:85..1:101
   directive DataType 1:103..1:113
     Value "app::vm::MainVm" 1:115..1:130
-  Resources 3:4..3:25
+  attached UserControl.Resources [https://artic.rs/ui] 3:4..3:25
     Value "" raw "\n    " 3:26..4:5
     Object SolidColorBrush [https://artic.rs/ui] 4:6..4:21
       directive Key 4:22..4:27

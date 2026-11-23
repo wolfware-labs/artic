@@ -96,9 +96,12 @@ pub struct Member {
 /// Which member of an object a [`Member`] sets.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MemberKey {
-  /// A property of the object's own type, such as `Width`.
+  /// A property of the object's own type written without an owner, such as `Width`.
   Property(String),
-  /// A property that another type owns, set on this object, such as `Grid.Row`.
+  /// A dotted member, `Owner.Name`: a property `Owner` owns, set on this object, such as
+  /// `Grid.Row`. When `Owner` is the object's own type, a back end reads it as the object's
+  /// property if the type has one of that name, as `<Border.Background>` is, since only the
+  /// registry knows; otherwise it stays attached, as `Grid.Row` on a `Grid` is.
   Attached {
     /// The type that declares the property, unresolved.
     owner: TypeRef,
@@ -248,6 +251,12 @@ impl TypeRef {
       None
     }
   }
+
+  /// Whether `other` names the same type, whatever prefixes the two are written with.
+  #[must_use]
+  pub fn is_same_type(&self, other: &TypeRef) -> bool {
+    self.namespace == other.namespace && self.name == other.name
+  }
 }
 
 impl fmt::Display for TypeRef {
@@ -366,6 +375,24 @@ mod tests {
 
     assert_eq!(ty(Some("local")).to_string(), "local:Gauge");
     assert_eq!(ty(None).to_string(), "Gauge");
+  }
+
+  // Two references name the same type when their namespace and name match, whatever their
+  // prefixes and spans.
+  #[test]
+  fn same_type_ignores_the_prefix() {
+    let file = artic_diagnostics::SourceMap::new().add("view.xaml", "");
+    let ty = |prefix: &str, name: &str, namespace: &str, at: usize| TypeRef {
+      prefix: Some(prefix.to_owned()),
+      name: name.to_owned(),
+      namespace: XamlNamespace::Using(namespace.to_owned()),
+      span: Span::new(file, at, at),
+    };
+    let gauge = ty("a", "Gauge", "app", 0);
+
+    assert!(gauge.is_same_type(&ty("b", "Gauge", "app", 4)));
+    assert!(!gauge.is_same_type(&ty("a", "Dial", "app", 0)));
+    assert!(!gauge.is_same_type(&ty("a", "Gauge", "other", 0)));
   }
 
   // A declaration's attribute names its prefix, or is `xmlns` for the default namespace.

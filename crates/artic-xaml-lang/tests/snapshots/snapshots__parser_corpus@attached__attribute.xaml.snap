@@ -11,14 +11,14 @@ valid/attached/attribute.xaml:2:4: error: no type `Button` in `https://artic.rs/
 2 |   <Button Grid.Row="1" Grid.Column="2" d:Dock.Side="Left"/>
   |    ^^^^^^ unknown type
 
-valid/attached/attribute.xaml:2:11: error: attached properties come with #50
+valid/attached/attribute.xaml:2:11: error: no type `Grid` in `https://artic.rs/ui`
 2 |   <Button Grid.Row="1" Grid.Column="2" d:Dock.Side="Left"/>
-  |           ^^^^^^^^
+  |           ^^^^ unknown type
 
-valid/attached/attribute.xaml:2:24: error: attached properties come with #50
+valid/attached/attribute.xaml:2:24: error: no type `Grid` in `https://artic.rs/ui`
 2 |   <Button Grid.Row="1" Grid.Column="2" d:Dock.Side="Left"/>
-  |                        ^^^^^^^^^^^
+  |                        ^^^^ unknown type
 
-valid/attached/attribute.xaml:2:40: error: attached properties come with #50
+valid/attached/attribute.xaml:2:40: error: no type `Dock` in `using:app::docking`
 2 |   <Button Grid.Row="1" Grid.Column="2" d:Dock.Side="Left"/>
-  |                                        ^^^^^^^^^^^
+  |                                        ^^^^^^ unknown type

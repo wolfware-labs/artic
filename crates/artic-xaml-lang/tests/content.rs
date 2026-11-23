@@ -4,10 +4,8 @@
 mod common;
 
 use artic_core::property::Property;
-use artic_core::tree::{NodeId, UiTree};
 use artic_macros::UiType;
-use artic_registry::{UiCollection, ValueError};
-use common::{TEST_UI, compile};
+use common::{Nodes, TEST_UI, compile, joined};
 
 /// A type that takes no content.
 #[derive(Debug, UiType)]
@@ -28,32 +26,11 @@ struct Run {
   text: Property<String>,
 }
 
-/// A collection of its own, which takes child elements.
-#[derive(Debug, Default)]
-struct Stops(Vec<NodeId>);
-
-impl UiCollection for Stops {
-  fn push_child(
-    tree: &mut UiTree,
-    owner: NodeId,
-    child: NodeId,
-    field: for<'a> fn(&'a mut UiTree, NodeId) -> Option<&'a mut Self>,
-  ) -> Result<(), ValueError> {
-    field(tree, owner).ok_or(ValueError::WrongNode)?.0.push(child);
-    Ok(())
-  }
-}
-
 /// A type whose content is a collection of its own.
 #[derive(Debug, UiType)]
 struct Gradient {
   #[ui(content)]
-  stops: Stops,
-}
-
-/// `rust` without whitespace, so assertions don't depend on where the formatter breaks lines.
-fn joined(rust: &str) -> String {
-  rust.split_whitespace().collect()
+  stops: Nodes,
 }
 
 /// Each text `rust` sets through a `text` builder method, in order.

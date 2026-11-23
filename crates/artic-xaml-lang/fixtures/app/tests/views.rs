@@ -1,6 +1,7 @@
 // The compiled card builds the tree its markup describes, its handles reach the named nodes, and
 // a control crate the map names keeps its types in the registry though no view uses it.
 
+use artic::controls::TextElement;
 use artic::element::Surface;
 use artic::layout::Thickness;
 use artic::prelude::UiTree;
@@ -8,8 +9,9 @@ use artic_core::tree::TreeKind;
 use artic_registry::Registry;
 use artic_xaml_compiler_fixture_app::email;
 use artic_xaml_compiler_fixture_app::views::app::FixtureApp;
-use artic_xaml_compiler_fixture_app::views::card;
 use artic_xaml_compiler_fixture_app::views::login::LoginView;
+use artic_xaml_compiler_fixture_app::views::{card, docking};
+use artic_xaml_compiler_fixture_docking::Dock;
 
 // The view builds a border around a panel of two texts, with the markup's values.
 #[test]
@@ -105,4 +107,17 @@ fn app_accepts_a_code_type() {
     assert_eq!(children.len(), 1);
     assert!(tree.get_as::<Surface>(children[0]).is_some());
   }
+}
+
+// Attached properties written as attributes and as property elements are set on their nodes once
+// built: each child's slot, and the font size the dock passes down to its texts.
+#[test]
+fn attached_properties_are_set_on_their_nodes() {
+  let mut tree = UiTree::new();
+  let view = docking::build(&mut tree);
+
+  assert_eq!(Dock::slot(&tree, view.top), 1);
+  assert_eq!(Dock::slot(&tree, view.rest), 2);
+  assert_eq!(TextElement::font_size(&tree, view.root), 16.0);
+  assert_eq!(view.top.get(&tree).format.font_size.get(), 16.0);
 }

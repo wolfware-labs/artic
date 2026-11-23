@@ -23,11 +23,6 @@ pub(crate) fn provider_as_element(ty: &TypeRef) -> Diagnostic {
     .with_help(format!("write it as an attribute value: `{{{ty} …}}`"))
 }
 
-/// An attached property, such as `Grid.Row="1"`.
-pub(crate) fn attached(span: Span) -> Diagnostic {
-  Diagnostic::error(span, "attached properties come with #50")
-}
-
 /// `x:Key`, which only a resource dictionary gives meaning to.
 pub(crate) fn resource_key(span: Span) -> Diagnostic {
   Diagnostic::error(span, "resources come with #111")

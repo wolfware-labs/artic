@@ -1,5 +1,5 @@
 use crate::members::attributes::{PropertySpec, parse_spec_setting, unknown_key};
-use artic_ident::{IdentError, rust_identifier, screaming_snake_case, snake_case};
+use artic_ident::{IdentError, attached_setter, rust_identifier, screaming_snake_case, snake_case};
 use quote::format_ident;
 use syn::meta::ParseNestedMeta;
 use syn::{DeriveInput, Error, Ident, LitStr, Path, Type};
@@ -161,7 +161,7 @@ fn parse_attached(attached: &ParseNestedMeta) -> syn::Result<Attached> {
   Ok(Attached {
     key_static: format_ident!("__ATTACHED_{constant}"),
     constant: format_ident!("{constant}"),
-    setter: format_ident!("set_{snake}"),
+    setter: format_ident!("{}", attached_setter(&text)),
     getter,
     name,
     ty,

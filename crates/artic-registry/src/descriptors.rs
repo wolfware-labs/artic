@@ -101,6 +101,12 @@ impl TypeInfo {
     })
   }
 
+  /// The attached property named `name` the type owns, such as `Row` on `Grid`.
+  #[must_use]
+  pub fn attached_property(&self, name: &str) -> Option<&'static AttachedPropertyInfo> {
+    self.attached_properties.iter().find(|info| info.name == name)
+  }
+
   /// Whether the type can be used as a value provider, such as a binding.
   #[must_use]
   pub const fn is_value_provider(&self) -> bool {
@@ -238,6 +244,10 @@ pub struct AttachedPropertyInfo {
   pub value_type: &'static str,
   /// Which elements it may be set on.
   pub target: AttachedTarget,
+  /// Parses text for the property and writes the Rust expression that builds the value the
+  /// owner's setter takes, as [`PropertyInfo::literal`] does; for an `Option<V>` property, `Some`
+  /// of the `V`. `Some` only with this crate's `literals` feature.
+  pub literal: Option<WriteLiteral>,
 }
 
 /// Which elements an attached property may be set on.
@@ -347,5 +357,33 @@ mod tests {
     assert_eq!(BORDER.properties[0].affects, Affects::LAYOUT);
     assert!(!BORDER.is_value_provider());
     assert!(tree.get_as::<Border>(node).is_some());
+  }
+
+  // An attached property is found by its name among the ones its owner declares, and only there.
+  #[test]
+  fn attached_property_is_found_by_name() {
+    static DOCK: TypeInfo = TypeInfo {
+      name: "Dock",
+      rust_path: "artic_controls::Dock",
+      attached_properties: &[
+        AttachedPropertyInfo {
+          name: "Side",
+          value_type: "artic_controls::Side",
+          target: AttachedTarget::ChildrenOfOwner,
+          literal: None,
+        },
+        AttachedPropertyInfo {
+          name: "Order",
+          value_type: "usize",
+          target: AttachedTarget::Any,
+          literal: None,
+        },
+      ],
+      ..BORDER
+    };
+
+    assert_eq!(DOCK.attached_property("Order").map(|info| info.value_type), Some("usize"));
+    assert!(DOCK.attached_property("Padding").is_none());
+    assert!(BORDER.attached_property("Side").is_none());
   }
 }

@@ -2,7 +2,7 @@ use crate::crate_root::{REGISTRY, crate_root};
 use crate::members::emit::{
   affects_tokens, checks, default_impl, inheritance_tokens, key_path, key_static, properties_static, value_check, visits,
 };
-use crate::members::{Content, GroupField, Members, PropertyField, value_type};
+use crate::members::{Content, GroupField, Members, PropertyField, generic_argument, value_type};
 use crate::ui_type::analysis::TypeAnalysis;
 use crate::ui_type::attributes::{Attached, Target, Whitespace};
 use crate::ui_type::builders::builders;
@@ -377,11 +377,16 @@ fn attached_info(attached: &Attached) -> TokenStream {
     Target::Any => quote!(__artic::AttachedTarget::Any),
     Target::Children => quote!(__artic::AttachedTarget::ChildrenOfOwner),
   };
+  let literal = match generic_argument(ty, "Option") {
+    Some(inner) => quote!(__artic::optional_literal!(#inner)),
+    None => quote!(__artic::literal!(#ty)),
+  };
   quote! {
     __artic::AttachedPropertyInfo {
       name: #name,
       value_type: ::core::stringify!(#ty),
       target: #target,
+      literal: #literal,
     }
   }
 }

@@ -3,7 +3,7 @@
 mod common;
 
 use artic_diagnostics::Diagnostic;
-use artic_view::document::{Content, Document, Member};
+use artic_view::document::{Content, Document, Member, Text, TypeUse};
 use artic_view::{CheckedContent, FieldVisibility, check};
 use common::*;
 use pretty_assertions::assert_eq;
@@ -359,10 +359,10 @@ fn unsupported_member_is_reported_on_any_element() {
   let (_, found) = check(&found);
   let (_, missing) = check(&missing);
 
-  assert_eq!(reported(&found), [at("attached properties come with #50", 10)]);
+  assert_eq!(reported(&found), [at("resource keys come with #111", 10)]);
   assert_eq!(
     reported(&missing),
-    [at("no type `Gauge`", 1), at("attached properties come with #50", 10)]
+    [at("no type `Gauge`", 1), at("resource keys come with #111", 10)]
   );
 }
 
@@ -792,4 +792,119 @@ fn blank_text_without_a_wrapper_is_not_reported() {
 
   assert_eq!(reported(&diagnostics), []);
   assert_eq!(view.elements[2].content, CheckedContent::Children(vec![0, 1]));
+}
+
+// An attached property for children of its owner is kept on a child of one, and reported on the
+// root or on a child of another type; one for any element is kept on the root.
+#[test]
+fn attached_target_follows_the_parent() {
+  let inside = element(&IMAGE, 20, vec![attached(&RACK, "Slot", 30, "1")]);
+  let outside = element(&IMAGE, 50, vec![attached(&RACK, "Slot", 60, "2")]);
+  let panel = element(&PANEL, 40, vec![content(45, vec![Content::Element(outside)])]);
+  let document = Document {
+    root: element(
+      &RACK,
+      0,
+      vec![
+        attached(&RACK, "Tag", 5, "top"),
+        attached(&RACK, "Slot", 8, "0"),
+        content(10, vec![Content::Element(inside), Content::Element(panel)]),
+      ],
+    ),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  let misplaced = "`Rack.Slot` can only be set on a child of a `Rack`";
+  assert_eq!(reported(&diagnostics), [at(misplaced, 8), at(misplaced, 60)]);
+  assert_eq!(view.elements[0].attached[0].value.text, "1");
+  let root = view.elements.last().expect("the root");
+  assert_eq!(root.attached.len(), 1);
+  assert_eq!(root.attached[0].info.name, "Tag");
+}
+
+// Inside an element whose type wasn't found, the target rule can't be checked, so the property
+// is kept.
+#[test]
+fn attached_target_inside_an_unknown_type_is_kept() {
+  let child = element(&IMAGE, 20, vec![attached(&RACK, "Slot", 30, "1")]);
+  let document = Document {
+    root: unknown(0, vec![content(10, vec![Content::Element(child)])]),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  assert_eq!(reported(&diagnostics), [at("no type `Gauge`", 1)]);
+  assert_eq!(view.elements[0].attached.len(), 1);
+}
+
+// An owner without the property, an owner that wasn't found, a value with a problem and a
+// property set twice are each reported, and nothing is kept for them.
+#[test]
+fn attached_problems_are_reported() {
+  let missing_owner = Member::Attached {
+    owner: Err(Diagnostic::error(span(20, 21), "no type `Dock`").into()),
+    name: "Side".to_owned(),
+    span: span(20, 21),
+    value: Ok(Text {
+      text: "Left".to_owned(),
+      span: span(21, 22),
+    }),
+  };
+  let bad_value = Member::Attached {
+    owner: Ok(TypeUse {
+      info: &RACK,
+      module: None,
+      span: span(30, 31),
+    }),
+    name: "Tag".to_owned(),
+    span: span(30, 31),
+    value: Err(Diagnostic::error(span(31, 32), "value objects come with #57").into()),
+  };
+  let document = Document {
+    root: element(
+      &IMAGE,
+      0,
+      vec![
+        attached(&RACK, "Bogus", 10, "1"),
+        missing_owner,
+        bad_value,
+        attached(&RACK, "Tag", 40, "a"),
+        attached(&RACK, "Tag", 50, "b"),
+      ],
+    ),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  assert_eq!(
+    reported(&diagnostics),
+    [
+      at("`Rack` has no attached property `Bogus`", 10),
+      at("no type `Dock`", 20),
+      at("value objects come with #57", 31),
+      at("`Rack.Tag` is set twice", 51),
+    ]
+  );
+  assert_eq!(view.elements[0].attached.len(), 1);
+}
+
+// Two different attached properties of one owner on one element are both kept: only the same
+// property twice is "set twice".
+#[test]
+fn two_attached_properties_of_one_owner_are_both_kept() {
+  let child = element(
+    &IMAGE,
+    20,
+    vec![attached(&RACK, "Slot", 30, "1"), attached(&RACK, "Tag", 40, "a")],
+  );
+  let document = Document {
+    root: element(&RACK, 0, vec![content(10, vec![Content::Element(child)])]),
+  };
+
+  let (view, diagnostics) = check(&document);
+
+  assert_eq!(reported(&diagnostics), []);
+  let names: Vec<&str> = view.elements[0].attached.iter().map(|set| set.info.name).collect();
+  assert_eq!(names, ["Slot", "Tag"]);
 }
