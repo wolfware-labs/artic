@@ -53,6 +53,7 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
   use super::*;
+  use crate::collection::tests::Leaf;
 
   /// What the loader would do with a property of a registry test: nothing, since those tests
   /// never load a view.
@@ -63,20 +64,12 @@ pub(crate) mod tests {
     clear: |_, _, _| Err(ValueError::WrongNode),
   };
 
-  /// A node with no properties.
-  #[derive(Debug)]
-  struct Plain;
-
-  impl artic_core::Object for Plain {
-    fn visit_properties(&self, _visitor: &mut artic_core::property::PropertyVisitor<'_>) {}
-  }
-
   // The registry tests' hand-written properties refuse every write, so a test that reached the
   // loader by mistake would fail instead of writing a node.
   #[test]
   fn the_test_access_refuses_every_write() {
     let mut tree = UiTree::new();
-    let node = tree.alloc(Box::new(Plain));
+    let node = tree.alloc(Box::new(Leaf));
 
     assert_eq!(
       (UNWRITTEN.set_text)(&mut tree, node, "1", Precedence::Local),

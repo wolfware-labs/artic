@@ -93,14 +93,15 @@ pub fn type_names(types: &[&TypeInfo]) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use super::*;
   use crate::Whitespace;
   use artic_core::property::PropertyVisitor;
   use pretty_assertions::assert_eq;
 
+  /// A node with no properties, for the crate's tests that need any node.
   #[derive(Debug)]
-  struct Leaf;
+  pub(crate) struct Leaf;
 
   impl Object for Leaf {
     fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}

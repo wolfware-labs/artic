@@ -135,22 +135,14 @@ impl Registry {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::collection::tests::Leaf;
   use crate::{AttachedTarget, PropertyGroupInfo, PropertyInfo, Whitespace};
-  use artic_core::Object;
   use artic_core::property::Affects;
-  use artic_core::property::PropertyVisitor;
   use artic_core::tree::{NodeId, UiTree};
   use pretty_assertions::assert_eq;
 
-  #[derive(Debug)]
-  struct Node;
-
-  impl Object for Node {
-    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
-  }
-
   fn new_node(tree: &mut UiTree) -> NodeId {
-    tree.alloc(Box::new(Node))
+    tree.alloc(Box::new(Leaf))
   }
 
   /// Returns a descriptor with no properties, events or attached properties.
@@ -158,7 +150,7 @@ mod tests {
     TypeInfo {
       name,
       rust_path,
-      is: crate::is_a::<Node>,
+      is: crate::is_a::<Leaf>,
       new: Some(new_node),
       content: None,
       properties: &[],

@@ -50,6 +50,7 @@ pub enum ValueError {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::collection::tests::Leaf;
 
   // Null is refused in the registry's words, which no UI language owns.
   #[test]
@@ -81,12 +82,5 @@ mod tests {
       error.source().map(ToString::to_string),
       Some(LinkError::NotInTree(id).to_string())
     );
-  }
-
-  #[derive(Debug)]
-  struct Leaf;
-
-  impl artic_core::Object for Leaf {
-    fn visit_properties(&self, _visitor: &mut artic_core::property::PropertyVisitor<'_>) {}
   }
 }
