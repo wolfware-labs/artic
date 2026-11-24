@@ -1,43 +1,35 @@
 #!/usr/bin/env bash
-# Fails when an `actions/checkout` step under .github keeps the job's token in .git/config: every
-# checkout sets `persist-credentials: false`, so no later step, build scripts and tests included,
-# can read it.
+# Fails when an `actions/checkout` step keeps the job's token in .git/config: every checkout sets
+# `persist-credentials: false` under `with:`, so no later step, build scripts and tests included,
+# can read it. Reads every YAML file under .github, or the files given, with yq (mikefarah).
 set -uo pipefail
 cd "$(dirname "$0")/.."
-files=$(git ls-files -- '.github/*.yml' '.github/*.yaml')
-status=$?
-if [ "$status" -ne 0 ]; then
-  echo "git ls-files failed with status $status"
-  exit "$status"
+if [ "$#" -gt 0 ]; then
+  paths=("$@")
+else
+  # `:(glob)` keeps `**` meaning any depth whatever GIT_*_PATHSPECS says.
+  files=$(git ls-files -- ':(glob).github/**/*.yml' ':(glob).github/**/*.yaml')
+  status=$?
+  if [ "$status" -ne 0 ]; then
+    echo "git ls-files failed with status $status"
+    exit "$status"
+  fi
+  if [ -z "$files" ]; then
+    echo "git ls-files found no YAML file under .github"
+    exit 2
+  fi
+  IFS=$'\n' read -r -d '' -a paths <<<"$files"
 fi
-if [ -z "$files" ]; then
-  echo "git ls-files found no YAML file under .github"
-  exit 2
-fi
-IFS=$'\n' read -r -d '' -a paths <<<"$files"
-# A step runs from its `- ` line to the next line indented no deeper than that dash.
-hits=$(awk '
-  function indent(s) { match(s, /^ */); return RLENGTH }
-  function close_step() {
-    if (open && !persisted) print where
-    open = 0
-  }
-  FNR == 1 { close_step(); dash = -1 }
-  /^[[:space:]]*$/ || /^[[:space:]]*#/ { next }
-  {
-    i = indent($0)
-    if (open && i <= step) close_step()
-    if ($0 ~ /^ *- /) dash = i
-  }
-  /^ *(- )?uses: ["\047]?actions\/checkout@/ {
-    open = 1; persisted = 0; step = dash; where = FILENAME ":" FNR
-  }
-  open && /^ *persist-credentials: false *(#.*)?$/ { persisted = 1 }
-  END { close_step() }
+# A step is a map with `uses`; GitHub matches owner and repository without regard to case.
+hits=$(yq eval --header-preprocess=false --no-doc '
+  .. | select(tag == "!!map" and has("uses"))
+  | select(.uses | tostring | test("(?i)^actions/checkout@"))
+  | select((.with."persist-credentials" | tostring | downcase) != "false")
+  | filename + ":" + (line | tostring)
 ' "${paths[@]}")
 status=$?
 if [ "$status" -ne 0 ]; then
-  echo "awk failed with status $status"
+  echo "yq failed with status $status"
   exit "$status"
 fi
 if [ -n "$hits" ]; then
@@ -45,3 +37,4 @@ if [ -n "$hits" ]; then
   echo "$hits"
   exit 1
 fi
+exit 0

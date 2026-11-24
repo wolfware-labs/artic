@@ -397,9 +397,12 @@ jobs:
       - name: UI-language neutral
         if: ${{ !cancelled() }}
         run: scripts/check-ui-neutral.sh
+      # The runner image ships yq (mikefarah), which the check reads the workflows with.
       - name: Checkout credentials
         if: ${{ !cancelled() }}
-        run: scripts/check-checkout-credentials.sh
+        run: |
+          scripts/test-check-checkout-credentials.sh
+          scripts/check-checkout-credentials.sh
       - name: Clippy
         if: ${{ !cancelled() }}
         run: cargo clippy --workspace --all-targets -- -D warnings

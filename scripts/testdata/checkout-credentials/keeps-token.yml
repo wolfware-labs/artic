@@ -1,0 +1,33 @@
+# Every checkout here keeps the token; the check names each line marked `flagged`.
+jobs:
+  plain:
+    steps:
+      - uses: actions/checkout@v7 # flagged
+      -   uses: actions/checkout@v7 # flagged
+      - uses:  actions/checkout@v7 # flagged
+      - uses: Actions/Checkout@v7 # flagged
+      - {uses: actions/checkout@v7} # flagged
+  wrong-place:
+    steps:
+      - uses: actions/checkout@v7 # flagged
+        env:
+          persist-credentials: false
+      - uses: actions/checkout@v7 # flagged
+        with:
+          path: |
+            persist-credentials: false
+      - uses: actions/checkout@v7 # flagged
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v7 # flagged
+        with:
+          persist-credentials: true
+      - uses: actions/checkout@v7 # flagged
+      - uses: other/action@v1
+        with:
+          persist-credentials: false
+runs:
+  using: composite
+  steps:
+    - name: A composite action's checkout # flagged
+      uses: actions/checkout@v7
