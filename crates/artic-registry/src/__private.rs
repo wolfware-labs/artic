@@ -36,17 +36,12 @@ const AN_ELEMENT: &str = "an element";
 /// How a property's thunks turn what the loader holds into the value type `V`. The value check
 /// returns it, so a property whose type can't be written in a UI language fails at that one check,
 /// and its thunks report the same error at the same place.
+#[derive(Debug)]
 pub struct ValueOps<V> {
   /// Parses text, or says it didn't parse as `expected`.
   pub parse: fn(&str, &'static str) -> std::result::Result<V, ValueError>,
   /// Takes a node as the value, or refuses it.
   pub node: fn(NodeId, &'static str) -> std::result::Result<V, ValueError>,
-}
-
-impl<V> Debug for ValueOps<V> {
-  fn fmt(&self, formatter: &mut Formatter<'_>) -> Result {
-    formatter.write_str("ValueOps")
-  }
 }
 
 /// Refuses a node: the value is text or an object.

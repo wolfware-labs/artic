@@ -4,7 +4,6 @@
 use crate::ValueError;
 use artic_core::property::{Precedence, Property, PropertyKey};
 use artic_core::tree::{NodeId, UiTree};
-use std::fmt::{self, Debug, Formatter};
 
 /// The functions that write one property. Their signatures name no value type and their bodies are
 /// typed: `#[derive(UiType)]` and `#[derive(UiProperties)]` write them for each property, and each
@@ -23,6 +22,7 @@ use std::fmt::{self, Debug, Formatter};
 /// `Precedence::Inherited`, which the tree fills, and for `clear` also `Precedence::Default`, which a
 /// property always has, as [`Property::set_at`] and [`Property::clear`] do. One that refuses its
 /// value first returns the error instead. A loader passes `Local` or `StyleSetter`.
+#[derive(Debug)]
 pub struct PropertyAccess {
   /// Parses `text` with the value type's `FromStr` and sets the value at `level`. For a
   /// `Property<Option<V>>` it parses a `V`.
@@ -36,12 +36,6 @@ pub struct PropertyAccess {
   pub set_null: fn(&mut UiTree, NodeId, Precedence) -> Result<(), ValueError>,
   /// Empties `level`, when a style stops matching or a reload removes the value.
   pub clear: fn(&mut UiTree, NodeId, Precedence) -> Result<(), ValueError>,
-}
-
-impl Debug for PropertyAccess {
-  fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-    formatter.debug_struct("PropertyAccess").finish_non_exhaustive()
-  }
 }
 
 /// `node`'s property of the kind `key`, or [`ValueError::WrongNode`] when the node has none or is no
@@ -68,4 +62,37 @@ pub(crate) mod tests {
     set_null: |_, _, _| Err(ValueError::WrongNode),
     clear: |_, _, _| Err(ValueError::WrongNode),
   };
+
+  /// A node with no properties.
+  #[derive(Debug)]
+  struct Plain;
+
+  impl artic_core::Object for Plain {
+    fn visit_properties(&self, _visitor: &mut artic_core::property::PropertyVisitor<'_>) {}
+  }
+
+  // The registry tests' hand-written properties refuse every write, so a test that reached the
+  // loader by mistake would fail instead of writing a node.
+  #[test]
+  fn the_test_access_refuses_every_write() {
+    let mut tree = UiTree::new();
+    let node = tree.alloc(Box::new(Plain));
+
+    assert_eq!(
+      (UNWRITTEN.set_text)(&mut tree, node, "1", Precedence::Local),
+      Err(ValueError::WrongNode)
+    );
+    assert_eq!(
+      (UNWRITTEN.set_node)(&mut tree, node, node, Precedence::Local),
+      Err(ValueError::WrongNode)
+    );
+    assert_eq!(
+      (UNWRITTEN.set_null)(&mut tree, node, Precedence::Local),
+      Err(ValueError::WrongNode)
+    );
+    assert_eq!(
+      (UNWRITTEN.clear)(&mut tree, node, Precedence::Local),
+      Err(ValueError::WrongNode)
+    );
+  }
 }
