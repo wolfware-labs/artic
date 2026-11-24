@@ -9,8 +9,8 @@ use artic_element::{Child, Children};
 use artic_macros::{UiProperties, UiType};
 use artic_registry as registry_alias;
 use artic_registry::{
-  AttachedTarget, ContentInfo, ContentMethod, OverrideDefaults, PropertyGroup, PropertyRef, Registry, TypeInfo, UiCollection,
-  UiType, ValueError, Whitespace,
+  AttachedTarget, ContentInfo, ContentMethod, OverrideDefaults, PropertyAccess, PropertyGroup, PropertyRef, Registry, TypeInfo,
+  UiCollection, UiType, ValueError, Whitespace,
 };
 use pretty_assertions::assert_eq;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -834,4 +834,239 @@ fn required_field_is_an_argument_of_new() {
     (7, 3.0, "ada", 0)
   );
   assert!(Login::TYPE_INFO.new.is_none());
+}
+
+/// The loader's access to `property` of `type_info`, an own property or a group's.
+fn access_of(type_info: &'static TypeInfo, property: &str) -> &'static PropertyAccess {
+  type_info.property(property).expect("the property is registered").info.access
+}
+
+// Text parses with the value type's `FromStr` and lands at the level the loader passes.
+#[test]
+fn set_text_parses_and_sets_at_the_level() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Border::default()));
+  let padding = access_of(Border::TYPE_INFO, "Padding");
+
+  (padding.set_text)(&mut tree, node, "4", Precedence::StyleSetter).expect("4 is a Thickness");
+
+  let border = tree.get_as::<Border>(node).expect("a Border node");
+  assert_eq!(border.padding.get(), Thickness(4.0));
+  assert_eq!(border.padding.effective_source(), Precedence::StyleSetter);
+}
+
+// A `Property<Option<V>>` parses a `V` from text and holds `Some` of it.
+#[test]
+fn set_text_on_an_optional_property_sets_some() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Border::default()));
+
+  (access_of(Border::TYPE_INFO, "Background").set_text)(&mut tree, node, "#3B82F6", Precedence::Local).expect("any text");
+
+  let border = tree.get_as::<Border>(node).expect("a Border node");
+  assert_eq!(border.background.get(), Some(Brush("#3B82F6".to_owned())));
+}
+
+// Text that doesn't parse is refused with the value type and the parser's message, and leaves
+// the property as it was.
+#[test]
+fn set_text_reports_what_did_not_parse() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Border::default()));
+
+  let error = (access_of(Border::TYPE_INFO, "Padding").set_text)(&mut tree, node, "wide", Precedence::Local)
+    .expect_err("wide isn't a number");
+
+  assert_eq!(
+    error,
+    ValueError::Parse {
+      expected: "Thickness",
+      message: "invalid float literal".to_owned(),
+    }
+  );
+  assert_eq!(
+    tree.get_as::<Border>(node).map(|border| border.padding.get()),
+    Some(Thickness::ZERO)
+  );
+}
+
+// A node is the value of a property that holds one, and refused by a property of another type.
+#[test]
+fn set_node_takes_a_node_only_where_the_value_is_one() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Border::default()));
+  let child = tree.alloc(Box::new(Border::default()));
+
+  (access_of(Border::TYPE_INFO, "Child").set_node)(&mut tree, node, child, Precedence::Local).expect("a node property");
+  let refused = (access_of(Border::TYPE_INFO, "Padding").set_node)(&mut tree, node, child, Precedence::Local);
+
+  assert_eq!(
+    tree.get_as::<Border>(node).map(|border| border.child.get()),
+    Some(Some(child))
+  );
+  assert_eq!(
+    refused,
+    Err(ValueError::WrongType {
+      expected: "Thickness",
+      found: "an element",
+    })
+  );
+}
+
+// Text is refused by a property whose value is a node.
+#[test]
+fn set_text_on_a_node_property_is_refused() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Border::default()));
+
+  let refused = (access_of(Border::TYPE_INFO, "Child").set_text)(&mut tree, node, "x", Precedence::Local);
+
+  assert_eq!(
+    refused,
+    Err(ValueError::WrongType {
+      expected: "NodeId",
+      found: "text",
+    })
+  );
+}
+
+// Only a `Property<Option<T>>` can be set to null, overriding a lower level's value; another
+// property refuses null by its name.
+#[test]
+fn set_null_takes_only_optional_properties() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Border::default()));
+  let background = access_of(Border::TYPE_INFO, "Background");
+  (background.set_text)(&mut tree, node, "red", Precedence::StyleSetter).expect("any text");
+
+  (background.set_null)(&mut tree, node, Precedence::Local).expect("an optional property");
+  let refused = (access_of(Border::TYPE_INFO, "Padding").set_null)(&mut tree, node, Precedence::Local);
+
+  assert_eq!(tree.get_as::<Border>(node).map(|border| border.background.get()), Some(None));
+  assert_eq!(refused, Err(ValueError::NotNullable { property: "Padding" }));
+}
+
+// Clearing a level lets the next one show again, as when a style stops matching.
+#[test]
+fn clear_empties_one_level() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Border::default()));
+  let padding = access_of(Border::TYPE_INFO, "Padding");
+  (padding.set_text)(&mut tree, node, "8", Precedence::StyleSetter).expect("8 is a Thickness");
+  (padding.set_text)(&mut tree, node, "2", Precedence::Local).expect("2 is a Thickness");
+
+  (padding.clear)(&mut tree, node, Precedence::Local).expect("the node is a Border");
+
+  assert_eq!(
+    tree.get_as::<Border>(node).map(|border| border.padding.get()),
+    Some(Thickness(8.0))
+  );
+}
+
+// A group's property has one access, which writes it on every type that flattens the group.
+#[test]
+fn a_group_property_is_written_on_every_owner() {
+  let mut tree = UiTree::new();
+  let widget = tree.alloc(Box::new(Widget::default()));
+  let gadget = tree.alloc(Box::new(Gadget::default()));
+  let margin = access_of(Widget::TYPE_INFO, "Margin");
+  assert!(std::ptr::eq(margin, access_of(Gadget::TYPE_INFO, "Margin")));
+
+  (margin.set_text)(&mut tree, widget, "3", Precedence::Local).expect("a Widget holds Common");
+  (margin.set_text)(&mut tree, gadget, "5", Precedence::Local).expect("a Gadget holds Common");
+
+  assert_eq!(
+    tree.get_as::<Widget>(widget).map(|widget| widget.common.margin.get()),
+    Some(3)
+  );
+  assert_eq!(
+    tree.get_as::<Gadget>(gadget).map(|gadget| gadget.common.margin.get()),
+    Some(5)
+  );
+}
+
+// A node without the property, such as one of another type, is refused and left as it was.
+#[test]
+fn a_node_without_the_property_is_the_wrong_node() {
+  let mut tree = UiTree::new();
+  let widget = tree.alloc(Box::new(Widget::default()));
+  let padding = access_of(Border::TYPE_INFO, "Padding");
+
+  assert_eq!(
+    (padding.set_text)(&mut tree, widget, "4", Precedence::Local),
+    Err(ValueError::WrongNode)
+  );
+  assert_eq!(
+    (padding.clear)(&mut tree, widget, Precedence::Local),
+    Err(ValueError::WrongNode)
+  );
+}
+
+// A node freed before the loader writes it is the wrong node too: markup never panics the loader.
+#[test]
+fn a_freed_node_is_the_wrong_node() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Border::default()));
+  tree.free(node);
+
+  let refused = (access_of(Border::TYPE_INFO, "Padding").set_text)(&mut tree, node, "4", Precedence::Local);
+
+  assert_eq!(refused, Err(ValueError::WrongNode));
+}
+
+/// A UI type used as another type's property value, as a value object will be.
+#[derive(Debug, PartialEq, UiType)]
+struct Badge;
+
+/// A type whose property holds a `Badge`.
+#[derive(Debug, UiType)]
+struct Holder {
+  #[ui]
+  badge: Property<Badge>,
+}
+
+// A property whose value is a UI type is written as an object, so it refuses text and a node.
+#[test]
+fn a_ui_type_value_refuses_text_and_a_node() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Holder::default()));
+  let child = tree.alloc(Box::new(Border::default()));
+  let badge = access_of(Holder::TYPE_INFO, "Badge");
+
+  let text = (badge.set_text)(&mut tree, node, "x", Precedence::Local);
+  let element = (badge.set_node)(&mut tree, node, child, Precedence::Local);
+
+  assert_eq!(
+    text,
+    Err(ValueError::WrongType {
+      expected: "Badge",
+      found: "text"
+    })
+  );
+  assert_eq!(
+    element,
+    Err(ValueError::WrongType {
+      expected: "Badge",
+      found: "an element"
+    })
+  );
+}
+
+// A value that can't be taken is reported before the node is looked at, so the error names the
+// value even on a node that is gone.
+#[test]
+fn a_refused_value_is_reported_before_the_node() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Border::default()));
+  tree.free(node);
+
+  let text = (access_of(Border::TYPE_INFO, "Padding").set_text)(&mut tree, node, "wide", Precedence::Local);
+
+  assert_eq!(
+    text,
+    Err(ValueError::Parse {
+      expected: "Thickness",
+      message: "invalid float literal".to_owned(),
+    })
+  );
 }

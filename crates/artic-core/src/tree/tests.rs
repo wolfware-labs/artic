@@ -8,6 +8,7 @@ mod links;
 mod node_map;
 mod objects;
 mod outside;
+mod property;
 mod structure;
 mod wiring;
 

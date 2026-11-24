@@ -93,6 +93,41 @@ const _: () = {
             affects: (&__KEY_WIDTH).affects(),
             inherits: (&__KEY_WIDTH).inherits(),
             literal: __artic::literal!(f32),
+            access: &__artic::PropertyAccess {
+                set_text: |tree, node, text, level| {
+                    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+                    __artic::set_property(
+                        tree,
+                        node,
+                        (&__KEY_WIDTH),
+                        level,
+                        ((&&__artic::ValueCheck::<f32>(__artic::PhantomData))
+                            .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                            .parse)(text, ::core::stringify!(f32))?,
+                    )
+                },
+                set_node: |tree, node, child, level| {
+                    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+                    __artic::set_property(
+                        tree,
+                        node,
+                        (&__KEY_WIDTH),
+                        level,
+                        ((&&__artic::ValueCheck::<f32>(__artic::PhantomData))
+                            .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                            .node)(child, ::core::stringify!(f32))?,
+                    )
+                },
+                set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
+                    property: (&__KEY_WIDTH).name(),
+                }),
+                clear: |tree, node, level| __artic::clear_property(
+                    tree,
+                    node,
+                    (&__KEY_WIDTH),
+                    level,
+                ),
+            },
         },
         __artic::PropertyInfo {
             name: (&__KEY_ENABLED).name(),
@@ -101,6 +136,41 @@ const _: () = {
             affects: (&__KEY_ENABLED).affects(),
             inherits: (&__KEY_ENABLED).inherits(),
             literal: __artic::literal!(bool),
+            access: &__artic::PropertyAccess {
+                set_text: |tree, node, text, level| {
+                    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+                    __artic::set_property(
+                        tree,
+                        node,
+                        (&__KEY_ENABLED),
+                        level,
+                        ((&&__artic::ValueCheck::<bool>(__artic::PhantomData))
+                            .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                            .parse)(text, ::core::stringify!(bool))?,
+                    )
+                },
+                set_node: |tree, node, child, level| {
+                    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+                    __artic::set_property(
+                        tree,
+                        node,
+                        (&__KEY_ENABLED),
+                        level,
+                        ((&&__artic::ValueCheck::<bool>(__artic::PhantomData))
+                            .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                            .node)(child, ::core::stringify!(bool))?,
+                    )
+                },
+                set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
+                    property: (&__KEY_ENABLED).name(),
+                }),
+                clear: |tree, node, level| __artic::clear_property(
+                    tree,
+                    node,
+                    (&__KEY_ENABLED),
+                    level,
+                ),
+            },
         },
         __artic::PropertyInfo {
             name: SHARED.key().name(),
@@ -109,6 +179,41 @@ const _: () = {
             affects: SHARED.key().affects(),
             inherits: SHARED.key().inherits(),
             literal: __artic::literal!(i32),
+            access: &__artic::PropertyAccess {
+                set_text: |tree, node, text, level| {
+                    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+                    __artic::set_property(
+                        tree,
+                        node,
+                        SHARED.key(),
+                        level,
+                        ((&&__artic::ValueCheck::<i32>(__artic::PhantomData))
+                            .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                            .parse)(text, ::core::stringify!(i32))?,
+                    )
+                },
+                set_node: |tree, node, child, level| {
+                    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+                    __artic::set_property(
+                        tree,
+                        node,
+                        SHARED.key(),
+                        level,
+                        ((&&__artic::ValueCheck::<i32>(__artic::PhantomData))
+                            .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                            .node)(child, ::core::stringify!(i32))?,
+                    )
+                },
+                set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
+                    property: SHARED.key().name(),
+                }),
+                clear: |tree, node, level| __artic::clear_property(
+                    tree,
+                    node,
+                    SHARED.key(),
+                    level,
+                ),
+            },
         },
         __artic::PropertyInfo {
             name: (&__KEY_TEXT).name(),
@@ -117,6 +222,49 @@ const _: () = {
             affects: (&__KEY_TEXT).affects(),
             inherits: (&__KEY_TEXT).inherits(),
             literal: __artic::literal!(String),
+            access: &__artic::PropertyAccess {
+                set_text: |tree, node, text, level| {
+                    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+                    __artic::set_property(
+                        tree,
+                        node,
+                        (&__KEY_TEXT),
+                        level,
+                        ::core::option::Option::Some(
+                            ((&&__artic::ValueCheck::<String>(__artic::PhantomData))
+                                .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                                .parse)(text, ::core::stringify!(String))?,
+                        ),
+                    )
+                },
+                set_node: |tree, node, child, level| {
+                    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+                    __artic::set_property(
+                        tree,
+                        node,
+                        (&__KEY_TEXT),
+                        level,
+                        ::core::option::Option::Some(
+                            ((&&__artic::ValueCheck::<String>(__artic::PhantomData))
+                                .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                                .node)(child, ::core::stringify!(String))?,
+                        ),
+                    )
+                },
+                set_null: |tree, node, level| __artic::set_property(
+                    tree,
+                    node,
+                    (&__KEY_TEXT),
+                    level,
+                    ::core::option::Option::None,
+                ),
+                clear: |tree, node, level| __artic::clear_property(
+                    tree,
+                    node,
+                    (&__KEY_TEXT),
+                    level,
+                ),
+            },
         },
     ];
     static __EVENTS: [__artic::EventInfo; 1usize] = [

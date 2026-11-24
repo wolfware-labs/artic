@@ -50,7 +50,7 @@ use crate::Object;
 use crate::arena::SlotId;
 use crate::arena::SlotMap;
 use crate::object::for_each_property;
-use crate::property::{Affects, AnyProperty, AttachedKey, KeyId, Property};
+use crate::property::{Affects, AnyProperty, AttachedKey, KeyId, Property, PropertyKey};
 use crate::reactive::SignalId;
 use attached::AttachedValues;
 use dirty::DirtyFlags;
@@ -967,6 +967,54 @@ impl UiTree {
     property
   }
 
+  /// Returns `node`'s property of the kind `key`: its field of that kind, else its attached value,
+  /// or `None` when it has neither. Reading never stores anything on the node.
+  ///
+  /// It reaches a property without knowing the node's type, so code that has only a key, such as
+  /// a UI language's runtime loader, writes the same property whichever type declared it.
+  ///
+  /// # Panics
+  ///
+  /// Panics if `node` is stale.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use artic_core::Object;
+  /// use artic_core::property::{Affects, Inheritance, Precedence, Property, PropertyKey, PropertyVisitor};
+  /// use artic_core::tree::UiTree;
+  ///
+  /// static WIDTH: PropertyKey<f32> = PropertyKey::new("Width", Affects::LAYOUT, Inheritance::None);
+  /// static HEIGHT: PropertyKey<f32> = PropertyKey::new("Height", Affects::LAYOUT, Inheritance::None);
+  ///
+  /// #[derive(Debug)]
+  /// struct Panel {
+  ///   width: Property<f32>,
+  /// }
+  /// impl Object for Panel {
+  ///   fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>) {
+  ///     visitor.visit(&self.width);
+  ///   }
+  /// }
+  ///
+  /// let mut tree = UiTree::new();
+  /// let panel = tree.alloc(Box::new(Panel { width: Property::new(&WIDTH, 0.0) }));
+  ///
+  /// tree.property(panel, &WIDTH).expect("a field of that kind").set_at(Precedence::Local, 120.0);
+  /// assert_eq!(tree.get_as::<Panel>(panel).map(|panel| panel.width.get()), Some(120.0));
+  /// assert!(tree.property(panel, &HEIGHT).is_none());
+  /// ```
+  #[track_caller]
+  #[must_use]
+  pub fn property<T>(&self, node: NodeId, key: &'static PropertyKey<T>) -> Option<Property<T>>
+  where
+    T: PartialEq + 'static,
+  {
+    inheritance::with_property(&self.objects, &self.attached_values, node, KeyId::of(key), |property| {
+      *property.downcast::<T>().expect("a key's property has the key's value type")
+    })
+  }
+
   /// Panics if `id` is stale: every edit checks its nodes before it reaches their parts.
   #[track_caller]
   fn check(&self, id: NodeId) {
@@ -1090,9 +1138,7 @@ impl UiTree {
   where
     T: PartialEq + 'static,
   {
-    inheritance::with_property(&self.objects, &self.attached_values, node, KeyId::of(key.key()), |property| {
-      *property.downcast::<T>().expect("a key's property has the key's value type")
-    })
+    self.property(node, key.key())
   }
 }
 

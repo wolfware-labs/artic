@@ -37,6 +37,41 @@ const _: () = {
             affects: (&__KEY_WIDTH).affects(),
             inherits: (&__KEY_WIDTH).inherits(),
             literal: __artic::literal!(f32),
+            access: &__artic::PropertyAccess {
+                set_text: |tree, node, text, level| {
+                    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+                    __artic::set_property(
+                        tree,
+                        node,
+                        (&__KEY_WIDTH),
+                        level,
+                        ((&&__artic::ValueCheck::<f32>(__artic::PhantomData))
+                            .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                            .parse)(text, ::core::stringify!(f32))?,
+                    )
+                },
+                set_node: |tree, node, child, level| {
+                    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+                    __artic::set_property(
+                        tree,
+                        node,
+                        (&__KEY_WIDTH),
+                        level,
+                        ((&&__artic::ValueCheck::<f32>(__artic::PhantomData))
+                            .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                            .node)(child, ::core::stringify!(f32))?,
+                    )
+                },
+                set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
+                    property: (&__KEY_WIDTH).name(),
+                }),
+                clear: |tree, node, level| __artic::clear_property(
+                    tree,
+                    node,
+                    (&__KEY_WIDTH),
+                    level,
+                ),
+            },
         },
         __artic::PropertyInfo {
             name: (&__KEY_MARGIN).name(),
@@ -45,6 +80,41 @@ const _: () = {
             affects: (&__KEY_MARGIN).affects(),
             inherits: (&__KEY_MARGIN).inherits(),
             literal: __artic::literal!(Thickness),
+            access: &__artic::PropertyAccess {
+                set_text: |tree, node, text, level| {
+                    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+                    __artic::set_property(
+                        tree,
+                        node,
+                        (&__KEY_MARGIN),
+                        level,
+                        ((&&__artic::ValueCheck::<Thickness>(__artic::PhantomData))
+                            .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                            .parse)(text, ::core::stringify!(Thickness))?,
+                    )
+                },
+                set_node: |tree, node, child, level| {
+                    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+                    __artic::set_property(
+                        tree,
+                        node,
+                        (&__KEY_MARGIN),
+                        level,
+                        ((&&__artic::ValueCheck::<Thickness>(__artic::PhantomData))
+                            .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                            .node)(child, ::core::stringify!(Thickness))?,
+                    )
+                },
+                set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
+                    property: (&__KEY_MARGIN).name(),
+                }),
+                clear: |tree, node, level| __artic::clear_property(
+                    tree,
+                    node,
+                    (&__KEY_MARGIN),
+                    level,
+                ),
+            },
         },
     ];
     impl Layout {

@@ -1,4 +1,4 @@
-use crate::ValueError;
+use crate::{PropertyAccess, ValueError};
 use artic_core::property::{Affects, PropertyVisitor};
 use artic_core::tree::{NodeId, UiTree};
 use artic_core::{Object, RustExpr};
@@ -136,6 +136,8 @@ pub struct PropertyInfo {
   /// what the builder method takes. `Some` only when this crate's `literals` feature is on, which
   /// a build-time code generator turns on; an app's registry holds `None`.
   pub literal: Option<WriteLiteral>,
+  /// How a UI language's runtime loader writes the property.
+  pub access: &'static PropertyAccess,
 }
 
 /// Parses a property's text and writes the Rust expression that builds the value, or returns why
@@ -333,6 +335,7 @@ mod tests {
       affects: PADDING.affects(),
       inherits: PADDING.inherits(),
       literal: None,
+      access: &crate::access::tests::UNWRITTEN,
     }],
     groups: &[],
     events: &[EventInfo {

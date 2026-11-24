@@ -5,13 +5,13 @@ use std::str::FromStr;
 
 pub use crate::{
   ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, EventInfo, HasGroup, OverrideDefaults,
-  PropertyGroup, PropertyGroupInfo, PropertyInfo, PropertyRef, RustExpr, ToRust, TypeInfo, UiCollection, UiType, ValueError,
-  ValueProviderInfo, Whitespace, WithChildren, check_child, is_a, register_type,
+  PropertyAccess, PropertyGroup, PropertyGroupInfo, PropertyInfo, PropertyRef, RustExpr, ToRust, TypeInfo, UiCollection,
+  UiType, ValueError, ValueProviderInfo, Whitespace, WithChildren, check_child, is_a, register_type,
 };
 pub use artic_core::Object;
 pub use artic_core::event::Event;
 pub use artic_core::property::{
-  Affects, AttachedKey, Inheritance, ParseEnumError, Property, PropertyKey, PropertyVisitor, SharedKey, inherit,
+  Affects, AttachedKey, Inheritance, ParseEnumError, Precedence, Property, PropertyKey, PropertyVisitor, SharedKey, inherit,
 };
 pub use artic_core::tree::{Handle, NodeId, UiTree};
 pub use std::marker::PhantomData;
@@ -28,9 +28,42 @@ impl<T> Debug for ValueCheck<T> {
 /// What `literal` returns for a property whose value is an element.
 const TAKES_AN_ELEMENT: &str = "this property takes an element, not text";
 
+/// What a property's thunks say they were given as text, for [`ValueError::WrongType`].
+const TEXT: &str = "text";
+/// What a property's thunks say they were given as a node, for [`ValueError::WrongType`].
+const AN_ELEMENT: &str = "an element";
+
+/// How a property's thunks turn what the loader holds into the value type `V`. The value check
+/// returns it, so a property whose type can't be written in a UI language fails at that one check,
+/// and its thunks report the same error at the same place.
+#[derive(Debug)]
+pub struct ValueOps<V> {
+  /// Parses text, or says it didn't parse as `expected`.
+  pub parse: fn(&str, &'static str) -> std::result::Result<V, ValueError>,
+  /// Takes a node as the value, or refuses it.
+  pub node: fn(NodeId, &'static str) -> std::result::Result<V, ValueError>,
+}
+
+/// Refuses a node: the value is text or an object.
+fn not_a_node<V>(_node: NodeId, expected: &'static str) -> std::result::Result<V, ValueError> {
+  Err(ValueError::WrongType {
+    expected,
+    found: AN_ELEMENT,
+  })
+}
+
+/// Refuses text: the value is an element.
+fn not_text<V>(_text: &str, expected: &'static str) -> std::result::Result<V, ValueError> {
+  Err(ValueError::WrongType { expected, found: TEXT })
+}
+
 /// The value type can be written as text, and written back as Rust.
 pub trait ViaFromStr {
-  fn value_must_parse_from_text_and_implement_torust_or_derive_uitype(&self) {}
+  /// The property's value type.
+  type Value;
+
+  /// Compiles only for a value type a UI language can write, and gives the thunks' conversions.
+  fn value_must_parse_from_text_and_implement_torust_or_derive_uitype(&self) -> ValueOps<Self::Value>;
 
   /// Parses `text` and writes the value it gives.
   fn write_literal(&self, text: &str, out: &mut RustExpr) -> std::result::Result<(), String>;
@@ -41,6 +74,20 @@ where
   T: FromStr + ToRust,
   T::Err: Display,
 {
+  type Value = T;
+
+  fn value_must_parse_from_text_and_implement_torust_or_derive_uitype(&self) -> ValueOps<T> {
+    ValueOps {
+      parse: |text, expected| {
+        text.parse().map_err(|error: T::Err| ValueError::Parse {
+          expected,
+          message: error.to_string(),
+        })
+      },
+      node: not_a_node,
+    }
+  }
+
   fn write_literal(&self, text: &str, out: &mut RustExpr) -> std::result::Result<(), String> {
     let value: T = text.parse().map_err(|error: T::Err| error.to_string())?;
     value.to_rust(out);
@@ -50,7 +97,17 @@ where
 
 /// The value type is itself a UI type, written as an object.
 pub trait ViaUiType {
-  fn value_must_parse_from_text_and_implement_torust_or_derive_uitype(&self) {}
+  /// The property's value type.
+  type Value;
+
+  /// Compiles only for a value type a UI language can write. Text and a node are both refused:
+  /// the value is an object, which the loader moves in as one.
+  fn value_must_parse_from_text_and_implement_torust_or_derive_uitype(&self) -> ValueOps<Self::Value> {
+    ValueOps {
+      parse: not_text,
+      node: not_a_node,
+    }
+  }
 
   /// Refuses text: the value is an element.
   fn write_literal(&self, _text: &str, _out: &mut RustExpr) -> std::result::Result<(), String> {
@@ -58,11 +115,19 @@ pub trait ViaUiType {
   }
 }
 
-impl<T: UiType> ViaUiType for &ValueCheck<T> {}
+impl<T: UiType> ViaUiType for &ValueCheck<T> {
+  type Value = T;
+}
 
 /// The value is a child element, filled in by the element written inside.
 pub trait ViaChild {
-  fn value_must_parse_from_text_and_implement_torust_or_derive_uitype(&self) {}
+  /// Compiles only for a value type a UI language can write. Text is refused; a node is the value.
+  fn value_must_parse_from_text_and_implement_torust_or_derive_uitype(&self) -> ValueOps<NodeId> {
+    ValueOps {
+      parse: not_text,
+      node: |node, _| Ok(node),
+    }
+  }
 
   /// Refuses text: the value is an element.
   fn write_literal(&self, _text: &str, _out: &mut RustExpr) -> std::result::Result<(), String> {
@@ -71,6 +136,36 @@ pub trait ViaChild {
 }
 
 impl ViaChild for &&ValueCheck<NodeId> {}
+
+/// Sets `value` at `level` on `node`'s property of the kind `key`: the end of every
+/// [`PropertyAccess`] setter.
+pub fn set_property<T>(
+  tree: &UiTree,
+  node: NodeId,
+  key: &'static PropertyKey<T>,
+  level: Precedence,
+  value: T,
+) -> std::result::Result<(), ValueError>
+where
+  T: PartialEq + 'static,
+{
+  crate::access::property_of(tree, node, key)?.set_at(level, value);
+  Ok(())
+}
+
+/// Empties `level` of `node`'s property of the kind `key`: [`PropertyAccess::clear`].
+pub fn clear_property<T>(
+  tree: &UiTree,
+  node: NodeId,
+  key: &'static PropertyKey<T>,
+  level: Precedence,
+) -> std::result::Result<(), ValueError>
+where
+  T: PartialEq + 'static,
+{
+  crate::access::property_of(tree, node, key)?.clear(level);
+  Ok(())
+}
 
 /// The function `PropertyInfo::literal` holds for a property of value type `$value`: `Some` with
 /// the `literals` feature, `None` without, so an app's registry keeps no `ToRust` code.
@@ -263,6 +358,7 @@ mod tests {
       affects: Affects::LAYOUT,
       inherits: false,
       literal: None,
+      access: &crate::access::tests::UNWRITTEN,
     }
   }
 
