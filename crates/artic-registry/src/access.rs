@@ -19,9 +19,10 @@ use std::fmt::{self, Debug, Formatter};
 ///
 /// # Panics
 ///
-/// Every entry panics when given a level no caller sets directly: `Precedence::Inherited`, which
-/// the tree fills, and for `clear` also `Precedence::Default`, which a property always has, as
-/// [`Property::set_at`] and [`Property::clear`] do. A loader passes `Local` or `StyleSetter`.
+/// An entry that reaches the property panics when given a level no caller sets directly:
+/// `Precedence::Inherited`, which the tree fills, and for `clear` also `Precedence::Default`, which a
+/// property always has, as [`Property::set_at`] and [`Property::clear`] do. One that refuses its
+/// value first returns the error instead. A loader passes `Local` or `StyleSetter`.
 pub struct PropertyAccess {
   /// Parses `text` with the value type's `FromStr` and sets the value at `level`. For a
   /// `Property<Option<V>>` it parses a `V`.

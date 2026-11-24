@@ -1062,14 +1062,11 @@ fn a_refused_value_is_reported_before_the_node() {
 
   let text = (access_of(Border::TYPE_INFO, "Padding").set_text)(&mut tree, node, "wide", Precedence::Local);
 
-  assert!(
-    matches!(
-      text,
-      Err(ValueError::Parse {
-        expected: "Thickness",
-        ..
-      })
-    ),
-    "{text:?}"
+  assert_eq!(
+    text,
+    Err(ValueError::Parse {
+      expected: "Thickness",
+      message: "invalid float literal".to_owned(),
+    })
   );
 }
