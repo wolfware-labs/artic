@@ -3,6 +3,10 @@ name: Roadmap refresh
 # The roadmap on artic.rs shows each milestone's open and closed issue counts,
 # read from the GitHub API when the site builds. This asks artic-docs to build
 # again whenever those counts or the milestones themselves change.
+#
+# GitHub counts pull requests that have a milestone in those numbers too. Pull
+# requests here don't get milestones, so pull_request events aren't watched; a
+# PR given one shows up at the next nightly build.
 on:
   issues:
     types: [opened, closed, reopened, deleted, transferred, milestoned, demilestoned]
