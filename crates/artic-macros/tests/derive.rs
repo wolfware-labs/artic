@@ -9,8 +9,8 @@ use artic_element::{Child, Children};
 use artic_macros::{UiProperties, UiType};
 use artic_registry as registry_alias;
 use artic_registry::{
-  AttachedTarget, ContentInfo, ContentMethod, OverrideDefaults, PropertyAccess, PropertyGroup, PropertyRef, Registry, TypeInfo,
-  UiCollection, UiType, ValueError, Whitespace,
+  ANOTHER_OBJECT, AttachedTarget, ContentInfo, ContentMethod, OverrideDefaults, PropertyAccess, PropertyGroup, PropertyRef,
+  Registry, TypeInfo, TypeKind, UiCollection, UiType, UiValue, ValueError, Whitespace,
 };
 use pretty_assertions::assert_eq;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -1069,4 +1069,168 @@ fn a_refused_value_is_reported_before_the_node() {
       message: "invalid float literal".to_owned(),
     })
   );
+}
+
+/// A value with a plain field and an optional one.
+#[derive(Debug, Clone, PartialEq, Default, UiType)]
+#[ui(value)]
+struct Stop {
+  #[ui]
+  offset: f32,
+  #[ui]
+  label: Option<String>,
+}
+
+/// A value holding other values in a `Vec`.
+#[derive(Debug, Clone, PartialEq, Default, UiType)]
+#[ui(value)]
+struct Gradient {
+  #[ui]
+  angle: f32,
+  #[ui(content)]
+  stops: Vec<Stop>,
+}
+
+/// A value holding other values in a shared slice, as a brush holds its stops.
+#[derive(Debug, Clone, PartialEq, Default, UiType)]
+#[ui(value)]
+struct SharedGradient {
+  #[ui(content)]
+  stops: std::sync::Arc<[Stop]>,
+}
+
+/// A node whose properties hold values.
+#[derive(Debug, UiType)]
+struct Painter {
+  #[ui]
+  gradient: Property<Gradient>,
+  #[ui]
+  stop: Property<Option<Stop>>,
+}
+
+/// A value staged in the tree, as a UI language stages one before setting its members.
+fn stage(tree: &mut UiTree, type_info: &'static TypeInfo) -> NodeId {
+  (type_info.new.expect("a value is created from its default"))(tree)
+}
+
+// A value is registered as one, with its plain fields as its properties and its own default.
+#[test]
+fn a_value_is_registered_with_its_fields() {
+  let info = Stop::TYPE_INFO;
+
+  assert_eq!(info.kind, TypeKind::Value);
+  assert_eq!(Border::TYPE_INFO.kind, TypeKind::Node);
+  assert_eq!(
+    info
+      .properties
+      .iter()
+      .map(|property| (property.name, property.affects))
+      .collect::<Vec<_>>(),
+    [("Offset", Affects::NONE), ("Label", Affects::NONE)]
+  );
+  fn takes_itself<T: UiValue>() {}
+  takes_itself::<Stop>();
+}
+
+// A value's fields are set in place on the staged value, whatever the level, and cleared to the
+// type's default; an optional field can be null.
+#[test]
+fn a_value_field_is_set_in_place() {
+  let mut tree = UiTree::new();
+  let stop = stage(&mut tree, Stop::TYPE_INFO);
+  let offset = access_of(Stop::TYPE_INFO, "Offset");
+  let label = access_of(Stop::TYPE_INFO, "Label");
+
+  (offset.set_text)(&mut tree, stop, "0.5", Precedence::StyleSetter).expect("a number");
+  (label.set_text)(&mut tree, stop, "mid", Precedence::Local).expect("any text");
+  assert_eq!(
+    tree.get_as::<Stop>(stop).cloned(),
+    Some(Stop {
+      offset: 0.5,
+      label: Some("mid".to_owned())
+    })
+  );
+
+  (label.set_null)(&mut tree, stop, Precedence::Local).expect("an optional field");
+  (offset.clear)(&mut tree, stop, Precedence::Local).expect("the node is a Stop");
+  assert_eq!(tree.get_as::<Stop>(stop).cloned(), Some(Stop::default()));
+}
+
+// A value's content collects staged values in order, taking each out of the tree.
+#[test]
+fn a_value_collection_takes_staged_values_in_order() {
+  let mut tree = UiTree::new();
+  let gradient = stage(&mut tree, Gradient::TYPE_INFO);
+  let shared = stage(&mut tree, SharedGradient::TYPE_INFO);
+  let offset = access_of(Stop::TYPE_INFO, "Offset");
+  let add = |info: &'static TypeInfo| match info.content {
+    Some(ContentInfo::Collection { add_child, .. }) => add_child,
+    _ => panic!("a collection content"),
+  };
+
+  for (owner, info) in [(gradient, Gradient::TYPE_INFO), (shared, SharedGradient::TYPE_INFO)] {
+    for text in ["0", "1"] {
+      let stop = stage(&mut tree, Stop::TYPE_INFO);
+      (offset.set_text)(&mut tree, stop, text, Precedence::Local).expect("a number");
+      (add(info))(&mut tree, owner, stop).expect("a Stop");
+      assert!(!tree.contains(stop), "the staged stop was taken out");
+    }
+  }
+
+  let offsets = |stops: &[Stop]| stops.iter().map(|stop| stop.offset).collect::<Vec<_>>();
+  assert_eq!(
+    tree.get_as::<Gradient>(gradient).map(|value| offsets(&value.stops)),
+    Some(vec![0.0, 1.0])
+  );
+  assert_eq!(
+    tree.get_as::<SharedGradient>(shared).map(|value| offsets(&value.stops)),
+    Some(vec![0.0, 1.0])
+  );
+}
+
+// A staged value moves into a property that holds its type, and leaves the tree.
+#[test]
+fn set_object_moves_a_staged_value_into_the_property() {
+  let mut tree = UiTree::new();
+  let painter = tree.alloc(Box::new(Painter::default()));
+  let staged = stage(&mut tree, Gradient::TYPE_INFO);
+  (access_of(Gradient::TYPE_INFO, "Angle").set_text)(&mut tree, staged, "45", Precedence::Local).expect("a number");
+
+  (access_of(Painter::TYPE_INFO, "Gradient").set_object)(&mut tree, painter, staged, Precedence::Local).expect("a Gradient");
+
+  assert_eq!(
+    tree.get_as::<Painter>(painter).map(|painter| painter.gradient.get().angle),
+    Some(45.0)
+  );
+  assert!(!tree.contains(staged));
+}
+
+// An object of another value type, or for a property not taken from objects, is refused, and is
+// taken out of the tree all the same.
+#[test]
+fn set_object_refuses_what_the_property_does_not_take() {
+  let mut tree = UiTree::new();
+  let painter = tree.alloc(Box::new(Painter::default()));
+  let border = tree.alloc(Box::new(Border::default()));
+  let gradient = stage(&mut tree, Gradient::TYPE_INFO);
+  let another = stage(&mut tree, Gradient::TYPE_INFO);
+
+  let wrong_value = (access_of(Painter::TYPE_INFO, "Stop").set_object)(&mut tree, painter, gradient, Precedence::Local);
+  let not_an_object = (access_of(Border::TYPE_INFO, "Padding").set_object)(&mut tree, border, another, Precedence::Local);
+
+  assert_eq!(
+    wrong_value,
+    Err(ValueError::WrongType {
+      expected: "Stop",
+      found: ANOTHER_OBJECT,
+    })
+  );
+  assert_eq!(
+    not_an_object,
+    Err(ValueError::WrongType {
+      expected: "Thickness",
+      found: "an object",
+    })
+  );
+  assert!(!tree.contains(gradient) && !tree.contains(another));
 }

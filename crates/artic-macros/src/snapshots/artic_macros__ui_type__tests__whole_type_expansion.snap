@@ -96,27 +96,29 @@ const _: () = {
             access: &__artic::PropertyAccess {
                 set_text: |tree, node, text, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-                    __artic::set_property(
-                        tree,
-                        node,
-                        (&__KEY_WIDTH),
-                        level,
-                        ((&&__artic::ValueCheck::<f32>(__artic::PhantomData))
+                    {
+                        let value = ((&&__artic::ValueCheck::<f32>(__artic::PhantomData))
                             .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
-                            .parse)(text, ::core::stringify!(f32))?,
-                    )
+                            .parse)(text, ::core::stringify!(f32))?;
+                        __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
+                    }
                 },
                 set_node: |tree, node, child, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-                    __artic::set_property(
-                        tree,
-                        node,
-                        (&__KEY_WIDTH),
-                        level,
-                        ((&&__artic::ValueCheck::<f32>(__artic::PhantomData))
+                    {
+                        let value = ((&&__artic::ValueCheck::<f32>(__artic::PhantomData))
                             .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
-                            .node)(child, ::core::stringify!(f32))?,
-                    )
+                            .node)(child, ::core::stringify!(f32))?;
+                        __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
+                    }
+                },
+                set_object: |tree, node, object, level| {
+                    use __artic::{NotFromObject as _, ViaFromUiObject as _};
+                    {
+                        let value = (&__artic::ObjectCheck::<f32>(__artic::PhantomData))
+                            .take_object(tree, object, ::core::stringify!(f32))?;
+                        __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
+                    }
                 },
                 set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
                     property: (&__KEY_WIDTH).name(),
@@ -139,27 +141,33 @@ const _: () = {
             access: &__artic::PropertyAccess {
                 set_text: |tree, node, text, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-                    __artic::set_property(
-                        tree,
-                        node,
-                        (&__KEY_ENABLED),
-                        level,
-                        ((&&__artic::ValueCheck::<bool>(__artic::PhantomData))
+                    {
+                        let value = ((&&__artic::ValueCheck::<
+                            bool,
+                        >(__artic::PhantomData))
                             .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
-                            .parse)(text, ::core::stringify!(bool))?,
-                    )
+                            .parse)(text, ::core::stringify!(bool))?;
+                        __artic::set_property(tree, node, (&__KEY_ENABLED), level, value)
+                    }
                 },
                 set_node: |tree, node, child, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-                    __artic::set_property(
-                        tree,
-                        node,
-                        (&__KEY_ENABLED),
-                        level,
-                        ((&&__artic::ValueCheck::<bool>(__artic::PhantomData))
+                    {
+                        let value = ((&&__artic::ValueCheck::<
+                            bool,
+                        >(__artic::PhantomData))
                             .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
-                            .node)(child, ::core::stringify!(bool))?,
-                    )
+                            .node)(child, ::core::stringify!(bool))?;
+                        __artic::set_property(tree, node, (&__KEY_ENABLED), level, value)
+                    }
+                },
+                set_object: |tree, node, object, level| {
+                    use __artic::{NotFromObject as _, ViaFromUiObject as _};
+                    {
+                        let value = (&__artic::ObjectCheck::<bool>(__artic::PhantomData))
+                            .take_object(tree, object, ::core::stringify!(bool))?;
+                        __artic::set_property(tree, node, (&__KEY_ENABLED), level, value)
+                    }
                 },
                 set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
                     property: (&__KEY_ENABLED).name(),
@@ -182,27 +190,29 @@ const _: () = {
             access: &__artic::PropertyAccess {
                 set_text: |tree, node, text, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-                    __artic::set_property(
-                        tree,
-                        node,
-                        SHARED.key(),
-                        level,
-                        ((&&__artic::ValueCheck::<i32>(__artic::PhantomData))
+                    {
+                        let value = ((&&__artic::ValueCheck::<i32>(__artic::PhantomData))
                             .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
-                            .parse)(text, ::core::stringify!(i32))?,
-                    )
+                            .parse)(text, ::core::stringify!(i32))?;
+                        __artic::set_property(tree, node, SHARED.key(), level, value)
+                    }
                 },
                 set_node: |tree, node, child, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-                    __artic::set_property(
-                        tree,
-                        node,
-                        SHARED.key(),
-                        level,
-                        ((&&__artic::ValueCheck::<i32>(__artic::PhantomData))
+                    {
+                        let value = ((&&__artic::ValueCheck::<i32>(__artic::PhantomData))
                             .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
-                            .node)(child, ::core::stringify!(i32))?,
-                    )
+                            .node)(child, ::core::stringify!(i32))?;
+                        __artic::set_property(tree, node, SHARED.key(), level, value)
+                    }
+                },
+                set_object: |tree, node, object, level| {
+                    use __artic::{NotFromObject as _, ViaFromUiObject as _};
+                    {
+                        let value = (&__artic::ObjectCheck::<i32>(__artic::PhantomData))
+                            .take_object(tree, object, ::core::stringify!(i32))?;
+                        __artic::set_property(tree, node, SHARED.key(), level, value)
+                    }
                 },
                 set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
                     property: SHARED.key().name(),
@@ -225,31 +235,35 @@ const _: () = {
             access: &__artic::PropertyAccess {
                 set_text: |tree, node, text, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-                    __artic::set_property(
-                        tree,
-                        node,
-                        (&__KEY_TEXT),
-                        level,
-                        ::core::option::Option::Some(
+                    {
+                        let value = ::core::option::Option::Some(
                             ((&&__artic::ValueCheck::<String>(__artic::PhantomData))
                                 .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
                                 .parse)(text, ::core::stringify!(String))?,
-                        ),
-                    )
+                        );
+                        __artic::set_property(tree, node, (&__KEY_TEXT), level, value)
+                    }
                 },
                 set_node: |tree, node, child, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-                    __artic::set_property(
-                        tree,
-                        node,
-                        (&__KEY_TEXT),
-                        level,
-                        ::core::option::Option::Some(
+                    {
+                        let value = ::core::option::Option::Some(
                             ((&&__artic::ValueCheck::<String>(__artic::PhantomData))
                                 .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
                                 .node)(child, ::core::stringify!(String))?,
-                        ),
-                    )
+                        );
+                        __artic::set_property(tree, node, (&__KEY_TEXT), level, value)
+                    }
+                },
+                set_object: |tree, node, object, level| {
+                    use __artic::{NotFromObject as _, ViaFromUiObject as _};
+                    {
+                        let value = ::core::option::Option::Some(
+                            (&__artic::ObjectCheck::<String>(__artic::PhantomData))
+                                .take_object(tree, object, ::core::stringify!(String))?,
+                        );
+                        __artic::set_property(tree, node, (&__KEY_TEXT), level, value)
+                    }
                 },
                 set_null: |tree, node, level| __artic::set_property(
                     tree,
@@ -454,6 +468,7 @@ const _: () = {
         ),
         is: __artic::is_a::<Panel>,
         new: ::core::option::Option::Some(__new),
+        kind: __artic::TypeKind::Node,
         content: __artic::one_content(
             &[
                 ::core::option::Option::Some(__artic::ContentInfo::Collection {

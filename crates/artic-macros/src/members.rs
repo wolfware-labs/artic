@@ -15,13 +15,16 @@ pub enum Kind {
   Type,
   /// `UiProperties`: a property group, which holds only properties.
   Group,
+  /// `UiType` with `#[ui(value)]`: a value, whose `#[ui]` fields are plain data, with at most a
+  /// collection of values as its content.
+  Value,
 }
 
 impl Kind {
   /// The derive's name, for errors.
   fn derive(self) -> &'static str {
     match self {
-      Kind::Type => "UiType",
+      Kind::Type | Kind::Value => "UiType",
       Kind::Group => "UiProperties",
     }
   }
@@ -39,6 +42,7 @@ impl Kind {
       .into_iter()
       .map(|(name, what)| (name.to_owned(), what.to_owned()))
       .collect(),
+      Kind::Value => vec![("TYPE_INFO".to_owned(), "`UiType::TYPE_INFO`".to_owned())],
       Kind::Group => ["new", "build", "child", "children"]
         .into_iter()
         .map(|name| (name.to_owned(), format!("the `{name}` of every type that flattens the group")))
@@ -51,6 +55,8 @@ impl Kind {
 pub struct Members<'a> {
   kind: Kind,
   pub properties: Vec<PropertyField<'a>>,
+  /// A value's plain `#[ui]` fields.
+  pub values: Vec<ValueField<'a>>,
   pub events: Vec<EventField<'a>>,
   pub groups: Vec<GroupField<'a>>,
   pub content: Option<Content<'a>>,
@@ -77,6 +83,17 @@ pub struct PropertyField<'a> {
   pub ui_name: String,
   pub default: Option<Expr>,
   pub key: Key,
+}
+
+/// A value type's plain field marked `#[ui]`: data set in place on the staged value.
+pub struct ValueField<'a> {
+  pub ident: &'a Ident,
+  /// `T`, or the `X` of `Option<X>`: what text or an element sets.
+  pub value: &'a Type,
+  /// Whether the field is an `Option`, which null sets to `None`.
+  pub optional: bool,
+  /// The name in UI languages: the `name` override, or the field name in PascalCase.
+  pub ui_name: String,
 }
 
 /// The key a property is stored under.
@@ -150,7 +167,7 @@ impl<'a> Members<'a> {
     };
     let fields = match &data.fields {
       Fields::Named(fields) => fields.named.iter().collect(),
-      Fields::Unit if kind == Kind::Type => Vec::new(),
+      Fields::Unit if kind != Kind::Group => Vec::new(),
       _ => {
         return Err(Error::new_spanned(
           &data.fields,
@@ -167,6 +184,7 @@ impl<'a> Members<'a> {
     let mut members = Members {
       kind,
       properties: Vec::new(),
+      values: Vec::new(),
       events: Vec::new(),
       groups: Vec::new(),
       content: None,
@@ -182,6 +200,10 @@ impl<'a> Members<'a> {
         members.unmarked.push(ident);
         continue;
       };
+      if kind == Kind::Value && attributes.content.is_none() {
+        members.values.push(value_field(field, ident, attributes)?);
+        continue;
+      }
       if let Some(span) = attributes.required {
         if kind == Kind::Group {
           return Err(Error::new(
@@ -196,6 +218,12 @@ impl<'a> Members<'a> {
       let member = classify(field, ident, attributes)?;
       if kind == Kind::Group && !matches!(member, Member::Property(_)) {
         return Err(Error::new_spanned(&field.ty, "a property group holds only `Property` fields"));
+      }
+      if kind == Kind::Value && !matches!(member, Member::Collection) {
+        return Err(Error::new_spanned(
+          &field.ty,
+          "a value's content is a collection of values, such as `Vec<GradientStop>`",
+        ));
       }
       let marks = match member {
         Member::Property(property) => {
@@ -264,7 +292,7 @@ impl Members<'_> {
       )?;
       if let Key::Own { constant, .. } = &field.key {
         let constants = match self.kind {
-          Kind::Type => &mut taken,
+          Kind::Type | Kind::Value => &mut taken,
           Kind::Group => &mut group_constants,
         };
         take(
@@ -292,6 +320,30 @@ fn take(taken: &mut Vec<(String, String)>, name: String, what: String, source: S
   }
   taken.push((name, what));
   Ok(())
+}
+
+/// A value type's `#[ui]` field that isn't its content: plain data, which takes no property
+/// settings and can't be a `Property`, an `Event` or a group.
+fn value_field<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttributes) -> syn::Result<ValueField<'a>> {
+  let not_plain = ["Property", "Event"]
+    .into_iter()
+    .any(|wrapper| generic_argument(&field.ty, wrapper).is_some());
+  if not_plain || attributes.flatten.is_some() || attributes.required.is_some() || attributes.sets_property() {
+    return Err(Error::new_spanned(
+      &field.ty,
+      "a value's `#[ui]` fields are plain data, such as `#[ui] color: Color`, with no property settings",
+    ));
+  }
+  let ui_name = match &attributes.name {
+    Some(name) => name.value(),
+    None => pascal_case(&ident.to_string()),
+  };
+  Ok(ValueField {
+    ident,
+    value: value_type(&field.ty),
+    optional: generic_argument(&field.ty, "Option").is_some(),
+    ui_name,
+  })
 }
 
 /// A `#[ui]` field read by `classify`, before `Members::analyze` files it.

@@ -13,6 +13,7 @@ mod collection;
 mod defaults;
 mod descriptors;
 mod registry;
+mod value;
 mod value_error;
 mod with_children;
 
@@ -23,10 +24,11 @@ pub use collection::{UiCollection, check_child, is_a, type_names};
 pub use defaults::OverrideDefaults;
 pub use descriptors::{
   ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, EventInfo, HasGroup, PropertyGroup,
-  PropertyGroupInfo, PropertyInfo, PropertyRef, TypeInfo, UiType, ValueProviderInfo, Whitespace, WriteLiteral, crate_and_item,
-  crate_of,
+  PropertyGroupInfo, PropertyInfo, PropertyRef, TypeInfo, TypeKind, UiType, ValueProviderInfo, Whitespace, WriteLiteral,
+  crate_and_item, crate_of,
 };
 pub use registry::{Duplicate, Lookup, Registry, RegistryError};
+pub use value::{ANOTHER_OBJECT, FromUiObject, UiValue};
 pub use value_error::ValueError;
 pub use with_children::WithChildren;
 
@@ -42,7 +44,7 @@ use linkme::distributed_slice;
 /// use artic_core::Object;
 /// use artic_core::property::PropertyVisitor;
 /// use artic_core::tree::{NodeId, UiTree};
-/// use artic_registry::{Registry, TypeInfo, Whitespace, is_a};
+/// use artic_registry::{Registry, TypeInfo, TypeKind, Whitespace, is_a};
 ///
 /// #[derive(Debug)]
 /// struct Gauge;
@@ -63,6 +65,7 @@ use linkme::distributed_slice;
 ///   value_provider: None,
 ///   whitespace: Whitespace::Collapse,
 ///   code_type_root: false,
+///   kind: TypeKind::Node,
 /// };
 ///
 /// artic_registry::register_type!(GAUGE);
@@ -100,7 +103,7 @@ pub static UI_TYPES: [&'static TypeInfo];
 /// use artic_core::Object;
 /// use artic_core::property::PropertyVisitor;
 /// use artic_core::tree::{NodeId, UiTree};
-/// use artic_registry::{Registry, TypeInfo, Whitespace, is_a};
+/// use artic_registry::{Registry, TypeInfo, TypeKind, Whitespace, is_a};
 ///
 /// #[derive(Debug)]
 /// struct Dial;
@@ -121,6 +124,7 @@ pub static UI_TYPES: [&'static TypeInfo];
 ///   value_provider: None,
 ///   whitespace: Whitespace::Collapse,
 ///   code_type_root: false,
+///   kind: TypeKind::Node,
 /// };
 ///
 /// artic_registry::register_type!(DIAL);

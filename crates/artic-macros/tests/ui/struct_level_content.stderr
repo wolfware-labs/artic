@@ -1,4 +1,4 @@
-error: unknown `ui` key `content`; expected `whitespace`, `crate`, `attached`, `value_provider`, `override_defaults` or `code_type_root`
+error: unknown `ui` key `content`; expected `whitespace`, `crate`, `attached`, `value_provider`, `override_defaults`, `code_type_root` or `value`
  --> tests/ui/struct_level_content.rs:5:6
   |
 5 | #[ui(content = text)]

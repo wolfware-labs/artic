@@ -6,3 +6,11 @@ error[E0277]: `String` can't hold child elements
   |
   = help: the trait `UiCollection` is not implemented for `String`
   = note: to make this field a property, declare it as `Property<String>`
+help: the following other types implement trait `UiCollection`
+ --> $WORKSPACE/crates/artic-registry/src/value.rs
+  |
+  | impl<T: FromUiObject> UiCollection for Vec<T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `Vec<T>`
+...
+  | impl<T: FromUiObject + Clone> UiCollection for Arc<[T]> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `Arc<[T]>`

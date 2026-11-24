@@ -122,6 +122,7 @@ pub(crate) mod tests {
       value_provider: None,
       whitespace: Whitespace::Collapse,
       code_type_root: false,
+      kind: crate::TypeKind::Node,
     }))
   }
 

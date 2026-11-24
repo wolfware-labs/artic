@@ -31,6 +31,10 @@ pub struct PropertyAccess {
   /// `Property<Option<NodeId>>`. A property of another value type refuses it with
   /// [`ValueError::WrongType`].
   pub set_node: fn(&mut UiTree, NodeId, NodeId, Precedence) -> Result<(), ValueError>,
+  /// Converts a staged object with the value type's [`FromUiObject`](crate::FromUiObject) and sets
+  /// it, taking the object out of the tree whether or not it converts. A property whose value type
+  /// isn't taken from an object refuses it with [`ValueError::WrongType`].
+  pub set_object: fn(&mut UiTree, NodeId, NodeId, Precedence) -> Result<(), ValueError>,
   /// Sets `None` at `level`, for a `Property<Option<T>>`. A property of another value type refuses
   /// it with [`ValueError::NotNullable`].
   pub set_null: fn(&mut UiTree, NodeId, Precedence) -> Result<(), ValueError>,
@@ -60,6 +64,7 @@ pub(crate) mod tests {
   pub(crate) static UNWRITTEN: PropertyAccess = PropertyAccess {
     set_text: |_, _, _, _| Err(ValueError::WrongNode),
     set_node: |_, _, _, _| Err(ValueError::WrongNode),
+    set_object: |_, _, _, _| Err(ValueError::WrongNode),
     set_null: |_, _, _| Err(ValueError::WrongNode),
     clear: |_, _, _| Err(ValueError::WrongNode),
   };
@@ -77,6 +82,10 @@ pub(crate) mod tests {
     );
     assert_eq!(
       (UNWRITTEN.set_node)(&mut tree, node, node, Precedence::Local),
+      Err(ValueError::WrongNode)
+    );
+    assert_eq!(
+      (UNWRITTEN.set_object)(&mut tree, node, node, Precedence::Local),
       Err(ValueError::WrongNode)
     );
     assert_eq!(

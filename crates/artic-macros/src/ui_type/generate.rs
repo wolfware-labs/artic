@@ -1,6 +1,7 @@
 use crate::crate_root::{REGISTRY, crate_root};
 use crate::members::emit::{
-  affects_tokens, checks, default_impl, inheritance_tokens, key_path, key_static, properties_static, value_check, visits,
+  affects_tokens, checks, default_impl, inheritance_tokens, key_path, key_static, properties_static, value_check,
+  value_field_access, visits,
 };
 use crate::members::{Content, GroupField, Members, PropertyField, generic_argument, value_type};
 use crate::ui_type::analysis::TypeAnalysis;
@@ -19,21 +20,23 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
   let ident = analysis.ident;
   let members = &analysis.members;
   let attached = &analysis.attributes.attached;
+  let is_value = analysis.attributes.value.is_some();
   let keys = members.properties.iter().map(key_static);
-  let default_impl = members
-    .required
-    .is_empty()
-    .then(|| default_impl(ident, members, override_defaults(analysis)));
+  let default_impl =
+    (members.required.is_empty() && !is_value).then(|| default_impl(ident, members, override_defaults(analysis)));
   let visits = visits(members);
   let group_items = group_items(ident, members);
-  let descriptors = descriptors(members, attached);
+  let descriptors = descriptors(ident, members, attached);
   let attached_keys = attached.iter().map(attached_key);
   let value_provider = value_provider(analysis);
   let content_functions = content_functions(ident, members);
-  let builders = builders(analysis);
+  let builders = (!is_value).then(|| builders(analysis));
+  let value_impl = is_value.then(|| quote!(impl __artic::UiValue for #ident {}));
   let attached_helpers = attached.iter().map(|attached| attached_helpers(ident, attached));
   let type_info = type_info(analysis);
-  let checks = checks(members, attached.iter().map(|attached| value_check(value_type(&attached.ty))));
+  let value_checks = members.values.iter().map(|field| value_check(field.value));
+  let attached_checks = attached.iter().map(|attached| value_check(value_type(&attached.ty)));
+  let checks = checks(members, value_checks.chain(attached_checks));
   Ok(quote! {
     const _: () = {
       use #root::__private as __artic;
@@ -65,6 +68,8 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
       }
 
       #type_info
+
+      #value_impl
 
       #checks
     };
@@ -140,10 +145,14 @@ fn group_items(ident: &Ident, members: &Members) -> TokenStream {
   }
 }
 
-/// The descriptor statics the type's `TypeInfo` points at: its properties, events, attached
-/// properties and groups.
-fn descriptors(members: &Members, attached: &[Attached]) -> TokenStream {
-  let properties = properties_static(members);
+/// The descriptor statics the type's `TypeInfo` points at: its properties, a value's plain fields
+/// among them, its events, attached properties and groups.
+fn descriptors(ident: &Ident, members: &Members, attached: &[Attached]) -> TokenStream {
+  let properties = if members.values.is_empty() {
+    properties_static(members)
+  } else {
+    value_properties_static(ident, members)
+  };
   let events = members.events.iter().map(|event| {
     let (name, args) = (&event.ui_name, event.args);
     quote!(__artic::EventInfo { name: #name, args_type: ::core::stringify!(#args) })
@@ -165,6 +174,30 @@ fn descriptors(members: &Members, attached: &[Attached]) -> TokenStream {
     static __ATTACHED: [__artic::AttachedPropertyInfo; #attached_count] = [#(#attached_infos),*];
     static __GROUPS: [__artic::PropertyGroupInfo; #group_count] = [#(#groups),*];
   }
+}
+
+/// The `__PROPERTIES` static of a value: a `PropertyInfo` for each plain `#[ui]` field, in field
+/// order. A value's field has no key, so it affects no frame stage and inherits nothing: the
+/// property that holds the value does both.
+fn value_properties_static(ident: &Ident, members: &Members) -> TokenStream {
+  let count = members.values.len();
+  let infos = members.values.iter().map(|field| {
+    let (name, value) = (&field.ui_name, field.value);
+    let field_name = field.ident.to_string();
+    let access = value_field_access(ident, field);
+    quote! {
+      __artic::PropertyInfo {
+        name: #name,
+        field: #field_name,
+        value_type: ::core::stringify!(#value),
+        affects: __artic::Affects::NONE,
+        inherits: false,
+        literal: __artic::literal!(#value),
+        access: #access,
+      }
+    }
+  });
+  quote!(static __PROPERTIES: [__artic::PropertyInfo; #count] = [#(#infos),*];)
 }
 
 /// For a type whose content is a collection, `__content_field`, which reaches the field, and
@@ -245,6 +278,11 @@ fn type_info(analysis: &TypeAnalysis) -> TokenStream {
     Whitespace::Significant => quote!(__artic::Whitespace::Significant),
   };
   let code_type_root = analysis.attributes.code_type_root;
+  let kind = if analysis.attributes.value.is_some() {
+    quote!(__artic::TypeKind::Value)
+  } else {
+    quote!(__artic::TypeKind::Node)
+  };
   let (new_fn, new) = if analysis.members.required.is_empty() {
     let new_fn = quote! {
       fn __new(tree: &mut __artic::UiTree) -> __artic::NodeId {
@@ -263,6 +301,7 @@ fn type_info(analysis: &TypeAnalysis) -> TokenStream {
       rust_path: ::core::concat!(::core::module_path!(), "::", ::core::stringify!(#ident)),
       is: __artic::is_a::<#ident>,
       new: #new,
+      kind: #kind,
       content: #content,
       properties: &__PROPERTIES,
       groups: &__GROUPS,

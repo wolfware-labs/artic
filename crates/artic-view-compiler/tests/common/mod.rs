@@ -7,8 +7,8 @@ use artic_core::property::Affects;
 use artic_core::tree::{NodeId, UiTree};
 use artic_diagnostics::{Diagnostic, Diagnostics, SourceId, SourceMap, Span};
 use artic_registry::{
-  ContentInfo, ContentMethod, PropertyAccess, PropertyGroupInfo, PropertyInfo, Registry, RustExpr, TypeInfo, ValueError,
-  Whitespace,
+  ContentInfo, ContentMethod, PropertyAccess, PropertyGroupInfo, PropertyInfo, Registry, RustExpr, TypeInfo, TypeKind,
+  ValueError, Whitespace,
 };
 use artic_view::Language;
 use artic_view::document::{Content, Document, Element, Member, Text, TypeUse};
@@ -56,6 +56,7 @@ const fn info(name: &'static str, rust_path: &'static str) -> TypeInfo {
     value_provider: None,
     whitespace: Whitespace::Collapse,
     code_type_root: false,
+    kind: TypeKind::Node,
   }
 }
 
@@ -80,6 +81,7 @@ const fn property_info(
 static UNWRITTEN: PropertyAccess = PropertyAccess {
   set_text: |_, _, _, _| Err(ValueError::WrongNode),
   set_node: |_, _, _, _| Err(ValueError::WrongNode),
+  set_object: |_, _, _, _| Err(ValueError::WrongNode),
   set_null: |_, _, _| Err(ValueError::WrongNode),
   clear: |_, _, _| Err(ValueError::WrongNode),
 };
@@ -118,12 +120,14 @@ pub static HOST: TypeInfo = TypeInfo {
   }),
   groups: &LAYOUT,
   code_type_root: true,
+  kind: TypeKind::Node,
   ..info("Host", "test_ui::host::Host")
 };
 
 /// Takes no content; a code type can take its place.
 pub static BADGE: TypeInfo = TypeInfo {
   code_type_root: true,
+  kind: TypeKind::Node,
   ..info("Badge", "test_ui::badge::Badge")
 };
 

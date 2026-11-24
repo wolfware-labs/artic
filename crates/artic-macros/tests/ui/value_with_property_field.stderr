@@ -1,0 +1,5 @@
+error: a value's `#[ui]` fields are plain data, such as `#[ui] color: Color`, with no property settings
+ --> tests/ui/value_with_property_field.rs:8:11
+  |
+8 |   offset: Property<f32>,
+  |           ^^^^^^^^^^^^^

@@ -4,9 +4,10 @@ use std::fmt::{Debug, Display, Formatter, Result};
 use std::str::FromStr;
 
 pub use crate::{
-  ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, EventInfo, HasGroup, OverrideDefaults,
-  PropertyAccess, PropertyGroup, PropertyGroupInfo, PropertyInfo, PropertyRef, RustExpr, ToRust, TypeInfo, UiCollection,
-  UiType, ValueError, ValueProviderInfo, Whitespace, WithChildren, check_child, is_a, register_type,
+  ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, EventInfo, FromUiObject, HasGroup,
+  OverrideDefaults, PropertyAccess, PropertyGroup, PropertyGroupInfo, PropertyInfo, PropertyRef, RustExpr, ToRust, TypeInfo,
+  TypeKind, UiCollection, UiType, UiValue, ValueError, ValueProviderInfo, Whitespace, WithChildren, check_child, is_a,
+  register_type,
 };
 pub use artic_core::Object;
 pub use artic_core::event::Event;
@@ -136,6 +137,82 @@ pub trait ViaChild {
 }
 
 impl ViaChild for &&ValueCheck<NodeId> {}
+
+/// What a property's `set_object` says it was given when its value type isn't taken from an object.
+const AN_OBJECT: &str = "an object";
+
+/// Wraps a property's value type to choose how a staged object becomes it.
+pub struct ObjectCheck<T>(pub PhantomData<T>);
+
+impl<T> Debug for ObjectCheck<T> {
+  fn fmt(&self, formatter: &mut Formatter<'_>) -> Result {
+    formatter.write_str("ObjectCheck")
+  }
+}
+
+/// The value type is taken from a staged object.
+pub trait ViaFromUiObject {
+  /// The property's value type.
+  type Value;
+
+  /// Takes the staged `object` out of the tree as the value.
+  fn take_object(
+    &self,
+    tree: &mut UiTree,
+    object: NodeId,
+    expected: &'static str,
+  ) -> std::result::Result<Self::Value, ValueError>;
+}
+
+impl<T: FromUiObject> ViaFromUiObject for ObjectCheck<T> {
+  type Value = T;
+
+  fn take_object(&self, tree: &mut UiTree, object: NodeId, _expected: &'static str) -> std::result::Result<T, ValueError> {
+    if !tree.contains(object) {
+      return Err(ValueError::WrongNode);
+    }
+    T::from_object(tree, object)
+  }
+}
+
+/// The value type isn't taken from an object: the staged object is taken out and refused.
+pub trait NotFromObject {
+  /// The property's value type.
+  type Value;
+
+  /// Takes the staged `object` out of the tree, so none is left behind, and refuses it.
+  fn take_object(
+    &self,
+    tree: &mut UiTree,
+    object: NodeId,
+    expected: &'static str,
+  ) -> std::result::Result<Self::Value, ValueError> {
+    if tree.contains(object) {
+      drop(tree.take(object));
+    }
+    Err(ValueError::WrongType {
+      expected,
+      found: AN_OBJECT,
+    })
+  }
+}
+
+impl<T> NotFromObject for &ObjectCheck<T> {
+  type Value = T;
+}
+
+/// Sets a value type's plain field, which `field` reaches in a `node` of the type `O`: the end of
+/// a value type's [`PropertyAccess`] setters. A value has no precedence levels.
+pub fn set_field<O: Object, T>(
+  tree: &mut UiTree,
+  node: NodeId,
+  field: fn(&mut O) -> &mut T,
+  value: T,
+) -> std::result::Result<(), ValueError> {
+  let owner = tree.get_as_mut::<O>(node).ok_or(ValueError::WrongNode)?;
+  *field(owner) = value;
+  Ok(())
+}
 
 /// Sets `value` at `level` on `node`'s property of the kind `key`: the end of every
 /// [`PropertyAccess`] setter.
@@ -393,6 +470,7 @@ mod tests {
     value_provider: None,
     whitespace: Whitespace::Collapse,
     code_type_root: false,
+    kind: TypeKind::Node,
   };
 
   // The check resolves for a FromStr type, a UI type and a child node. A type that is none of
