@@ -151,6 +151,7 @@ pub fn property_info(field: &PropertyField) -> TokenStream {
   let (inner, value) = (field.inner, field.value);
   let key = key_path(field);
   let field_name = field.ident.to_string();
+  let access = property_access(field);
   quote! {
     __artic::PropertyInfo {
       name: #key.name(),
@@ -159,6 +160,50 @@ pub fn property_info(field: &PropertyField) -> TokenStream {
       affects: #key.affects(),
       inherits: #key.inherits(),
       literal: __artic::literal!(#value),
+      access: #access,
+    }
+  }
+}
+
+/// The `PropertyAccess` of one property: thunks whose bodies know its value type and find the
+/// property on any node by its key. A `Property<Option<V>>` parses and takes a `V`, and is the only
+/// kind that can be set to null.
+fn property_access(field: &PropertyField) -> TokenStream {
+  let (inner, value) = (field.inner, field.value);
+  let key = key_path(field);
+  let optional = generic_argument(inner, "Option").is_some();
+  let wrap = |value: TokenStream| {
+    if optional {
+      quote!(::core::option::Option::Some(#value))
+    } else {
+      value
+    }
+  };
+  // Spanned like the value check, so a value type a UI language can't write fails once, there.
+  let ops = quote_spanned!(value.span()=>
+    (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+  );
+  let parsed = wrap(quote!((#ops.parse)(text, ::core::stringify!(#value))?));
+  let node_value = wrap(quote!((#ops.node)(child, ::core::stringify!(#value))?));
+  let set_null = if optional {
+    quote!(::core::option::Option::Some(|tree, node, level| {
+      __artic::set_property(tree, node, #key, level, ::core::option::Option::None)
+    }))
+  } else {
+    quote!(::core::option::Option::None)
+  };
+  quote! {
+    &__artic::PropertyAccess {
+      set_text: |tree, node, text, level| {
+        use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+        __artic::set_property(tree, node, #key, level, #parsed)
+      },
+      set_node: |tree, node, child, level| {
+        use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+        __artic::set_property(tree, node, #key, level, #node_value)
+      },
+      set_null: #set_null,
+      clear: |tree, node, level| __artic::clear_property(tree, node, #key, level),
     }
   }
 }

@@ -178,6 +178,7 @@ mod tests {
     affects: Affects::LAYOUT,
     inherits: false,
     literal: None,
+    access: &crate::access::UNWRITTEN,
   }];
   static GROUPS: [PropertyGroupInfo; 1] = [PropertyGroupInfo {
     field: "layout",
@@ -208,6 +209,7 @@ mod tests {
       affects: Affects::NONE,
       inherits: false,
       literal: None,
+      access: &crate::access::UNWRITTEN,
     }];
     static BORDER: TypeInfo = TypeInfo {
       properties: &OWN,

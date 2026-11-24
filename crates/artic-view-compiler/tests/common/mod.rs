@@ -7,7 +7,8 @@ use artic_core::property::Affects;
 use artic_core::tree::{NodeId, UiTree};
 use artic_diagnostics::{Diagnostic, Diagnostics, SourceId, SourceMap, Span};
 use artic_registry::{
-  ContentInfo, ContentMethod, PropertyGroupInfo, PropertyInfo, Registry, RustExpr, TypeInfo, ValueError, Whitespace,
+  ContentInfo, ContentMethod, PropertyAccess, PropertyGroupInfo, PropertyInfo, Registry, RustExpr, TypeInfo, ValueError,
+  Whitespace,
 };
 use artic_view::Language;
 use artic_view::document::{Content, Document, Element, Member, Text, TypeUse};
@@ -71,8 +72,17 @@ const fn property_info(
     affects: Affects::NONE,
     inherits: false,
     literal: Some(literal),
+    access: &UNWRITTEN,
   }
 }
+
+/// What the loader would do with a test property: nothing, since these tests never load a view.
+static UNWRITTEN: PropertyAccess = PropertyAccess {
+  set_text: |_, _, _, _| Err(ValueError::WrongNode),
+  set_node: |_, _, _, _| Err(ValueError::WrongNode),
+  set_null: None,
+  clear: |_, _, _| Err(ValueError::WrongNode),
+};
 
 static WIDTH: [PropertyInfo; 1] = [property_info("Width", "width", number)];
 static MARGIN: [PropertyInfo; 1] = [property_info("Margin", "margin", number)];

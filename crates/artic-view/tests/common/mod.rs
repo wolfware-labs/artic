@@ -5,7 +5,8 @@ use artic_core::property::Affects;
 use artic_core::tree::{NodeId, UiTree};
 use artic_diagnostics::{Diagnostic, Diagnostics, SourceMap, Span};
 use artic_registry::{
-  AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, EventInfo, PropertyInfo, PropertyRef, TypeInfo, ValueError,
+  AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, EventInfo, PropertyAccess, PropertyInfo, PropertyRef, TypeInfo,
+  ValueError,
   Whitespace,
 };
 use artic_view::document::{Content, Element, Member, Problem, Text, TypeUse};
@@ -52,8 +53,17 @@ const fn property_info(name: &'static str, field: &'static str) -> PropertyInfo 
     affects: Affects::NONE,
     inherits: false,
     literal: None,
+    access: &UNWRITTEN,
   }
 }
+
+/// What the loader would do with a test property: nothing, since these tests never load a view.
+static UNWRITTEN: PropertyAccess = PropertyAccess {
+  set_text: |_, _, _, _| Err(ValueError::WrongNode),
+  set_node: |_, _, _, _| Err(ValueError::WrongNode),
+  set_null: None,
+  clear: |_, _, _| Err(ValueError::WrongNode),
+};
 
 static PANEL_PROPERTIES: [PropertyInfo; 1] = [property_info("Width", "width")];
 static PANEL_EVENTS: [EventInfo; 1] = [EventInfo {

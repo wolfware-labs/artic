@@ -8,6 +8,7 @@
 
 #[doc(hidden)]
 pub mod __private;
+mod access;
 mod collection;
 mod defaults;
 mod descriptors;
@@ -17,6 +18,7 @@ mod with_children;
 
 /// What [`PropertyInfo::literal`] writes with, re-exported so a code generator needs only this crate.
 pub use artic_core::{RustExpr, ToRust};
+pub use access::PropertyAccess;
 pub use collection::{UiCollection, check_child, is_a, type_names};
 pub use defaults::OverrideDefaults;
 pub use descriptors::{
