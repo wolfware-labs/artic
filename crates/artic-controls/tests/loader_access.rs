@@ -8,7 +8,7 @@ use artic_layout::HorizontalAlignment;
 use artic_layout::geometry::{CornerRadius, Thickness};
 use artic_layout::text::TextAlignment;
 use artic_registry::{Registry, TypeInfo, UiType};
-use artic_render::{Brush, Color};
+use artic_render::{Brush, Color, GradientStop, LinearGradientBrush, SolidColorBrush};
 use pretty_assertions::assert_eq;
 
 /// Sets `property` of `node`, whose type `type_info` describes, from `text` as the loader does:
@@ -102,5 +102,59 @@ fn a_group_property_has_one_access_for_every_control() {
       .get_as::<TextBlock>(block)
       .map(|block| block.layout.horizontal_alignment.get()),
     Some(HorizontalAlignment::Center)
+  );
+}
+
+/// The access of `property` on `type_info`.
+fn access(type_info: &'static TypeInfo, property: &str) -> &'static artic_registry::PropertyAccess {
+  type_info.property(property).expect("the property is registered").info.access
+}
+
+// A brush written as an element is staged, given its members, and moved into `Background`.
+#[test]
+fn a_staged_brush_becomes_the_background() {
+  let mut tree = UiTree::new();
+  let border = create(&mut tree, Border::TYPE_INFO);
+  let solid = create(&mut tree, SolidColorBrush::TYPE_INFO);
+  (access(SolidColorBrush::TYPE_INFO, "Color").set_text)(&mut tree, solid, "#3B82F6", Precedence::Local).expect("a color");
+
+  (access(Border::TYPE_INFO, "Background").set_object)(&mut tree, border, solid, Precedence::Local).expect("a brush");
+
+  assert_eq!(
+    tree.get_as::<Border>(border).map(|border| border.background.get()),
+    Some(Some(Brush::from(Color::rgb(0x3B, 0x82, 0xF6))))
+  );
+  assert!(!tree.contains(solid));
+}
+
+// A gradient takes its stops as staged values, in order, and becomes the brush it describes.
+#[test]
+fn a_staged_gradient_takes_its_stops() {
+  let mut tree = UiTree::new();
+  let border = create(&mut tree, Border::TYPE_INFO);
+  let gradient = create(&mut tree, LinearGradientBrush::TYPE_INFO);
+  let Some(artic_registry::ContentInfo::Collection { add_child, .. }) = LinearGradientBrush::TYPE_INFO.content else {
+    panic!("a gradient's content is its stops");
+  };
+  for (offset, color) in [("0", "White"), ("1", "SteelBlue")] {
+    let stop = create(&mut tree, GradientStop::TYPE_INFO);
+    (access(GradientStop::TYPE_INFO, "Offset").set_text)(&mut tree, stop, offset, Precedence::Local).expect("a number");
+    (access(GradientStop::TYPE_INFO, "Color").set_text)(&mut tree, stop, color, Precedence::Local).expect("a color");
+    add_child(&mut tree, gradient, stop).expect("a stop");
+  }
+
+  (access(Border::TYPE_INFO, "Background").set_object)(&mut tree, border, gradient, Precedence::Local).expect("a brush");
+
+  let expected = LinearGradientBrush {
+    stops: [
+      GradientStop::new(0.0, Color::WHITE),
+      GradientStop::new(1.0, Color::STEEL_BLUE),
+    ]
+    .into(),
+    ..LinearGradientBrush::default()
+  };
+  assert_eq!(
+    tree.get_as::<Border>(border).map(|border| border.background.get()),
+    Some(Some(Brush::from(expected)))
   );
 }

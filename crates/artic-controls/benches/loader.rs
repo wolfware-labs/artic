@@ -21,12 +21,14 @@ use artic_core::tree::{NodeId, UiTree};
 use artic_layout::HorizontalAlignment;
 use artic_layout::geometry::Thickness;
 use artic_registry::{PropertyAccess, TypeInfo, UiType};
+use artic_render::{Brush, Color, SolidColorBrush};
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 
 /// Two texts written in turn, so no write is skipped as setting the value already there.
 const PADDINGS: [&str; 2] = ["4,8", "8,4"];
 const ALIGNMENTS: [&str; 2] = ["Left", "Right"];
+const COLORS: [&str; 2] = ["#3B82F6", "SteelBlue"];
 
 /// A tree holding one control created from its descriptor, and the control's node.
 fn one(type_info: &'static TypeInfo) -> (UiTree, NodeId) {
@@ -120,5 +122,48 @@ fn group_property(c: &mut Criterion) {
   group.finish();
 }
 
-criterion_group!(benches, own_property, group_property);
+/// `Border.Background` from a brush written as an element: the brush is staged in the tree, its
+/// color set from text, and the staged brush moved into the property.
+fn object_property(c: &mut Criterion) {
+  let (mut tree, node) = one(Border::TYPE_INFO);
+  let new_brush = SolidColorBrush::TYPE_INFO.new.expect("a value is created from its default");
+  let color = access(SolidColorBrush::TYPE_INFO, "Color");
+  let background = access(Border::TYPE_INFO, "Background");
+  let staged = |tree: &mut UiTree, text: &str| {
+    let brush = new_brush(tree);
+    (color.set_text)(tree, brush, text, Precedence::Local).expect("a color");
+    (background.set_object)(tree, node, brush, Precedence::Local).expect("a brush");
+  };
+  let typed = |tree: &mut UiTree, text: &str| {
+    let value: Color = text.parse().expect("a color");
+    tree
+      .get_as::<Border>(node)
+      .expect("a Border node")
+      .background
+      .set_at(Precedence::Local, Some(Brush::from(SolidColorBrush::new(value))));
+  };
+  let read = |tree: &UiTree| tree.get_as::<Border>(node).and_then(|border| border.background.get());
+  staged(&mut tree, COLORS[0]);
+  assert_eq!(read(&tree), Some(Brush::from(Color::rgb(0x3B, 0x82, 0xF6))));
+  typed(&mut tree, COLORS[1]);
+  assert_eq!(read(&tree), Some(Brush::from(Color::STEEL_BLUE)));
+
+  let mut group = c.benchmark_group("loader/object_property");
+  let mut turn = 0;
+  group.bench_function("access", |b| {
+    b.iter(|| {
+      turn ^= 1;
+      staged(&mut tree, black_box(COLORS[turn]));
+    });
+  });
+  group.bench_function("typed", |b| {
+    b.iter(|| {
+      turn ^= 1;
+      typed(&mut tree, black_box(COLORS[turn]));
+    });
+  });
+  group.finish();
+}
+
+criterion_group!(benches, own_property, group_property, object_property);
 criterion_main!(benches);

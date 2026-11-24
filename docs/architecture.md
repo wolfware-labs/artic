@@ -54,8 +54,6 @@ flowchart TD
   platform --> element
 
   element --> render[artic-render]
-  element --> registry[artic-registry]
-  element --> macros[artic-macros]
 
   test[artic-test] --> platform
   test -. planned .-> styles
@@ -69,6 +67,8 @@ flowchart TD
   lsp --> lang[artic-xaml-lang]
 
   render --> layout[artic-layout]
+  render --> registry[artic-registry]
+  render --> macros[artic-macros]
   text --> layout
   styles --> registry
   viewc --> view[artic-view]
@@ -102,7 +102,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-registry` | `artic-core` | `artic-macros` |
 | `artic-layout` | `artic-core`, `artic-macros` | none |
 | `artic-i18n` | `artic-core` | none |
-| `artic-render` | `artic-core`, `artic-layout` | none |
+| `artic-render` | `artic-core`, `artic-layout`, `artic-macros`, `artic-registry` | none |
 | `artic-text` | `artic-layout` | `artic-test-fonts` |
 | `artic-style` | `artic-core`, `artic-registry` | none |
 | `artic-view` | `artic-registry`, `artic-diagnostics`, `artic-ident` | `artic-core` |
