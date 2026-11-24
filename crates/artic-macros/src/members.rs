@@ -88,10 +88,10 @@ pub struct PropertyField<'a> {
 /// A value type's plain field marked `#[ui]`: data set in place on the staged value.
 pub struct ValueField<'a> {
   pub ident: &'a Ident,
+  /// The field's type, `T` or `Option<X>`.
+  pub ty: &'a Type,
   /// `T`, or the `X` of `Option<X>`: what text or an element sets.
   pub value: &'a Type,
-  /// Whether the field is an `Option`, which null sets to `None`.
-  pub optional: bool,
   /// The name in UI languages: the `name` override, or the field name in PascalCase.
   pub ui_name: String,
 }
@@ -334,16 +334,20 @@ fn value_field<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttribut
       "a value's `#[ui]` fields are plain data, such as `#[ui] color: Color`, with no property settings",
     ));
   }
-  let ui_name = match &attributes.name {
-    Some(name) => name.value(),
-    None => pascal_case(&ident.to_string()),
-  };
   Ok(ValueField {
     ident,
+    ty: &field.ty,
     value: value_type(&field.ty),
-    optional: generic_argument(&field.ty, "Option").is_some(),
-    ui_name,
+    ui_name: ui_name(ident, &attributes),
   })
+}
+
+/// The name of a field in UI languages: the `name` override, or the field name in PascalCase.
+fn ui_name(ident: &Ident, attributes: &FieldAttributes) -> String {
+  match &attributes.name {
+    Some(name) => name.value(),
+    None => pascal_case(&ident.to_string()),
+  }
 }
 
 /// A `#[ui]` field read by `classify`, before `Members::analyze` files it.
@@ -356,10 +360,7 @@ enum Member<'a> {
 
 /// Decides what a `#[ui]` field is from its attributes and how its type is written.
 fn classify<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttributes) -> syn::Result<Member<'a>> {
-  let ui_name = match &attributes.name {
-    Some(name) => name.value(),
-    None => pascal_case(&ident.to_string()),
-  };
+  let ui_name = ui_name(ident, &attributes);
   if attributes.flatten.is_some() {
     return Ok(Member::Group(GroupField { ident, ty: &field.ty }));
   }
@@ -512,6 +513,11 @@ pub fn unraw_name(ident: &Ident) -> String {
 /// the default, else `ty`.
 pub fn value_type(ty: &Type) -> &Type {
   generic_argument(ty, "Option").unwrap_or(ty)
+}
+
+/// Whether `ty` is written `Option<X>`, so a loader and a builder set an `X` and null sets `None`.
+pub fn is_optional(ty: &Type) -> bool {
+  generic_argument(ty, "Option").is_some()
 }
 
 /// If `ty` is written `Wrapper<T>`, possibly with a path in front, returns `T`.

@@ -120,14 +120,12 @@ pub static HOST: TypeInfo = TypeInfo {
   }),
   groups: &LAYOUT,
   code_type_root: true,
-  kind: TypeKind::Node,
   ..info("Host", "test_ui::host::Host")
 };
 
 /// Takes no content; a code type can take its place.
 pub static BADGE: TypeInfo = TypeInfo {
   code_type_root: true,
-  kind: TypeKind::Node,
   ..info("Badge", "test_ui::badge::Badge")
 };
 

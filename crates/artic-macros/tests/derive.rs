@@ -1124,9 +1124,12 @@ fn a_value_is_registered_with_its_fields() {
     info
       .properties
       .iter()
-      .map(|property| (property.name, property.affects))
+      .map(|property| (property.name, property.value_type, property.affects))
       .collect::<Vec<_>>(),
-    [("Offset", Affects::NONE), ("Label", Affects::NONE)]
+    [
+      ("Offset", "f32", Affects::NONE),
+      ("Label", "Option < String >", Affects::NONE)
+    ]
   );
   fn takes_itself<T: UiValue>() {}
   takes_itself::<Stop>();

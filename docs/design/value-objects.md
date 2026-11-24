@@ -91,7 +91,7 @@ The blanket impl and a family's impl don't conflict: only the crate that owns `B
 
 Only values take themselves. Taking an object out of the tree (`UiTree::take`) disposes its properties, as freeing it does, so a node type's object would come out with dead `Property` fields; a value's fields are plain data, and lose nothing. A property whose value type is a node type refuses an object with `WrongType`, as it refuses text.
 
-The [loader values](loader-values.md) thunk `set_object` for `Property<V>` or `Property<Option<V>>` is then `V::from_object(tree, object)?` followed by `set_at(level, value)`. The derive can't know at macro time whether `V` implements `FromUiObject`, so `set_object` is generated for every property: with the same autoref selection #18 uses for its value check, it calls `from_object` when available, and otherwise returns `ValueError::WrongType { expected, found: "an object element" }`. `PropertyAccess.set_object` is therefore always present, not an `Option` (the loader values design is updated accordingly).
+The [loader values](loader-values.md) thunk `set_object` for `Property<V>` or `Property<Option<V>>` is then `V::from_object(tree, object)?` followed by `set_at(level, value)`. The derive can't know at macro time whether `V` implements `FromUiObject`, so `set_object` is generated for every property: with the same autoref selection #18 uses for its value check, it calls `from_object` when available, and otherwise takes the object out of the tree and returns `ValueError::WrongType { expected, found: "an object" }`. `PropertyAccess.set_object` is therefore always present, not an `Option` (the loader values design is updated accordingly).
 
 ## Loader steps
 
@@ -101,9 +101,9 @@ For `<Border.Background><SolidColorBrush Color="#3B82F6"/></Border.Background>`:
 2. Stage it: `info.new`, which every value type has, allocates a `SolidColorBrush` with its defaults.
 3. Set its members through their thunks: `Color`'s `set_text("#3B82F6")` parses a `Color` and assigns the field.
 4. Call `Background`'s `set_object(tree, border, staged, Precedence::Local)`.
-5. The thunk calls `Brush::from_object`, which frees the staging node, takes the `SolidColorBrush` out and converts it with `Brush::from`, then calls `background.set_at(Local, Some(brush))`.
+5. The thunk calls `Brush::from_object`, which takes the `SolidColorBrush` out of the tree with `UiTree::take` and converts it with `Brush::from`, then calls `background.set_at(Local, Some(brush))`.
 
-The staging node is always freed by `from_object`, on success and on error, so no value is left in the tree.
+`set_object` always takes the staging node out of the tree, on success and on error, so no value is left there.
 
 ## Compiled output
 

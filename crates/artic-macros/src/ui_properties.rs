@@ -45,7 +45,7 @@ pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
   let root = crate_root(analysis.crate_path.as_ref(), ident, REGISTRY)?;
   let keys = members.properties.iter().map(key_static);
   let default_impl = default_impl(ident, members, None);
-  let properties = properties_static(members);
+  let properties = properties_static(ident, members);
   let constants = members.properties.iter().filter_map(key_constant);
   let trait_name = format_ident!("{ident}Methods").to_string();
   let content = match members.content {

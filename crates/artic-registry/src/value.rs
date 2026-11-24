@@ -53,10 +53,7 @@ impl<T: FromUiObject> UiCollection for Vec<T> {
     child: NodeId,
     field: for<'a> fn(&'a mut UiTree, NodeId) -> Option<&'a mut Self>,
   ) -> Result<(), ValueError> {
-    field(tree, owner).ok_or(ValueError::WrongNode)?;
-    let value = T::from_object(tree, child)?;
-    field(tree, owner).expect("checked above").push(value);
-    Ok(())
+    push_value(tree, owner, child, field, Vec::push)
   }
 }
 
@@ -70,10 +67,23 @@ impl<T: FromUiObject + Clone> UiCollection for Arc<[T]> {
     child: NodeId,
     field: for<'a> fn(&'a mut UiTree, NodeId) -> Option<&'a mut Self>,
   ) -> Result<(), ValueError> {
-    field(tree, owner).ok_or(ValueError::WrongNode)?;
-    let value = T::from_object(tree, child)?;
-    let values = field(tree, owner).expect("checked above");
-    *values = values.iter().cloned().chain([value]).collect();
-    Ok(())
+    push_value(tree, owner, child, field, |values, value| {
+      *values = values.iter().cloned().chain([value]).collect();
+    })
   }
+}
+
+/// Checks `owner`, takes the staged `child` out of the tree as a `T`, and gives it to `push` with
+/// the collection `field` reaches: the steps every collection of values shares.
+fn push_value<C, T: FromUiObject>(
+  tree: &mut UiTree,
+  owner: NodeId,
+  child: NodeId,
+  field: for<'a> fn(&'a mut UiTree, NodeId) -> Option<&'a mut C>,
+  push: impl FnOnce(&mut C, T),
+) -> Result<(), ValueError> {
+  field(tree, owner).ok_or(ValueError::WrongNode)?;
+  let value = T::from_object(tree, child)?;
+  push(field(tree, owner).expect("checked above"), value);
+  Ok(())
 }

@@ -1,7 +1,6 @@
 use crate::crate_root::{REGISTRY, crate_root};
 use crate::members::emit::{
-  affects_tokens, checks, default_impl, inheritance_tokens, key_path, key_static, properties_static, value_check,
-  value_field_access, visits,
+  affects_tokens, checks, default_impl, inheritance_tokens, key_path, key_static, properties_static, value_check, visits,
 };
 use crate::members::{Content, GroupField, Members, PropertyField, generic_argument, value_type};
 use crate::ui_type::analysis::TypeAnalysis;
@@ -34,9 +33,7 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
   let value_impl = is_value.then(|| quote!(impl __artic::UiValue for #ident {}));
   let attached_helpers = attached.iter().map(|attached| attached_helpers(ident, attached));
   let type_info = type_info(analysis);
-  let value_checks = members.values.iter().map(|field| value_check(field.value));
-  let attached_checks = attached.iter().map(|attached| value_check(value_type(&attached.ty)));
-  let checks = checks(members, value_checks.chain(attached_checks));
+  let checks = checks(members, attached.iter().map(|attached| value_check(value_type(&attached.ty))));
   Ok(quote! {
     const _: () = {
       use #root::__private as __artic;
@@ -148,11 +145,7 @@ fn group_items(ident: &Ident, members: &Members) -> TokenStream {
 /// The descriptor statics the type's `TypeInfo` points at: its properties, a value's plain fields
 /// among them, its events, attached properties and groups.
 fn descriptors(ident: &Ident, members: &Members, attached: &[Attached]) -> TokenStream {
-  let properties = if members.values.is_empty() {
-    properties_static(members)
-  } else {
-    value_properties_static(ident, members)
-  };
+  let properties = properties_static(ident, members);
   let events = members.events.iter().map(|event| {
     let (name, args) = (&event.ui_name, event.args);
     quote!(__artic::EventInfo { name: #name, args_type: ::core::stringify!(#args) })
@@ -174,30 +167,6 @@ fn descriptors(ident: &Ident, members: &Members, attached: &[Attached]) -> Token
     static __ATTACHED: [__artic::AttachedPropertyInfo; #attached_count] = [#(#attached_infos),*];
     static __GROUPS: [__artic::PropertyGroupInfo; #group_count] = [#(#groups),*];
   }
-}
-
-/// The `__PROPERTIES` static of a value: a `PropertyInfo` for each plain `#[ui]` field, in field
-/// order. A value's field has no key, so it affects no frame stage and inherits nothing: the
-/// property that holds the value does both.
-fn value_properties_static(ident: &Ident, members: &Members) -> TokenStream {
-  let count = members.values.len();
-  let infos = members.values.iter().map(|field| {
-    let (name, value) = (&field.ui_name, field.value);
-    let field_name = field.ident.to_string();
-    let access = value_field_access(ident, field);
-    quote! {
-      __artic::PropertyInfo {
-        name: #name,
-        field: #field_name,
-        value_type: ::core::stringify!(#value),
-        affects: __artic::Affects::NONE,
-        inherits: false,
-        literal: __artic::literal!(#value),
-        access: #access,
-      }
-    }
-  });
-  quote!(static __PROPERTIES: [__artic::PropertyInfo; #count] = [#(#infos),*];)
 }
 
 /// For a type whose content is a collection, `__content_field`, which reaches the field, and

@@ -223,7 +223,6 @@ pub static HOST: TypeInfo = TypeInfo {
     add_child,
   }),
   code_type_root: true,
-  kind: TypeKind::Node,
   ..info("Host", "test_ui::Host")
 };
 
@@ -235,7 +234,6 @@ pub static CAPTION: TypeInfo = TypeInfo {
   })),
   properties: &TEXT,
   code_type_root: true,
-  kind: TypeKind::Node,
   ..info("Caption", "test_ui::Caption")
 };
 
@@ -250,7 +248,6 @@ pub static BAG: TypeInfo = TypeInfo {
     add_child,
   }),
   code_type_root: true,
-  kind: TypeKind::Node,
   ..info("Bag", "test_ui::Bag")
 };
 

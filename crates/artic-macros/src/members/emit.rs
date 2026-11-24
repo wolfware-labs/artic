@@ -1,5 +1,5 @@
 use crate::members::attributes::Inherits;
-use crate::members::{Content, Key, Members, PropertyField, ValueField, generic_argument, unraw_name};
+use crate::members::{Content, Key, Members, PropertyField, ValueField, is_optional, unraw_name};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::spanned::Spanned;
@@ -64,10 +64,15 @@ pub fn visits(members: &Members) -> TokenStream {
   quote!(#(#properties)* #(#groups)*)
 }
 
-/// The `__PROPERTIES` static: the `PropertyInfo` of each property, in field order.
-pub fn properties_static(members: &Members) -> TokenStream {
-  let count = members.properties.len();
-  let infos = members.properties.iter().map(property_info);
+/// The `__PROPERTIES` static of `owner`: the `PropertyInfo` of each property, or of each plain
+/// field of a value, in field order.
+pub fn properties_static(owner: &Ident, members: &Members) -> TokenStream {
+  let count = members.properties.len() + members.values.len();
+  let infos = members
+    .properties
+    .iter()
+    .map(property_info)
+    .chain(members.values.iter().map(|field| value_field_info(owner, field)));
   quote!(static __PROPERTIES: [__artic::PropertyInfo; #count] = [#(#infos),*];)
 }
 
@@ -75,7 +80,11 @@ pub fn properties_static(members: &Members) -> TokenStream {
 /// type can't be written in a UI language or a flattened field isn't a group, followed by the
 /// derive's `extra_checks`.
 pub fn checks(members: &Members, extra_checks: impl IntoIterator<Item = TokenStream>) -> TokenStream {
-  let values = members.properties.iter().map(|field| value_check(field.value));
+  let values = members
+    .properties
+    .iter()
+    .map(|field| value_check(field.value))
+    .chain(members.values.iter().map(|field| value_check(field.value)));
   let groups = members.groups.iter().map(|group| {
     let ty = group.ty;
     quote_spanned!(ty.span()=> __artic::assert_property_group::<#ty>();)
@@ -172,7 +181,7 @@ fn property_access(field: &PropertyField) -> TokenStream {
   let key = key_path(field);
   access_tokens(&Access {
     value: field.value,
-    optional: is_optional(field),
+    optional: is_optional(field.inner),
     name: quote!(#key.name()),
     level: quote!(level),
     write: &|value| quote!(__artic::set_property(tree, node, #key, level, #value)),
@@ -180,15 +189,34 @@ fn property_access(field: &PropertyField) -> TokenStream {
   })
 }
 
+/// The `PropertyInfo` for a value's plain field. The field has no key, so it affects no frame
+/// stage and inherits nothing: the property that holds the value does both.
+fn value_field_info(owner: &Ident, field: &ValueField) -> TokenStream {
+  let (name, ty, value) = (&field.ui_name, field.ty, field.value);
+  let field_name = field.ident.to_string();
+  let access = value_field_access(owner, field);
+  quote! {
+    __artic::PropertyInfo {
+      name: #name,
+      field: #field_name,
+      value_type: ::core::stringify!(#ty),
+      affects: __artic::Affects::NONE,
+      inherits: false,
+      literal: __artic::literal!(#value),
+      access: #access,
+    }
+  }
+}
+
 /// The `PropertyAccess` of a value type's plain field: thunks that assign the field of a staged
 /// value. A value has no precedence levels, so the level is ignored, and clearing the field puts
 /// back the type's default.
-pub fn value_field_access(owner: &Ident, field: &ValueField) -> TokenStream {
+fn value_field_access(owner: &Ident, field: &ValueField) -> TokenStream {
   let (ident, name) = (field.ident, &field.ui_name);
   let reach = quote!(|owner: &mut #owner| &mut owner.#ident);
   access_tokens(&Access {
     value: field.value,
-    optional: field.optional,
+    optional: is_optional(field.ty),
     name: quote!(#name),
     level: quote!(_),
     write: &|value| quote!(__artic::set_field(tree, node, #reach, #value)),
@@ -288,7 +316,7 @@ pub struct Setter {
 /// such as `8.0` is an `f64` until something fixes its type, and `impl Into<f32>` doesn't.
 pub fn setter(field: &PropertyField) -> Setter {
   let (inner, value, name) = (field.inner, field.value, &field.ui_name);
-  let optional = is_optional(field);
+  let optional = is_optional(inner);
   let argument = if optional { value } else { inner };
   let (parameter, converted) = if is_number(argument) {
     (quote!(#argument), quote!(value))
@@ -328,11 +356,6 @@ fn is_number(ty: &Type) -> bool {
   path.qself.is_none()
     && path.path.segments.iter().all(|segment| segment.arguments.is_none())
     && NUMBERS.contains(&name.as_str())
-}
-
-/// Whether the field is a `Property<Option<V>>`, whose builder and loader set a `V`.
-fn is_optional(field: &PropertyField) -> bool {
-  generic_argument(field.inner, "Option").is_some()
 }
 
 /// The check that a value type can be written in a UI language, pointing at the type.

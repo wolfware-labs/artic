@@ -20,8 +20,8 @@ use artic_core::property::Precedence;
 use artic_core::tree::{NodeId, UiTree};
 use artic_layout::HorizontalAlignment;
 use artic_layout::geometry::Thickness;
-use artic_registry::{PropertyAccess, TypeInfo, UiType};
-use artic_render::{Brush, Color, SolidColorBrush};
+use artic_registry::{ContentInfo, PropertyAccess, TypeInfo, UiType};
+use artic_render::{Brush, Color, GradientStop, LinearGradientBrush, SolidColorBrush};
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 
@@ -35,6 +35,32 @@ fn one(type_info: &'static TypeInfo) -> (UiTree, NodeId) {
   let mut tree = UiTree::new();
   let node = (type_info.new.expect("the control has a constructor"))(&mut tree);
   (tree, node)
+}
+
+/// Times `access` and `typed` in one group named `name`, each writing the two `texts` in turn.
+fn compare(
+  c: &mut Criterion,
+  name: &str,
+  tree: &mut UiTree,
+  texts: [&str; 2],
+  mut access: impl FnMut(&mut UiTree, &str),
+  mut typed: impl FnMut(&mut UiTree, &str),
+) {
+  let mut group = c.benchmark_group(name);
+  let mut turn = 0;
+  group.bench_function("access", |b| {
+    b.iter(|| {
+      turn ^= 1;
+      access(tree, black_box(texts[turn]));
+    });
+  });
+  group.bench_function("typed", |b| {
+    b.iter(|| {
+      turn ^= 1;
+      typed(tree, black_box(texts[turn]));
+    });
+  });
+  group.finish();
 }
 
 /// The loader's access to `property` of `type_info`, an own property or a group's.
@@ -65,21 +91,10 @@ fn own_property(c: &mut Criterion) {
     Some(Thickness::new(8.0, 4.0, 8.0, 4.0))
   );
 
-  let mut group = c.benchmark_group("loader/own_property");
-  let mut turn = 0;
-  group.bench_function("access", |b| {
-    b.iter(|| {
-      turn ^= 1;
-      (padding.set_text)(&mut tree, node, black_box(PADDINGS[turn]), Precedence::Local).expect("a Thickness");
-    });
-  });
-  group.bench_function("typed", |b| {
-    b.iter(|| {
-      turn ^= 1;
-      typed(&mut tree, black_box(PADDINGS[turn]));
-    });
-  });
-  group.finish();
+  let loaded = |tree: &mut UiTree, text: &str| {
+    (padding.set_text)(tree, node, text, Precedence::Local).expect("a Thickness");
+  };
+  compare(c, "loader/own_property", &mut tree, PADDINGS, loaded, typed);
 }
 
 /// `TextBlock.HorizontalAlignment`, a property of the layout group every control holds.
@@ -105,21 +120,10 @@ fn group_property(c: &mut Criterion) {
   typed(&mut tree, ALIGNMENTS[1]);
   assert_eq!(read(&tree), Some(HorizontalAlignment::Right));
 
-  let mut group = c.benchmark_group("loader/group_property");
-  let mut turn = 0;
-  group.bench_function("access", |b| {
-    b.iter(|| {
-      turn ^= 1;
-      (alignment.set_text)(&mut tree, node, black_box(ALIGNMENTS[turn]), Precedence::Local).expect("an alignment");
-    });
-  });
-  group.bench_function("typed", |b| {
-    b.iter(|| {
-      turn ^= 1;
-      typed(&mut tree, black_box(ALIGNMENTS[turn]));
-    });
-  });
-  group.finish();
+  let loaded = |tree: &mut UiTree, text: &str| {
+    (alignment.set_text)(tree, node, text, Precedence::Local).expect("an alignment");
+  };
+  compare(c, "loader/group_property", &mut tree, ALIGNMENTS, loaded, typed);
 }
 
 /// `Border.Background` from a brush written as an element: the brush is staged in the tree, its
@@ -148,22 +152,61 @@ fn object_property(c: &mut Criterion) {
   typed(&mut tree, COLORS[1]);
   assert_eq!(read(&tree), Some(Brush::from(Color::STEEL_BLUE)));
 
-  let mut group = c.benchmark_group("loader/object_property");
-  let mut turn = 0;
-  group.bench_function("access", |b| {
-    b.iter(|| {
-      turn ^= 1;
-      staged(&mut tree, black_box(COLORS[turn]));
-    });
-  });
-  group.bench_function("typed", |b| {
-    b.iter(|| {
-      turn ^= 1;
-      typed(&mut tree, black_box(COLORS[turn]));
-    });
-  });
-  group.finish();
+  compare(c, "loader/object_property", &mut tree, COLORS, staged, typed);
 }
 
-criterion_group!(benches, own_property, group_property, object_property);
+/// `Border.Background` from a gradient written as an element with two stops: each stop is staged,
+/// given its offset and color from text, and taken into the gradient's stops, which grow by one for
+/// each; then the staged gradient is moved into the property.
+fn gradient_property(c: &mut Criterion) {
+  let (mut tree, node) = one(Border::TYPE_INFO);
+  let new_gradient = LinearGradientBrush::TYPE_INFO
+    .new
+    .expect("a value is created from its default");
+  let new_stop = GradientStop::TYPE_INFO.new.expect("a value is created from its default");
+  let Some(ContentInfo::Collection { add_child, .. }) = LinearGradientBrush::TYPE_INFO.content else {
+    panic!("a gradient's content is its stops");
+  };
+  let offset = access(GradientStop::TYPE_INFO, "Offset");
+  let color = access(GradientStop::TYPE_INFO, "Color");
+  let background = access(Border::TYPE_INFO, "Background");
+  let staged = |tree: &mut UiTree, text: &str| {
+    let gradient = new_gradient(tree);
+    for (at, stop_color) in [("0", "White"), ("1", text)] {
+      let stop = new_stop(tree);
+      (offset.set_text)(tree, stop, at, Precedence::Local).expect("a number");
+      (color.set_text)(tree, stop, stop_color, Precedence::Local).expect("a color");
+      add_child(tree, gradient, stop).expect("a stop");
+    }
+    (background.set_object)(tree, node, gradient, Precedence::Local).expect("a brush");
+  };
+  let typed = |tree: &mut UiTree, text: &str| {
+    let stop =
+      |at: &str, stop_color: &str| GradientStop::new(at.parse().expect("a number"), stop_color.parse().expect("a color"));
+    let gradient = LinearGradientBrush {
+      stops: [stop("0", "White"), stop("1", text)].into(),
+      ..LinearGradientBrush::default()
+    };
+    tree
+      .get_as::<Border>(node)
+      .expect("a Border node")
+      .background
+      .set_at(Precedence::Local, Some(Brush::from(gradient)));
+  };
+  let read = |tree: &UiTree| tree.get_as::<Border>(node).and_then(|border| border.background.get());
+  let expected = |end: Color| {
+    Brush::from(LinearGradientBrush {
+      stops: [GradientStop::new(0.0, Color::WHITE), GradientStop::new(1.0, end)].into(),
+      ..LinearGradientBrush::default()
+    })
+  };
+  staged(&mut tree, COLORS[0]);
+  assert_eq!(read(&tree), Some(expected(Color::rgb(0x3B, 0x82, 0xF6))));
+  typed(&mut tree, COLORS[1]);
+  assert_eq!(read(&tree), Some(expected(Color::STEEL_BLUE)));
+
+  compare(c, "loader/gradient_property", &mut tree, COLORS, staged, typed);
+}
+
+criterion_group!(benches, own_property, group_property, object_property, gradient_property);
 criterion_main!(benches);

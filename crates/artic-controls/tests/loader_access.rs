@@ -7,7 +7,7 @@ use artic_core::tree::{NodeId, UiTree};
 use artic_layout::HorizontalAlignment;
 use artic_layout::geometry::{CornerRadius, Thickness};
 use artic_layout::text::TextAlignment;
-use artic_registry::{Registry, TypeInfo, UiType};
+use artic_registry::{ContentInfo, PropertyAccess, Registry, TypeInfo, UiType};
 use artic_render::{Brush, Color, GradientStop, LinearGradientBrush, SolidColorBrush};
 use pretty_assertions::assert_eq;
 
@@ -106,7 +106,7 @@ fn a_group_property_has_one_access_for_every_control() {
 }
 
 /// The access of `property` on `type_info`.
-fn access(type_info: &'static TypeInfo, property: &str) -> &'static artic_registry::PropertyAccess {
+fn access(type_info: &'static TypeInfo, property: &str) -> &'static PropertyAccess {
   type_info.property(property).expect("the property is registered").info.access
 }
 
@@ -133,7 +133,7 @@ fn a_staged_gradient_takes_its_stops() {
   let mut tree = UiTree::new();
   let border = create(&mut tree, Border::TYPE_INFO);
   let gradient = create(&mut tree, LinearGradientBrush::TYPE_INFO);
-  let Some(artic_registry::ContentInfo::Collection { add_child, .. }) = LinearGradientBrush::TYPE_INFO.content else {
+  let Some(ContentInfo::Collection { add_child, .. }) = LinearGradientBrush::TYPE_INFO.content else {
     panic!("a gradient's content is its stops");
   };
   for (offset, color) in [("0", "White"), ("1", "SteelBlue")] {
