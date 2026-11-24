@@ -11,7 +11,17 @@ use std::fmt::{self, Debug, Formatter};
 /// finds its property on the node by its key, so a property of a group is written the same way on
 /// every type that holds the group.
 ///
+/// A property is found as the node's field of that key, or else its attached value of that key, as
+/// [`UiTree::property`] finds it, so an access whose key is an attached key, such as a group's
+/// property that shares one, also writes a node that holds the attached value.
+///
 /// A compiled view never calls them: it sets each property through its typed builder method.
+///
+/// # Panics
+///
+/// Every entry panics when given a level no caller sets directly: `Precedence::Inherited`, which
+/// the tree fills, and for `clear` also `Precedence::Default`, which a property always has, as
+/// [`Property::set_at`] and [`Property::clear`] do. A loader passes `Local` or `StyleSetter`.
 pub struct PropertyAccess {
   /// Parses `text` with the value type's `FromStr` and sets the value at `level`. For a
   /// `Property<Option<V>>` it parses a `V`.

@@ -122,13 +122,16 @@ fn padding_set_text(tree: &mut UiTree, node: NodeId, text: &str, level: Preceden
     expected: "Thickness",
     message: error.to_string(),
   })?;
+  if !tree.contains(node) {
+    return Err(ValueError::WrongNode);
+  }
   let padding = tree.property(node, Border::PADDING).ok_or(ValueError::WrongNode)?;
   padding.set_at(level, value);
   Ok(())
 }
 ```
 
-The thunk finds its property by key with `UiTree::property`, not through the owner's type. A property group's property, such as `Margin` in the `layout` group every control holds, has one `PropertyInfo` and one key for all of them, so its one access writes it on any node that holds the group; a node without the key, or no longer in the tree, is `WrongNode`. Finding a property by key walks the node's properties. Only the loader pays that: compiled views call typed setters, and `cargo bench -p artic-controls --bench loader` compares the two.
+The thunk finds its property by key with `UiTree::property`, not through the owner's type. A property group's property, such as `Margin` in the `layout` group every control holds, has one `PropertyInfo` and one key for all of them, so its one access writes it on any node that holds the group; a node without the key, or no longer in the tree, is `WrongNode`. Finding a property by key visits every property the node holds. Only the loader pays that: compiled views call typed setters with values written at build time. `cargo bench -p artic-controls --bench loader` compares an access with parsing the same text and setting the field directly.
 
 Every entry is a plain function, present for every property, and refuses what its property can't take, so the loader calls one and reports what it returns. `set_node` is present like `set_object`: the derive can't tell at macro time that a value type is `NodeId`, so it selects the conversion with the same autoref check #18 uses for text, and a property of any other type refuses a node with `WrongType`.
 

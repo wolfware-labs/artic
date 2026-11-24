@@ -1013,3 +1013,63 @@ fn a_freed_node_is_the_wrong_node() {
 
   assert_eq!(refused, Err(ValueError::WrongNode));
 }
+
+/// A UI type used as another type's property value, as a value object will be.
+#[derive(Debug, PartialEq, UiType)]
+struct Badge;
+
+/// A type whose property holds a `Badge`.
+#[derive(Debug, UiType)]
+struct Holder {
+  #[ui]
+  badge: Property<Badge>,
+}
+
+// A property whose value is a UI type is written as an object, so it refuses text and a node.
+#[test]
+fn a_ui_type_value_refuses_text_and_a_node() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Holder::default()));
+  let child = tree.alloc(Box::new(Border::default()));
+  let badge = access_of(Holder::TYPE_INFO, "Badge");
+
+  let text = (badge.set_text)(&mut tree, node, "x", Precedence::Local);
+  let element = (badge.set_node)(&mut tree, node, child, Precedence::Local);
+
+  assert_eq!(
+    text,
+    Err(ValueError::WrongType {
+      expected: "Badge",
+      found: "text"
+    })
+  );
+  assert_eq!(
+    element,
+    Err(ValueError::WrongType {
+      expected: "Badge",
+      found: "an element"
+    })
+  );
+}
+
+// A value that can't be taken is reported before the node is looked at, so the error names the
+// value even on a node that is gone.
+#[test]
+fn a_refused_value_is_reported_before_the_node() {
+  let mut tree = UiTree::new();
+  let node = tree.alloc(Box::new(Border::default()));
+  tree.free(node);
+
+  let text = (access_of(Border::TYPE_INFO, "Padding").set_text)(&mut tree, node, "wide", Precedence::Local);
+
+  assert!(
+    matches!(
+      text,
+      Err(ValueError::Parse {
+        expected: "Thickness",
+        ..
+      })
+    ),
+    "{text:?}"
+  );
+}

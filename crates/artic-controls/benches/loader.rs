@@ -1,11 +1,12 @@
-// What a UI language's runtime loader pays to write one property from text: the property's
-// access, found by name in the registry and called through function pointers, next to the typed
-// code a compiled view runs for the same write (parse, then `set_at` on the field).
+// What a UI language's runtime loader pays to write one property from text through the property's
+// access: function pointers whose bodies parse the text and find the property on the node by its
+// key. The `typed` side parses the same text and sets the field directly, so the gap is the lookup
+// and the indirection. A compiled view pays neither, nor the parse: its values are Rust
+// expressions written at build time. The access is resolved once, outside the timed loop.
 //
-// The access finds the property on the node by its key, which walks the node's properties, so the
-// gap grows with how many a control holds. `Border` holds few of its own; `TextBlock`'s layout
-// group property sits behind its own properties and its format group. Only a UI language's runtime
-// loader (hot reload included) pays it: compiled views never call the access.
+// Finding a property by key visits every property the node holds, whatever the property's place,
+// so the cost follows the node's property count: `Border.Padding` is a property of the type itself,
+// `TextBlock.HorizontalAlignment` one of the layout group every control holds.
 //
 // Compare against main as the core benches do:
 //
