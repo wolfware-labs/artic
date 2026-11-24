@@ -39,18 +39,22 @@ pub(crate) fn property_of<T>(tree: &UiTree, node: NodeId, key: &'static Property
 where
   T: PartialEq + 'static,
 {
-  if tree.get(node).is_none() {
+  if !tree.contains(node) {
     return Err(ValueError::WrongNode);
   }
   tree.property(node, key).ok_or(ValueError::WrongNode)
 }
 
-/// What the loader would do with a property of a registry test: nothing, since those tests never
-/// load a view.
 #[cfg(test)]
-pub(crate) static UNWRITTEN: PropertyAccess = PropertyAccess {
-  set_text: |_, _, _, _| Err(ValueError::WrongNode),
-  set_node: |_, _, _, _| Err(ValueError::WrongNode),
-  set_null: |_, _, _| Err(ValueError::WrongNode),
-  clear: |_, _, _| Err(ValueError::WrongNode),
-};
+pub(crate) mod tests {
+  use super::*;
+
+  /// What the loader would do with a property of a registry test: nothing, since those tests
+  /// never load a view.
+  pub(crate) static UNWRITTEN: PropertyAccess = PropertyAccess {
+    set_text: |_, _, _, _| Err(ValueError::WrongNode),
+    set_node: |_, _, _, _| Err(ValueError::WrongNode),
+    set_null: |_, _, _| Err(ValueError::WrongNode),
+    clear: |_, _, _| Err(ValueError::WrongNode),
+  };
+}

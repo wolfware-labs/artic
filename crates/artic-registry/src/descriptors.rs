@@ -335,7 +335,7 @@ mod tests {
       affects: PADDING.affects(),
       inherits: PADDING.inherits(),
       literal: None,
-      access: &crate::access::UNWRITTEN,
+      access: &crate::access::tests::UNWRITTEN,
     }],
     groups: &[],
     events: &[EventInfo {

@@ -4,8 +4,8 @@
 //
 // The access finds the property on the node by its key, which walks the node's properties, so the
 // gap grows with how many a control holds. `Border` holds few of its own; `TextBlock`'s layout
-// group property sits behind its own properties and its format group. Only the loader (hot reload,
-// `xaml-runtime`) pays it: compiled views never call the access.
+// group property sits behind its own properties and its format group. Only a UI language's runtime
+// loader (hot reload included) pays it: compiled views never call the access.
 //
 // Compare against main as the core benches do:
 //
@@ -34,6 +34,7 @@ fn one(type_info: &'static TypeInfo) -> (UiTree, NodeId) {
   (tree, node)
 }
 
+/// The loader's access to `property` of `type_info`, an own property or a group's.
 fn access(type_info: &'static TypeInfo, property: &str) -> &'static PropertyAccess {
   type_info.property(property).expect("the property is registered").info.access
 }

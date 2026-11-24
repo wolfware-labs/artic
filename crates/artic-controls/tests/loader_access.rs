@@ -1,4 +1,4 @@
-// A UI language's runtime loader writes the M1 controls' properties through the registry's
+// A UI language's runtime loader writes the controls' properties through the registry's
 // property access, knowing only names and text: one value of each kind the controls hold.
 
 use artic_controls::{Border, TextBlock};

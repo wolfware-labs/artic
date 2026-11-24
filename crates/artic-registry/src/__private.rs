@@ -28,8 +28,9 @@ impl<T> Debug for ValueCheck<T> {
 /// What `literal` returns for a property whose value is an element.
 const TAKES_AN_ELEMENT: &str = "this property takes an element, not text";
 
-/// What a property's thunks say they were given, for [`ValueError::WrongType`].
+/// What a property's thunks say they were given as text, for [`ValueError::WrongType`].
 const TEXT: &str = "text";
+/// What a property's thunks say they were given as a node, for [`ValueError::WrongType`].
 const AN_ELEMENT: &str = "an element";
 
 /// How a property's thunks turn what the loader holds into the value type `V`. The value check
@@ -362,7 +363,7 @@ mod tests {
       affects: Affects::LAYOUT,
       inherits: false,
       literal: None,
-      access: &crate::access::UNWRITTEN,
+      access: &crate::access::tests::UNWRITTEN,
     }
   }
 

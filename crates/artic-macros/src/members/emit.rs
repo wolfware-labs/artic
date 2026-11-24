@@ -81,10 +81,11 @@ pub fn checks(members: &Members, extra_checks: impl IntoIterator<Item = TokenStr
     quote_spanned!(ty.span()=> __artic::assert_property_group::<#ty>();)
   });
   let extra_checks = extra_checks.into_iter();
+  let imports = value_check_imports();
   quote! {
     #[allow(dead_code, clippy::needless_borrow)]
     fn __checks() {
-      use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+      #imports
       #(#values)*
       #(#groups)*
       #(#extra_checks)*
@@ -168,10 +169,13 @@ pub fn property_info(field: &PropertyField) -> TokenStream {
 /// The `PropertyAccess` of one property: thunks whose bodies know its value type and find the
 /// property on any node by its key. A `Property<Option<V>>` parses and takes a `V`, and is the only
 /// kind that can be set to null; the others refuse null with the property's name.
+///
+/// The thunks convert through the value check's own expression, spanned at the value type, so a
+/// value type a UI language can't write fails once, there.
 fn property_access(field: &PropertyField) -> TokenStream {
-  let (inner, value) = (field.inner, field.value);
+  let value = field.value;
   let key = key_path(field);
-  let optional = generic_argument(inner, "Option").is_some();
+  let optional = is_optional(field);
   let wrap = |value: TokenStream| {
     if optional {
       quote!(::core::option::Option::Some(#value))
@@ -179,10 +183,8 @@ fn property_access(field: &PropertyField) -> TokenStream {
       value
     }
   };
-  // Spanned like the value check, so a value type a UI language can't write fails once, there.
-  let ops = quote_spanned!(value.span()=>
-    (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype()
-  );
+  let ops = value_ops(value);
+  let imports = value_check_imports();
   let parsed = wrap(quote!((#ops.parse)(text, ::core::stringify!(#value))?));
   let node_value = wrap(quote!((#ops.node)(child, ::core::stringify!(#value))?));
   let set_null = if optional {
@@ -193,11 +195,11 @@ fn property_access(field: &PropertyField) -> TokenStream {
   quote! {
     &__artic::PropertyAccess {
       set_text: |tree, node, text, level| {
-        use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+        #imports
         __artic::set_property(tree, node, #key, level, #parsed)
       },
       set_node: |tree, node, child, level| {
-        use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+        #imports
         __artic::set_property(tree, node, #key, level, #node_value)
       },
       set_null: #set_null,
@@ -220,7 +222,7 @@ pub struct Setter {
 /// such as `8.0` is an `f64` until something fixes its type, and `impl Into<f32>` doesn't.
 pub fn setter(field: &PropertyField) -> Setter {
   let (inner, value, name) = (field.inner, field.value, &field.ui_name);
-  let optional = generic_argument(inner, "Option").is_some();
+  let optional = is_optional(field);
   let argument = if optional { value } else { inner };
   let (parameter, converted) = if is_number(argument) {
     (quote!(#argument), quote!(value))
@@ -262,10 +264,29 @@ fn is_number(ty: &Type) -> bool {
     && NUMBERS.contains(&name.as_str())
 }
 
+/// Whether the field is a `Property<Option<V>>`, whose builder and loader set a `V`.
+fn is_optional(field: &PropertyField) -> bool {
+  generic_argument(field.inner, "Option").is_some()
+}
+
 /// The check that a value type can be written in a UI language, pointing at the type.
 pub fn value_check(value: &Type) -> TokenStream {
+  let ops = value_ops(value);
+  quote_spanned!(value.span()=> #ops;)
+}
+
+/// The value check as an expression, pointing at the type: it compiles only for a value type a UI
+/// language can write, and gives the `ValueOps` the loader's thunks convert with.
+fn value_ops(value: &Type) -> TokenStream {
   quote_spanned!(value.span()=>
-    (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+    (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+  )
+}
+
+/// The imports the value check resolves through, one trait per kind of value.
+fn value_check_imports() -> TokenStream {
+  quote!(
+    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
   )
 }
 
