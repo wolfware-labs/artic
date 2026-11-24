@@ -1,0 +1,21 @@
+# Every checkout here drops the token, so the check passes.
+jobs:
+  forms:
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - with:
+          persist-credentials: false
+        uses: actions/checkout@v7
+      - {uses: actions/checkout@v7, with: {persist-credentials: false}}
+      - uses: "actions/checkout@v7"
+        with:
+          persist-credentials: False
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: 'false'
+      - name: Not a checkout
+        run: |
+          echo "uses: actions/checkout@v7"
+      - uses: other/action@v1
