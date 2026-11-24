@@ -79,8 +79,12 @@ fn a_group_property_has_one_access_for_every_control() {
   let mut tree = UiTree::new();
   let border = create(&mut tree, Border::TYPE_INFO);
   let block = create(&mut tree, TextBlock::TYPE_INFO);
-  let on_border = Border::TYPE_INFO.property("HorizontalAlignment").expect("in the layout group");
-  let on_block = TextBlock::TYPE_INFO.property("HorizontalAlignment").expect("in the layout group");
+  let on_border = Border::TYPE_INFO
+    .property("HorizontalAlignment")
+    .expect("in the layout group");
+  let on_block = TextBlock::TYPE_INFO
+    .property("HorizontalAlignment")
+    .expect("in the layout group");
   assert!(std::ptr::eq(on_border.info, on_block.info));
 
   for node in [border, block] {
@@ -88,11 +92,15 @@ fn a_group_property_has_one_access_for_every_control() {
   }
 
   assert_eq!(
-    tree.get_as::<Border>(border).map(|border| border.layout.horizontal_alignment.get()),
+    tree
+      .get_as::<Border>(border)
+      .map(|border| border.layout.horizontal_alignment.get()),
     Some(HorizontalAlignment::Center)
   );
   assert_eq!(
-    tree.get_as::<TextBlock>(block).map(|block| block.layout.horizontal_alignment.get()),
+    tree
+      .get_as::<TextBlock>(block)
+      .map(|block| block.layout.horizontal_alignment.get()),
     Some(HorizontalAlignment::Center)
   );
 }

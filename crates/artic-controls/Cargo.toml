@@ -28,5 +28,9 @@ pretty_assertions.workspace = true
 name = "layout"
 harness = false
 
+[[bench]]
+name = "loader"
+harness = false
+
 [lints]
 workspace = true

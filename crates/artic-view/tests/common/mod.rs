@@ -5,9 +5,8 @@ use artic_core::property::Affects;
 use artic_core::tree::{NodeId, UiTree};
 use artic_diagnostics::{Diagnostic, Diagnostics, SourceMap, Span};
 use artic_registry::{
-  AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, EventInfo, PropertyAccess, PropertyInfo, PropertyRef, TypeInfo,
-  ValueError,
-  Whitespace,
+  AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, EventInfo, PropertyAccess, PropertyInfo, PropertyRef,
+  TypeInfo, ValueError, Whitespace,
 };
 use artic_view::document::{Content, Element, Member, Problem, Text, TypeUse};
 
@@ -61,7 +60,7 @@ const fn property_info(name: &'static str, field: &'static str) -> PropertyInfo 
 static UNWRITTEN: PropertyAccess = PropertyAccess {
   set_text: |_, _, _, _| Err(ValueError::WrongNode),
   set_node: |_, _, _, _| Err(ValueError::WrongNode),
-  set_null: None,
+  set_null: |_, _, _| Err(ValueError::WrongNode),
   clear: |_, _, _| Err(ValueError::WrongNode),
 };
 

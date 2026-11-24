@@ -48,7 +48,9 @@ const _: () = {
                             .node)(child, ::core::stringify!(f32))?,
                     )
                 },
-                set_null: ::core::option::Option::None,
+                set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
+                    property: (&__KEY_WIDTH).name(),
+                }),
                 clear: |tree, node, level| __artic::clear_property(
                     tree,
                     node,

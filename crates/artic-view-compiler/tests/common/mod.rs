@@ -80,7 +80,7 @@ const fn property_info(
 static UNWRITTEN: PropertyAccess = PropertyAccess {
   set_text: |_, _, _, _| Err(ValueError::WrongNode),
   set_node: |_, _, _, _| Err(ValueError::WrongNode),
-  set_null: None,
+  set_null: |_, _, _| Err(ValueError::WrongNode),
   clear: |_, _, _| Err(ValueError::WrongNode),
 };
 

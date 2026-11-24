@@ -118,7 +118,9 @@ const _: () = {
                             .node)(child, ::core::stringify!(f32))?,
                     )
                 },
-                set_null: ::core::option::Option::None,
+                set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
+                    property: (&__KEY_WIDTH).name(),
+                }),
                 clear: |tree, node, level| __artic::clear_property(
                     tree,
                     node,
@@ -159,7 +161,9 @@ const _: () = {
                             .node)(child, ::core::stringify!(bool))?,
                     )
                 },
-                set_null: ::core::option::Option::None,
+                set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
+                    property: (&__KEY_ENABLED).name(),
+                }),
                 clear: |tree, node, level| __artic::clear_property(
                     tree,
                     node,
@@ -200,7 +204,9 @@ const _: () = {
                             .node)(child, ::core::stringify!(i32))?,
                     )
                 },
-                set_null: ::core::option::Option::None,
+                set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
+                    property: SHARED.key().name(),
+                }),
                 clear: |tree, node, level| __artic::clear_property(
                     tree,
                     node,
@@ -245,15 +251,13 @@ const _: () = {
                         ),
                     )
                 },
-                set_null: ::core::option::Option::Some(|tree, node, level| {
-                    __artic::set_property(
-                        tree,
-                        node,
-                        (&__KEY_TEXT),
-                        level,
-                        ::core::option::Option::None,
-                    )
-                }),
+                set_null: |tree, node, level| __artic::set_property(
+                    tree,
+                    node,
+                    (&__KEY_TEXT),
+                    level,
+                    ::core::option::Option::None,
+                ),
                 clear: |tree, node, level| __artic::clear_property(
                     tree,
                     node,

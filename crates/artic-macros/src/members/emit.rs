@@ -167,7 +167,7 @@ pub fn property_info(field: &PropertyField) -> TokenStream {
 
 /// The `PropertyAccess` of one property: thunks whose bodies know its value type and find the
 /// property on any node by its key. A `Property<Option<V>>` parses and takes a `V`, and is the only
-/// kind that can be set to null.
+/// kind that can be set to null; the others refuse null with the property's name.
 fn property_access(field: &PropertyField) -> TokenStream {
   let (inner, value) = (field.inner, field.value);
   let key = key_path(field);
@@ -186,11 +186,9 @@ fn property_access(field: &PropertyField) -> TokenStream {
   let parsed = wrap(quote!((#ops.parse)(text, ::core::stringify!(#value))?));
   let node_value = wrap(quote!((#ops.node)(child, ::core::stringify!(#value))?));
   let set_null = if optional {
-    quote!(::core::option::Option::Some(|tree, node, level| {
-      __artic::set_property(tree, node, #key, level, ::core::option::Option::None)
-    }))
+    quote!(|tree, node, level| __artic::set_property(tree, node, #key, level, ::core::option::Option::None))
   } else {
-    quote!(::core::option::Option::None)
+    quote!(|_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable { property: #key.name() }))
   };
   quote! {
     &__artic::PropertyAccess {

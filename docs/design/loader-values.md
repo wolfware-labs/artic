@@ -51,7 +51,7 @@ Also rejected:
 
 ### Thunks on the existing descriptors
 
-`#[derive(UiType)]` (#18) already analyzes every property field and knows its type. It also emits one `static PropertyAccess` per property. The loader calls these function pointers; it never names a property's type.
+`#[derive(UiType)]` (#18) and `#[derive(UiProperties)]` already analyze every property field and know its type. They also emit one `PropertyAccess` per property. The loader calls these function pointers; it never names a property's type.
 
 ```rust,ignore
 // artic-registry
@@ -69,15 +69,18 @@ pub struct PropertyInfo {
 pub struct PropertyAccess {
   /// Parses `text` with the value type's `FromStr` and sets it at `level`.
   pub set_text: fn(&mut UiTree, NodeId, &str, Precedence) -> Result<(), ValueError>,
-  /// Sets a node, for properties that name one (`Property<NodeId>` / `Property<Option<NodeId>>`, such as `DataContext`).
-  pub set_node: Option<fn(&mut UiTree, NodeId, NodeId, Precedence) -> Result<(), ValueError>>,
+  /// Sets a node, for properties that hold one (`Property<NodeId>` / `Property<Option<NodeId>>`,
+  /// such as `DataContext`). Present for every property; other value types return
+  /// `ValueError::WrongType`.
+  pub set_node: fn(&mut UiTree, NodeId, NodeId, Precedence) -> Result<(), ValueError>,
   /// Converts a built object into the value type with `FromUiObject` and sets it. Present for
   /// every property; types that can't come from an object return `ValueError::WrongType`.
   pub set_object: fn(&mut UiTree, NodeId, NodeId, Precedence) -> Result<(), ValueError>,
-  /// Sets `None`, only for `Property<Option<T>>`. `None` here means "not nullable".
-  pub set_null: Option<fn(&mut UiTree, NodeId, Precedence) -> Result<(), ValueError>>,
+  /// Sets `None`, for `Property<Option<T>>`. Present for every property; the others return
+  /// `ValueError::NotNullable`.
+  pub set_null: fn(&mut UiTree, NodeId, Precedence) -> Result<(), ValueError>,
   /// Empties `level`, when a style stops matching or a reload removes the attribute.
-  pub clear: fn(&mut UiTree, NodeId, Precedence),
+  pub clear: fn(&mut UiTree, NodeId, Precedence) -> Result<(), ValueError>,
 }
 
 pub struct AttachedPropertyInfo {
@@ -109,9 +112,9 @@ pub enum ValueError {
 }
 ```
 
-Function pointers are `Copy`, `const`-friendly and fit in the `static` descriptors from #17. `Option<fn(...)>` is the size of `fn(...)` because a function pointer can't be null.
+Function pointers are `Copy`, `const`-friendly and fit in the `static` descriptors from #17.
 
-What the derive would generate for `Border.padding`, shown as plain Rust:
+What the derive generates for `Border.padding`, shown as plain Rust:
 
 ```rust,ignore
 fn padding_set_text(tree: &mut UiTree, node: NodeId, text: &str, level: Precedence) -> Result<(), ValueError> {
@@ -119,11 +122,15 @@ fn padding_set_text(tree: &mut UiTree, node: NodeId, text: &str, level: Preceden
     expected: "Thickness",
     message: error.to_string(),
   })?;
-  let border = tree.get_as::<Border>(node).ok_or(ValueError::WrongNode)?;
-  border.padding.set_at(level, value);
+  let padding = tree.property(node, Border::PADDING).ok_or(ValueError::WrongNode)?;
+  padding.set_at(level, value);
   Ok(())
 }
 ```
+
+The thunk finds its property by key with `UiTree::property`, not through the owner's type. A property group's property, such as `Margin` in the `layout` group every control holds, has one `PropertyInfo` and one key for all of them, so its one access writes it on any node that holds the group; a node without the key, or no longer in the tree, is `WrongNode`. Finding a property by key walks the node's properties. Only the loader pays that: compiled views call typed setters, and `cargo bench -p artic-controls --bench loader` compares the two.
+
+Every entry is a plain function, present for every property, and refuses what its property can't take, so the loader calls one and reports what it returns. `set_node` is present like `set_object`: the derive can't tell at macro time that a value type is `NodeId`, so it selects the conversion with the same autoref check #18 uses for text, and a property of any other type refuses a node with `WrongType`.
 
 `set_object`'s body converts the built object with the value type's `FromUiObject`, which checks "is this a `T`?" with `T` known statically, the same check `UiTree::get_as::<T>` already makes. It happens inside typed code; the loader and the public API never see `Any`. How value objects such as `SolidColorBrush` are staged and converted is the [value objects design](value-objects.md).
 

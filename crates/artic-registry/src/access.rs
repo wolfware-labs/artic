@@ -20,19 +20,16 @@ pub struct PropertyAccess {
   /// `Property<Option<NodeId>>`. A property of another value type refuses it with
   /// [`ValueError::WrongType`].
   pub set_node: fn(&mut UiTree, NodeId, NodeId, Precedence) -> Result<(), ValueError>,
-  /// Sets `None` at `level`, for a `Property<Option<T>>` only: `None` here means the property
-  /// can't be null.
-  pub set_null: Option<fn(&mut UiTree, NodeId, Precedence) -> Result<(), ValueError>>,
+  /// Sets `None` at `level`, for a `Property<Option<T>>`. A property of another value type refuses
+  /// it with [`ValueError::NotNullable`].
+  pub set_null: fn(&mut UiTree, NodeId, Precedence) -> Result<(), ValueError>,
   /// Empties `level`, when a style stops matching or a reload removes the value.
   pub clear: fn(&mut UiTree, NodeId, Precedence) -> Result<(), ValueError>,
 }
 
 impl Debug for PropertyAccess {
   fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-    formatter
-      .debug_struct("PropertyAccess")
-      .field("set_null", &self.set_null.is_some())
-      .finish_non_exhaustive()
+    formatter.debug_struct("PropertyAccess").finish_non_exhaustive()
   }
 }
 
@@ -54,6 +51,6 @@ where
 pub(crate) static UNWRITTEN: PropertyAccess = PropertyAccess {
   set_text: |_, _, _, _| Err(ValueError::WrongNode),
   set_node: |_, _, _, _| Err(ValueError::WrongNode),
-  set_null: None,
+  set_null: |_, _, _| Err(ValueError::WrongNode),
   clear: |_, _, _| Err(ValueError::WrongNode),
 };

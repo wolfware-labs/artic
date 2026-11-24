@@ -38,7 +38,10 @@ fn finds_a_field_by_its_key() {
     width: Property::new(&WIDTH, 0.0),
   }));
 
-  tree.property(panel, &WIDTH).expect("the field's key").set_at(Precedence::StyleSetter, 80.0);
+  tree
+    .property(panel, &WIDTH)
+    .expect("the field's key")
+    .set_at(Precedence::StyleSetter, 80.0);
 
   assert_eq!(tree.get_as::<Panel>(panel).map(|panel| panel.width.get()), Some(80.0));
 }

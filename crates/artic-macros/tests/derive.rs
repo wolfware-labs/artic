@@ -9,8 +9,8 @@ use artic_element::{Child, Children};
 use artic_macros::{UiProperties, UiType};
 use artic_registry as registry_alias;
 use artic_registry::{
-  AttachedTarget, ContentInfo, ContentMethod, OverrideDefaults, PropertyAccess, PropertyGroup, PropertyRef, Registry, TypeInfo, UiCollection,
-  UiType, ValueError, Whitespace,
+  AttachedTarget, ContentInfo, ContentMethod, OverrideDefaults, PropertyAccess, PropertyGroup, PropertyRef, Registry, TypeInfo,
+  UiCollection, UiType, ValueError, Whitespace,
 };
 use pretty_assertions::assert_eq;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -884,7 +884,10 @@ fn set_text_reports_what_did_not_parse() {
       message: "invalid float literal".to_owned(),
     }
   );
-  assert_eq!(tree.get_as::<Border>(node).map(|border| border.padding.get()), Some(Thickness::ZERO));
+  assert_eq!(
+    tree.get_as::<Border>(node).map(|border| border.padding.get()),
+    Some(Thickness::ZERO)
+  );
 }
 
 // A node is the value of a property that holds one, and refused by a property of another type.
@@ -897,7 +900,10 @@ fn set_node_takes_a_node_only_where_the_value_is_one() {
   (access_of(Border::TYPE_INFO, "Child").set_node)(&mut tree, node, child, Precedence::Local).expect("a node property");
   let refused = (access_of(Border::TYPE_INFO, "Padding").set_node)(&mut tree, node, child, Precedence::Local);
 
-  assert_eq!(tree.get_as::<Border>(node).map(|border| border.child.get()), Some(Some(child)));
+  assert_eq!(
+    tree.get_as::<Border>(node).map(|border| border.child.get()),
+    Some(Some(child))
+  );
   assert_eq!(
     refused,
     Err(ValueError::WrongType {
@@ -924,18 +930,20 @@ fn set_text_on_a_node_property_is_refused() {
   );
 }
 
-// Only a `Property<Option<T>>` can be set to null, and null overrides a lower level's value.
+// Only a `Property<Option<T>>` can be set to null, overriding a lower level's value; another
+// property refuses null by its name.
 #[test]
-fn set_null_exists_only_for_optional_properties() {
+fn set_null_takes_only_optional_properties() {
   let mut tree = UiTree::new();
   let node = tree.alloc(Box::new(Border::default()));
   let background = access_of(Border::TYPE_INFO, "Background");
   (background.set_text)(&mut tree, node, "red", Precedence::StyleSetter).expect("any text");
 
-  (background.set_null.expect("an optional property"))(&mut tree, node, Precedence::Local).expect("the node is a Border");
+  (background.set_null)(&mut tree, node, Precedence::Local).expect("an optional property");
+  let refused = (access_of(Border::TYPE_INFO, "Padding").set_null)(&mut tree, node, Precedence::Local);
 
   assert_eq!(tree.get_as::<Border>(node).map(|border| border.background.get()), Some(None));
-  assert!(access_of(Border::TYPE_INFO, "Padding").set_null.is_none());
+  assert_eq!(refused, Err(ValueError::NotNullable { property: "Padding" }));
 }
 
 // Clearing a level lets the next one show again, as when a style stops matching.
@@ -949,7 +957,10 @@ fn clear_empties_one_level() {
 
   (padding.clear)(&mut tree, node, Precedence::Local).expect("the node is a Border");
 
-  assert_eq!(tree.get_as::<Border>(node).map(|border| border.padding.get()), Some(Thickness(8.0)));
+  assert_eq!(
+    tree.get_as::<Border>(node).map(|border| border.padding.get()),
+    Some(Thickness(8.0))
+  );
 }
 
 // A group's property has one access, which writes it on every type that flattens the group.
@@ -964,8 +975,14 @@ fn a_group_property_is_written_on_every_owner() {
   (margin.set_text)(&mut tree, widget, "3", Precedence::Local).expect("a Widget holds Common");
   (margin.set_text)(&mut tree, gadget, "5", Precedence::Local).expect("a Gadget holds Common");
 
-  assert_eq!(tree.get_as::<Widget>(widget).map(|widget| widget.common.margin.get()), Some(3));
-  assert_eq!(tree.get_as::<Gadget>(gadget).map(|gadget| gadget.common.margin.get()), Some(5));
+  assert_eq!(
+    tree.get_as::<Widget>(widget).map(|widget| widget.common.margin.get()),
+    Some(3)
+  );
+  assert_eq!(
+    tree.get_as::<Gadget>(gadget).map(|gadget| gadget.common.margin.get()),
+    Some(5)
+  );
 }
 
 // A node without the property, such as one of another type, is refused and left as it was.
@@ -975,8 +992,14 @@ fn a_node_without_the_property_is_the_wrong_node() {
   let widget = tree.alloc(Box::new(Widget::default()));
   let padding = access_of(Border::TYPE_INFO, "Padding");
 
-  assert_eq!((padding.set_text)(&mut tree, widget, "4", Precedence::Local), Err(ValueError::WrongNode));
-  assert_eq!((padding.clear)(&mut tree, widget, Precedence::Local), Err(ValueError::WrongNode));
+  assert_eq!(
+    (padding.set_text)(&mut tree, widget, "4", Precedence::Local),
+    Err(ValueError::WrongNode)
+  );
+  assert_eq!(
+    (padding.clear)(&mut tree, widget, Precedence::Local),
+    Err(ValueError::WrongNode)
+  );
 }
 
 // A node freed before the loader writes it is the wrong node too: markup never panics the loader.

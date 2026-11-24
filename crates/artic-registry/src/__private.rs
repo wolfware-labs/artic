@@ -50,7 +50,10 @@ impl<V> Debug for ValueOps<V> {
 
 /// Refuses a node: the value is text or an object.
 fn not_a_node<V>(_node: NodeId, expected: &'static str) -> std::result::Result<V, ValueError> {
-  Err(ValueError::WrongType { expected, found: AN_ELEMENT })
+  Err(ValueError::WrongType {
+    expected,
+    found: AN_ELEMENT,
+  })
 }
 
 /// Refuses text: the value is an element.
