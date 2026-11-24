@@ -11,7 +11,7 @@ status=$?
 named=$(printf '%s\n' "$output" | sed -n "s|^$data/keeps-token.yml:||p")
 expected=$(grep -n '# flagged$' "$data/keeps-token.yml" | cut -d: -f1)
 if [ "$status" -ne 1 ] || [ "$named" != "$expected" ]; then
-  echo "keeps-token.yml: expected exit 1 naming lines" $expected", got exit $status:"
+  echo "keeps-token.yml: expected exit 1 naming lines ${expected//$'\n'/ }, got exit $status:"
   echo "$output"
   failed=1
 fi
