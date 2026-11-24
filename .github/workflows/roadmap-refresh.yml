@@ -15,10 +15,7 @@ jobs:
   dispatch:
     # Issues outside every milestone don't change the roadmap. After a
     # demilestoned event the issue has no milestone left, so it always counts.
-    if: >-
-      github.event_name == 'milestone' ||
-      github.event.action == 'demilestoned' ||
-      github.event.issue.milestone != null
+    if: ${{ github.event_name == 'milestone' || github.event.action == 'demilestoned' || github.event.issue.milestone != null }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
