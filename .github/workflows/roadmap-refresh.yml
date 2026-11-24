@@ -1,0 +1,40 @@
+name: Roadmap refresh
+
+# The roadmap on artic.rs shows each milestone's open and closed issue counts,
+# read from the GitHub API when the site builds. This asks artic-docs to build
+# again whenever those counts or the milestones themselves change.
+on:
+  issues:
+    types: [opened, closed, reopened, deleted, transferred, milestoned, demilestoned]
+  milestone:
+    types: [created, edited, opened, closed, deleted]
+
+permissions: {}
+
+jobs:
+  dispatch:
+    # Issues outside every milestone don't change the roadmap. After a
+    # demilestoned event the issue has no milestone left, so it always counts.
+    if: >-
+      github.event_name == 'milestone' ||
+      github.event.action == 'demilestoned' ||
+      github.event.issue.milestone != null
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The artic-docs bot app is installed on artic-docs only. The token is
+      # scoped to it and expires with the job.
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        id: token
+        with:
+          client-id: ${{ vars.DOCS_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.DOCS_BOT_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: artic-docs
+          permission-contents: write
+      - name: Ask artic-docs to rebuild the site
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          gh api "repos/$OWNER/artic-docs/dispatches" -f event_type=roadmap-changed
