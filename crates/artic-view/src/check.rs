@@ -608,15 +608,16 @@ impl Check {
           None => {}
         },
         Content::Element(element) => {
-          written.push(element.span);
-          if let (Some(taken), Ok(ty)) = (takes, &element.ty)
-            && !accepts(takes, ty.info)
-            && !is_value(element)
-          {
-            self.diagnostics.push(Diagnostic::error(
-              element.span,
-              format!("`{}` takes only {}", info.name, type_names(taken)),
-            ));
+          if !is_value(element) {
+            written.push(element.span);
+            if let (Some(taken), Ok(ty)) = (takes, &element.ty)
+              && !accepts(takes, ty.info)
+            {
+              self.diagnostics.push(Diagnostic::error(
+                element.span,
+                format!("`{}` takes only {}", info.name, type_names(taken)),
+              ));
+            }
           }
           children.extend(self.element(element, Parent::Of(info)));
         }
