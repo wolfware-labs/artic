@@ -107,7 +107,7 @@ For `<Border.Background><SolidColorBrush Color="#3B82F6"/></Border.Background>`:
 
 ## Compiled output
 
-The compiled path knows every type at build time, so it stages nothing and never calls `FromUiObject`. A value type gets no builder methods: it keeps its own constructors and `Default`, so the compiler (#43) builds a value from its default with its fields set, or writes it whole with `ToRust`, and converts it with `Into`:
+The compiled path knows every type at build time, so it stages nothing and never calls `FromUiObject`. A value type gets no builder methods: it keeps its own constructors and `Default`, so the compiler (#438) builds a value from its default with its fields set, or writes it whole with `ToRust`, and converts it with `Into`:
 
 ```rust,ignore
 border.background.set(Some(

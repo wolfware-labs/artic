@@ -12,7 +12,7 @@ use pretty_assertions::assert_eq;
 #[test]
 fn unknown_property_is_reported_at_its_name() {
   let document = Document {
-    root: element(&PANEL, 0, vec![property_problem("Height", 10, "value objects come with #57")]),
+    root: element(&PANEL, 0, vec![property_problem("Height", 10, "value objects come with #438")]),
   };
 
   let (view, diagnostics) = check(&document);
@@ -163,7 +163,7 @@ fn element_in_content_text_ends_the_content() {
 
   let (view, diagnostics) = check(&document);
 
-  assert_eq!(reported(&diagnostics), [at("value objects come with #57", 22)]);
+  assert_eq!(reported(&diagnostics), [at("value objects come with #438", 22)]);
   assert!(view.elements[0].properties.is_empty());
 }
 
@@ -257,7 +257,7 @@ fn value_collection_never_reaches_its_elements() {
   let (_, filled) = check(&filled);
   let (_, blank_only) = check(&blank_only);
 
-  assert_eq!(reported(&filled), [at("value collections come with #57", 20)]);
+  assert_eq!(reported(&filled), [at("value collections come with #438", 20)]);
   assert!(blank_only.is_empty(), "{blank_only}");
 }
 
@@ -413,7 +413,7 @@ fn once_key_is_spent_only_where_reached() {
   assert_eq!(
     reported(&diagnostics),
     [
-      at("value collections come with #57", 21),
+      at("value collections come with #438", 21),
       at("no namespace `https://example.com/ui`", 41),
     ]
   );
@@ -879,7 +879,7 @@ fn attached_problems_are_reported() {
     }),
     name: "Tag".to_owned(),
     span: span(30, 31),
-    value: Err(Diagnostic::error(span(31, 32), "value objects come with #57").into()),
+    value: Err(Diagnostic::error(span(31, 32), "value objects come with #438").into()),
   };
   let document = Document {
     root: element(
@@ -902,7 +902,7 @@ fn attached_problems_are_reported() {
     [
       at("`Rack` has no attached property `Bogus`", 10),
       at("no type `Dock`", 20),
-      at("value objects come with #57", 31),
+      at("value objects come with #438", 31),
       at("`Rack.Tag` is set twice", 51),
     ]
   );

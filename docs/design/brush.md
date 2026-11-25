@@ -106,7 +106,7 @@ A renderer maps the `Paint` to its own paint without checking anything. `artic-v
 
 ## 5. What waits
 
-A compiled view writes a brush element once the view compiler emits value objects (#43); the runtime loader takes them already (#57). A gradient spread mode (pad, reflect, repeat) and a gradient origin apart from the center are additive and wait for a need.
+A compiled view writes a brush element once the view compiler emits value objects (#438); the runtime loader takes them already (#57). A gradient spread mode (pad, reflect, repeat) and a gradient origin apart from the center are additive and wait for a need.
 
 ## 6. Testing
 

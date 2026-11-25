@@ -141,19 +141,19 @@ The block above is a view without a code type. The builder design's sample is a 
 | An attached property set twice | the parser's "this member is set twice on the same element" when both are written alike; when two spellings resolve to one owner, "`Rack.Slot` is set twice", at the second value, pointing at the first |
 | A markup extension | "`{StaticResource}` comes with #112" (`{Binding}` #94, `{DynamicResource}` #113, `{TemplateBinding}` #85, `{x:Static}`, `{x:Null}`, `{x:Type}` #62); any other: unknown value provider |
 | `<x:String>` and the other `x:` primitives, also written as a markup extension (`{x:String a}`) | "XAML primitives come with #62" |
-| An object value for a property, such as `<Border.Background><SolidColorBrush/></Border.Background>` | "value objects come with #57" |
+| An object value for a property, such as `<Border.Background><SolidColorBrush/></Border.Background>` | "value objects come with #438" |
 | `x:Key` outside a resource dictionary | "resources come with #111" |
 | Text inside a type with no content, or text in a collection of elements | the type takes no text content |
 | A second child for a `Child` content | the type takes one child |
 | A child of a type its collection doesn't list, such as a `Border` in a `TextBlock` | the type takes only the listed types, naming them |
-| A collection content of values, such as gradient stops | "value collections come with #57" |
+| A collection content of values, such as gradient stops | "value collections come with #438" |
 | A value provider written as an element, the root included, `<x:Null/>` too | the type is a value provider, not an element |
 | An element inside a type with no content | the type takes no child elements |
 | A property given both as an attribute and as content | the property is set twice |
 | A namespace URI the map doesn't declare | no namespace, once per URI, with help to declare it |
 | An `x:Name` whose field isn't an identifier or is `self`, `crate`, `super` or `root`, or that gives the same field as another name | invalid or duplicate name; for two spellings of one field, help naming both |
 
-An element in a value position (a property element, a content property, a value collection) is a value, which #57 resolves; until then it's reported as such and its type isn't looked up. Diagnostics are reported in source order.
+An element in a value position (a property element, a content property, a value collection) is a value, which #438 resolves; until then it's reported as such and its type isn't looked up. Diagnostics are reported in source order.
 
 Rendering them as `file:line:col` lines in `cargo build` output is #51. Here `compile_dir` stops on the first file with errors and returns them; its error's `Display` renders them plainly.
 

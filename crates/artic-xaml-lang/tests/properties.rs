@@ -154,7 +154,7 @@ fn object_value_reports_error() {
   let errors =
     compile(r#"<Border xmlns="https://artic.rs/ui"><Border.Background><SolidColorBrush/></Border.Background></Border>"#)
       .expect_err("a value object");
-  assert!(errors.contains("value objects come with #57"), "{errors}");
+  assert!(errors.contains("value objects come with #438"), "{errors}");
 }
 
 // A property element holding text sets the property like an attribute.
