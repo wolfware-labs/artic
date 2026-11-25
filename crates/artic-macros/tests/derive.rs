@@ -1330,7 +1330,7 @@ fn a_node_owner_of_values_takes_the_child_on_a_wrong_owner() {
 }
 
 // Only a detached leaf is a staged value: the owner itself, a node with a parent and a node with
-// children are refused with the tree untouched.
+// children, in either tree, are refused with the tree untouched.
 #[test]
 fn a_live_node_is_not_staged() {
   let mut tree = UiTree::new();
@@ -1339,6 +1339,10 @@ fn a_live_node_is_not_staged() {
   let linked = stage(&mut tree, Stop::TYPE_INFO);
   tree.link(TreeKind::Logical, rack, None, linked).expect("a link");
   let gradient = stage(&mut tree, Gradient::TYPE_INFO);
+  let template = stage(&mut tree, Stop::TYPE_INFO);
+  let part = stage(&mut tree, Stop::TYPE_INFO);
+  tree.link(TreeKind::Visual, template, None, part).expect("a link");
+  let set_stop = access_of(Painter::TYPE_INFO, "Stop").set_object;
   let set_gradient = access_of(Painter::TYPE_INFO, "Gradient").set_object;
   let add = add_child_of(Gradient::TYPE_INFO);
 
@@ -1350,14 +1354,21 @@ fn a_live_node_is_not_staged() {
     set_gradient(&mut tree, painter, rack, Precedence::Local),
     Err(ValueError::NotStaged(rack))
   );
-  assert_eq!(
-    (access_of(Painter::TYPE_INFO, "Stop").set_object)(&mut tree, painter, linked, Precedence::Local),
-    Err(ValueError::NotStaged(linked))
-  );
+  for node in [linked, part, template] {
+    assert_eq!(
+      set_stop(&mut tree, painter, node, Precedence::Local),
+      Err(ValueError::NotStaged(node))
+    );
+  }
   assert_eq!(add(&mut tree, gradient, linked), Err(ValueError::NotStaged(linked)));
   assert_eq!(add(&mut tree, gradient, rack), Err(ValueError::NotStaged(rack)));
-  assert!([painter, rack, linked, gradient].iter().all(|&id| tree.contains(id)));
+  assert!(
+    [painter, rack, linked, gradient, template, part]
+      .iter()
+      .all(|&id| tree.contains(id))
+  );
   assert_eq!(tree.parent(TreeKind::Logical, linked), Some(rack));
+  assert_eq!(tree.parent(TreeKind::Visual, part), Some(template));
 }
 
 // An optional property takes a staged value as `Some`, and a value's field thunk refuses a node of
