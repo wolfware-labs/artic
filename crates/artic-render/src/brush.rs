@@ -324,6 +324,28 @@ mod tests {
     );
   }
 
+  // A staged radial gradient becomes a radial brush, and a staged stop, which isn't a brush, is
+  // refused; both are taken out of the tree.
+  #[test]
+  fn brush_takes_a_radial_gradient_and_refuses_a_stop() {
+    let mut tree = UiTree::new();
+    let radial = tree.alloc(Box::new(RadialGradientBrush::default()));
+    let stop = tree.alloc(Box::new(GradientStop::default()));
+
+    assert_eq!(
+      Brush::from_object(&mut tree, radial),
+      Ok(Brush::Radial(RadialGradientBrush::default()))
+    );
+    assert_eq!(
+      Brush::from_object(&mut tree, stop),
+      Err(ValueError::WrongType {
+        expected: "Brush",
+        found: ANOTHER_OBJECT,
+      })
+    );
+    assert!(!tree.contains(radial) && !tree.contains(stop));
+  }
+
   // A brush built from its stops alone fills its box, at full opacity.
   #[test]
   fn brush_defaults_fill_the_box() {

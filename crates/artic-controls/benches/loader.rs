@@ -20,7 +20,8 @@ use artic_core::property::Precedence;
 use artic_core::tree::{NodeId, UiTree};
 use artic_layout::HorizontalAlignment;
 use artic_layout::geometry::Thickness;
-use artic_registry::{ContentInfo, PropertyAccess, TypeInfo, UiType};
+use artic_macros::UiType;
+use artic_registry::{ContentInfo, PropertyAccess, TypeInfo, UiType as _};
 use artic_render::{Brush, Color, GradientStop, LinearGradientBrush, SolidColorBrush};
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
@@ -29,6 +30,16 @@ use std::hint::black_box;
 const PADDINGS: [&str; 2] = ["4,8", "8,4"];
 const ALIGNMENTS: [&str; 2] = ["Left", "Right"];
 const COLORS: [&str; 2] = ["#3B82F6", "SteelBlue"];
+const OPACITIES: [&str; 2] = ["0.5", "0.25"];
+
+/// A value holding its stops in a `Vec`, a collection no brush uses: an app's own value type
+/// can.
+#[derive(Debug, Clone, PartialEq, Default, UiType)]
+#[ui(value)]
+struct Ramp {
+  #[ui(content)]
+  stops: Vec<GradientStop>,
+}
 
 /// A tree holding one control created from its descriptor, and the control's node.
 fn one(type_info: &'static TypeInfo) -> (UiTree, NodeId) {
@@ -208,5 +219,83 @@ fn gradient_property(c: &mut Criterion) {
   compare(c, "loader/gradient_property", &mut tree, COLORS, staged, typed);
 }
 
-criterion_group!(benches, own_property, group_property, object_property, gradient_property);
+/// A `Vec` of values filled from staged stops: two stops staged, each given its color from text
+/// and taken into the ramp, which is then taken out of the tree as a `Ramp`.
+fn value_collection(c: &mut Criterion) {
+  let mut tree = UiTree::new();
+  let new_ramp = Ramp::TYPE_INFO.new.expect("a value is created from its default");
+  let new_stop = GradientStop::TYPE_INFO.new.expect("a value is created from its default");
+  let Some(ContentInfo::Collection { add_child, .. }) = Ramp::TYPE_INFO.content else {
+    panic!("a ramp's content is its stops");
+  };
+  let color = access(GradientStop::TYPE_INFO, "Color");
+  let staged = |tree: &mut UiTree, text: &str| -> Ramp {
+    let ramp = new_ramp(tree);
+    for stop_color in ["White", text] {
+      let stop = new_stop(tree);
+      (color.set_text)(tree, stop, stop_color, Precedence::Local).expect("a color");
+      add_child(tree, ramp, stop).expect("a stop");
+    }
+    *(tree.take(ramp) as Box<dyn std::any::Any>).downcast::<Ramp>().expect("a Ramp")
+  };
+  let typed = |text: &str| Ramp {
+    stops: ["White", text]
+      .map(|stop_color| GradientStop {
+        color: stop_color.parse().expect("a color"),
+        ..GradientStop::default()
+      })
+      .into(),
+  };
+  assert_eq!(staged(&mut tree, COLORS[0]), typed(COLORS[0]));
+
+  compare(
+    c,
+    "loader/value_collection",
+    &mut tree,
+    COLORS,
+    |tree, text| {
+      black_box(staged(tree, text));
+    },
+    |_, text| {
+      black_box(typed(text));
+    },
+  );
+}
+
+/// A gradient's `Opacity` set from text and cleared again on the staged gradient: clearing a
+/// value's field resets it to the field's value in the type's default.
+fn value_field_clear(c: &mut Criterion) {
+  let (mut tree, gradient) = one(LinearGradientBrush::TYPE_INFO);
+  let opacity = access(LinearGradientBrush::TYPE_INFO, "Opacity");
+  let read = |tree: &UiTree| tree.get_as::<LinearGradientBrush>(gradient).map(|brush| brush.opacity);
+  let loaded = |tree: &mut UiTree, text: &str| {
+    (opacity.set_text)(tree, gradient, text, Precedence::Local).expect("a number");
+    (opacity.clear)(tree, gradient, Precedence::Local).expect("a gradient");
+  };
+  let typed = |tree: &mut UiTree, text: &str| {
+    let brush = tree
+      .get_as_mut::<LinearGradientBrush>(gradient)
+      .expect("a LinearGradientBrush node");
+    brush.opacity = text.parse().expect("a number");
+    brush.opacity = LinearGradientBrush::default().opacity;
+  };
+  (opacity.set_text)(&mut tree, gradient, OPACITIES[0], Precedence::Local).expect("a number");
+  assert_eq!(read(&tree), Some(0.5));
+  loaded(&mut tree, OPACITIES[1]);
+  assert_eq!(read(&tree), Some(1.0));
+  typed(&mut tree, OPACITIES[0]);
+  assert_eq!(read(&tree), Some(1.0));
+
+  compare(c, "loader/value_field_clear", &mut tree, OPACITIES, loaded, typed);
+}
+
+criterion_group!(
+  benches,
+  own_property,
+  group_property,
+  object_property,
+  gradient_property,
+  value_collection,
+  value_field_clear
+);
 criterion_main!(benches);

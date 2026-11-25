@@ -5,7 +5,7 @@ use crate::document::{Content, Element, Member, Problem, Text, TypeUse};
 use crate::{Document, field_name, unsupported};
 use artic_diagnostics::{Diagnostic, Diagnostics, Span};
 use artic_registry::{
-  AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, PropertyRef, TypeInfo, Whitespace, type_names,
+  AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, PropertyRef, TypeInfo, TypeKind, Whitespace, type_names,
 };
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
@@ -240,6 +240,15 @@ impl Check {
         element.span,
         format!("`{}` can't be created from markup yet (#59)", ty.info.name),
       ));
+    }
+    if let Some(ty) = ty
+      && ty.info.kind == TypeKind::Value
+    {
+      self.diagnostics.push(
+        Diagnostic::error(element.span, format!("`{}` is a value, not an element of the tree", ty.info.name))
+          .with_help("set it as a property's value instead"),
+      );
+      return None;
     }
     let ty: &TypeUse = ty?;
     self.elements.push(CheckedElement {

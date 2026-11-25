@@ -21,6 +21,26 @@ fn unknown_property_is_reported_at_its_name() {
   assert!(view.elements[0].properties.is_empty());
 }
 
+// A value written where an element of the tree goes, as a child or as the root, is reported at
+// its element and kept out of the view, so nothing is generated for it.
+#[test]
+fn value_is_reported_where_an_element_goes() {
+  let as_child = Document {
+    root: element(&PANEL, 0, vec![content(5, vec![Content::Element(element(&TINT, 10, Vec::new()))])]),
+  };
+  let as_root = Document {
+    root: element(&TINT, 0, Vec::new()),
+  };
+
+  let (child_view, child_diagnostics) = check(&as_child);
+  let (_, root_diagnostics) = check(&as_root);
+
+  let refused = |at_offset| at("`Tint` is a value, not an element of the tree", at_offset);
+  assert_eq!(reported(&child_diagnostics), [refused(10)]);
+  assert_eq!(child_view.elements.len(), 1);
+  assert_eq!(reported(&root_diagnostics), [refused(0)]);
+}
+
 // A type with no way to be created from markup is reported at its element, and its members and
 // children are still checked.
 #[test]

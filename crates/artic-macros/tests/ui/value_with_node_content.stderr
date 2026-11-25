@@ -1,0 +1,21 @@
+error[E0277]: a value's content is a collection of values, not `artic_element::Children`
+ --> tests/ui/value_with_node_content.rs:8:10
+  |
+8 |   items: Children,
+  |          ^^^^^^^^ a value can't hold child nodes
+  |
+  = help: the trait `artic_element::__private::ValueCollection` is not implemented for `artic_element::Children`
+  = note: use `Vec<T>` or `Arc<[T]>` of a value type, such as `Vec<GradientStop>`
+help: the following other types implement trait `artic_element::__private::ValueCollection`
+ --> $WORKSPACE/crates/artic-registry/src/__private.rs
+  |
+  | impl<T: FromUiObject> ValueCollection for Vec<T> {}
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `Vec<T>`
+  |
+  | impl<T: FromUiObject + Clone> ValueCollection for std::sync::Arc<[T]> {}
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `Arc<[T]>`
+note: required by a bound in `artic_element::__private::value_collection`
+ --> $WORKSPACE/crates/artic-registry/src/__private.rs
+  |
+  | pub const fn value_collection<C: ValueCollection>() {}
+  |                                  ^^^^^^^^^^^^^^^ required by this bound in `value_collection`

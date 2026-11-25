@@ -41,7 +41,9 @@ pub trait UiCollection: Sized {
   }
 
   /// Adds `child` as content of `owner`. An implementation calls `field` first and returns
-  /// [`ValueError::WrongNode`] when it gives `None`, before changing anything.
+  /// [`ValueError::WrongNode`] when it gives `None`, before changing anything. A collection of
+  /// values is the exception: a child it is given is a staged object, which it takes out of the
+  /// tree on every outcome, so it refuses a wrong owner after that.
   ///
   /// Beyond the owner, [`takes`](UiCollection::takes) and the tree's own link checks, it refuses a
   /// child only when the field holds as many as it takes, as `Child` refuses a second one, or, for

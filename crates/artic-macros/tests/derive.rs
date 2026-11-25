@@ -3,7 +3,7 @@
 
 use artic_core::event::Event;
 use artic_core::property::{Affects, Inheritance, Precedence, Property, PropertyKey};
-use artic_core::tree::{Handle, NodeId, TreeKind, UiTree};
+use artic_core::tree::{Handle, LinkError, NodeId, TreeKind, UiTree};
 use artic_core::{RustExpr, ToRust};
 use artic_element::{Child, Children};
 use artic_macros::{UiProperties, UiType};
@@ -1236,4 +1236,99 @@ fn set_object_refuses_what_the_property_does_not_take() {
     })
   );
   assert!(!tree.contains(gradient) && !tree.contains(another));
+}
+
+/// The function that adds a child to `type_info`'s collection content.
+fn add_child_of(type_info: &'static TypeInfo) -> fn(&mut UiTree, NodeId, NodeId) -> Result<(), ValueError> {
+  match type_info.content {
+    Some(ContentInfo::Collection { add_child, .. }) => add_child,
+    _ => panic!("a collection content"),
+  }
+}
+
+/// A node id that was in `tree` and was freed.
+fn stale(tree: &mut UiTree) -> NodeId {
+  let id = stage(tree, Stop::TYPE_INFO);
+  tree.free(id);
+  id
+}
+
+// A value collection refuses a stale child or the owner itself without touching the tree, and a
+// wrong owner after taking the staged child out, as `set_object` does.
+#[test]
+fn a_value_collection_refuses_a_bad_child() {
+  for info in [Gradient::TYPE_INFO, SharedGradient::TYPE_INFO] {
+    let mut tree = UiTree::new();
+    let owner = stage(&mut tree, info);
+    let painter = tree.alloc(Box::new(Painter::default()));
+    let staged = stage(&mut tree, Stop::TYPE_INFO);
+    let gone = stale(&mut tree);
+    let add = add_child_of(info);
+
+    assert_eq!(add(&mut tree, owner, gone), Err(ValueError::InvalidChild(LinkError::NotInTree(gone))));
+    assert_eq!(
+      add(&mut tree, owner, owner),
+      Err(ValueError::InvalidChild(LinkError::Cycle {
+        tree: TreeKind::Logical,
+        parent: owner,
+        child: owner,
+      }))
+    );
+    assert!(tree.contains(owner), "the owner stays");
+    assert_eq!(add(&mut tree, painter, staged), Err(ValueError::WrongNode));
+    assert!(!tree.contains(staged), "the staged child was taken out");
+  }
+}
+
+// `set_object` refuses a stale object whatever the property's type, without panicking.
+#[test]
+fn set_object_refuses_a_stale_object() {
+  let mut tree = UiTree::new();
+  let painter = tree.alloc(Box::new(Painter::default()));
+  let border = tree.alloc(Box::new(Border::default()));
+  let gone = stale(&mut tree);
+  let refused = Err(ValueError::InvalidChild(LinkError::NotInTree(gone)));
+
+  assert_eq!(
+    (access_of(Painter::TYPE_INFO, "Gradient").set_object)(&mut tree, painter, gone, Precedence::Local),
+    refused
+  );
+  assert_eq!(
+    (access_of(Border::TYPE_INFO, "Padding").set_object)(&mut tree, border, gone, Precedence::Local),
+    refused
+  );
+}
+
+// A wrong owner is refused after the staged object is taken out, so none is left behind.
+#[test]
+fn set_object_takes_the_object_on_a_wrong_owner() {
+  let mut tree = UiTree::new();
+  let border = tree.alloc(Box::new(Border::default()));
+  let staged = stage(&mut tree, Gradient::TYPE_INFO);
+
+  let refused = (access_of(Painter::TYPE_INFO, "Gradient").set_object)(&mut tree, border, staged, Precedence::Local);
+
+  assert_eq!(refused, Err(ValueError::WrongNode));
+  assert!(!tree.contains(staged));
+}
+
+// An optional property takes a staged value as `Some`, and a value's field thunk refuses a node of
+// another type.
+#[test]
+fn an_optional_property_takes_a_staged_value() {
+  let mut tree = UiTree::new();
+  let painter = tree.alloc(Box::new(Painter::default()));
+  let staged = stage(&mut tree, Stop::TYPE_INFO);
+  (access_of(Stop::TYPE_INFO, "Offset").set_text)(&mut tree, staged, "0.25", Precedence::Local).expect("a number");
+
+  (access_of(Painter::TYPE_INFO, "Stop").set_object)(&mut tree, painter, staged, Precedence::Local).expect("a Stop");
+
+  assert_eq!(
+    tree.get_as::<Painter>(painter).map(|painter| painter.stop.get().map(|stop| stop.offset)),
+    Some(Some(0.25))
+  );
+  assert_eq!(
+    (access_of(Stop::TYPE_INFO, "Offset").set_text)(&mut tree, painter, "1", Precedence::Local),
+    Err(ValueError::WrongNode)
+  );
 }

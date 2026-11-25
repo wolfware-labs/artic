@@ -257,6 +257,12 @@ pub static LOGIN: TypeInfo = TypeInfo {
   ..info("Login", "test_ui::Login")
 };
 
+/// A value: staged only while its members are set, never a node of the tree.
+pub static TINT: TypeInfo = TypeInfo {
+  kind: TypeKind::Value,
+  ..info("Tint", "test_ui::Tint")
+};
+
 /// Takes no content.
 pub static IMAGE: TypeInfo = info("Image", "test_ui::Image");
 

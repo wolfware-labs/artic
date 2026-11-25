@@ -3,7 +3,7 @@
 //! ([value objects design](https://github.com/wolfware-labs/artic/blob/main/docs/design/value-objects.md)).
 
 use crate::{UiCollection, UiType, ValueError};
-use artic_core::tree::{NodeId, UiTree};
+use artic_core::tree::{LinkError, NodeId, TreeKind, UiTree};
 use std::any::Any;
 use std::sync::Arc;
 
@@ -73,8 +73,21 @@ impl<T: FromUiObject + Clone> UiCollection for Arc<[T]> {
   }
 }
 
-/// Checks `owner`, takes the staged `child` out of the tree as a `T`, and gives it to `push` with
-/// the collection `field` reaches: the steps every collection of values shares.
+/// Refuses an `object` that isn't in the tree, which [`FromUiObject::from_object`] can't take.
+pub(crate) fn check_staged(tree: &UiTree, object: NodeId) -> Result<(), ValueError> {
+  if tree.contains(object) {
+    Ok(())
+  } else {
+    Err(ValueError::InvalidChild(LinkError::NotInTree(object)))
+  }
+}
+
+/// Takes the staged `child` out of the tree as a `T`, then gives it to `push` with the collection
+/// `field` reaches on `owner`: the steps every collection of values shares.
+///
+/// A stale child, or the owner itself, is refused with the tree untouched. Otherwise the child is
+/// taken out whatever happens next, as a property's `set_object` takes its object, so a wrong
+/// owner or a value of another type leaves nothing staged.
 fn push_value<C, T: FromUiObject>(
   tree: &mut UiTree,
   owner: NodeId,
@@ -82,8 +95,15 @@ fn push_value<C, T: FromUiObject>(
   field: for<'a> fn(&'a mut UiTree, NodeId) -> Option<&'a mut C>,
   push: impl FnOnce(&mut C, T),
 ) -> Result<(), ValueError> {
-  field(tree, owner).ok_or(ValueError::WrongNode)?;
+  check_staged(tree, child)?;
+  if child == owner {
+    return Err(ValueError::InvalidChild(LinkError::Cycle {
+      tree: TreeKind::Logical,
+      parent: owner,
+      child,
+    }));
+  }
   let value = T::from_object(tree, child)?;
-  push(field(tree, owner).expect("checked above"), value);
+  push(field(tree, owner).ok_or(ValueError::WrongNode)?, value);
   Ok(())
 }

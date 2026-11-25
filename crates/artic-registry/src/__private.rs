@@ -2,6 +2,7 @@
 
 use std::fmt::{Debug, Display, Formatter, Result};
 use std::str::FromStr;
+use crate::value::check_staged;
 
 pub use crate::{
   ArgInfo, AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, EventInfo, FromUiObject, HasGroup,
@@ -168,9 +169,7 @@ impl<T: FromUiObject> ViaFromUiObject for ObjectCheck<T> {
   type Value = T;
 
   fn take_object(&self, tree: &mut UiTree, object: NodeId, _expected: &'static str) -> std::result::Result<T, ValueError> {
-    if !tree.contains(object) {
-      return Err(ValueError::WrongNode);
-    }
+    check_staged(tree, object)?;
     T::from_object(tree, object)
   }
 }
@@ -187,9 +186,8 @@ pub trait NotFromObject {
     object: NodeId,
     expected: &'static str,
   ) -> std::result::Result<Self::Value, ValueError> {
-    if tree.contains(object) {
-      drop(tree.take(object));
-    }
+    check_staged(tree, object)?;
+    drop(tree.take(object));
     Err(ValueError::WrongType {
       expected,
       found: AN_OBJECT,
@@ -401,6 +399,23 @@ pub const fn one_content(candidates: &[Option<ContentInfo>]) -> Option<ContentIn
   }
   found
 }
+
+/// A collection a value's content may be: values taken from staged objects, never child nodes,
+/// which taking the value out of the tree would free.
+#[diagnostic::on_unimplemented(
+  message = "a value's content is a collection of values, not `{Self}`",
+  label = "a value can't hold child nodes",
+  note = "use `Vec<T>` or `Arc<[T]>` of a value type, such as `Vec<GradientStop>`"
+)]
+pub trait ValueCollection {}
+
+impl<T: FromUiObject> ValueCollection for Vec<T> {}
+
+impl<T: FromUiObject + Clone> ValueCollection for std::sync::Arc<[T]> {}
+
+/// Accepts only a [`ValueCollection`], so a value's generated code fails to compile on any other
+/// content.
+pub const fn value_collection<C: ValueCollection>() {}
 
 /// A key a field may name its own default beside: a property key, through any number of
 /// references. An attached key brings its own default, and two could disagree.
