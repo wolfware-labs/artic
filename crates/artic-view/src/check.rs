@@ -530,10 +530,12 @@ impl Check {
             .push(Diagnostic::error(*span, format!("`{}` takes no text content", info.name)));
         }
         Content::Element(element) => {
-          self.diagnostics.push(Diagnostic::error(
-            element.span,
-            format!("`{}` takes no child elements", info.name),
-          ));
+          if !is_value(element) {
+            self.diagnostics.push(Diagnostic::error(
+              element.span,
+              format!("`{}` takes no child elements", info.name),
+            ));
+          }
           self.element(element, Parent::Of(info));
         }
         Content::Text { .. } | Content::Unsupported(_) => {}
@@ -609,6 +611,7 @@ impl Check {
           written.push(element.span);
           if let (Some(taken), Ok(ty)) = (takes, &element.ty)
             && !accepts(takes, ty.info)
+            && !is_value(element)
           {
             self.diagnostics.push(Diagnostic::error(
               element.span,
@@ -668,6 +671,12 @@ fn text_piece(whitespace: Whitespace, text: &str, raw: &str, between_elements: b
 fn between_elements(nodes: &[Content], index: usize) -> bool {
   let is_element = |node: Option<&Content>| matches!(node, Some(Content::Element(_)));
   index.checked_sub(1).is_some_and(|before| is_element(nodes.get(before))) && is_element(nodes.get(index + 1))
+}
+
+/// Whether `element` is of a value type, which `Check::element` reports where an element of the
+/// tree goes, so its container reports nothing more about it.
+fn is_value(element: &Element) -> bool {
+  element.ty.as_ref().is_ok_and(|ty| ty.info.kind == TypeKind::Value)
 }
 
 /// Whether a collection that takes `takes` accepts a child of type `info`; `None` takes any.

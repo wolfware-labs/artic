@@ -40,6 +40,21 @@ fn value_is_reported_where_an_element_goes() {
     root: element(&TINT, 0, Vec::new()),
   };
 
+  let in_a_list = Document {
+    root: element(
+      &GALLERY,
+      0,
+      vec![content(5, vec![Content::Element(element(&TINT, 10, Vec::new()))])],
+    ),
+  };
+  let in_no_content = Document {
+    root: element(
+      &IMAGE,
+      0,
+      vec![content(5, vec![Content::Element(element(&TINT, 10, Vec::new()))])],
+    ),
+  };
+
   let (child_view, child_diagnostics) = check(&as_child);
   let (_, root_diagnostics) = check(&as_root);
 
@@ -47,6 +62,8 @@ fn value_is_reported_where_an_element_goes() {
   assert_eq!(reported(&child_diagnostics), [refused(10)]);
   assert_eq!(child_view.elements.len(), 1);
   assert_eq!(reported(&root_diagnostics), [refused(0)]);
+  assert_eq!(reported(&check(&in_a_list).1), [refused(10)]);
+  assert_eq!(reported(&check(&in_no_content).1), [refused(10)]);
 }
 
 // A type with no way to be created from markup is reported at its element, and its members and
