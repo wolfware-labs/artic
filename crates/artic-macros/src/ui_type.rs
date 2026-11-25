@@ -61,4 +61,108 @@ mod tests {
     let file: syn::File = syn::parse2(expand(&input).expect("valid")).expect("parses");
     insta::assert_snapshot!(prettyplease::unparse(&file));
   }
+
+  // Each setting only a node type has is refused on a value, at the type or at the field.
+  #[test]
+  fn a_value_refuses_node_settings() {
+    let node_setting = "a value takes no `attached`, `value_provider`, `override_defaults`, `code_type_root` or `whitespace`";
+    let plain_field = "a value's `#[ui]` fields are plain data, such as `#[ui] color: Color`, with no property settings";
+    let collection = "a value's content is a collection of values, such as `Vec<GradientStop>`";
+    let inputs: [(DeriveInput, &str); 9] = [
+      (
+        parse_quote!(
+          #[ui(value, value_provider(positional(a)))]
+          struct V {
+            #[ui]
+            a: f32,
+          }
+        ),
+        node_setting,
+      ),
+      (
+        parse_quote!(
+          #[ui(value, override_defaults)]
+          struct V {
+            #[ui]
+            a: f32,
+          }
+        ),
+        node_setting,
+      ),
+      (
+        parse_quote!(
+          #[ui(value, code_type_root)]
+          struct V {
+            #[ui]
+            a: f32,
+          }
+        ),
+        node_setting,
+      ),
+      (
+        parse_quote!(
+          #[ui(value, whitespace = "significant")]
+          struct V {
+            #[ui]
+            a: f32,
+          }
+        ),
+        node_setting,
+      ),
+      (
+        parse_quote!(
+          #[ui(value)]
+          struct V {
+            #[ui]
+            clicked: Event<()>,
+          }
+        ),
+        plain_field,
+      ),
+      (
+        parse_quote!(
+          #[ui(value)]
+          struct V {
+            #[ui(flatten)]
+            layout: Layout,
+          }
+        ),
+        plain_field,
+      ),
+      (
+        parse_quote!(
+          #[ui(value)]
+          struct V {
+            #[ui(required)]
+            a: f32,
+          }
+        ),
+        plain_field,
+      ),
+      (
+        parse_quote!(
+          #[ui(value)]
+          struct V {
+            #[ui(affects = layout)]
+            a: f32,
+          }
+        ),
+        plain_field,
+      ),
+      (
+        parse_quote!(
+          #[ui(value)]
+          struct V {
+            #[ui(content)]
+            text: Property<String>,
+          }
+        ),
+        collection,
+      ),
+    ];
+
+    for (input, message) in inputs {
+      assert_eq!(expand(&input).expect_err(message).to_string(), message);
+    }
+  }
 }
