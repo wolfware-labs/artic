@@ -60,7 +60,6 @@ use hierarchy::Tree;
 pub use node_map::NodeMap;
 use objects::Objects;
 use outside::{Outside, Place};
-use std::any::Any;
 #[cfg(debug_assertions)]
 use std::cell::RefCell;
 #[cfg(debug_assertions)]
@@ -365,8 +364,7 @@ impl UiTree {
   where
     T: Object,
   {
-    let node: &dyn Any = self.get(id)?;
-    node.downcast_ref()
+    self.get(id)?.downcast_ref()
   }
 
   /// Returns a mutable reference to the node referred to by `id`, or `None` if `id` is stale.
@@ -419,8 +417,7 @@ impl UiTree {
   where
     T: Object,
   {
-    let node: &mut dyn Any = self.get_mut(id)?;
-    node.downcast_mut()
+    self.get_mut(id)?.downcast_mut()
   }
 
   /// Returns the number of live nodes in the tree.
