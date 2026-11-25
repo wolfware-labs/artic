@@ -148,6 +148,7 @@ The block above is a view without a code type. The builder design's sample is a 
 | A child of a type its collection doesn't list, such as a `Border` in a `TextBlock` | the type takes only the listed types, naming them |
 | A collection content of values, such as gradient stops | "value collections come with #438" |
 | A value provider written as an element, the root included, `<x:Null/>` too | the type is a value provider, not an element |
+| A value type written as an element outside a property's value, the root included, such as a `GradientStop` in a `StackPanel` | the type is a value, not an element of the tree, with help to set it as a property's value |
 | An element inside a type with no content | the type takes no child elements |
 | A property given both as an attribute and as content | the property is set twice |
 | A namespace URI the map doesn't declare | no namespace, once per URI, with help to declare it |

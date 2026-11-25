@@ -96,7 +96,7 @@ impl Border {
 
 A constant may point at a `static` since Rust 1.83, so the generated key stays private in the derive's block and gets a public name here. The constant's name is the field name in SCREAMING_SNAKE_CASE. A second name for a shared key, such as `TextBlock::FONT_SIZE`, would read as a key for text blocks only, while a setter on it changes every type that shares the key.
 
-Value types (`#[ui(value)]`, [value objects](value-objects.md)) get the same `new` and property methods, with no `build`: a value is passed straight to the property that holds it. They come with the loader's value types (#57), their first user.
+Value types (`#[ui(value)]`, [value objects](value-objects.md)) get no builder methods: a value keeps its own constructors and `Default`, and is passed straight to the property that holds it.
 
 ### Property groups
 
@@ -267,7 +267,7 @@ What the compiler (#49) emits for it:
 ```rust,ignore
 // The resource: one function, called at each use (value objects design).
 fn resource_accent() -> SolidColorBrush {
-  SolidColorBrush::new().color(Color::rgb(0x3B, 0x82, 0xF6))   // "#3B82F6", parsed at build time
+  SolidColorBrush::new(Color::rgb(0x3B, 0x82, 0xF6))   // "#3B82F6", parsed at build time
 }
 
 pub fn build(tree: &mut UiTree) -> Handle<LoginView> {
@@ -300,14 +300,14 @@ pub fn build(tree: &mut UiTree) -> Handle<LoginView> {
 - Elements are emitted in post-order: each child is built before the element that holds it.
 - `Accent` isn't used in the example. A use such as `Background="{StaticResource Accent}"` would emit `.background(resource_accent())`.
 - How a code-behind method becomes a click handler belongs to the code-behind design (§9); the comment marks that spot.
-- `TextBox` and `Button` aren't built yet, and `SolidColorBrush::new().color(…)` is a value-type builder, which comes with #57. The example shows the shape the compiler emits once they exist.
+- `TextBox` and `Button` aren't built yet, and the compiler writes a value such as `SolidColorBrush` with its own constructor once it emits value objects (#438). The example shows the shape the compiler emits once they exist.
 
 ## Changes to other issues and to the spec
 
 | Where | Change |
 | --- | --- |
 | #43 Builder generation | `Handle<T>`, `new`, `build`, the property methods, the key constants and the collision errors; `WithChildren` with `.child` and `.children`; `HasGroup`, the group traits, `PropertyGroup::METHODS` and `Layout::MARGIN`-style constants; `artic::prelude`; the conversions above |
-| #57 Loader value type | Builders for value types (`new` and property methods, no `build`) |
+| #57 Loader value type | None: value types keep their own constructors and get no builder methods ([value objects](value-objects.md)) |
 | #75 Routed events | Handler storage in `Event<A>` and the `on_<event>` methods |
 | #42 `#[element]` | None: the group methods come from the group traits (#43) |
 | #31 Attached properties | The `set_<name>` / `<name>` helper pair on the owner, called after `build` |

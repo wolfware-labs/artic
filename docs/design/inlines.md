@@ -78,7 +78,7 @@ While a `TextBlock` holds any inline, it shows its inlines' text, and `Text` is 
 
 ## 6. Builder methods named after the field
 
-The derive gave a builder method only to a field written `Child` or `Children`, chosen by the type's name. Every collection of child elements now gets one named after its field: `.child(node)` for a `Child` field, and `.children(..)`, `.surfaces(..)` or `.inlines(..)` taking any number. A `Vec` content holds values and gets none until #57. The view compiler calls the method by the content field's name, so it needs no list of collection types either. A `code_type_root` type's content collection must still be a `Child` or `Children` field, which the derive now checks: a view's code type takes the root's content as a field of one of those two types, and `ContentMethod::Children` no longer tells `Children` apart from another collection.
+The derive gave a builder method only to a field written `Child` or `Children`, chosen by the type's name. Every collection of child elements now gets one named after its field: `.child(node)` for a `Child` field, and `.children(..)`, `.surfaces(..)` or `.inlines(..)` taking any number. A `Vec` content holds values and gets none: a value type has no builder methods ([value objects](value-objects.md)). The view compiler calls the method by the content field's name, so it needs no list of collection types either. A `code_type_root` type's content collection must still be a `Child` or `Children` field, which the derive now checks: a view's code type takes the root's content as a field of one of those two types, and `ContentMethod::Children` no longer tells `Children` apart from another collection.
 
 ## 7. Text inside a block
 
