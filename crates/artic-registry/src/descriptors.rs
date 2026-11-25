@@ -215,7 +215,7 @@ pub enum ContentInfo {
     /// The type text written inside the collection becomes, or `None` when it takes no text:
     /// `UiCollection::text_wrapper`.
     text_wrapper: fn() -> Option<&'static TypeInfo>,
-    /// Adds one child element as content, calling the field's `UiCollection::push_child` with
+    /// Adds one child element as content, calling the field's `UiCollection::add_child` with
     /// an accessor to the field.
     add_child: fn(&mut UiTree, NodeId, NodeId) -> Result<(), ValueError>,
   },

@@ -32,8 +32,9 @@ pub struct PropertyAccess {
   /// [`ValueError::WrongType`].
   pub set_node: fn(&mut UiTree, NodeId, NodeId, Precedence) -> Result<(), ValueError>,
   /// Converts a staged object with the value type's [`FromUiObject`](crate::FromUiObject) and sets
-  /// it, taking the object out of the tree whether or not it converts. A property whose value type
-  /// isn't taken from an object refuses it with [`ValueError::WrongType`].
+  /// it, taking the object out of the tree whether or not it converts. An object that isn't a
+  /// staged value is refused with [`ValueError::NotStaged`] and the tree untouched. A property whose
+  /// value type isn't taken from an object refuses it with [`ValueError::WrongType`].
   pub set_object: fn(&mut UiTree, NodeId, NodeId, Precedence) -> Result<(), ValueError>,
   /// Sets `None` at `level`, for a `Property<Option<T>>`. A property of another value type refuses
   /// it with [`ValueError::NotNullable`].

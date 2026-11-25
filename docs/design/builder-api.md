@@ -185,7 +185,7 @@ impl<T: UiType + Object, I: IntoIterator<Item: Into<NodeId>>> WithChildren<T, I>
 ```
 
 - `.child` and `.children` are generated only for the `#[ui(content)]` field; the derive rejects a `Child` or `Children` field that isn't the content, so a node has one way to take children.
-- `build` links each child through `T::TYPE_INFO.content`, whose `ContentInfo::Collection` entry calls `UiCollection::push_child`. `Child` and `Children` keep their own rules that way, such as refusing a second child.
+- `build` links each child through `T::TYPE_INFO.content`, whose `ContentInfo::Collection` entry calls `UiCollection::add_child`. `Child` and `Children` keep their own rules that way, such as refusing a second child.
 - The checks run first and panic on a bad child, as the [panels design](panels.md) says. After them no link can fail, so `build` treats an error from `push_child` as a bug.
 
 ### Naming collisions
