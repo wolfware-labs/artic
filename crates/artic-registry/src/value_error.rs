@@ -74,6 +74,15 @@ mod tests {
     assert_eq!(error.to_string(), "this element's content takes only `Item`");
   }
 
+  // An object that isn't a staged value is refused in the registry's words, which no UI language
+  // owns.
+  #[test]
+  fn not_staged_names_no_language() {
+    let id = artic_core::tree::UiTree::new().alloc(Box::new(Leaf));
+
+    assert_eq!(ValueError::NotStaged(id).to_string(), "the object isn't a staged value");
+  }
+
   // A refused child says so, and the link error is its source.
   #[test]
   fn invalid_child_shows_its_cause_once() {

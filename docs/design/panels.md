@@ -172,10 +172,18 @@ pub trait UiCollection: Sized {
     child: NodeId,
     field: for<'a> fn(&'a mut UiTree, NodeId) -> Option<&'a mut Self>,
   ) -> Result<(), ValueError>;
+
+  /// Checks the owner, then the child's type, and calls `push_child`.
+  fn add_child(
+    tree: &mut UiTree,
+    owner: NodeId,
+    child: NodeId,
+    field: for<'a> fn(&'a mut UiTree, NodeId) -> Option<&'a mut Self>,
+  ) -> Result<(), ValueError>;
 }
 
 // generated for StackPanel's content field:
-//   |tree, owner, child| Children::push_child(tree, owner, child,
+//   |tree, owner, child| Children::add_child(tree, owner, child,
 //     |tree, owner| tree.get_as_mut::<StackPanel>(owner).map(|panel| &mut panel.children))
 ```
 

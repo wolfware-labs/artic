@@ -243,7 +243,7 @@ impl Check {
       ));
     }
     if let Some(ty) = ty
-      && ty.info.kind == TypeKind::Value
+      && is_value(element)
     {
       self.diagnostics.push(
         Diagnostic::error(
