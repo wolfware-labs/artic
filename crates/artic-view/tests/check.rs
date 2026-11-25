@@ -25,8 +25,9 @@ fn unknown_property_is_reported_at_its_name() {
   assert!(view.elements[0].properties.is_empty());
 }
 
-// A value written where an element of the tree goes, as a child or as the root, is reported at
-// its element and kept out of the view, so nothing is generated for it.
+// A value written where an element of the tree goes, as a child or as the root, is reported once,
+// at its element, kept out of the view, so nothing is generated for it, and left out of its
+// container's "takes one child" count.
 #[test]
 fn value_is_reported_where_an_element_goes() {
   let as_child = Document {
@@ -206,8 +207,8 @@ fn element_in_content_text_ends_the_content() {
   assert!(view.elements[0].properties.is_empty());
 }
 
-// Every child element counts toward "takes one child", found or not, and the child taken is the
-// only one found.
+// Every child element but a value counts toward "takes one child", found or not, and the child
+// taken is the only one found.
 #[test]
 fn one_child_counts_every_element() {
   let nodes = vec![
