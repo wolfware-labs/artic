@@ -46,7 +46,7 @@ const _: () = {
                     use __artic::{NotFromObject as _, ViaFromUiObject as _};
                     {
                         let value = (&__artic::ObjectCheck::<f32>(__artic::PhantomData))
-                            .take_object(tree, object, ::core::stringify!(f32))?;
+                            .take_object(tree, node, object, ::core::stringify!(f32))?;
                         __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
                     }
                 },

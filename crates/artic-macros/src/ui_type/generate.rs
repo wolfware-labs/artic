@@ -171,8 +171,7 @@ fn descriptors(ident: &Ident, members: &Members, attached: &[Attached]) -> Token
 
 /// For a type whose content is a collection, `__content_field`, which reaches the field, and
 /// `__add_child`, which its `ContentInfo` calls to add a child to it. A value's collection must be
-/// a `ValueCollection`, and takes its staged child out of the tree before it checks the owner, so
-/// its `push_child` runs first.
+/// a `ValueCollection`; `UiCollection::add_child` orders the checks.
 fn content_functions(ident: &Ident, members: &Members, is_value: bool) -> Option<TokenStream> {
   let Some(Content::Collection {
     ident: field_ident, ty, ..
@@ -180,14 +179,7 @@ fn content_functions(ident: &Ident, members: &Members, is_value: bool) -> Option
   else {
     return None;
   };
-  let checks = if is_value {
-    quote!(const _: () = __artic::value_collection::<#ty>();)
-  } else {
-    quote! {
-      __content_field(tree, owner).ok_or(__artic::ValueError::WrongNode)?;
-      __artic::check_child(<#ty as __artic::UiCollection>::takes(), tree, child)?;
-    }
-  };
+  let value_check = is_value.then(|| quote!(const _: () = __artic::value_collection::<#ty>();));
   Some(quote! {
     fn __content_field<'a>(
       tree: &'a mut __artic::UiTree,
@@ -201,8 +193,8 @@ fn content_functions(ident: &Ident, members: &Members, is_value: bool) -> Option
       owner: __artic::NodeId,
       child: __artic::NodeId,
     ) -> ::core::result::Result<(), __artic::ValueError> {
-      #checks
-      <#ty as __artic::UiCollection>::push_child(tree, owner, child, __content_field)
+      #value_check
+      <#ty as __artic::UiCollection>::add_child(tree, owner, child, __content_field)
     }
   })
 }

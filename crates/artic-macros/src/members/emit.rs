@@ -274,7 +274,7 @@ fn access_tokens(access: &Access) -> TokenStream {
   let parsed = set(quote!((#ops.parse)(text, ::core::stringify!(#value))?));
   let node_value = set(quote!((#ops.node)(child, ::core::stringify!(#value))?));
   let object = set(quote!(
-    (&__artic::ObjectCheck::<#value>(__artic::PhantomData)).take_object(tree, object, ::core::stringify!(#value))?
+    (&__artic::ObjectCheck::<#value>(__artic::PhantomData)).take_object(tree, node, object, ::core::stringify!(#value))?
   ));
   let set_null = if *optional {
     let null = write(quote!(::core::option::Option::None));

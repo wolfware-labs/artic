@@ -116,7 +116,7 @@ const _: () = {
                     use __artic::{NotFromObject as _, ViaFromUiObject as _};
                     {
                         let value = (&__artic::ObjectCheck::<f32>(__artic::PhantomData))
-                            .take_object(tree, object, ::core::stringify!(f32))?;
+                            .take_object(tree, node, object, ::core::stringify!(f32))?;
                         __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
                     }
                 },
@@ -165,7 +165,7 @@ const _: () = {
                     use __artic::{NotFromObject as _, ViaFromUiObject as _};
                     {
                         let value = (&__artic::ObjectCheck::<bool>(__artic::PhantomData))
-                            .take_object(tree, object, ::core::stringify!(bool))?;
+                            .take_object(tree, node, object, ::core::stringify!(bool))?;
                         __artic::set_property(tree, node, (&__KEY_ENABLED), level, value)
                     }
                 },
@@ -210,7 +210,7 @@ const _: () = {
                     use __artic::{NotFromObject as _, ViaFromUiObject as _};
                     {
                         let value = (&__artic::ObjectCheck::<i32>(__artic::PhantomData))
-                            .take_object(tree, object, ::core::stringify!(i32))?;
+                            .take_object(tree, node, object, ::core::stringify!(i32))?;
                         __artic::set_property(tree, node, SHARED.key(), level, value)
                     }
                 },
@@ -260,7 +260,12 @@ const _: () = {
                     {
                         let value = ::core::option::Option::Some(
                             (&__artic::ObjectCheck::<String>(__artic::PhantomData))
-                                .take_object(tree, object, ::core::stringify!(String))?,
+                                .take_object(
+                                    tree,
+                                    node,
+                                    object,
+                                    ::core::stringify!(String),
+                                )?,
                         );
                         __artic::set_property(tree, node, (&__KEY_TEXT), level, value)
                     }
@@ -359,9 +364,7 @@ const _: () = {
         owner: __artic::NodeId,
         child: __artic::NodeId,
     ) -> ::core::result::Result<(), __artic::ValueError> {
-        __content_field(tree, owner).ok_or(__artic::ValueError::WrongNode)?;
-        __artic::check_child(<Children as __artic::UiCollection>::takes(), tree, child)?;
-        <Children as __artic::UiCollection>::push_child(
+        <Children as __artic::UiCollection>::add_child(
             tree,
             owner,
             child,

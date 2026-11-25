@@ -156,10 +156,11 @@ pub trait ViaFromUiObject {
   /// The property's value type.
   type Value;
 
-  /// Takes the staged `object` out of the tree as the value.
+  /// Takes the staged `object` out of the tree as the value of `owner`'s property.
   fn take_object(
     &self,
     tree: &mut UiTree,
+    owner: NodeId,
     object: NodeId,
     expected: &'static str,
   ) -> std::result::Result<Self::Value, ValueError>;
@@ -168,8 +169,14 @@ pub trait ViaFromUiObject {
 impl<T: FromUiObject> ViaFromUiObject for ObjectCheck<T> {
   type Value = T;
 
-  fn take_object(&self, tree: &mut UiTree, object: NodeId, _expected: &'static str) -> std::result::Result<T, ValueError> {
-    check_staged(tree, object)?;
+  fn take_object(
+    &self,
+    tree: &mut UiTree,
+    owner: NodeId,
+    object: NodeId,
+    _expected: &'static str,
+  ) -> std::result::Result<T, ValueError> {
+    check_staged(tree, owner, object)?;
     T::from_object(tree, object)
   }
 }
@@ -179,14 +186,16 @@ pub trait NotFromObject {
   /// The property's value type.
   type Value;
 
-  /// Takes the staged `object` out of the tree, so none is left behind, and refuses it.
+  /// Takes the staged `object` out of the tree, so none is left behind, and refuses it as the
+  /// value of `owner`'s property.
   fn take_object(
     &self,
     tree: &mut UiTree,
+    owner: NodeId,
     object: NodeId,
     expected: &'static str,
   ) -> std::result::Result<Self::Value, ValueError> {
-    check_staged(tree, object)?;
+    check_staged(tree, owner, object)?;
     drop(tree.take(object));
     Err(ValueError::WrongType {
       expected,

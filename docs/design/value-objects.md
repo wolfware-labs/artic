@@ -103,7 +103,7 @@ For `<Border.Background><SolidColorBrush Color="#3B82F6"/></Border.Background>`:
 4. Call `Background`'s `set_object(tree, border, staged, Precedence::Local)`.
 5. The thunk calls `Brush::from_object`, which takes the `SolidColorBrush` out of the tree with `UiTree::take` and converts it with `Brush::from`, then calls `background.set_at(Local, Some(brush))`.
 
-`set_object` always takes the staging node out of the tree, on success and on error, so no value is left there.
+`set_object` always takes the staging node out of the tree, on success and on error, so no value is left there. It refuses, with `ValueError::NotStaged` and the tree untouched, an object that isn't a staged value: a stale id, the owner itself, or a node linked in either tree. A staged value is a detached leaf, so taking it out frees nothing else.
 
 ## Compiled output
 

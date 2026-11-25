@@ -3,7 +3,7 @@
 
 use artic_core::event::Event;
 use artic_core::property::{Affects, Inheritance, Precedence, Property, PropertyKey};
-use artic_core::tree::{Handle, LinkError, NodeId, TreeKind, UiTree};
+use artic_core::tree::{Handle, NodeId, TreeKind, UiTree};
 use artic_core::{RustExpr, ToRust};
 use artic_element::{Child, Children};
 use artic_macros::{UiProperties, UiType};
@@ -1265,18 +1265,8 @@ fn a_value_collection_refuses_a_bad_child() {
     let gone = stale(&mut tree);
     let add = add_child_of(info);
 
-    assert_eq!(
-      add(&mut tree, owner, gone),
-      Err(ValueError::InvalidChild(LinkError::NotInTree(gone)))
-    );
-    assert_eq!(
-      add(&mut tree, owner, owner),
-      Err(ValueError::InvalidChild(LinkError::Cycle {
-        tree: TreeKind::Logical,
-        parent: owner,
-        child: owner,
-      }))
-    );
+    assert_eq!(add(&mut tree, owner, gone), Err(ValueError::NotStaged(gone)));
+    assert_eq!(add(&mut tree, owner, owner), Err(ValueError::NotStaged(owner)));
     assert!(tree.contains(owner), "the owner stays");
     assert_eq!(add(&mut tree, painter, staged), Err(ValueError::WrongNode));
     assert!(!tree.contains(staged), "the staged child was taken out");
@@ -1290,7 +1280,7 @@ fn set_object_refuses_a_stale_object() {
   let painter = tree.alloc(Box::new(Painter::default()));
   let border = tree.alloc(Box::new(Border::default()));
   let gone = stale(&mut tree);
-  let refused = Err(ValueError::InvalidChild(LinkError::NotInTree(gone)));
+  let refused = Err(ValueError::NotStaged(gone));
 
   assert_eq!(
     (access_of(Painter::TYPE_INFO, "Gradient").set_object)(&mut tree, painter, gone, Precedence::Local),
@@ -1313,6 +1303,61 @@ fn set_object_takes_the_object_on_a_wrong_owner() {
 
   assert_eq!(refused, Err(ValueError::WrongNode));
   assert!(!tree.contains(staged));
+}
+
+/// A node holding values in its content, as a grid holds its row definitions.
+#[derive(Debug, UiType)]
+struct Rack {
+  #[ui(content)]
+  stops: Vec<Stop>,
+}
+
+// A node's collection of values takes the staged child out on a wrong owner too.
+#[test]
+fn a_node_owner_of_values_takes_the_child_on_a_wrong_owner() {
+  let mut tree = UiTree::new();
+  let rack = tree.alloc(Box::new(Rack::default()));
+  let painter = tree.alloc(Box::new(Painter::default()));
+  let staged = stage(&mut tree, Stop::TYPE_INFO);
+  let add = add_child_of(Rack::TYPE_INFO);
+
+  assert_eq!(add(&mut tree, painter, staged), Err(ValueError::WrongNode));
+  assert!(!tree.contains(staged), "the staged child was taken out");
+
+  let staged = stage(&mut tree, Stop::TYPE_INFO);
+  add(&mut tree, rack, staged).expect("a stop");
+  assert_eq!(tree.get_as::<Rack>(rack).map(|rack| rack.stops.len()), Some(1));
+}
+
+// Only a detached leaf is a staged value: the owner itself, a node with a parent and a node with
+// children are refused with the tree untouched.
+#[test]
+fn a_live_node_is_not_staged() {
+  let mut tree = UiTree::new();
+  let painter = tree.alloc(Box::new(Painter::default()));
+  let rack = tree.alloc(Box::new(Rack::default()));
+  let linked = stage(&mut tree, Stop::TYPE_INFO);
+  tree.link(TreeKind::Logical, rack, None, linked).expect("a link");
+  let gradient = stage(&mut tree, Gradient::TYPE_INFO);
+  let set_gradient = access_of(Painter::TYPE_INFO, "Gradient").set_object;
+  let add = add_child_of(Gradient::TYPE_INFO);
+
+  assert_eq!(
+    set_gradient(&mut tree, painter, painter, Precedence::Local),
+    Err(ValueError::NotStaged(painter))
+  );
+  assert_eq!(
+    set_gradient(&mut tree, painter, rack, Precedence::Local),
+    Err(ValueError::NotStaged(rack))
+  );
+  assert_eq!(
+    (access_of(Painter::TYPE_INFO, "Stop").set_object)(&mut tree, painter, linked, Precedence::Local),
+    Err(ValueError::NotStaged(linked))
+  );
+  assert_eq!(add(&mut tree, gradient, linked), Err(ValueError::NotStaged(linked)));
+  assert_eq!(add(&mut tree, gradient, rack), Err(ValueError::NotStaged(rack)));
+  assert!([painter, rack, linked, gradient].iter().all(|&id| tree.contains(id)));
+  assert_eq!(tree.parent(TreeKind::Logical, linked), Some(rack));
 }
 
 // An optional property takes a staged value as `Some`, and a value's field thunk refuses a node of

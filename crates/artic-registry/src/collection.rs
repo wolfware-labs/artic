@@ -62,6 +62,26 @@ pub trait UiCollection: Sized {
     child: NodeId,
     field: for<'a> fn(&'a mut UiTree, NodeId) -> Option<&'a mut Self>,
   ) -> Result<(), ValueError>;
+
+  /// Adds `child` as content of `owner` after the checks that change nothing: a wrong owner is
+  /// reported before a child of a type [`takes`](UiCollection::takes) doesn't list. What a
+  /// derived `ContentInfo` calls. A collection of values goes straight to
+  /// [`push_child`](UiCollection::push_child), which takes the staged child out first.
+  ///
+  /// # Errors
+  ///
+  /// As [`push_child`](UiCollection::push_child), and [`ValueError::UnexpectedChild`] for a child
+  /// of a type `takes` doesn't list.
+  fn add_child(
+    tree: &mut UiTree,
+    owner: NodeId,
+    child: NodeId,
+    field: for<'a> fn(&'a mut UiTree, NodeId) -> Option<&'a mut Self>,
+  ) -> Result<(), ValueError> {
+    field(tree, owner).ok_or(ValueError::WrongNode)?;
+    check_child(Self::takes(), tree, child)?;
+    Self::push_child(tree, owner, child, field)
+  }
 }
 
 /// Whether `object` is a `T`: what a derived [`TypeInfo::is`] calls.
