@@ -1265,7 +1265,10 @@ fn a_value_collection_refuses_a_bad_child() {
     let gone = stale(&mut tree);
     let add = add_child_of(info);
 
-    assert_eq!(add(&mut tree, owner, gone), Err(ValueError::InvalidChild(LinkError::NotInTree(gone))));
+    assert_eq!(
+      add(&mut tree, owner, gone),
+      Err(ValueError::InvalidChild(LinkError::NotInTree(gone)))
+    );
     assert_eq!(
       add(&mut tree, owner, owner),
       Err(ValueError::InvalidChild(LinkError::Cycle {
@@ -1324,7 +1327,9 @@ fn an_optional_property_takes_a_staged_value() {
   (access_of(Painter::TYPE_INFO, "Stop").set_object)(&mut tree, painter, staged, Precedence::Local).expect("a Stop");
 
   assert_eq!(
-    tree.get_as::<Painter>(painter).map(|painter| painter.stop.get().map(|stop| stop.offset)),
+    tree
+      .get_as::<Painter>(painter)
+      .map(|painter| painter.stop.get().map(|stop| stop.offset)),
     Some(Some(0.25))
   );
   assert_eq!(

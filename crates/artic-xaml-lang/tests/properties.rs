@@ -148,7 +148,7 @@ fn a_bad_value_is_reported_at_the_value() {
   assert!(errors.contains(":1:46:"), "{errors}");
 }
 
-// An object as a property's value comes with #57.
+// An object as a property's value comes with #438.
 #[test]
 fn object_value_reports_error() {
   let errors =

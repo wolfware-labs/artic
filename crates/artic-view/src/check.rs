@@ -148,7 +148,8 @@ struct Members {
 
 impl Check {
   /// Checks an element written in `parent` and the elements in its content, returning its index,
-  /// or `None` when its type wasn't found. Only the root may name the view's code type.
+  /// or `None` when its type wasn't found or is a value. Only the root may name the view's code
+  /// type.
   fn element(&mut self, element: &Element, parent: Parent) -> Option<usize> {
     let root = matches!(parent, Parent::Root);
     let ty = match &element.ty {
@@ -245,8 +246,11 @@ impl Check {
       && ty.info.kind == TypeKind::Value
     {
       self.diagnostics.push(
-        Diagnostic::error(element.span, format!("`{}` is a value, not an element of the tree", ty.info.name))
-          .with_help("set it as a property's value instead"),
+        Diagnostic::error(
+          element.span,
+          format!("`{}` is a value, not an element of the tree", ty.info.name),
+        )
+        .with_help("set it as a property's value instead"),
       );
       return None;
     }

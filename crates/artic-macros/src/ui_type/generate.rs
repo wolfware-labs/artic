@@ -30,16 +30,7 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
   let value_provider = value_provider(analysis);
   let content_functions = content_functions(ident, members, is_value);
   let builders = (!is_value).then(|| builders(analysis));
-  let value_impl = is_value.then(|| {
-    let content_check = match &members.content {
-      Some(Content::Collection { ty, .. }) => Some(quote!(const _: () = __artic::value_collection::<#ty>();)),
-      _ => None,
-    };
-    quote! {
-      impl __artic::UiValue for #ident {}
-      #content_check
-    }
-  });
+  let value_impl = is_value.then(|| quote!(impl __artic::UiValue for #ident {}));
   let attached_helpers = attached.iter().map(|attached| attached_helpers(ident, attached));
   let type_info = type_info(analysis);
   let checks = checks(members, attached.iter().map(|attached| value_check(value_type(&attached.ty))));
@@ -179,8 +170,9 @@ fn descriptors(ident: &Ident, members: &Members, attached: &[Attached]) -> Token
 }
 
 /// For a type whose content is a collection, `__content_field`, which reaches the field, and
-/// `__add_child`, which its `ContentInfo` calls to add a child to it. A value's collection takes
-/// its staged child out of the tree before it checks the owner, so its `push_child` runs first.
+/// `__add_child`, which its `ContentInfo` calls to add a child to it. A value's collection must be
+/// a `ValueCollection`, and takes its staged child out of the tree before it checks the owner, so
+/// its `push_child` runs first.
 fn content_functions(ident: &Ident, members: &Members, is_value: bool) -> Option<TokenStream> {
   let Some(Content::Collection {
     ident: field_ident, ty, ..
@@ -188,12 +180,14 @@ fn content_functions(ident: &Ident, members: &Members, is_value: bool) -> Option
   else {
     return None;
   };
-  let checks = (!is_value).then(|| {
+  let checks = if is_value {
+    quote!(const _: () = __artic::value_collection::<#ty>();)
+  } else {
     quote! {
       __content_field(tree, owner).ok_or(__artic::ValueError::WrongNode)?;
       __artic::check_child(<#ty as __artic::UiCollection>::takes(), tree, child)?;
     }
-  });
+  };
   Some(quote! {
     fn __content_field<'a>(
       tree: &'a mut __artic::UiTree,

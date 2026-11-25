@@ -12,7 +12,11 @@ use pretty_assertions::assert_eq;
 #[test]
 fn unknown_property_is_reported_at_its_name() {
   let document = Document {
-    root: element(&PANEL, 0, vec![property_problem("Height", 10, "value objects come with #438")]),
+    root: element(
+      &PANEL,
+      0,
+      vec![property_problem("Height", 10, "value objects come with #438")],
+    ),
   };
 
   let (view, diagnostics) = check(&document);
@@ -26,7 +30,11 @@ fn unknown_property_is_reported_at_its_name() {
 #[test]
 fn value_is_reported_where_an_element_goes() {
   let as_child = Document {
-    root: element(&PANEL, 0, vec![content(5, vec![Content::Element(element(&TINT, 10, Vec::new()))])]),
+    root: element(
+      &PANEL,
+      0,
+      vec![content(5, vec![Content::Element(element(&TINT, 10, Vec::new()))])],
+    ),
   };
   let as_root = Document {
     root: element(&TINT, 0, Vec::new()),

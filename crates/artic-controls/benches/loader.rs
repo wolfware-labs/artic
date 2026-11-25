@@ -21,7 +21,7 @@ use artic_core::tree::{NodeId, UiTree};
 use artic_layout::HorizontalAlignment;
 use artic_layout::geometry::Thickness;
 use artic_macros::UiType;
-use artic_registry::{ContentInfo, PropertyAccess, TypeInfo, UiType as _};
+use artic_registry::{ContentInfo, FromUiObject, PropertyAccess, TypeInfo, UiType as _, ValueError};
 use artic_render::{Brush, Color, GradientStop, LinearGradientBrush, SolidColorBrush};
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
@@ -41,10 +41,23 @@ struct Ramp {
   stops: Vec<GradientStop>,
 }
 
+/// The function that creates a node of `type_info` from its defaults.
+fn constructor(type_info: &'static TypeInfo) -> fn(&mut UiTree) -> NodeId {
+  type_info.new.expect("the type is created from its default")
+}
+
+/// The function that adds a child to `type_info`'s collection content.
+fn add_child_of(type_info: &'static TypeInfo) -> fn(&mut UiTree, NodeId, NodeId) -> Result<(), ValueError> {
+  let Some(ContentInfo::Collection { add_child, .. }) = type_info.content else {
+    panic!("the type's content is a collection");
+  };
+  add_child
+}
+
 /// A tree holding one control created from its descriptor, and the control's node.
 fn one(type_info: &'static TypeInfo) -> (UiTree, NodeId) {
   let mut tree = UiTree::new();
-  let node = (type_info.new.expect("the control has a constructor"))(&mut tree);
+  let node = constructor(type_info)(&mut tree);
   (tree, node)
 }
 
@@ -141,7 +154,7 @@ fn group_property(c: &mut Criterion) {
 /// color set from text, and the staged brush moved into the property.
 fn object_property(c: &mut Criterion) {
   let (mut tree, node) = one(Border::TYPE_INFO);
-  let new_brush = SolidColorBrush::TYPE_INFO.new.expect("a value is created from its default");
+  let new_brush = constructor(SolidColorBrush::TYPE_INFO);
   let color = access(SolidColorBrush::TYPE_INFO, "Color");
   let background = access(Border::TYPE_INFO, "Background");
   let staged = |tree: &mut UiTree, text: &str| {
@@ -171,13 +184,9 @@ fn object_property(c: &mut Criterion) {
 /// each; then the staged gradient is moved into the property.
 fn gradient_property(c: &mut Criterion) {
   let (mut tree, node) = one(Border::TYPE_INFO);
-  let new_gradient = LinearGradientBrush::TYPE_INFO
-    .new
-    .expect("a value is created from its default");
-  let new_stop = GradientStop::TYPE_INFO.new.expect("a value is created from its default");
-  let Some(ContentInfo::Collection { add_child, .. }) = LinearGradientBrush::TYPE_INFO.content else {
-    panic!("a gradient's content is its stops");
-  };
+  let new_gradient = constructor(LinearGradientBrush::TYPE_INFO);
+  let new_stop = constructor(GradientStop::TYPE_INFO);
+  let add_child = add_child_of(LinearGradientBrush::TYPE_INFO);
   let offset = access(GradientStop::TYPE_INFO, "Offset");
   let color = access(GradientStop::TYPE_INFO, "Color");
   let background = access(Border::TYPE_INFO, "Background");
@@ -223,11 +232,9 @@ fn gradient_property(c: &mut Criterion) {
 /// and taken into the ramp, which is then taken out of the tree as a `Ramp`.
 fn value_collection(c: &mut Criterion) {
   let mut tree = UiTree::new();
-  let new_ramp = Ramp::TYPE_INFO.new.expect("a value is created from its default");
-  let new_stop = GradientStop::TYPE_INFO.new.expect("a value is created from its default");
-  let Some(ContentInfo::Collection { add_child, .. }) = Ramp::TYPE_INFO.content else {
-    panic!("a ramp's content is its stops");
-  };
+  let new_ramp = constructor(Ramp::TYPE_INFO);
+  let new_stop = constructor(GradientStop::TYPE_INFO);
+  let add_child = add_child_of(Ramp::TYPE_INFO);
   let color = access(GradientStop::TYPE_INFO, "Color");
   let staged = |tree: &mut UiTree, text: &str| -> Ramp {
     let ramp = new_ramp(tree);
@@ -236,7 +243,7 @@ fn value_collection(c: &mut Criterion) {
       (color.set_text)(tree, stop, stop_color, Precedence::Local).expect("a color");
       add_child(tree, ramp, stop).expect("a stop");
     }
-    *(tree.take(ramp) as Box<dyn std::any::Any>).downcast::<Ramp>().expect("a Ramp")
+    Ramp::from_object(tree, ramp).expect("a Ramp")
   };
   let typed = |text: &str| Ramp {
     stops: ["White", text]
