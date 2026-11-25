@@ -82,7 +82,61 @@ pub trait Object: Debug + Any {
   fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>);
 }
 
+impl dyn Object {
+  /// Whether the object is a `T`.
+  #[must_use]
+  pub fn is<T: Object>(&self) -> bool {
+    (self as &dyn Any).is::<T>()
+  }
+
+  /// The object as a `T`, or the object itself when it's of another type, so the caller can try
+  /// the next one, as a type that takes several kinds of object does.
+  ///
+  /// # Errors
+  ///
+  /// The object, unchanged, when it isn't a `T`.
+  pub fn downcast<T: Object>(self: Box<Self>) -> Result<Box<T>, Box<dyn Object>> {
+    if !self.is::<T>() {
+      return Err(self);
+    }
+    let object: Box<dyn Any> = self;
+    Ok(object.downcast().unwrap_or_else(|_| unreachable!("the object is a `T`")))
+  }
+}
+
 /// Calls `action` with each property `object` lists.
 pub(crate) fn for_each_property(object: &dyn Object, mut action: impl FnMut(AnyProperty<'_>)) {
   object.visit_properties(&mut PropertyVisitor::new(&mut action));
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[derive(Debug, PartialEq)]
+  struct Stop(f32);
+
+  impl Object for Stop {
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+  }
+
+  #[derive(Debug)]
+  struct Other;
+
+  impl Object for Other {
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+  }
+
+  // An object of the type asked for comes out as that type, and one of another type comes back
+  // whole, so the caller can try the next type.
+  #[test]
+  fn downcast_gives_back_an_object_of_another_type() {
+    let stop: Box<dyn Object> = Box::new(Stop(0.5));
+    let other: Box<dyn Object> = Box::new(Other);
+
+    assert!(stop.is::<Stop>() && !stop.is::<Other>());
+    assert_eq!(stop.downcast::<Stop>().ok(), Some(Box::new(Stop(0.5))));
+    let other = other.downcast::<Stop>().expect_err("not a Stop");
+    assert!(other.is::<Other>());
+  }
 }

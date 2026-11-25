@@ -6,7 +6,6 @@
 use crate::{TypeInfo, ValueError};
 use artic_core::Object;
 use artic_core::tree::{NodeId, UiTree};
-use std::any::Any;
 
 /// A field that receives the child elements written inside an element, in order.
 ///
@@ -87,7 +86,7 @@ pub trait UiCollection: Sized {
 /// Whether `object` is a `T`: what a derived [`TypeInfo::is`] calls.
 #[must_use]
 pub fn is_a<T: Object>(object: &dyn Object) -> bool {
-  (object as &dyn Any).is::<T>()
+  object.is::<T>()
 }
 
 /// Checks that `child` is of a type `takes` lists, when it lists any. A node that isn't in the

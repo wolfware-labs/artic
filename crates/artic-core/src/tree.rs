@@ -766,7 +766,6 @@ impl UiTree {
   /// use artic_core::Object;
   /// use artic_core::property::PropertyVisitor;
   /// use artic_core::tree::UiTree;
-  /// use std::any::Any;
   ///
   /// #[derive(Debug)]
   /// struct Stop {
@@ -779,7 +778,7 @@ impl UiTree {
   /// let mut tree = UiTree::new();
   /// let staged = tree.alloc(Box::new(Stop { offset: 0.5 }));
   ///
-  /// let object: Box<dyn Any> = tree.take(staged);
+  /// let object = tree.take(staged);
   /// assert_eq!(object.downcast::<Stop>().map(|stop| stop.offset).ok(), Some(0.5));
   /// assert!(!tree.contains(staged));
   /// ```

@@ -3,8 +3,8 @@
 //! ([value objects design](https://github.com/wolfware-labs/artic/blob/main/docs/design/value-objects.md)).
 
 use crate::{UiCollection, UiType, ValueError};
+use artic_core::Object;
 use artic_core::tree::{NodeId, TreeKind, UiTree};
-use std::any::Any;
 use std::sync::Arc;
 
 /// A UI type that is a value: immutable data a property holds, such as a brush, copied into each
@@ -12,7 +12,7 @@ use std::sync::Arc;
 ///
 /// Its object is staged in the tree only while a UI language sets its members; it never stays
 /// there. Its fields are plain data, not properties, so taking it out of the tree loses nothing.
-pub trait UiValue: UiType + Clone + 'static {}
+pub trait UiValue: UiType + Object + Clone {}
 
 /// A property value type that can be taken from an object a UI language staged in the tree.
 ///
@@ -37,11 +37,14 @@ pub const ANOTHER_OBJECT: &str = "an object of another type";
 
 impl<T: UiValue> FromUiObject for T {
   fn from_object(tree: &mut UiTree, object: NodeId) -> Result<T, ValueError> {
-    let taken: Box<dyn Any> = tree.take(object);
-    taken.downcast::<T>().map(|value| *value).map_err(|_| ValueError::WrongType {
-      expected: T::TYPE_INFO.name,
-      found: ANOTHER_OBJECT,
-    })
+    tree
+      .take(object)
+      .downcast::<T>()
+      .map(|value| *value)
+      .map_err(|_| ValueError::WrongType {
+        expected: T::TYPE_INFO.name,
+        found: ANOTHER_OBJECT,
+      })
   }
 }
 

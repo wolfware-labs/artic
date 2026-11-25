@@ -218,7 +218,7 @@ fn take_frees_the_subtree_and_detaches_the_node() {
   tree.add_child(TreeKind::Visual, panel, child);
   tree.add_child(TreeKind::Logical, child, grandchild);
 
-  let object: Box<dyn std::any::Any> = tree.take(child);
+  let object = tree.take(child);
 
   assert!(object.is::<super::Control>());
   assert!(!tree.contains(child) && !tree.contains(grandchild));

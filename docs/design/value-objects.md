@@ -87,7 +87,7 @@ impl FromUiObject for Brush {
 }
 ```
 
-The blanket impl and a family's impl don't conflict: only the crate that owns `Brush` could make it a `UiValue`, so Rust's coherence rules accept both.
+The blanket impl and a family's impl don't conflict: only the crate that owns `Brush` could make it a `UiValue`, so Rust's coherence rules accept both. Both check the object's type with `downcast` on `dyn Object` in `artic-core`, which gives back an object of another type unchanged, so `Brush` tries its kinds in turn and no `Box<dyn Any>` leaves the tree. A `UiValue` is an `Object` for that reason: its object is staged as a node.
 
 Only values take themselves. Taking an object out of the tree (`UiTree::take`) disposes its properties, as freeing it does, so a node type's object would come out with dead `Property` fields; a value's fields are plain data, and lose nothing. A property whose value type is a node type refuses an object with `WrongType`, as it refuses text.
 

@@ -4,7 +4,6 @@ use artic_core::{RustExpr, ToRust};
 use artic_layout::geometry::{RelativePoint, RelativeScalar};
 use artic_macros::UiType;
 use artic_registry::{ANOTHER_OBJECT, FromUiObject, ValueError};
-use std::any::Any;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -41,8 +40,7 @@ impl FromStr for Brush {
 /// converts with, so markup and code give the same brush.
 impl FromUiObject for Brush {
   fn from_object(tree: &mut UiTree, object: NodeId) -> Result<Brush, ValueError> {
-    let taken: Box<dyn Any> = tree.take(object);
-    let taken = match taken.downcast::<SolidColorBrush>() {
+    let taken = match tree.take(object).downcast::<SolidColorBrush>() {
       Ok(solid) => return Ok(Brush::from(*solid)),
       Err(other) => other,
     };
