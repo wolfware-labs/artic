@@ -50,7 +50,7 @@ A value type uses the same derive with a `value` flag. Its fields are plain, not
 #[ui(value)]
 pub struct SolidColorBrush {
   #[ui] pub color: Color,
-  #[ui(default = 1.0)] pub opacity: f32,
+  #[ui] pub opacity: f32,   // 1.0 in the type's own `Default`
 }
 ```
 
@@ -133,7 +133,7 @@ For `<SolidColorBrush x:Key="Accent" Color="#3B82F6"/>` used as `Background="{St
 ```rust,ignore
 // compiled output for the resource itself
 fn resource_accent() -> SolidColorBrush {
-  SolidColorBrush::new().color(COLOR_3B82F6)
+  SolidColorBrush::new(COLOR_3B82F6)
 }
 ```
 
@@ -163,7 +163,7 @@ A node written as a resource (`<Button x:Key="…"/>`) is built anew at each use
 2. Loading the `Border` meets `{StaticResource Accent}` on `Background` and resolves the key by walking up the logical tree.
 3. It runs the loader steps on the stored node: stage a `SolidColorBrush`, set `Color`, then call `Background`'s `set_object`.
 4. `Brush::from_object` converts the staged brush, and `background.set_at(Local, Some(brush))` stores it.
-5. Had `Accent` been a `Thickness`, step 4 would return `WrongType { expected: "Brush", found: "Thickness" }`, reported at the `{StaticResource Accent}` span with a note at the `x:Key`.
+5. Had `Accent` been a `GradientStop`, step 4 would return `WrongType { expected: "Brush", found: "an object of another type" }`, reported at the `{StaticResource Accent}` span with a note at the `x:Key`, which names the resource's type.
 
 ## Changes to other issues
 

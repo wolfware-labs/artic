@@ -15,7 +15,6 @@ The job runs `cargo check --target wasm32-unknown-unknown` on each of these crat
 | `artic-ident` | |
 | `artic-i18n` | |
 | `artic-layout` | |
-| `artic-render` | |
 | `artic-text` | `fontique` has no system font source on wasm; see font loading below. |
 | `artic-xaml` | |
 
@@ -27,7 +26,7 @@ A `cargo check` catches a dependency that doesn't compile for the target. It doe
 | --- | --- | --- |
 | `artic-registry` | `UI_TYPES` is gathered with `linkme`, which has no wasm32 support (`distributed_slice is not implemented for this platform`). | #241 |
 | `artic-element` | `ELEMENT_TYPES`, which layout and the runner read at run time to find a node's `Element`, is a `linkme` slice too. | #241 |
-| `artic`, `artic-style`, `artic-controls`, `artic-theme`, `artic-view`, `artic-platform`, `artic-xaml-runtime` | They depend on `artic-registry` or `artic-element`. | #241 |
+| `artic`, `artic-render`, `artic-style`, `artic-controls`, `artic-theme`, `artic-view`, `artic-platform`, `artic-xaml-runtime` | They depend on `artic-registry` or `artic-element`; `artic-render` derives `UiType` on its brushes, which are value types. | #241 |
 
 Once #241 gives both slices a wasm mechanism, these crates join the job.
 
