@@ -1,0 +1,5 @@
+error: a value's `#[ui]` fields are plain data, not a `NodeId`: its node would stay in the tree with no owner once the value is taken out
+ --> tests/ui/value_with_node_field.rs:8:18
+  |
+8 |   sample: Option<NodeId>,
+  |                  ^^^^^^

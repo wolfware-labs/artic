@@ -68,7 +68,9 @@ mod tests {
     let node_setting = "a value takes no `attached`, `value_provider`, `override_defaults`, `code_type_root` or `whitespace`";
     let plain_field = "a value's `#[ui]` fields are plain data, such as `#[ui] color: Color`, with no property settings";
     let collection = "a value's content is a collection of values, such as `Vec<GradientStop>`";
-    let inputs: [(DeriveInput, &str); 9] = [
+    let node_field = "a value's `#[ui]` fields are plain data, not a `NodeId`: its node would stay in the tree with no owner \
+                      once the value is taken out";
+    let inputs: [(DeriveInput, &str); 11] = [
       (
         parse_quote!(
           #[ui(value, value_provider(positional(a)))]
@@ -158,6 +160,26 @@ mod tests {
           }
         ),
         collection,
+      ),
+      (
+        parse_quote!(
+          #[ui(value)]
+          struct V {
+            #[ui]
+            sample: NodeId,
+          }
+        ),
+        node_field,
+      ),
+      (
+        parse_quote!(
+          #[ui(value)]
+          struct V {
+            #[ui]
+            sample: Option<artic::tree::NodeId>,
+          }
+        ),
+        node_field,
       ),
     ];
 

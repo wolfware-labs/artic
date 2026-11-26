@@ -1,6 +1,7 @@
 use crate::crate_root::{REGISTRY, crate_root};
 use crate::members::emit::{
-  affects_tokens, checks, default_impl, inheritance_tokens, key_path, key_static, properties_static, value_check, visits,
+  ValueRoute, affects_tokens, checks, default_impl, inheritance_tokens, key_path, key_static, properties_static, value_check,
+  visits,
 };
 use crate::members::{Content, GroupField, Members, PropertyField, generic_argument, value_type};
 use crate::ui_type::analysis::TypeAnalysis;
@@ -33,7 +34,12 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
   let value_impl = is_value.then(|| quote!(impl __artic::UiValue for #ident {}));
   let attached_helpers = attached.iter().map(|attached| attached_helpers(ident, attached));
   let type_info = type_info(analysis);
-  let checks = checks(members, attached.iter().map(|attached| value_check(value_type(&attached.ty))));
+  let checks = checks(
+    members,
+    attached
+      .iter()
+      .map(|attached| value_check(value_type(&attached.ty), ValueRoute::AnyValue)),
+  );
   Ok(quote! {
     const _: () = {
       use #root::__private as __artic;

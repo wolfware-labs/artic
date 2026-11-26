@@ -83,8 +83,13 @@ pub fn checks(members: &Members, extra_checks: impl IntoIterator<Item = TokenStr
   let values = members
     .properties
     .iter()
-    .map(|field| value_check(field.value))
-    .chain(members.values.iter().map(|field| value_check(field.value)));
+    .map(|field| value_check(field.value, ValueRoute::AnyValue))
+    .chain(
+      members
+        .values
+        .iter()
+        .map(|field| value_check(field.value, ValueRoute::PlainValue)),
+    );
   let groups = members.groups.iter().map(|group| {
     let ty = group.ty;
     quote_spanned!(ty.span()=> __artic::assert_property_group::<#ty>();)
@@ -181,6 +186,7 @@ fn property_access(field: &PropertyField) -> TokenStream {
   let key = key_path(field);
   access_tokens(&Access {
     value: field.value,
+    route: ValueRoute::AnyValue,
     optional: is_optional(field.inner),
     name: quote!(#key.name()),
     level: quote!(level),
@@ -210,12 +216,14 @@ fn value_field_info(owner: &Ident, field: &ValueField) -> TokenStream {
 
 /// The `PropertyAccess` of a value type's plain field: thunks that assign the field of a staged
 /// value. A value has no precedence levels, so the level is ignored, and clearing the field puts
-/// back the type's default.
+/// back the type's default. The field takes no node: a value taken out of the tree would leave the
+/// node there with no owner, so a `NodeId` field fails the value check.
 fn value_field_access(owner: &Ident, field: &ValueField) -> TokenStream {
   let (ident, name) = (field.ident, &field.ui_name);
   let reach = quote!(|owner: &mut #owner| &mut owner.#ident);
   access_tokens(&Access {
     value: field.value,
+    route: ValueRoute::PlainValue,
     optional: is_optional(field.ty),
     name: quote!(#name),
     level: quote!(_),
@@ -226,10 +234,12 @@ fn value_field_access(owner: &Ident, field: &ValueField) -> TokenStream {
   })
 }
 
-/// What one property's thunks differ in: its value type, whether it is optional, its name, the
-/// level parameter its writes use, how a converted value is written, and how it is cleared.
+/// What one property's thunks differ in: its value type, which values its check lets through,
+/// whether it is optional, its name, the level parameter its writes use, how a converted value is
+/// written, and how it is cleared.
 struct Access<'a> {
   value: &'a Type,
+  route: ValueRoute,
   optional: bool,
   name: TokenStream,
   level: TokenStream,
@@ -243,11 +253,13 @@ struct Access<'a> {
 ///
 /// The thunks convert through the value check's own expression, spanned at the value type, so a
 /// value type a UI language can't write fails once, there. An object converts through its own
-/// check, which refuses one for a value type not taken from objects. Each converts the value before
-/// writing it, so a conversion that needs the tree mutably ends before the write borrows it.
+/// check, which refuses one for a value type not taken from objects; the registry's `exactly` pins
+/// its `ObjectOps` as it pins the value check's `ValueOps`. Each converts the value before writing
+/// it, so a conversion that needs the tree mutably ends before the write borrows it.
 fn access_tokens(access: &Access) -> TokenStream {
   let Access {
     value,
+    route,
     optional,
     name,
     level,
@@ -269,12 +281,14 @@ fn access_tokens(access: &Access) -> TokenStream {
       #written
     })
   };
-  let ops = value_ops(value);
+  let ops = value_ops(value, *route);
   let imports = value_check_imports();
   let parsed = set(quote!((#ops.parse)(text, ::core::stringify!(#value))?));
   let node_value = set(quote!((#ops.node)(child, ::core::stringify!(#value))?));
   let object = set(quote!(
-    (&__artic::ObjectCheck::<#value>(__artic::PhantomData)).take_object(tree, node, object, ::core::stringify!(#value))?
+    (__artic::exactly::<__artic::ObjectOps<#value>>((&__artic::ObjectCheck::<#value>(__artic::PhantomData)).object_ops()).take)(
+      tree, node, object, ::core::stringify!(#value)
+    )?
   ));
   let set_null = if *optional {
     let null = write(quote!(::core::option::Option::None));
@@ -358,17 +372,42 @@ fn is_number(ty: &Type) -> bool {
     && NUMBERS.contains(&name.as_str())
 }
 
+/// Which values the value check lets through, as the registry's marker of the same name says.
+#[derive(Clone, Copy)]
+pub enum ValueRoute {
+  /// A property's value: text, an object or a node.
+  AnyValue,
+  /// A value type's plain field: text or an object. A `NodeId` there fails as a type that can't be
+  /// written does.
+  PlainValue,
+}
+
+impl ValueRoute {
+  /// The registry's marker type for this route.
+  fn marker(self) -> TokenStream {
+    match self {
+      ValueRoute::AnyValue => quote!(__artic::AnyValue),
+      ValueRoute::PlainValue => quote!(__artic::PlainValue),
+    }
+  }
+}
+
 /// The check that a value type can be written in a UI language, pointing at the type.
-pub fn value_check(value: &Type) -> TokenStream {
-  let ops = value_ops(value);
+pub fn value_check(value: &Type, route: ValueRoute) -> TokenStream {
+  let ops = value_ops(value, route);
   quote_spanned!(value.span()=> #ops;)
 }
 
 /// The value check as an expression, pointing at the type: it compiles only for a value type a UI
-/// language can write, and gives the `ValueOps` the loader's thunks convert with.
-fn value_ops(value: &Type) -> TokenStream {
+/// language can write through `route`, and gives the `ValueOps` the loader's thunks convert with.
+/// The registry's `exactly` pins that type, so a user trait with the check's method name in scope
+/// where the derive expands can't stand in for the check with a type of its own.
+fn value_ops(value: &Type, route: ValueRoute) -> TokenStream {
+  let route = route.marker();
   quote_spanned!(value.span()=>
-    (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+    __artic::exactly::<__artic::ValueOps<#value>>(
+      (&&__artic::ValueCheck::<#value, #route>(__artic::PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+    )
   )
 }
 

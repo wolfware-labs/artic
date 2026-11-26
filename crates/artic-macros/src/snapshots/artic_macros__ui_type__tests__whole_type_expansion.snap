@@ -97,8 +97,15 @@ const _: () = {
                 set_text: |tree, node, text, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
                     {
-                        let value = ((&&__artic::ValueCheck::<f32>(__artic::PhantomData))
-                            .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                        let value = (__artic::exactly::<
+                            __artic::ValueOps<f32>,
+                        >(
+                                (&&__artic::ValueCheck::<
+                                    f32,
+                                    __artic::AnyValue,
+                                >(__artic::PhantomData))
+                                    .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
+                            )
                             .parse)(text, ::core::stringify!(f32))?;
                         __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
                     }
@@ -106,8 +113,15 @@ const _: () = {
                 set_node: |tree, node, child, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
                     {
-                        let value = ((&&__artic::ValueCheck::<f32>(__artic::PhantomData))
-                            .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                        let value = (__artic::exactly::<
+                            __artic::ValueOps<f32>,
+                        >(
+                                (&&__artic::ValueCheck::<
+                                    f32,
+                                    __artic::AnyValue,
+                                >(__artic::PhantomData))
+                                    .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
+                            )
                             .node)(child, ::core::stringify!(f32))?;
                         __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
                     }
@@ -115,8 +129,13 @@ const _: () = {
                 set_object: |tree, node, object, level| {
                     use __artic::{NotFromObject as _, ViaFromUiObject as _};
                     {
-                        let value = (&__artic::ObjectCheck::<f32>(__artic::PhantomData))
-                            .take_object(tree, node, object, ::core::stringify!(f32))?;
+                        let value = (__artic::exactly::<
+                            __artic::ObjectOps<f32>,
+                        >(
+                                (&__artic::ObjectCheck::<f32>(__artic::PhantomData))
+                                    .object_ops(),
+                            )
+                            .take)(tree, node, object, ::core::stringify!(f32))?;
                         __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
                     }
                 },
@@ -142,10 +161,15 @@ const _: () = {
                 set_text: |tree, node, text, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
                     {
-                        let value = ((&&__artic::ValueCheck::<
-                            bool,
-                        >(__artic::PhantomData))
-                            .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                        let value = (__artic::exactly::<
+                            __artic::ValueOps<bool>,
+                        >(
+                                (&&__artic::ValueCheck::<
+                                    bool,
+                                    __artic::AnyValue,
+                                >(__artic::PhantomData))
+                                    .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
+                            )
                             .parse)(text, ::core::stringify!(bool))?;
                         __artic::set_property(tree, node, (&__KEY_ENABLED), level, value)
                     }
@@ -153,10 +177,15 @@ const _: () = {
                 set_node: |tree, node, child, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
                     {
-                        let value = ((&&__artic::ValueCheck::<
-                            bool,
-                        >(__artic::PhantomData))
-                            .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                        let value = (__artic::exactly::<
+                            __artic::ValueOps<bool>,
+                        >(
+                                (&&__artic::ValueCheck::<
+                                    bool,
+                                    __artic::AnyValue,
+                                >(__artic::PhantomData))
+                                    .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
+                            )
                             .node)(child, ::core::stringify!(bool))?;
                         __artic::set_property(tree, node, (&__KEY_ENABLED), level, value)
                     }
@@ -164,8 +193,13 @@ const _: () = {
                 set_object: |tree, node, object, level| {
                     use __artic::{NotFromObject as _, ViaFromUiObject as _};
                     {
-                        let value = (&__artic::ObjectCheck::<bool>(__artic::PhantomData))
-                            .take_object(tree, node, object, ::core::stringify!(bool))?;
+                        let value = (__artic::exactly::<
+                            __artic::ObjectOps<bool>,
+                        >(
+                                (&__artic::ObjectCheck::<bool>(__artic::PhantomData))
+                                    .object_ops(),
+                            )
+                            .take)(tree, node, object, ::core::stringify!(bool))?;
                         __artic::set_property(tree, node, (&__KEY_ENABLED), level, value)
                     }
                 },
@@ -191,8 +225,15 @@ const _: () = {
                 set_text: |tree, node, text, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
                     {
-                        let value = ((&&__artic::ValueCheck::<i32>(__artic::PhantomData))
-                            .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                        let value = (__artic::exactly::<
+                            __artic::ValueOps<i32>,
+                        >(
+                                (&&__artic::ValueCheck::<
+                                    i32,
+                                    __artic::AnyValue,
+                                >(__artic::PhantomData))
+                                    .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
+                            )
                             .parse)(text, ::core::stringify!(i32))?;
                         __artic::set_property(tree, node, SHARED.key(), level, value)
                     }
@@ -200,8 +241,15 @@ const _: () = {
                 set_node: |tree, node, child, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
                     {
-                        let value = ((&&__artic::ValueCheck::<i32>(__artic::PhantomData))
-                            .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                        let value = (__artic::exactly::<
+                            __artic::ValueOps<i32>,
+                        >(
+                                (&&__artic::ValueCheck::<
+                                    i32,
+                                    __artic::AnyValue,
+                                >(__artic::PhantomData))
+                                    .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
+                            )
                             .node)(child, ::core::stringify!(i32))?;
                         __artic::set_property(tree, node, SHARED.key(), level, value)
                     }
@@ -209,8 +257,13 @@ const _: () = {
                 set_object: |tree, node, object, level| {
                     use __artic::{NotFromObject as _, ViaFromUiObject as _};
                     {
-                        let value = (&__artic::ObjectCheck::<i32>(__artic::PhantomData))
-                            .take_object(tree, node, object, ::core::stringify!(i32))?;
+                        let value = (__artic::exactly::<
+                            __artic::ObjectOps<i32>,
+                        >(
+                                (&__artic::ObjectCheck::<i32>(__artic::PhantomData))
+                                    .object_ops(),
+                            )
+                            .take)(tree, node, object, ::core::stringify!(i32))?;
                         __artic::set_property(tree, node, SHARED.key(), level, value)
                     }
                 },
@@ -237,8 +290,15 @@ const _: () = {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
                     {
                         let value = ::core::option::Option::Some(
-                            ((&&__artic::ValueCheck::<String>(__artic::PhantomData))
-                                .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                            (__artic::exactly::<
+                                __artic::ValueOps<String>,
+                            >(
+                                    (&&__artic::ValueCheck::<
+                                        String,
+                                        __artic::AnyValue,
+                                    >(__artic::PhantomData))
+                                        .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
+                                )
                                 .parse)(text, ::core::stringify!(String))?,
                         );
                         __artic::set_property(tree, node, (&__KEY_TEXT), level, value)
@@ -248,8 +308,15 @@ const _: () = {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
                     {
                         let value = ::core::option::Option::Some(
-                            ((&&__artic::ValueCheck::<String>(__artic::PhantomData))
-                                .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+                            (__artic::exactly::<
+                                __artic::ValueOps<String>,
+                            >(
+                                    (&&__artic::ValueCheck::<
+                                        String,
+                                        __artic::AnyValue,
+                                    >(__artic::PhantomData))
+                                        .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
+                                )
                                 .node)(child, ::core::stringify!(String))?,
                         );
                         __artic::set_property(tree, node, (&__KEY_TEXT), level, value)
@@ -259,13 +326,13 @@ const _: () = {
                     use __artic::{NotFromObject as _, ViaFromUiObject as _};
                     {
                         let value = ::core::option::Option::Some(
-                            (&__artic::ObjectCheck::<String>(__artic::PhantomData))
-                                .take_object(
-                                    tree,
-                                    node,
-                                    object,
-                                    ::core::stringify!(String),
-                                )?,
+                            (__artic::exactly::<
+                                __artic::ObjectOps<String>,
+                            >(
+                                    (&__artic::ObjectCheck::<String>(__artic::PhantomData))
+                                        .object_ops(),
+                                )
+                                .take)(tree, node, object, ::core::stringify!(String))?,
                         );
                         __artic::set_property(tree, node, (&__KEY_TEXT), level, value)
                     }
@@ -504,18 +571,42 @@ const _: () = {
     #[allow(dead_code, clippy::needless_borrow)]
     fn __checks() {
         use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-        (&&__artic::ValueCheck::<f32>(__artic::PhantomData))
-            .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
-        (&&__artic::ValueCheck::<bool>(__artic::PhantomData))
-            .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
-        (&&__artic::ValueCheck::<i32>(__artic::PhantomData))
-            .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
-        (&&__artic::ValueCheck::<String>(__artic::PhantomData))
-            .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+        __artic::exactly::<
+            __artic::ValueOps<f32>,
+        >(
+            (&&__artic::ValueCheck::<f32, __artic::AnyValue>(__artic::PhantomData))
+                .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
+        );
+        __artic::exactly::<
+            __artic::ValueOps<bool>,
+        >(
+            (&&__artic::ValueCheck::<bool, __artic::AnyValue>(__artic::PhantomData))
+                .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
+        );
+        __artic::exactly::<
+            __artic::ValueOps<i32>,
+        >(
+            (&&__artic::ValueCheck::<i32, __artic::AnyValue>(__artic::PhantomData))
+                .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
+        );
+        __artic::exactly::<
+            __artic::ValueOps<String>,
+        >(
+            (&&__artic::ValueCheck::<String, __artic::AnyValue>(__artic::PhantomData))
+                .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
+        );
         __artic::assert_property_group::<Layout>();
-        (&&__artic::ValueCheck::<usize>(__artic::PhantomData))
-            .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
-        (&&__artic::ValueCheck::<usize>(__artic::PhantomData))
-            .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+        __artic::exactly::<
+            __artic::ValueOps<usize>,
+        >(
+            (&&__artic::ValueCheck::<usize, __artic::AnyValue>(__artic::PhantomData))
+                .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
+        );
+        __artic::exactly::<
+            __artic::ValueOps<usize>,
+        >(
+            (&&__artic::ValueCheck::<usize, __artic::AnyValue>(__artic::PhantomData))
+                .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
+        );
     }
 };

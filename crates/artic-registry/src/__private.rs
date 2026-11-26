@@ -18,10 +18,21 @@ pub use artic_core::property::{
 pub use artic_core::tree::{Handle, NodeId, UiTree};
 pub use std::marker::PhantomData;
 
-/// Wraps a property's value type for the check below.
-pub struct ValueCheck<T>(pub PhantomData<T>);
+/// Wraps a property's value type for the check below. `R` is what the value may be: [`AnyValue`]
+/// for a property, which can hold a node, or [`PlainValue`] for a value's plain field, which can't,
+/// since a value taken out of the tree would leave the node with no owner. Only the check's type
+/// decides this, so importing the check's traits can't add the node route to a plain field.
+pub struct ValueCheck<T, R>(pub PhantomData<(T, R)>);
 
-impl<T> Debug for ValueCheck<T> {
+/// A property's value: text, an object or a node.
+#[derive(Debug)]
+pub enum AnyValue {}
+
+/// A value type's plain field: text or an object, never a node.
+#[derive(Debug)]
+pub enum PlainValue {}
+
+impl<T, R> Debug for ValueCheck<T, R> {
   fn fmt(&self, formatter: &mut Formatter<'_>) -> Result {
     formatter.write_str("ValueCheck")
   }
@@ -46,6 +57,32 @@ pub struct ValueOps<V> {
   pub node: fn(NodeId, &'static str) -> std::result::Result<V, ValueError>,
 }
 
+/// Returns `ops` as is. Generated code passes each check's result through it and names the
+/// registry type the check must give for the property's value type `V`: `ValueOps<V>`,
+/// `LiteralOps<V>` or `ObjectOps<V>`. So a user trait with the check's method name, in scope where
+/// the code expands, can't stand in for the check with a type of its own.
+pub fn exactly<T>(ops: T) -> T {
+  ops
+}
+
+/// How a property's `literal` writes text written in a UI language as Rust, for a value of type
+/// `V`. The value check's `literal_ops` gives it.
+#[derive(Debug)]
+pub struct LiteralOps<V> {
+  /// Parses text and writes the value it gives, or says why it can't.
+  pub write: fn(&str, &mut RustExpr) -> std::result::Result<(), String>,
+  /// The value type the text parses as.
+  pub value: PhantomData<V>,
+}
+
+/// The `LiteralOps` of a value that is an element: they refuse text.
+fn element_literal_ops<V>() -> LiteralOps<V> {
+  LiteralOps {
+    write: |_, _| Err(TAKES_AN_ELEMENT.to_owned()),
+    value: PhantomData,
+  }
+}
+
 /// Refuses a node: the value is text or an object.
 fn not_a_node<V>(_node: NodeId, expected: &'static str) -> std::result::Result<V, ValueError> {
   Err(ValueError::WrongType {
@@ -67,11 +104,11 @@ pub trait ViaFromStr {
   /// Compiles only for a value type a UI language can write, and gives the thunks' conversions.
   fn value_must_parse_from_text_and_implement_torust_or_derive_uitype(&self) -> ValueOps<Self::Value>;
 
-  /// Parses `text` and writes the value it gives.
-  fn write_literal(&self, text: &str, out: &mut RustExpr) -> std::result::Result<(), String>;
+  /// Gives the literal's conversion: parse text and write the value it gives.
+  fn literal_ops(&self) -> LiteralOps<Self::Value>;
 }
 
-impl<T> ViaFromStr for ValueCheck<T>
+impl<T, R> ViaFromStr for ValueCheck<T, R>
 where
   T: FromStr + ToRust,
   T::Err: Display,
@@ -90,10 +127,15 @@ where
     }
   }
 
-  fn write_literal(&self, text: &str, out: &mut RustExpr) -> std::result::Result<(), String> {
-    let value: T = text.parse().map_err(|error: T::Err| error.to_string())?;
-    value.to_rust(out);
-    Ok(())
+  fn literal_ops(&self) -> LiteralOps<T> {
+    LiteralOps {
+      write: |text, out| {
+        let value: T = text.parse().map_err(|error: T::Err| error.to_string())?;
+        value.to_rust(out);
+        Ok(())
+      },
+      value: PhantomData,
+    }
   }
 }
 
@@ -111,13 +153,13 @@ pub trait ViaUiType {
     }
   }
 
-  /// Refuses text: the value is an element.
-  fn write_literal(&self, _text: &str, _out: &mut RustExpr) -> std::result::Result<(), String> {
-    Err(TAKES_AN_ELEMENT.to_owned())
+  /// Gives a literal that refuses text: the value is an element.
+  fn literal_ops(&self) -> LiteralOps<Self::Value> {
+    element_literal_ops()
   }
 }
 
-impl<T: UiType> ViaUiType for &ValueCheck<T> {
+impl<T: UiType, R> ViaUiType for &ValueCheck<T, R> {
   type Value = T;
 }
 
@@ -131,13 +173,13 @@ pub trait ViaChild {
     }
   }
 
-  /// Refuses text: the value is an element.
-  fn write_literal(&self, _text: &str, _out: &mut RustExpr) -> std::result::Result<(), String> {
-    Err(TAKES_AN_ELEMENT.to_owned())
+  /// Gives a literal that refuses text: the value is an element.
+  fn literal_ops(&self) -> LiteralOps<NodeId> {
+    element_literal_ops()
   }
 }
 
-impl ViaChild for &&ValueCheck<NodeId> {}
+impl ViaChild for &&ValueCheck<NodeId, AnyValue> {}
 
 /// What a property's `set_object` says it was given when its value type isn't taken from an object.
 const AN_OBJECT: &str = "an object";
@@ -151,33 +193,35 @@ impl<T> Debug for ObjectCheck<T> {
   }
 }
 
+/// How a property's `set_object` takes a staged object as a value of type `V`. The object check
+/// gives it.
+#[derive(Debug)]
+pub struct ObjectOps<V> {
+  /// Takes the staged `object` out of the tree as the value of `owner`'s property, or refuses it
+  /// as `expected`.
+  pub take: fn(&mut UiTree, NodeId, NodeId, &'static str) -> std::result::Result<V, ValueError>,
+}
+
 /// The value type is taken from a staged object.
 pub trait ViaFromUiObject {
   /// The property's value type.
   type Value;
 
-  /// Takes the staged `object` out of the tree as the value of `owner`'s property.
-  fn take_object(
-    &self,
-    tree: &mut UiTree,
-    owner: NodeId,
-    object: NodeId,
-    expected: &'static str,
-  ) -> std::result::Result<Self::Value, ValueError>;
+  /// Gives the conversion that takes the staged object out of the tree as the value of the owner's
+  /// property.
+  fn object_ops(&self) -> ObjectOps<Self::Value>;
 }
 
 impl<T: FromUiObject> ViaFromUiObject for ObjectCheck<T> {
   type Value = T;
 
-  fn take_object(
-    &self,
-    tree: &mut UiTree,
-    owner: NodeId,
-    object: NodeId,
-    _expected: &'static str,
-  ) -> std::result::Result<T, ValueError> {
-    check_staged(tree, owner, object)?;
-    T::from_object(tree, object)
+  fn object_ops(&self) -> ObjectOps<T> {
+    ObjectOps {
+      take: |tree, owner, object, _| {
+        check_staged(tree, owner, object)?;
+        T::from_object(tree, object)
+      },
+    }
   }
 }
 
@@ -186,21 +230,19 @@ pub trait NotFromObject {
   /// The property's value type.
   type Value;
 
-  /// Takes the staged `object` out of the tree, so none is left behind, and refuses it as the
-  /// value of `owner`'s property.
-  fn take_object(
-    &self,
-    tree: &mut UiTree,
-    owner: NodeId,
-    object: NodeId,
-    expected: &'static str,
-  ) -> std::result::Result<Self::Value, ValueError> {
-    check_staged(tree, owner, object)?;
-    drop(tree.take(object));
-    Err(ValueError::WrongType {
-      expected,
-      found: AN_OBJECT,
-    })
+  /// Gives the conversion that takes the staged object out of the tree, so none is left behind,
+  /// and refuses it as the value of the owner's property.
+  fn object_ops(&self) -> ObjectOps<Self::Value> {
+    ObjectOps {
+      take: |tree, owner, object, expected| {
+        check_staged(tree, owner, object)?;
+        drop(tree.take(object));
+        Err(ValueError::WrongType {
+          expected,
+          found: AN_OBJECT,
+        })
+      },
+    }
   }
 }
 
@@ -253,6 +295,23 @@ where
 
 /// The function `PropertyInfo::literal` holds for a property of value type `$value`: `Some` with
 /// the `literals` feature, `None` without, so an app's registry keeps no `ToRust` code.
+///
+/// A user trait with the check's method name, in scope where it expands, can't stand in for the
+/// check with a type of its own:
+///
+/// ```compile_fail,E0308
+/// struct Mine;
+///
+/// trait Lookalike {
+///   fn literal_ops(&self) -> Mine {
+///     Mine
+///   }
+/// }
+///
+/// impl<T> Lookalike for T {}
+///
+/// let _ = artic_registry::__private::literal!(f32);
+/// ```
 #[cfg(feature = "literals")]
 #[doc(hidden)]
 #[macro_export]
@@ -261,7 +320,11 @@ macro_rules! __literal {
     ::core::option::Option::Some({
       fn literal(text: &str, out: &mut $crate::RustExpr) -> ::core::result::Result<(), ::std::string::String> {
         use $crate::__private::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-        (&&$crate::__private::ValueCheck::<$value>($crate::__private::PhantomData)).write_literal(text, out)
+        let ops = $crate::__private::exactly::<$crate::__private::LiteralOps<$value>>(
+          (&&$crate::__private::ValueCheck::<$value, $crate::__private::AnyValue>($crate::__private::PhantomData))
+            .literal_ops(),
+        );
+        (ops.write)(text, out)
       }
       literal as $crate::WriteLiteral
     })
@@ -497,17 +560,20 @@ mod tests {
     kind: TypeKind::Node,
   };
 
-  // The check resolves for a FromStr type, a UI type and a child node. A type that is none of
-  // them fails to compile, which the derive's compile-fail tests cover.
+  // The check resolves for a FromStr type, a UI type and a child node, and a plain field's check
+  // for the first two. A type that is none of them fails to compile, which the derive's
+  // compile-fail tests cover.
   #[test]
   #[allow(
     clippy::needless_borrow,
     reason = "the extra references pick the matching check, as in generated code"
   )]
   fn value_check_accepts_text_object_and_child_values() {
-    (&&ValueCheck::<f32>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
-    (&&ValueCheck::<Gauge>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
-    (&&ValueCheck::<NodeId>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+    (&&ValueCheck::<f32, AnyValue>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+    (&&ValueCheck::<Gauge, AnyValue>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+    (&&ValueCheck::<NodeId, AnyValue>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+    (&&ValueCheck::<f32, PlainValue>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+    (&&ValueCheck::<Gauge, PlainValue>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
   }
 
   // A code type matches only the same whole path, and a view without one matches nothing.

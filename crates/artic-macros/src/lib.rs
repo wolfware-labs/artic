@@ -33,6 +33,13 @@ use syn::{DeriveInput, parse_macro_input};
 ///   it computes a property's value when the UI is built, such as a localized string. Every
 ///   property is a named argument; `positional` lists, in order, the properties also set by
 ///   position.
+/// - `value`: the type is a value, immutable data a property holds, such as a brush. Its
+///   `TypeInfo` kind is `TypeKind::Value` and it implements `UiValue`, so it must be `Clone` and
+///   implement `Default` itself; it gets no builder methods. It takes none of `attached`,
+///   `value_provider`, `override_defaults`, `code_type_root` or `whitespace`. Its `#[ui]` fields
+///   are plain data that a UI language sets, such as `#[ui] color: Color`: no `Property`, `Event`,
+///   group or `NodeId`, and no property settings. Its content, if any, is a collection of values,
+///   such as `Vec<GradientStop>`.
 ///
 /// # Fields
 ///
@@ -74,7 +81,7 @@ use syn::{DeriveInput, parse_macro_input};
 /// and adds it to `UI_TYPES`. So the struct derives `Debug` but not `Default`, and a crate's types
 /// only reach the registry if the crate is linked (see `UI_TYPES`). A type with a required field
 /// has no `Default`, and its `TypeInfo::new` is `None`, since nothing can create it from its
-/// defaults alone.
+/// defaults alone. A value type gets neither the `Default` nor the builder below.
 ///
 /// It also writes the builder from the builder design: `new()`, the `Default`, or
 /// `new(required, ...)` for a type with required fields; one method per

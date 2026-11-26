@@ -6,7 +6,9 @@ use artic_ident::{pascal_case, screaming_snake_case};
 use proc_macro2::Span;
 use quote::format_ident;
 use syn::ext::IdentExt;
-use syn::{Data, DeriveInput, Error, Expr, Field, Fields, GenericArgument, Ident, Path, PathArguments, Type, Visibility};
+use syn::{
+  Data, DeriveInput, Error, Expr, Field, Fields, GenericArgument, Ident, Path, PathArguments, PathSegment, Type, Visibility,
+};
 
 /// The derive a struct is read for, which decides what its fields may be.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -334,12 +336,26 @@ fn value_field<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttribut
       "a value's `#[ui]` fields are plain data, such as `#[ui] color: Color`, with no property settings",
     ));
   }
+  let value = value_type(&field.ty);
+  if is_node_id(value) {
+    return Err(Error::new_spanned(
+      value,
+      "a value's `#[ui]` fields are plain data, not a `NodeId`: its node would stay in the tree with no owner once the \
+       value is taken out",
+    ));
+  }
   Ok(ValueField {
     ident,
     ty: &field.ty,
-    value: value_type(&field.ty),
+    value,
     ui_name: ui_name(ident, &attributes),
   })
+}
+
+/// Whether `ty` is written `NodeId`, possibly with a path in front. An alias passes here, and the
+/// value field's check refuses it instead.
+fn is_node_id(ty: &Type) -> bool {
+  last_segment(ty).is_some_and(|segment| segment.ident == "NodeId")
 }
 
 /// The name of a field in UI languages: the `name` override, or the field name in PascalCase.
@@ -494,10 +510,7 @@ fn collection_method(ty: &Type) -> Option<ContentMethod> {
 
 /// The element collection a field's type names: `Child` or `Children`, else `None`.
 pub fn named_collection(ty: &Type) -> Option<ContentMethod> {
-  let Type::Path(path) = ty else {
-    return None;
-  };
-  match path.path.segments.last()?.ident.to_string().as_str() {
+  match last_segment(ty)?.ident.to_string().as_str() {
     "Child" => Some(ContentMethod::Child),
     "Children" => Some(ContentMethod::Children),
     _ => None,
@@ -522,10 +535,7 @@ pub fn is_optional(ty: &Type) -> bool {
 
 /// If `ty` is written `Wrapper<T>`, possibly with a path in front, returns `T`.
 pub fn generic_argument<'a>(ty: &'a Type, wrapper: &str) -> Option<&'a Type> {
-  let Type::Path(path) = ty else {
-    return None;
-  };
-  let segment = path.path.segments.last()?;
+  let segment = last_segment(ty)?;
   if segment.ident != wrapper {
     return None;
   }
@@ -536,6 +546,16 @@ pub fn generic_argument<'a>(ty: &'a Type, wrapper: &str) -> Option<&'a Type> {
     GenericArgument::Type(argument) if arguments.args.len() == 1 => Some(argument),
     _ => None,
   }
+}
+
+/// The last segment of the path `ty` is written as: `Option<X>` for `core::option::Option<X>`.
+/// The derive sees how a field's type is written, not what it names, so an alias isn't seen
+/// through.
+fn last_segment(ty: &Type) -> Option<&PathSegment> {
+  let Type::Path(path) = ty else {
+    return None;
+  };
+  path.path.segments.last()
 }
 
 #[cfg(test)]
