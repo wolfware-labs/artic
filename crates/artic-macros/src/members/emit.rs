@@ -90,7 +90,7 @@ pub fn checks(members: &Members, extra_checks: impl IntoIterator<Item = TokenStr
     quote_spanned!(ty.span()=> __artic::assert_property_group::<#ty>();)
   });
   let extra_checks = extra_checks.into_iter();
-  let imports = value_check_imports();
+  let imports = value_check_imports(true);
   quote! {
     #[allow(dead_code, clippy::needless_borrow)]
     fn __checks() {
@@ -181,6 +181,7 @@ fn property_access(field: &PropertyField) -> TokenStream {
   let key = key_path(field);
   access_tokens(&Access {
     value: field.value,
+    takes_a_node: true,
     optional: is_optional(field.inner),
     name: quote!(#key.name()),
     level: quote!(level),
@@ -210,12 +211,14 @@ fn value_field_info(owner: &Ident, field: &ValueField) -> TokenStream {
 
 /// The `PropertyAccess` of a value type's plain field: thunks that assign the field of a staged
 /// value. A value has no precedence levels, so the level is ignored, and clearing the field puts
-/// back the type's default.
+/// back the type's default. The field takes no node: a value taken out of the tree would leave the
+/// node there with no owner, so a `NodeId` field fails the value check.
 fn value_field_access(owner: &Ident, field: &ValueField) -> TokenStream {
   let (ident, name) = (field.ident, &field.ui_name);
   let reach = quote!(|owner: &mut #owner| &mut owner.#ident);
   access_tokens(&Access {
     value: field.value,
+    takes_a_node: false,
     optional: is_optional(field.ty),
     name: quote!(#name),
     level: quote!(_),
@@ -226,10 +229,12 @@ fn value_field_access(owner: &Ident, field: &ValueField) -> TokenStream {
   })
 }
 
-/// What one property's thunks differ in: its value type, whether it is optional, its name, the
-/// level parameter its writes use, how a converted value is written, and how it is cleared.
+/// What one property's thunks differ in: its value type, whether it can be a node, whether it is
+/// optional, its name, the level parameter its writes use, how a converted value is written, and
+/// how it is cleared.
 struct Access<'a> {
   value: &'a Type,
+  takes_a_node: bool,
   optional: bool,
   name: TokenStream,
   level: TokenStream,
@@ -248,6 +253,7 @@ struct Access<'a> {
 fn access_tokens(access: &Access) -> TokenStream {
   let Access {
     value,
+    takes_a_node,
     optional,
     name,
     level,
@@ -270,7 +276,7 @@ fn access_tokens(access: &Access) -> TokenStream {
     })
   };
   let ops = value_ops(value);
-  let imports = value_check_imports();
+  let imports = value_check_imports(*takes_a_node);
   let parsed = set(quote!((#ops.parse)(text, ::core::stringify!(#value))?));
   let node_value = set(quote!((#ops.node)(child, ::core::stringify!(#value))?));
   let object = set(quote!(
@@ -372,10 +378,13 @@ fn value_ops(value: &Type) -> TokenStream {
   )
 }
 
-/// The imports the value check resolves through, one trait per kind of value.
-fn value_check_imports() -> TokenStream {
+/// The imports the value check resolves through, one trait per kind of value. Without
+/// `takes_a_node` the check has no route for a `NodeId`, so one fails as a type that can't be
+/// written does.
+fn value_check_imports(takes_a_node: bool) -> TokenStream {
+  let child = takes_a_node.then(|| quote!(ViaChild as _,));
   quote!(
-    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
+    use __artic::{#child ViaFromStr as _, ViaUiType as _};
   )
 }
 

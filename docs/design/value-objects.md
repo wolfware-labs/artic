@@ -59,6 +59,7 @@ pub struct SolidColorBrush {
 | `#[ui]` fields are plain `T`; their `PropertyAccess` thunks assign the field and ignore `Precedence` | A value is immutable data, with no signals and no precedence stack; reactivity lives in the property that holds it |
 | `TypeInfo.kind` is `TypeKind::Value` | Both back ends can tell nodes from values |
 | `Event<A>` fields are a compile error | Values aren't in the tree, so they raise no events |
+| A `NodeId` field, optional or not, is a compile error | A value taken out of the tree would leave the node there with no owner, and each copy would point at it. The derive refuses a field written `NodeId`; an alias fails the field's value check, which has no route for a node |
 | A content collection of values is allowed | `LinearGradientBrush` holds its `GradientStop`s; each child is a staged value moved in by `add_child`. `Vec<T>` keeps them in order; `Arc<[T]>`, which a brush clones cheaply into each draw, grows by one for each |
 | The type must be `Clone` and implement `Default` itself | Each use gets its own copy; `new` stages the default |
 | It implements `UiValue` and gets no builder methods | `UiValue` is how a value takes itself (below); the type keeps its own constructors, such as `SolidColorBrush::new(color)` |
@@ -170,4 +171,4 @@ A node written as a resource (`<Button x:Key="…"/>`) is built anew at each use
 | Issue | Change |
 | --- | --- |
 | #35 `Color` and `Brush` | `Brush` implements `From` for each brush struct and `FromUiObject` written in terms of them |
-| #57 Loader values | `#[ui(value)]` in the derive: plain fields, `TypeKind::Value`, no events, `Clone` and `Default` required, `UiValue`, no builder methods. Stage values with `TypeInfo::new`; `set_object` always present and calling `FromUiObject`; take the staging node out in every case. `artic-render` depends on `artic-registry` and `artic-macros` so its brushes derive it |
+| #57 Loader values | `#[ui(value)]` in the derive: plain fields, `TypeKind::Value`, no events, no `NodeId` fields, `Clone` and `Default` required, `UiValue`, no builder methods. Stage values with `TypeInfo::new`; `set_object` always present and calling `FromUiObject`; take the staging node out in every case. `artic-render` depends on `artic-registry` and `artic-macros` so its brushes derive it |

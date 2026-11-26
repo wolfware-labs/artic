@@ -334,12 +334,25 @@ fn value_field<'a>(field: &'a Field, ident: &'a Ident, attributes: FieldAttribut
       "a value's `#[ui]` fields are plain data, such as `#[ui] color: Color`, with no property settings",
     ));
   }
+  let value = value_type(&field.ty);
+  if is_node_id(value) {
+    return Err(Error::new_spanned(
+      value,
+      "a value's `#[ui]` fields are plain data; a `NodeId` would stay in the tree with no owner once the value is taken out",
+    ));
+  }
   Ok(ValueField {
     ident,
     ty: &field.ty,
-    value: value_type(&field.ty),
+    value,
     ui_name: ui_name(ident, &attributes),
   })
+}
+
+/// Whether `ty` is written `NodeId`, possibly with a path in front. An alias passes here, and the
+/// value field's check refuses it instead.
+fn is_node_id(ty: &Type) -> bool {
+  matches!(ty, Type::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "NodeId"))
 }
 
 /// The name of a field in UI languages: the `name` override, or the field name in PascalCase.
