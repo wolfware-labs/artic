@@ -9,8 +9,13 @@ error[E0308]: mismatched types
    |
    = note: expected struct `artic_registry::__private::ValueOps<NodeId>`
               found struct `Ops`
+help: the return type of this call is `Ops` due to the type of the argument passed
+  --> tests/ui/value_with_node_lookalike.rs:27:18
+   |
+27 |   sample: Option<Sample>,
+   |                  ^^^^^^ this argument influences the return type of `exactly`
 note: function defined here
   --> $WORKSPACE/crates/artic-registry/src/__private.rs
    |
-   | pub fn value_ops<V>(ops: ValueOps<V>) -> ValueOps<V> {
-   |        ^^^^^^^^^
+   | pub fn exactly<T>(ops: T) -> T {
+   |        ^^^^^^^

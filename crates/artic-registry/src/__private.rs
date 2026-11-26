@@ -57,10 +57,11 @@ pub struct ValueOps<V> {
   pub node: fn(NodeId, &'static str) -> std::result::Result<V, ValueError>,
 }
 
-/// The `ValueOps` of a value check, for a value of type `V`. Generated code passes the check
-/// through it, so the check must give the registry's own `ValueOps` for the property's value type:
-/// a user trait with the check's method name can't stand in for it with a type of its own.
-pub fn value_ops<V>(ops: ValueOps<V>) -> ValueOps<V> {
+/// Returns `ops` as is. Generated code passes each check's result through it and names the
+/// registry type the check must give for the property's value type `V`: `ValueOps<V>`,
+/// `LiteralOps<V>` or `ObjectOps<V>`. So a user trait with the check's method name, in scope where
+/// the code expands, can't stand in for the check with a type of its own.
+pub fn exactly<T>(ops: T) -> T {
   ops
 }
 
@@ -74,14 +75,8 @@ pub struct LiteralOps<V> {
   pub value: PhantomData<V>,
 }
 
-/// The `LiteralOps` of a value check, for a value of type `V`, pinned as [`value_ops`] pins the
-/// `ValueOps`.
-pub fn literal_ops<V>(ops: LiteralOps<V>) -> LiteralOps<V> {
-  ops
-}
-
-/// Refuses text as Rust: the value is an element.
-fn takes_an_element<V>() -> LiteralOps<V> {
+/// The `LiteralOps` of a value that is an element: they refuse text.
+fn element_literal_ops<V>() -> LiteralOps<V> {
   LiteralOps {
     write: |_, _| Err(TAKES_AN_ELEMENT.to_owned()),
     value: PhantomData,
@@ -109,7 +104,7 @@ pub trait ViaFromStr {
   /// Compiles only for a value type a UI language can write, and gives the thunks' conversions.
   fn value_must_parse_from_text_and_implement_torust_or_derive_uitype(&self) -> ValueOps<Self::Value>;
 
-  /// Parses text and writes the value it gives.
+  /// Gives the literal's conversion: parse text and write the value it gives.
   fn literal_ops(&self) -> LiteralOps<Self::Value>;
 }
 
@@ -158,9 +153,9 @@ pub trait ViaUiType {
     }
   }
 
-  /// Refuses text: the value is an element.
+  /// Gives a literal that refuses text: the value is an element.
   fn literal_ops(&self) -> LiteralOps<Self::Value> {
-    takes_an_element()
+    element_literal_ops()
   }
 }
 
@@ -178,9 +173,9 @@ pub trait ViaChild {
     }
   }
 
-  /// Refuses text: the value is an element.
+  /// Gives a literal that refuses text: the value is an element.
   fn literal_ops(&self) -> LiteralOps<NodeId> {
-    takes_an_element()
+    element_literal_ops()
   }
 }
 
@@ -207,18 +202,13 @@ pub struct ObjectOps<V> {
   pub take: fn(&mut UiTree, NodeId, NodeId, &'static str) -> std::result::Result<V, ValueError>,
 }
 
-/// The `ObjectOps` of an object check, for a value of type `V`, pinned as [`value_ops`] pins the
-/// `ValueOps`.
-pub fn object_ops<V>(ops: ObjectOps<V>) -> ObjectOps<V> {
-  ops
-}
-
 /// The value type is taken from a staged object.
 pub trait ViaFromUiObject {
   /// The property's value type.
   type Value;
 
-  /// Takes the staged object out of the tree as the value of the owner's property.
+  /// Gives the conversion that takes the staged object out of the tree as the value of the owner's
+  /// property.
   fn object_ops(&self) -> ObjectOps<Self::Value>;
 }
 
@@ -240,8 +230,8 @@ pub trait NotFromObject {
   /// The property's value type.
   type Value;
 
-  /// Takes the staged object out of the tree, so none is left behind, and refuses it as the value
-  /// of the owner's property.
+  /// Gives the conversion that takes the staged object out of the tree, so none is left behind,
+  /// and refuses it as the value of the owner's property.
   fn object_ops(&self) -> ObjectOps<Self::Value> {
     ObjectOps {
       take: |tree, owner, object, expected| {
@@ -310,8 +300,6 @@ where
 /// check with a type of its own:
 ///
 /// ```compile_fail,E0308
-/// use artic_registry::RustExpr;
-///
 /// struct Mine;
 ///
 /// trait Lookalike {
@@ -332,7 +320,7 @@ macro_rules! __literal {
     ::core::option::Option::Some({
       fn literal(text: &str, out: &mut $crate::RustExpr) -> ::core::result::Result<(), ::std::string::String> {
         use $crate::__private::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-        let ops = $crate::__private::literal_ops::<$value>(
+        let ops = $crate::__private::exactly::<$crate::__private::LiteralOps<$value>>(
           (&&$crate::__private::ValueCheck::<$value, $crate::__private::AnyValue>($crate::__private::PhantomData))
             .literal_ops(),
         );

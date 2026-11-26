@@ -253,8 +253,9 @@ struct Access<'a> {
 ///
 /// The thunks convert through the value check's own expression, spanned at the value type, so a
 /// value type a UI language can't write fails once, there. An object converts through its own
-/// check, which refuses one for a value type not taken from objects. Each converts the value before
-/// writing it, so a conversion that needs the tree mutably ends before the write borrows it.
+/// check, which refuses one for a value type not taken from objects; the registry's `exactly` pins
+/// its `ObjectOps` as it pins the value check's `ValueOps`. Each converts the value before writing
+/// it, so a conversion that needs the tree mutably ends before the write borrows it.
 fn access_tokens(access: &Access) -> TokenStream {
   let Access {
     value,
@@ -285,7 +286,7 @@ fn access_tokens(access: &Access) -> TokenStream {
   let parsed = set(quote!((#ops.parse)(text, ::core::stringify!(#value))?));
   let node_value = set(quote!((#ops.node)(child, ::core::stringify!(#value))?));
   let object = set(quote!(
-    (__artic::object_ops::<#value>((&__artic::ObjectCheck::<#value>(__artic::PhantomData)).object_ops()).take)(
+    (__artic::exactly::<__artic::ObjectOps<#value>>((&__artic::ObjectCheck::<#value>(__artic::PhantomData)).object_ops()).take)(
       tree, node, object, ::core::stringify!(#value)
     )?
   ));
@@ -399,12 +400,12 @@ pub fn value_check(value: &Type, route: ValueRoute) -> TokenStream {
 
 /// The value check as an expression, pointing at the type: it compiles only for a value type a UI
 /// language can write through `route`, and gives the `ValueOps` the loader's thunks convert with.
-/// The registry's `value_ops` pins that type, so a user trait with the check's method name in scope
+/// The registry's `exactly` pins that type, so a user trait with the check's method name in scope
 /// where the derive expands can't stand in for the check with a type of its own.
 fn value_ops(value: &Type, route: ValueRoute) -> TokenStream {
   let route = route.marker();
   quote_spanned!(value.span()=>
-    __artic::value_ops::<#value>(
+    __artic::exactly::<__artic::ValueOps<#value>>(
       (&&__artic::ValueCheck::<#value, #route>(__artic::PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype()
     )
   )

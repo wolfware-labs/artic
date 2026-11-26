@@ -27,8 +27,8 @@ const _: () = {
                 set_text: |tree, node, text, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
                     {
-                        let value = (__artic::value_ops::<
-                            f32,
+                        let value = (__artic::exactly::<
+                            __artic::ValueOps<f32>,
                         >(
                                 (&&__artic::ValueCheck::<
                                     f32,
@@ -43,8 +43,8 @@ const _: () = {
                 set_node: |tree, node, child, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
                     {
-                        let value = (__artic::value_ops::<
-                            f32,
+                        let value = (__artic::exactly::<
+                            __artic::ValueOps<f32>,
                         >(
                                 (&&__artic::ValueCheck::<
                                     f32,
@@ -59,8 +59,8 @@ const _: () = {
                 set_object: |tree, node, object, level| {
                     use __artic::{NotFromObject as _, ViaFromUiObject as _};
                     {
-                        let value = (__artic::object_ops::<
-                            f32,
+                        let value = (__artic::exactly::<
+                            __artic::ObjectOps<f32>,
                         >(
                                 (&__artic::ObjectCheck::<f32>(__artic::PhantomData))
                                     .object_ops(),
@@ -135,8 +135,8 @@ const _: () = {
     #[allow(dead_code, clippy::needless_borrow)]
     fn __checks() {
         use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-        __artic::value_ops::<
-            f32,
+        __artic::exactly::<
+            __artic::ValueOps<f32>,
         >(
             (&&__artic::ValueCheck::<f32, __artic::AnyValue>(__artic::PhantomData))
                 .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
