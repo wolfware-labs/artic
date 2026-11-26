@@ -57,6 +57,13 @@ pub struct ValueOps<V> {
   pub node: fn(NodeId, &'static str) -> std::result::Result<V, ValueError>,
 }
 
+/// The `ValueOps` of a value check, for a value of type `V`. Generated code passes the check
+/// through it, so the check must give the registry's own `ValueOps` for the property's value type:
+/// a user trait with the check's method name can't stand in for it.
+pub fn value_ops<V>(ops: ValueOps<V>) -> ValueOps<V> {
+  ops
+}
+
 /// Refuses a node: the value is text or an object.
 fn not_a_node<V>(_node: NodeId, expected: &'static str) -> std::result::Result<V, ValueError> {
   Err(ValueError::WrongType {
