@@ -21,7 +21,7 @@ pub use std::marker::PhantomData;
 /// Wraps a property's value type for the check below. `R` is what the value may be: [`AnyValue`]
 /// for a property, which can hold a node, or [`PlainValue`] for a value's plain field, which can't,
 /// since a value taken out of the tree would leave the node with no owner. Only the check's type
-/// decides this, so no trait a user imports can add the node route to a plain field.
+/// decides this, so importing the check's traits can't add the node route to a plain field.
 pub struct ValueCheck<T, R>(pub PhantomData<(T, R)>);
 
 /// A property's value: text, an object or a node.
