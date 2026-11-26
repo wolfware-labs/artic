@@ -90,7 +90,7 @@ pub fn checks(members: &Members, extra_checks: impl IntoIterator<Item = TokenStr
     quote_spanned!(ty.span()=> __artic::assert_property_group::<#ty>();)
   });
   let extra_checks = extra_checks.into_iter();
-  let imports = value_check_imports(true);
+  let imports = value_check_imports();
   quote! {
     #[allow(dead_code, clippy::needless_borrow)]
     fn __checks() {
@@ -275,8 +275,8 @@ fn access_tokens(access: &Access) -> TokenStream {
       #written
     })
   };
-  let ops = value_ops(value);
-  let imports = value_check_imports(*takes_a_node);
+  let ops = value_ops(value, *takes_a_node);
+  let imports = value_check_imports();
   let parsed = set(quote!((#ops.parse)(text, ::core::stringify!(#value))?));
   let node_value = set(quote!((#ops.node)(child, ::core::stringify!(#value))?));
   let object = set(quote!(
@@ -366,25 +366,29 @@ fn is_number(ty: &Type) -> bool {
 
 /// The check that a value type can be written in a UI language, pointing at the type.
 pub fn value_check(value: &Type) -> TokenStream {
-  let ops = value_ops(value);
+  let ops = value_ops(value, true);
   quote_spanned!(value.span()=> #ops;)
 }
 
 /// The value check as an expression, pointing at the type: it compiles only for a value type a UI
-/// language can write, and gives the `ValueOps` the loader's thunks convert with.
-fn value_ops(value: &Type) -> TokenStream {
+/// language can write, and gives the `ValueOps` the loader's thunks convert with. Without
+/// `takes_a_node` the check has no route for a `NodeId`, so one fails as a type that can't be
+/// written does.
+fn value_ops(value: &Type, takes_a_node: bool) -> TokenStream {
+  let route = if takes_a_node {
+    quote!(__artic::AnyValue)
+  } else {
+    quote!(__artic::PlainValue)
+  };
   quote_spanned!(value.span()=>
-    (&&__artic::ValueCheck::<#value>(__artic::PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype()
+    (&&__artic::ValueCheck::<#value, #route>(__artic::PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype()
   )
 }
 
-/// The imports the value check resolves through, one trait per kind of value. Without
-/// `takes_a_node` the check has no route for a `NodeId`, so one fails as a type that can't be
-/// written does.
-fn value_check_imports(takes_a_node: bool) -> TokenStream {
-  let child = takes_a_node.then(|| quote!(ViaChild as _,));
+/// The imports the value check resolves through, one trait per kind of value.
+fn value_check_imports() -> TokenStream {
   quote!(
-    use __artic::{#child ViaFromStr as _, ViaUiType as _};
+    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
   )
 }
 

@@ -18,10 +18,21 @@ pub use artic_core::property::{
 pub use artic_core::tree::{Handle, NodeId, UiTree};
 pub use std::marker::PhantomData;
 
-/// Wraps a property's value type for the check below.
-pub struct ValueCheck<T>(pub PhantomData<T>);
+/// Wraps a property's value type for the check below. `R` is what the value may be: [`AnyValue`]
+/// for a property, which can hold a node, or [`PlainValue`] for a value's plain field, which can't,
+/// since a value taken out of the tree would leave the node with no owner. Only the check's type
+/// decides this, so no trait a user imports can add the node route to a plain field.
+pub struct ValueCheck<T, R>(pub PhantomData<(T, R)>);
 
-impl<T> Debug for ValueCheck<T> {
+/// A property's value: text, an object or a node.
+#[derive(Debug)]
+pub enum AnyValue {}
+
+/// A value type's plain field: text or an object, never a node.
+#[derive(Debug)]
+pub enum PlainValue {}
+
+impl<T, R> Debug for ValueCheck<T, R> {
   fn fmt(&self, formatter: &mut Formatter<'_>) -> Result {
     formatter.write_str("ValueCheck")
   }
@@ -71,7 +82,7 @@ pub trait ViaFromStr {
   fn write_literal(&self, text: &str, out: &mut RustExpr) -> std::result::Result<(), String>;
 }
 
-impl<T> ViaFromStr for ValueCheck<T>
+impl<T, R> ViaFromStr for ValueCheck<T, R>
 where
   T: FromStr + ToRust,
   T::Err: Display,
@@ -117,7 +128,7 @@ pub trait ViaUiType {
   }
 }
 
-impl<T: UiType> ViaUiType for &ValueCheck<T> {
+impl<T: UiType, R> ViaUiType for &ValueCheck<T, R> {
   type Value = T;
 }
 
@@ -137,7 +148,7 @@ pub trait ViaChild {
   }
 }
 
-impl ViaChild for &&ValueCheck<NodeId> {}
+impl ViaChild for &&ValueCheck<NodeId, AnyValue> {}
 
 /// What a property's `set_object` says it was given when its value type isn't taken from an object.
 const AN_OBJECT: &str = "an object";
@@ -261,7 +272,8 @@ macro_rules! __literal {
     ::core::option::Option::Some({
       fn literal(text: &str, out: &mut $crate::RustExpr) -> ::core::result::Result<(), ::std::string::String> {
         use $crate::__private::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-        (&&$crate::__private::ValueCheck::<$value>($crate::__private::PhantomData)).write_literal(text, out)
+        (&&$crate::__private::ValueCheck::<$value, $crate::__private::AnyValue>($crate::__private::PhantomData))
+          .write_literal(text, out)
       }
       literal as $crate::WriteLiteral
     })
@@ -497,17 +509,20 @@ mod tests {
     kind: TypeKind::Node,
   };
 
-  // The check resolves for a FromStr type, a UI type and a child node. A type that is none of
-  // them fails to compile, which the derive's compile-fail tests cover.
+  // The check resolves for a FromStr type, a UI type and a child node, and a plain field's check
+  // for the first two. A type that is none of them fails to compile, which the derive's
+  // compile-fail tests cover.
   #[test]
   #[allow(
     clippy::needless_borrow,
     reason = "the extra references pick the matching check, as in generated code"
   )]
   fn value_check_accepts_text_object_and_child_values() {
-    (&&ValueCheck::<f32>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
-    (&&ValueCheck::<Gauge>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
-    (&&ValueCheck::<NodeId>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+    (&&ValueCheck::<f32, AnyValue>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+    (&&ValueCheck::<Gauge, AnyValue>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+    (&&ValueCheck::<NodeId, AnyValue>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+    (&&ValueCheck::<f32, PlainValue>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
+    (&&ValueCheck::<Gauge, PlainValue>(PhantomData)).value_must_parse_from_text_and_implement_torust_or_derive_uitype();
   }
 
   // A code type matches only the same whole path, and a view without one matches nothing.

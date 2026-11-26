@@ -1,24 +1,24 @@
-error[E0599]: the method `value_must_parse_from_text_and_implement_torust_or_derive_uitype` exists for reference `&&artic_registry::__private::ValueCheck<Telemetry>`, but its trait bounds were not satisfied
+error[E0599]: the method `value_must_parse_from_text_and_implement_torust_or_derive_uitype` exists for reference `&&artic_registry::__private::ValueCheck<Telemetry, artic_registry::__private::AnyValue>`, but its trait bounds were not satisfied
  --> tests/ui/attached_value_not_text_or_ui_type.rs:7:38
   |
 4 | struct Telemetry;
   | ---------------- doesn't satisfy `Telemetry: FromStr`, `Telemetry: ToRust` or `Telemetry: UiType`
 ...
 7 | #[ui(attached(name = "Reading", ty = Telemetry, target = any))]
-  |                                      ^^^^^^^^^ method cannot be called on `&&artic_registry::__private::ValueCheck<Telemetry>` due to unsatisfied trait bounds
+  |                                      ^^^^^^^^^ method cannot be called due to unsatisfied trait bounds
   |
  ::: $WORKSPACE/crates/artic-registry/src/__private.rs
   |
-  | pub struct ValueCheck<T>(pub PhantomData<T>);
-  | ------------------------ doesn't satisfy `_: ViaFromStr`
+  | pub struct ValueCheck<T, R>(pub PhantomData<(T, R)>);
+  | --------------------------- doesn't satisfy `_: ViaFromStr`
   |
   = note: the following trait bounds were not satisfied:
           `Telemetry: UiType`
-          which is required by `&artic_registry::__private::ValueCheck<Telemetry>: artic_registry::__private::ViaUiType`
+          which is required by `&artic_registry::__private::ValueCheck<Telemetry, artic_registry::__private::AnyValue>: artic_registry::__private::ViaUiType`
           `Telemetry: FromStr`
-          which is required by `artic_registry::__private::ValueCheck<Telemetry>: artic_registry::__private::ViaFromStr`
+          which is required by `artic_registry::__private::ValueCheck<Telemetry, artic_registry::__private::AnyValue>: artic_registry::__private::ViaFromStr`
           `Telemetry: ToRust`
-          which is required by `artic_registry::__private::ValueCheck<Telemetry>: artic_registry::__private::ViaFromStr`
+          which is required by `artic_registry::__private::ValueCheck<Telemetry, artic_registry::__private::AnyValue>: artic_registry::__private::ViaFromStr`
 note: the traits `FromStr`, `ToRust`,  and `UiType` must be implemented
  --> $WORKSPACE/crates/artic-registry/src/descriptors.rs
   |

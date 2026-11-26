@@ -41,7 +41,10 @@ const _: () = {
                 set_text: |tree, node, text, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
                     {
-                        let value = ((&&__artic::ValueCheck::<f32>(__artic::PhantomData))
+                        let value = ((&&__artic::ValueCheck::<
+                            f32,
+                            __artic::AnyValue,
+                        >(__artic::PhantomData))
                             .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
                             .parse)(text, ::core::stringify!(f32))?;
                         __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
@@ -50,7 +53,10 @@ const _: () = {
                 set_node: |tree, node, child, level| {
                     use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
                     {
-                        let value = ((&&__artic::ValueCheck::<f32>(__artic::PhantomData))
+                        let value = ((&&__artic::ValueCheck::<
+                            f32,
+                            __artic::AnyValue,
+                        >(__artic::PhantomData))
                             .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
                             .node)(child, ::core::stringify!(f32))?;
                         __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
@@ -88,6 +94,7 @@ const _: () = {
                     {
                         let value = ((&&__artic::ValueCheck::<
                             Thickness,
+                            __artic::AnyValue,
                         >(__artic::PhantomData))
                             .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
                             .parse)(text, ::core::stringify!(Thickness))?;
@@ -99,6 +106,7 @@ const _: () = {
                     {
                         let value = ((&&__artic::ValueCheck::<
                             Thickness,
+                            __artic::AnyValue,
                         >(__artic::PhantomData))
                             .value_must_parse_from_text_and_implement_torust_or_derive_uitype()
                             .node)(child, ::core::stringify!(Thickness))?;
@@ -154,9 +162,9 @@ const _: () = {
     #[allow(dead_code, clippy::needless_borrow)]
     fn __checks() {
         use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-        (&&__artic::ValueCheck::<f32>(__artic::PhantomData))
+        (&&__artic::ValueCheck::<f32, __artic::AnyValue>(__artic::PhantomData))
             .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
-        (&&__artic::ValueCheck::<Thickness>(__artic::PhantomData))
+        (&&__artic::ValueCheck::<Thickness, __artic::AnyValue>(__artic::PhantomData))
             .value_must_parse_from_text_and_implement_torust_or_derive_uitype();
     }
 };

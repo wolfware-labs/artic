@@ -1,8 +1,8 @@
-error[E0599]: the method `value_must_parse_from_text_and_implement_torust_or_derive_uitype` exists for reference `&&artic_registry::__private::ValueCheck<NodeId>`, but its trait bounds were not satisfied
-  --> tests/ui/value_with_node_alias.rs:10:18
+error[E0599]: the method `value_must_parse_from_text_and_implement_torust_or_derive_uitype` exists for reference `&&artic_registry::__private::ValueCheck<NodeId, artic_registry::__private::PlainValue>`, but its trait bounds were not satisfied
+  --> tests/ui/value_with_node_alias.rs:13:18
    |
-10 |   sample: Option<Sample>,
-   |                  ^^^^^^ method cannot be called on `&&artic_registry::__private::ValueCheck<NodeId>` due to unsatisfied trait bounds
+13 |   sample: Option<Sample>,
+   |                  ^^^^^^ method cannot be called due to unsatisfied trait bounds
    |
   ::: $WORKSPACE/crates/artic-core/src/tree.rs
    |
@@ -11,18 +11,13 @@ error[E0599]: the method `value_must_parse_from_text_and_implement_torust_or_der
    |
   ::: $WORKSPACE/crates/artic-registry/src/__private.rs
    |
-   | pub struct ValueCheck<T>(pub PhantomData<T>);
-   | ------------------------ doesn't satisfy `_: ViaFromStr`
+   | pub struct ValueCheck<T, R>(pub PhantomData<(T, R)>);
+   | --------------------------- doesn't satisfy `_: ViaFromStr`
    |
    = note: the following trait bounds were not satisfied:
            `NodeId: UiType`
-           which is required by `&artic_registry::__private::ValueCheck<NodeId>: artic_registry::__private::ViaUiType`
+           which is required by `&artic_registry::__private::ValueCheck<NodeId, artic_registry::__private::PlainValue>: artic_registry::__private::ViaUiType`
            `NodeId: FromStr`
-           which is required by `artic_registry::__private::ValueCheck<NodeId>: artic_registry::__private::ViaFromStr`
+           which is required by `artic_registry::__private::ValueCheck<NodeId, artic_registry::__private::PlainValue>: artic_registry::__private::ViaFromStr`
            `NodeId: ToRust`
-           which is required by `artic_registry::__private::ValueCheck<NodeId>: artic_registry::__private::ViaFromStr`
-   = help: items from traits can only be used if the trait is in scope
-help: trait `ViaChild` which provides `value_must_parse_from_text_and_implement_torust_or_derive_uitype` is implemented but not in scope; perhaps you want to import it
-   |
- 1 + use artic_registry::__private::ViaChild;
-   |
+           which is required by `artic_registry::__private::ValueCheck<NodeId, artic_registry::__private::PlainValue>: artic_registry::__private::ViaFromStr`
