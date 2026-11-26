@@ -59,7 +59,7 @@ pub struct ValueOps<V> {
 
 /// The `ValueOps` of a value check, for a value of type `V`. Generated code passes the check
 /// through it, so the check must give the registry's own `ValueOps` for the property's value type:
-/// a user trait with the check's method name can't stand in for it.
+/// a user trait with the check's method name can't stand in for it with a type of its own.
 pub fn value_ops<V>(ops: ValueOps<V>) -> ValueOps<V> {
   ops
 }

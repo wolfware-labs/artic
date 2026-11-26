@@ -398,7 +398,7 @@ pub fn value_check(value: &Type, route: ValueRoute) -> TokenStream {
 /// The value check as an expression, pointing at the type: it compiles only for a value type a UI
 /// language can write through `route`, and gives the `ValueOps` the loader's thunks convert with.
 /// The registry's `value_ops` pins that type, so a user trait with the check's method name in scope
-/// where the derive expands can't stand in for the check.
+/// where the derive expands can't stand in for the check with a type of its own.
 fn value_ops(value: &Type, route: ValueRoute) -> TokenStream {
   let route = route.marker();
   quote_spanned!(value.span()=>
