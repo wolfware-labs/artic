@@ -73,8 +73,13 @@ const _: () = {
                 set_object: |tree, node, object, level| {
                     use __artic::{NotFromObject as _, ViaFromUiObject as _};
                     {
-                        let value = (&__artic::ObjectCheck::<f32>(__artic::PhantomData))
-                            .take_object(tree, node, object, ::core::stringify!(f32))?;
+                        let value = (__artic::object_ops::<
+                            f32,
+                        >(
+                                (&__artic::ObjectCheck::<f32>(__artic::PhantomData))
+                                    .object_ops(),
+                            )
+                            .take)(tree, node, object, ::core::stringify!(f32))?;
                         __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
                     }
                 },
@@ -132,15 +137,13 @@ const _: () = {
                 set_object: |tree, node, object, level| {
                     use __artic::{NotFromObject as _, ViaFromUiObject as _};
                     {
-                        let value = (&__artic::ObjectCheck::<
+                        let value = (__artic::object_ops::<
                             Thickness,
-                        >(__artic::PhantomData))
-                            .take_object(
-                                tree,
-                                node,
-                                object,
-                                ::core::stringify!(Thickness),
-                            )?;
+                        >(
+                                (&__artic::ObjectCheck::<Thickness>(__artic::PhantomData))
+                                    .object_ops(),
+                            )
+                            .take)(tree, node, object, ::core::stringify!(Thickness))?;
                         __artic::set_property(tree, node, (&__KEY_MARGIN), level, value)
                     }
                 },

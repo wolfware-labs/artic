@@ -1,0 +1,17 @@
+error[E0308]: mismatched types
+  --> tests/ui/object_check_lookalike.rs:20:17
+   |
+20 | #[derive(Debug, UiType)]
+   |                 ^^^^^^
+   |                 |
+   |                 expected `ObjectOps<f32>`, found `Ops<_>`
+   |                 arguments to this function are incorrect
+   |
+   = note: expected struct `artic_registry::__private::ObjectOps<f32>`
+              found struct `Ops<_>`
+note: function defined here
+  --> $WORKSPACE/crates/artic-registry/src/__private.rs
+   |
+   | pub fn object_ops<V>(ops: ObjectOps<V>) -> ObjectOps<V> {
+   |        ^^^^^^^^^^
+   = note: this error originates in the derive macro `UiType` (in Nightly builds, run with -Z macro-backtrace for more info)

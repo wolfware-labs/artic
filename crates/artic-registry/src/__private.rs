@@ -64,6 +64,30 @@ pub fn value_ops<V>(ops: ValueOps<V>) -> ValueOps<V> {
   ops
 }
 
+/// How a property's `literal` writes text written in a UI language as Rust, for a value of type
+/// `V`. The value check's `literal_ops` gives it.
+#[derive(Debug)]
+pub struct LiteralOps<V> {
+  /// Parses text and writes the value it gives, or says why it can't.
+  pub write: fn(&str, &mut RustExpr) -> std::result::Result<(), String>,
+  /// The value type the text parses as.
+  pub value: PhantomData<V>,
+}
+
+/// The `LiteralOps` of a value check, for a value of type `V`, pinned as [`value_ops`] pins the
+/// `ValueOps`.
+pub fn literal_ops<V>(ops: LiteralOps<V>) -> LiteralOps<V> {
+  ops
+}
+
+/// Refuses text as Rust: the value is an element.
+fn takes_an_element<V>() -> LiteralOps<V> {
+  LiteralOps {
+    write: |_, _| Err(TAKES_AN_ELEMENT.to_owned()),
+    value: PhantomData,
+  }
+}
+
 /// Refuses a node: the value is text or an object.
 fn not_a_node<V>(_node: NodeId, expected: &'static str) -> std::result::Result<V, ValueError> {
   Err(ValueError::WrongType {
@@ -85,8 +109,8 @@ pub trait ViaFromStr {
   /// Compiles only for a value type a UI language can write, and gives the thunks' conversions.
   fn value_must_parse_from_text_and_implement_torust_or_derive_uitype(&self) -> ValueOps<Self::Value>;
 
-  /// Parses `text` and writes the value it gives.
-  fn write_literal(&self, text: &str, out: &mut RustExpr) -> std::result::Result<(), String>;
+  /// Parses text and writes the value it gives.
+  fn literal_ops(&self) -> LiteralOps<Self::Value>;
 }
 
 impl<T, R> ViaFromStr for ValueCheck<T, R>
@@ -108,10 +132,15 @@ where
     }
   }
 
-  fn write_literal(&self, text: &str, out: &mut RustExpr) -> std::result::Result<(), String> {
-    let value: T = text.parse().map_err(|error: T::Err| error.to_string())?;
-    value.to_rust(out);
-    Ok(())
+  fn literal_ops(&self) -> LiteralOps<T> {
+    LiteralOps {
+      write: |text, out| {
+        let value: T = text.parse().map_err(|error: T::Err| error.to_string())?;
+        value.to_rust(out);
+        Ok(())
+      },
+      value: PhantomData,
+    }
   }
 }
 
@@ -130,8 +159,8 @@ pub trait ViaUiType {
   }
 
   /// Refuses text: the value is an element.
-  fn write_literal(&self, _text: &str, _out: &mut RustExpr) -> std::result::Result<(), String> {
-    Err(TAKES_AN_ELEMENT.to_owned())
+  fn literal_ops(&self) -> LiteralOps<Self::Value> {
+    takes_an_element()
   }
 }
 
@@ -150,8 +179,8 @@ pub trait ViaChild {
   }
 
   /// Refuses text: the value is an element.
-  fn write_literal(&self, _text: &str, _out: &mut RustExpr) -> std::result::Result<(), String> {
-    Err(TAKES_AN_ELEMENT.to_owned())
+  fn literal_ops(&self) -> LiteralOps<NodeId> {
+    takes_an_element()
   }
 }
 
@@ -169,33 +198,40 @@ impl<T> Debug for ObjectCheck<T> {
   }
 }
 
+/// How a property's `set_object` takes a staged object as a value of type `V`. The object check
+/// gives it.
+#[derive(Debug)]
+pub struct ObjectOps<V> {
+  /// Takes the staged `object` out of the tree as the value of `owner`'s property, or refuses it
+  /// as `expected`.
+  pub take: fn(&mut UiTree, NodeId, NodeId, &'static str) -> std::result::Result<V, ValueError>,
+}
+
+/// The `ObjectOps` of an object check, for a value of type `V`, pinned as [`value_ops`] pins the
+/// `ValueOps`.
+pub fn object_ops<V>(ops: ObjectOps<V>) -> ObjectOps<V> {
+  ops
+}
+
 /// The value type is taken from a staged object.
 pub trait ViaFromUiObject {
   /// The property's value type.
   type Value;
 
-  /// Takes the staged `object` out of the tree as the value of `owner`'s property.
-  fn take_object(
-    &self,
-    tree: &mut UiTree,
-    owner: NodeId,
-    object: NodeId,
-    expected: &'static str,
-  ) -> std::result::Result<Self::Value, ValueError>;
+  /// Takes the staged object out of the tree as the value of the owner's property.
+  fn object_ops(&self) -> ObjectOps<Self::Value>;
 }
 
 impl<T: FromUiObject> ViaFromUiObject for ObjectCheck<T> {
   type Value = T;
 
-  fn take_object(
-    &self,
-    tree: &mut UiTree,
-    owner: NodeId,
-    object: NodeId,
-    _expected: &'static str,
-  ) -> std::result::Result<T, ValueError> {
-    check_staged(tree, owner, object)?;
-    T::from_object(tree, object)
+  fn object_ops(&self) -> ObjectOps<T> {
+    ObjectOps {
+      take: |tree, owner, object, _| {
+        check_staged(tree, owner, object)?;
+        T::from_object(tree, object)
+      },
+    }
   }
 }
 
@@ -204,21 +240,19 @@ pub trait NotFromObject {
   /// The property's value type.
   type Value;
 
-  /// Takes the staged `object` out of the tree, so none is left behind, and refuses it as the
-  /// value of `owner`'s property.
-  fn take_object(
-    &self,
-    tree: &mut UiTree,
-    owner: NodeId,
-    object: NodeId,
-    expected: &'static str,
-  ) -> std::result::Result<Self::Value, ValueError> {
-    check_staged(tree, owner, object)?;
-    drop(tree.take(object));
-    Err(ValueError::WrongType {
-      expected,
-      found: AN_OBJECT,
-    })
+  /// Takes the staged object out of the tree, so none is left behind, and refuses it as the value
+  /// of the owner's property.
+  fn object_ops(&self) -> ObjectOps<Self::Value> {
+    ObjectOps {
+      take: |tree, owner, object, expected| {
+        check_staged(tree, owner, object)?;
+        drop(tree.take(object));
+        Err(ValueError::WrongType {
+          expected,
+          found: AN_OBJECT,
+        })
+      },
+    }
   }
 }
 
@@ -271,6 +305,25 @@ where
 
 /// The function `PropertyInfo::literal` holds for a property of value type `$value`: `Some` with
 /// the `literals` feature, `None` without, so an app's registry keeps no `ToRust` code.
+///
+/// A user trait with the check's method name, in scope where it expands, can't stand in for the
+/// check with a type of its own:
+///
+/// ```compile_fail,E0308
+/// use artic_registry::RustExpr;
+///
+/// struct Mine;
+///
+/// trait Lookalike {
+///   fn literal_ops(&self) -> Mine {
+///     Mine
+///   }
+/// }
+///
+/// impl<T> Lookalike for T {}
+///
+/// let _ = artic_registry::__private::literal!(f32);
+/// ```
 #[cfg(feature = "literals")]
 #[doc(hidden)]
 #[macro_export]
@@ -279,8 +332,11 @@ macro_rules! __literal {
     ::core::option::Option::Some({
       fn literal(text: &str, out: &mut $crate::RustExpr) -> ::core::result::Result<(), ::std::string::String> {
         use $crate::__private::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-        (&&$crate::__private::ValueCheck::<$value, $crate::__private::AnyValue>($crate::__private::PhantomData))
-          .write_literal(text, out)
+        let ops = $crate::__private::literal_ops::<$value>(
+          (&&$crate::__private::ValueCheck::<$value, $crate::__private::AnyValue>($crate::__private::PhantomData))
+            .literal_ops(),
+        );
+        (ops.write)(text, out)
       }
       literal as $crate::WriteLiteral
     })
