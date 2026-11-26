@@ -6,7 +6,6 @@
 use crate::{TypeInfo, ValueError};
 use artic_core::Object;
 use artic_core::tree::{NodeId, UiTree};
-use std::any::Any;
 
 /// A field that receives the child elements written inside an element, in order.
 ///
@@ -41,29 +40,53 @@ pub trait UiCollection: Sized {
   }
 
   /// Adds `child` as content of `owner`. An implementation calls `field` first and returns
-  /// [`ValueError::WrongNode`] when it gives `None`, before changing anything.
+  /// [`ValueError::WrongNode`] when it gives `None`, before changing anything. A collection of
+  /// values is the exception: a child it is given is a staged object, which it takes out of the
+  /// tree on every outcome, so it refuses a wrong owner after that.
   ///
   /// Beyond the owner, [`takes`](UiCollection::takes) and the tree's own link checks, it refuses a
-  /// child only when the field holds as many as it takes, as `Child` refuses a second one.
+  /// child only when the field holds as many as it takes, as `Child` refuses a second one, or, for
+  /// a collection of values, when the child's object isn't one it takes.
   /// `WithChildren::build` relies on this: it checks the rest before it allocates the node, so a
   /// refusal after that leaves part of a build in the tree, and it panics on one as a bug in the
   /// collection.
   ///
   /// # Errors
   ///
-  /// When `owner` isn't the field's owner type, the tree refuses the link, or the field is full.
+  /// When `owner` isn't the field's owner type, the tree refuses the link, the field is full, or a
+  /// collection of values refuses the child's object.
   fn push_child(
     tree: &mut UiTree,
     owner: NodeId,
     child: NodeId,
     field: for<'a> fn(&'a mut UiTree, NodeId) -> Option<&'a mut Self>,
   ) -> Result<(), ValueError>;
+
+  /// Adds `child` as content of `owner` after the checks that change nothing: a wrong owner is
+  /// reported before a child of a type [`takes`](UiCollection::takes) doesn't list. What a
+  /// derived `ContentInfo` calls. A collection of values goes straight to
+  /// [`push_child`](UiCollection::push_child), which takes the staged child out first.
+  ///
+  /// # Errors
+  ///
+  /// As [`push_child`](UiCollection::push_child), and [`ValueError::UnexpectedChild`] for a child
+  /// of a type `takes` doesn't list.
+  fn add_child(
+    tree: &mut UiTree,
+    owner: NodeId,
+    child: NodeId,
+    field: for<'a> fn(&'a mut UiTree, NodeId) -> Option<&'a mut Self>,
+  ) -> Result<(), ValueError> {
+    field(tree, owner).ok_or(ValueError::WrongNode)?;
+    check_child(Self::takes(), tree, child)?;
+    Self::push_child(tree, owner, child, field)
+  }
 }
 
 /// Whether `object` is a `T`: what a derived [`TypeInfo::is`] calls.
 #[must_use]
 pub fn is_a<T: Object>(object: &dyn Object) -> bool {
-  (object as &dyn Any).is::<T>()
+  object.is::<T>()
 }
 
 /// Checks that `child` is of a type `takes` lists, when it lists any. A node that isn't in the
@@ -122,6 +145,7 @@ pub(crate) mod tests {
       value_provider: None,
       whitespace: Whitespace::Collapse,
       code_type_root: false,
+      kind: crate::TypeKind::Node,
     }))
   }
 

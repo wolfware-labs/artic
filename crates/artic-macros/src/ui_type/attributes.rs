@@ -2,6 +2,7 @@ use crate::members::attributes::{PropertySpec, parse_spec_setting, unknown_key};
 use artic_ident::{IdentError, attached_setter, rust_identifier, screaming_snake_case, snake_case};
 use quote::format_ident;
 use syn::meta::ParseNestedMeta;
+use syn::spanned::Spanned;
 use syn::{DeriveInput, Error, Ident, LitStr, Path, Type};
 
 /// What `#[ui(...)]` on the struct says.
@@ -14,6 +15,8 @@ pub struct TypeAttributes {
   pub value_provider: Option<Vec<Ident>>,
   pub override_defaults: bool,
   pub code_type_root: bool,
+  /// `value`: the type is a value, staged then moved into the property that holds it.
+  pub value: Option<proc_macro2::Span>,
 }
 
 /// One `attached(...)` entry on the struct: an attached property the type owns, with the names of
@@ -52,6 +55,7 @@ pub fn parse_type_attributes(input: &DeriveInput) -> syn::Result<TypeAttributes>
   let mut value_provider = None;
   let mut override_defaults = false;
   let mut code_type_root = false;
+  let mut value = None;
   for attribute in input.attrs.iter().filter(|attribute| attribute.path().is_ident("ui")) {
     attribute.parse_nested_meta(|meta| {
       if meta.path.is_ident("whitespace") {
@@ -72,10 +76,12 @@ pub fn parse_type_attributes(input: &DeriveInput) -> syn::Result<TypeAttributes>
         override_defaults = true;
       } else if meta.path.is_ident("code_type_root") {
         code_type_root = true;
+      } else if meta.path.is_ident("value") {
+        value = Some(meta.path.span());
       } else {
         return Err(unknown_key(
           &meta,
-          "`whitespace`, `crate`, `attached`, `value_provider`, `override_defaults` or `code_type_root`",
+          "`whitespace`, `crate`, `attached`, `value_provider`, `override_defaults`, `code_type_root` or `value`",
         ));
       }
       Ok(())
@@ -88,6 +94,7 @@ pub fn parse_type_attributes(input: &DeriveInput) -> syn::Result<TypeAttributes>
     value_provider,
     override_defaults,
     code_type_root,
+    value,
   })
 }
 

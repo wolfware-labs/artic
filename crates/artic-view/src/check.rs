@@ -5,7 +5,7 @@ use crate::document::{Content, Element, Member, Problem, Text, TypeUse};
 use crate::{Document, field_name, unsupported};
 use artic_diagnostics::{Diagnostic, Diagnostics, Span};
 use artic_registry::{
-  AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, PropertyRef, TypeInfo, Whitespace, type_names,
+  AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, PropertyRef, TypeInfo, TypeKind, Whitespace, type_names,
 };
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
@@ -148,7 +148,8 @@ struct Members {
 
 impl Check {
   /// Checks an element written in `parent` and the elements in its content, returning its index,
-  /// or `None` when its type wasn't found. Only the root may name the view's code type.
+  /// or `None` when its type wasn't found or is a value. Only the root may name the view's code
+  /// type.
   fn element(&mut self, element: &Element, parent: Parent) -> Option<usize> {
     let root = matches!(parent, Parent::Root);
     let ty = match &element.ty {
@@ -240,6 +241,18 @@ impl Check {
         element.span,
         format!("`{}` can't be created from markup yet (#59)", ty.info.name),
       ));
+    }
+    if let Some(ty) = ty
+      && is_value(element)
+    {
+      self.diagnostics.push(
+        Diagnostic::error(
+          element.span,
+          format!("`{}` is a value, not an element of the tree", ty.info.name),
+        )
+        .with_help("set it as a property's value instead"),
+      );
+      return None;
     }
     let ty: &TypeUse = ty?;
     self.elements.push(CheckedElement {
@@ -517,10 +530,12 @@ impl Check {
             .push(Diagnostic::error(*span, format!("`{}` takes no text content", info.name)));
         }
         Content::Element(element) => {
-          self.diagnostics.push(Diagnostic::error(
-            element.span,
-            format!("`{}` takes no child elements", info.name),
-          ));
+          if !is_value(element) {
+            self.diagnostics.push(Diagnostic::error(
+              element.span,
+              format!("`{}` takes no child elements", info.name),
+            ));
+          }
           self.element(element, Parent::Of(info));
         }
         Content::Text { .. } | Content::Unsupported(_) => {}
@@ -593,14 +608,16 @@ impl Check {
           None => {}
         },
         Content::Element(element) => {
-          written.push(element.span);
-          if let (Some(taken), Ok(ty)) = (takes, &element.ty)
-            && !accepts(takes, ty.info)
-          {
-            self.diagnostics.push(Diagnostic::error(
-              element.span,
-              format!("`{}` takes only {}", info.name, type_names(taken)),
-            ));
+          if !is_value(element) {
+            written.push(element.span);
+            if let (Some(taken), Ok(ty)) = (takes, &element.ty)
+              && !accepts(takes, ty.info)
+            {
+              self.diagnostics.push(Diagnostic::error(
+                element.span,
+                format!("`{}` takes only {}", info.name, type_names(taken)),
+              ));
+            }
           }
           children.extend(self.element(element, Parent::Of(info)));
         }
@@ -655,6 +672,12 @@ fn text_piece(whitespace: Whitespace, text: &str, raw: &str, between_elements: b
 fn between_elements(nodes: &[Content], index: usize) -> bool {
   let is_element = |node: Option<&Content>| matches!(node, Some(Content::Element(_)));
   index.checked_sub(1).is_some_and(|before| is_element(nodes.get(before))) && is_element(nodes.get(index + 1))
+}
+
+/// Whether `element` is of a value type, which `Check::element` reports where an element of the
+/// tree goes, so its container reports nothing more about it.
+fn is_value(element: &Element) -> bool {
+  element.ty.as_ref().is_ok_and(|ty| ty.info.kind == TypeKind::Value)
 }
 
 /// Whether a collection that takes `takes` accepts a child of type `info`; `None` takes any.

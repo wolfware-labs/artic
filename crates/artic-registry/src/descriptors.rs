@@ -19,6 +19,8 @@ pub struct TypeInfo {
   /// Creates a node of this type with its default values and returns its id, or `None` for a type
   /// that can't be created from markup alone, such as one with a `#[ui(required)]` field.
   pub new: Option<fn(&mut UiTree) -> NodeId>,
+  /// Whether the type's objects stay in the tree, or are values moved into a property.
+  pub kind: TypeKind,
   /// What receives content written directly inside the element, if anything.
   pub content: Option<ContentInfo>,
   /// The type's settable properties.
@@ -114,6 +116,16 @@ impl TypeInfo {
   }
 }
 
+/// Whether a type's objects live in the tree or are values a property holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TypeKind {
+  /// The object stays in the tree: it has a parent, and takes part in layout, input or rendering.
+  Node,
+  /// The object is staged in the tree while its members are set, then moved into the property
+  /// that holds it, as a brush is: a [`UiValue`](crate::UiValue).
+  Value,
+}
+
 /// A settable property of a type.
 ///
 /// `name`, `affects` and `inherits` repeat the property's
@@ -203,7 +215,7 @@ pub enum ContentInfo {
     /// The type text written inside the collection becomes, or `None` when it takes no text:
     /// `UiCollection::text_wrapper`.
     text_wrapper: fn() -> Option<&'static TypeInfo>,
-    /// Adds one child element as content, calling the field's `UiCollection::push_child` with
+    /// Adds one child element as content, calling the field's `UiCollection::add_child` with
     /// an accessor to the field.
     add_child: fn(&mut UiTree, NodeId, NodeId) -> Result<(), ValueError>,
   },
@@ -346,6 +358,7 @@ mod tests {
     value_provider: None,
     whitespace: Whitespace::Collapse,
     code_type_root: false,
+    kind: TypeKind::Node,
   };
 
   // A descriptor written as a `static` copies its property metadata from the property's key at

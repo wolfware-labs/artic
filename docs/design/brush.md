@@ -73,7 +73,7 @@ pub struct GradientStop { pub offset: f32, pub color: Color }
 | Two radii | A radial gradient fills a box that isn't square as an ellipse, as in Avalonia |
 | Out-of-range values are clamped when drawn, not rejected | A brush built in code or animated can pass through odd values; drawing never fails |
 
-The structs have the shape the [value objects](value-objects.md) design gives value elements, with one addition when that lands (#57): an `Arc<[GradientStop]>` can't grow, so the staged `LinearGradientBrush` or `RadialGradientBrush` collects its `GradientStop` children in a `Vec`. The `Arc` is made from that `Vec` when the value is moved into its property. The public fields and constructors stay as they are.
+The structs are value types of the [value objects](value-objects.md) design: each derives `UiType` with `#[ui(value)]`, so a UI language writes `<SolidColorBrush Color="#3B82F6"/>` or a gradient with its stops as elements, and `Brush` takes each from its staged object through the `From` impls above. A staged gradient's `stops` grow by one slice for each `GradientStop` written inside it. The public fields and constructors stay as they are.
 
 ## 3. Relative units
 
@@ -106,7 +106,7 @@ A renderer maps the `Paint` to its own paint without checking anything. `artic-v
 
 ## 5. What waits
 
-`<SolidColorBrush Color="#3B82F6"/>`, `<LinearGradientBrush>` with its `GradientStop`s, and `<Border.Background>` property elements need the value-object machinery (`#[ui(value)]`, `TypeKind`, `FromUiObject`), which #57 implements with #43. Until then, a UI language sets brushes as color text, and Rust code builds gradients directly. A gradient spread mode (pad, reflect, repeat) and a gradient origin apart from the center are additive and wait for a need.
+A compiled view writes a brush element once the view compiler emits value objects (#438); the runtime loader takes them already (#57). A gradient spread mode (pad, reflect, repeat) and a gradient origin apart from the center are additive and wait for a need.
 
 ## 6. Testing
 

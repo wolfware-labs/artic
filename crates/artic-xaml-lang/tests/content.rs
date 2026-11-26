@@ -178,11 +178,11 @@ fn own_collection_takes_children_by_its_field_name() {
   assert!(joined(&rust).contains(".stops([__e0.id()]).build(tree);"), "{rust}");
 }
 
-// An object inside a content property comes with #57.
+// An object inside a content property comes with #438.
 #[test]
 fn object_in_content_property_reports_error() {
   let errors = compile(&format!(r#"<Label xmlns="{TEST_UI}"><Label/></Label>"#)).expect_err("a value object");
-  assert!(errors.contains("value objects come with #57"), "{errors}");
+  assert!(errors.contains("value objects come with #438"), "{errors}");
 }
 
 // Elements inside a type with no content are still checked.

@@ -6,7 +6,7 @@ use artic_core::tree::{NodeId, UiTree};
 use artic_diagnostics::{Diagnostic, Diagnostics, SourceMap, Span};
 use artic_registry::{
   AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, EventInfo, PropertyAccess, PropertyInfo, PropertyRef,
-  TypeInfo, ValueError, Whitespace,
+  TypeInfo, TypeKind, ValueError, Whitespace,
 };
 use artic_view::document::{Content, Element, Member, Problem, Text, TypeUse};
 
@@ -40,6 +40,7 @@ const fn info(name: &'static str, rust_path: &'static str) -> TypeInfo {
     value_provider: None,
     whitespace: Whitespace::Collapse,
     code_type_root: false,
+    kind: TypeKind::Node,
   }
 }
 
@@ -60,6 +61,7 @@ const fn property_info(name: &'static str, field: &'static str) -> PropertyInfo 
 static UNWRITTEN: PropertyAccess = PropertyAccess {
   set_text: |_, _, _, _| Err(ValueError::WrongNode),
   set_node: |_, _, _, _| Err(ValueError::WrongNode),
+  set_object: |_, _, _, _| Err(ValueError::WrongNode),
   set_null: |_, _, _| Err(ValueError::WrongNode),
   clear: |_, _, _| Err(ValueError::WrongNode),
 };
@@ -253,6 +255,12 @@ pub static BAG: TypeInfo = TypeInfo {
 pub static LOGIN: TypeInfo = TypeInfo {
   new: None,
   ..info("Login", "test_ui::Login")
+};
+
+/// A value: staged only while its members are set, never a node of the tree.
+pub static TINT: TypeInfo = TypeInfo {
+  kind: TypeKind::Value,
+  ..info("Tint", "test_ui::Tint")
 };
 
 /// Takes no content.

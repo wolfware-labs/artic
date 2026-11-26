@@ -50,7 +50,7 @@ A value type uses the same derive with a `value` flag. Its fields are plain, not
 #[ui(value)]
 pub struct SolidColorBrush {
   #[ui] pub color: Color,
-  #[ui(default = 1.0)] pub opacity: f32,
+  #[ui] pub opacity: f32,   // 1.0 in the type's own `Default`
 }
 ```
 
@@ -59,8 +59,9 @@ pub struct SolidColorBrush {
 | `#[ui]` fields are plain `T`; their `PropertyAccess` thunks assign the field and ignore `Precedence` | A value is immutable data, with no signals and no precedence stack; reactivity lives in the property that holds it |
 | `TypeInfo.kind` is `TypeKind::Value` | Both back ends can tell nodes from values |
 | `Event<A>` fields are a compile error | Values aren't in the tree, so they raise no events |
-| A content collection of values is allowed | `LinearGradientBrush` holds its `GradientStop`s; each child is a staged value moved in by `add_child` |
-| The type must be `Clone` | Each use gets its own copy |
+| A content collection of values is allowed | `LinearGradientBrush` holds its `GradientStop`s; each child is a staged value moved in by `add_child`. `Vec<T>` keeps them in order; `Arc<[T]>`, which a brush clones cheaply into each draw, grows by one for each |
+| The type must be `Clone` and implement `Default` itself | Each use gets its own copy; `new` stages the default |
+| It implements `UiValue` and gets no builder methods | `UiValue` is how a value takes itself (below); the type keeps its own constructors, such as `SolidColorBrush::new(color)` |
 
 ## From a staged object to the property's type
 
@@ -74,8 +75,8 @@ pub trait FromUiObject: Sized {
   fn from_object(tree: &mut UiTree, object: NodeId) -> Result<Self, ValueError>;
 }
 
-/// Every UI type takes itself: free the staging node and check it is a `T`.
-impl<T: UiType + 'static> FromUiObject for T { /* … */ }
+/// Every value takes itself: take the staged object out of the tree and check it is a `T`.
+impl<T: UiValue> FromUiObject for T { /* … */ }
 
 // In #35's crate: a family accepts its members, written in terms of its `From` impls.
 impl FromUiObject for Brush {
@@ -86,9 +87,11 @@ impl FromUiObject for Brush {
 }
 ```
 
-The blanket impl and a family's impl don't conflict: only the crate that owns `Brush` could make it a `UiType`, so Rust's coherence rules accept both (checked with a two-crate prototype).
+The blanket impl and a family's impl don't conflict: only the crate that owns `Brush` could make it a `UiValue`, so Rust's coherence rules accept both. Both check the object's type with `downcast` on `dyn Object` in `artic-core`, which gives back an object of another type unchanged, so `Brush` tries its kinds in turn and no `Box<dyn Any>` leaves the tree. A `UiValue` is an `Object` for that reason: its object is staged as a node.
 
-The [loader values](loader-values.md) thunk `set_object` for `Property<V>` or `Property<Option<V>>` is then `V::from_object(tree, object)?` followed by `set_at(level, value)`. The derive can't know at macro time whether `V` implements `FromUiObject`, so `set_object` is generated for every property: with the same autoref selection #18 uses for its value check, it calls `from_object` when available, and otherwise returns `ValueError::WrongType { expected, found: "an object element" }`. `PropertyAccess.set_object` is therefore always present, not an `Option` (the loader values design is updated accordingly).
+Only values take themselves. Taking an object out of the tree (`UiTree::take`) disposes its properties, as freeing it does, so a node type's object would come out with dead `Property` fields; a value's fields are plain data, and lose nothing. A property whose value type is a node type refuses an object with `WrongType`, as it refuses text.
+
+The [loader values](loader-values.md) thunk `set_object` for `Property<V>` or `Property<Option<V>>` is then `V::from_object(tree, object)?` followed by `set_at(level, value)`. The derive can't know at macro time whether `V` implements `FromUiObject`, so `set_object` is generated for every property: with the same autoref selection #18 uses for its value check, it calls `from_object` when available, and otherwise takes the object out of the tree and returns `ValueError::WrongType { expected, found: "an object" }`. `PropertyAccess.set_object` is therefore always present, not an `Option` (the loader values design is updated accordingly).
 
 ## Loader steps
 
@@ -98,19 +101,21 @@ For `<Border.Background><SolidColorBrush Color="#3B82F6"/></Border.Background>`:
 2. Stage it: `info.new`, which every value type has, allocates a `SolidColorBrush` with its defaults.
 3. Set its members through their thunks: `Color`'s `set_text("#3B82F6")` parses a `Color` and assigns the field.
 4. Call `Background`'s `set_object(tree, border, staged, Precedence::Local)`.
-5. The thunk calls `Brush::from_object`, which frees the staging node, takes the `SolidColorBrush` out and converts it with `Brush::from`, then calls `background.set_at(Local, Some(brush))`.
+5. The thunk calls `Brush::from_object`, which takes the `SolidColorBrush` out of the tree with `UiTree::take` and converts it with `Brush::from`, then calls `background.set_at(Local, Some(brush))`.
 
-The staging node is always freed by `from_object`, on success and on error, so no value is left in the tree.
+`set_object` always takes the staging node out of the tree, on success and on error, so no value is left there. It refuses, with `ValueError::NotStaged` and the tree untouched, an object that isn't a staged value: a stale id, the owner itself, or a node linked in either tree. A staged value is a detached leaf, so taking it out frees nothing else.
 
 ## Compiled output
 
-The compiled path knows every type at build time, so it stages nothing and never calls `FromUiObject`. It builds the value with the builder methods (#21; for value types they come with #57) and converts it with `Into`:
+The compiled path knows every type at build time, so it stages nothing and never calls `FromUiObject`. A value type gets no builder methods: it keeps its own constructors and `Default`, so the compiler (#438) builds a value from its default with its fields set, or writes it whole with `ToRust`, and converts it with `Into`:
 
 ```rust,ignore
 border.background.set(Some(
-  SolidColorBrush::new()
-    .color(::artic::render::Color::rgb(0x3B, 0x82, 0xF6))   // parsed at build time and written by `ToRust` (#49)
-    .into(),               // SolidColorBrush → Brush through `From`
+  ::artic::render::SolidColorBrush {
+    color: ::artic::render::Color::rgb(0x3B, 0x82, 0xF6),   // parsed at build time and written by `ToRust` (#49)
+    ..::core::default::Default::default()
+  }
+  .into(),               // SolidColorBrush → Brush through `From`
 ));
 ```
 
@@ -128,7 +133,7 @@ For `<SolidColorBrush x:Key="Accent" Color="#3B82F6"/>` used as `Background="{St
 ```rust,ignore
 // compiled output for the resource itself
 fn resource_accent() -> SolidColorBrush {
-  SolidColorBrush::new().color(COLOR_3B82F6)
+  SolidColorBrush::new(COLOR_3B82F6)
 }
 ```
 
@@ -158,11 +163,11 @@ A node written as a resource (`<Button x:Key="…"/>`) is built anew at each use
 2. Loading the `Border` meets `{StaticResource Accent}` on `Background` and resolves the key by walking up the logical tree.
 3. It runs the loader steps on the stored node: stage a `SolidColorBrush`, set `Color`, then call `Background`'s `set_object`.
 4. `Brush::from_object` converts the staged brush, and `background.set_at(Local, Some(brush))` stores it.
-5. Had `Accent` been a `Thickness`, step 4 would return `WrongType { expected: "Brush", found: "Thickness" }`, reported at the `{StaticResource Accent}` span with a note at the `x:Key`.
+5. Had `Accent` been a `GradientStop`, step 4 would return `WrongType { expected: "Brush", found: "an object of another type" }`, reported at the `{StaticResource Accent}` span with a note at the `x:Key`, which names the resource's type.
 
 ## Changes to other issues
 
 | Issue | Change |
 | --- | --- |
 | #35 `Color` and `Brush` | `Brush` implements `From` for each brush struct and `FromUiObject` written in terms of them |
-| #57 Loader values | `#[ui(value)]` in the derive: plain fields, `TypeKind::Value`, no events, `Clone` required, builder methods for value types. Stage values with `TypeInfo::new`; `set_object` always present and calling `FromUiObject`; free the staging node in every case |
+| #57 Loader values | `#[ui(value)]` in the derive: plain fields, `TypeKind::Value`, no events, `Clone` and `Default` required, `UiValue`, no builder methods. Stage values with `TypeInfo::new`; `set_object` always present and calling `FromUiObject`; take the staging node out in every case. `artic-render` depends on `artic-registry` and `artic-macros` so its brushes derive it |

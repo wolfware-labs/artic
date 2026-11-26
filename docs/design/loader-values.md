@@ -107,8 +107,13 @@ pub enum ValueError {
   WrongNode,
   /// The child can't be linked to its parent.
   InvalidChild(LinkError),
+  /// An object given as a staged value that isn't one: a stale id, the owner itself, or a node
+  /// linked in either tree.
+  NotStaged(NodeId),
   /// A second child for an element that takes one.
   OneChildOnly,
+  /// A child of a kind the content doesn't take.
+  UnexpectedChild { expected: String },
 }
 ```
 

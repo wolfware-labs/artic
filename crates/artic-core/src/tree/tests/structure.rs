@@ -207,3 +207,22 @@ fn freeing_a_node_under_the_root_is_a_relink() {
 
   assert!(tree.take_relinked(TreeKind::Visual, root));
 }
+
+// Taking a linked node out returns its object, frees its subtree and leaves its parent without it,
+// as freeing it would.
+#[test]
+fn take_frees_the_subtree_and_detaches_the_node() {
+  let mut tree = UiTree::new();
+  let [panel, child, grandchild] = nodes(&mut tree);
+  tree.add_child(TreeKind::Logical, panel, child);
+  tree.add_child(TreeKind::Visual, panel, child);
+  tree.add_child(TreeKind::Logical, child, grandchild);
+
+  let object = tree.take(child);
+
+  assert!(object.is::<super::Control>());
+  assert!(!tree.contains(child) && !tree.contains(grandchild));
+  for kind in TreeKind::ALL {
+    assert_eq!(tree.children(kind, panel).count(), 0);
+  }
+}

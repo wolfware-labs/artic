@@ -1,5 +1,5 @@
 use crate::members::{Content, Kind, Members, named_collection, unraw_name};
-use crate::ui_type::attributes::{TypeAttributes, parse_type_attributes};
+use crate::ui_type::attributes::{TypeAttributes, Whitespace, parse_type_attributes};
 use syn::{DeriveInput, Error, Ident};
 
 /// A struct read for `UiType`: its fields and its struct attributes.
@@ -12,7 +12,9 @@ pub struct TypeAnalysis<'a> {
 /// Reads the struct's attributes and its fields, and checks what they generate together.
 pub fn analyze(input: &DeriveInput) -> syn::Result<TypeAnalysis<'_>> {
   let attributes = parse_type_attributes(input)?;
-  let members = Members::analyze(input, Kind::Type)?;
+  check_value(&attributes)?;
+  let kind = if attributes.value.is_some() { Kind::Value } else { Kind::Type };
+  let members = Members::analyze(input, kind)?;
   check_attached(&attributes)?;
   members.check_names(attributes.attached.iter().flat_map(|attached| {
     let name = attached.name.value();
@@ -36,6 +38,27 @@ pub fn analyze(input: &DeriveInput) -> syn::Result<TypeAnalysis<'_>> {
     members,
     attributes,
   })
+}
+
+/// Rejects, on a value, the settings only a node type has: a value has no element of its own in
+/// the tree, so it owns no attached property, is no value provider or view root, and keeps its
+/// text as its content gives it.
+fn check_value(attributes: &TypeAttributes) -> syn::Result<()> {
+  let Some(span) = attributes.value else {
+    return Ok(());
+  };
+  let node_only = !attributes.attached.is_empty()
+    || attributes.value_provider.is_some()
+    || attributes.override_defaults
+    || attributes.code_type_root
+    || attributes.whitespace != Whitespace::Collapse;
+  if node_only {
+    return Err(Error::new(
+      span,
+      "a value takes no `attached`, `value_provider`, `override_defaults`, `code_type_root` or `whitespace`",
+    ));
+  }
+  Ok(())
 }
 
 /// Rejects two attached properties with one name.

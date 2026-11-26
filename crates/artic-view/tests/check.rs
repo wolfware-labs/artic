@@ -12,13 +12,73 @@ use pretty_assertions::assert_eq;
 #[test]
 fn unknown_property_is_reported_at_its_name() {
   let document = Document {
-    root: element(&PANEL, 0, vec![property_problem("Height", 10, "value objects come with #57")]),
+    root: element(
+      &PANEL,
+      0,
+      vec![property_problem("Height", 10, "value objects come with #438")],
+    ),
   };
 
   let (view, diagnostics) = check(&document);
 
   assert_eq!(reported(&diagnostics), [at("`Panel` has no property `Height`", 10)]);
   assert!(view.elements[0].properties.is_empty());
+}
+
+// A value written where an element of the tree goes, as a child or as the root, is reported once,
+// at its element, kept out of the view, so nothing is generated for it, and left out of its
+// container's "takes one child" count.
+#[test]
+fn value_is_reported_where_an_element_goes() {
+  let as_child = Document {
+    root: element(
+      &PANEL,
+      0,
+      vec![content(5, vec![Content::Element(element(&TINT, 10, Vec::new()))])],
+    ),
+  };
+  let as_root = Document {
+    root: element(&TINT, 0, Vec::new()),
+  };
+
+  let in_a_list = Document {
+    root: element(
+      &GALLERY,
+      0,
+      vec![content(5, vec![Content::Element(element(&TINT, 10, Vec::new()))])],
+    ),
+  };
+  let in_no_content = Document {
+    root: element(
+      &IMAGE,
+      0,
+      vec![content(5, vec![Content::Element(element(&TINT, 10, Vec::new()))])],
+    ),
+  };
+
+  let beside_a_child = |nodes| Document {
+    root: element(&FRAME, 0, vec![content(5, nodes)]),
+  };
+  let value_second = beside_a_child(vec![
+    Content::Element(element(&PANEL, 10, Vec::new())),
+    Content::Element(element(&TINT, 20, Vec::new())),
+  ]);
+  let value_first = beside_a_child(vec![
+    Content::Element(element(&TINT, 10, Vec::new())),
+    Content::Element(element(&PANEL, 20, Vec::new())),
+  ]);
+
+  let (child_view, child_diagnostics) = check(&as_child);
+  let (_, root_diagnostics) = check(&as_root);
+
+  let refused = |at_offset| at("`Tint` is a value, not an element of the tree", at_offset);
+  assert_eq!(reported(&child_diagnostics), [refused(10)]);
+  assert_eq!(child_view.elements.len(), 1);
+  assert_eq!(reported(&root_diagnostics), [refused(0)]);
+  assert_eq!(reported(&check(&in_a_list).1), [refused(10)]);
+  assert_eq!(reported(&check(&in_no_content).1), [refused(10)]);
+  assert_eq!(reported(&check(&value_second).1), [refused(20)]);
+  assert_eq!(reported(&check(&value_first).1), [refused(10)]);
 }
 
 // A type with no way to be created from markup is reported at its element, and its members and
@@ -143,12 +203,12 @@ fn element_in_content_text_ends_the_content() {
 
   let (view, diagnostics) = check(&document);
 
-  assert_eq!(reported(&diagnostics), [at("value objects come with #57", 22)]);
+  assert_eq!(reported(&diagnostics), [at("value objects come with #438", 22)]);
   assert!(view.elements[0].properties.is_empty());
 }
 
-// Every child element counts toward "takes one child", found or not, and the child taken is the
-// only one found.
+// Every child element but a value counts toward "takes one child", found or not, and the child
+// taken is the only one found.
 #[test]
 fn one_child_counts_every_element() {
   let nodes = vec![
@@ -237,7 +297,7 @@ fn value_collection_never_reaches_its_elements() {
   let (_, filled) = check(&filled);
   let (_, blank_only) = check(&blank_only);
 
-  assert_eq!(reported(&filled), [at("value collections come with #57", 20)]);
+  assert_eq!(reported(&filled), [at("value collections come with #438", 20)]);
   assert!(blank_only.is_empty(), "{blank_only}");
 }
 
@@ -393,7 +453,7 @@ fn once_key_is_spent_only_where_reached() {
   assert_eq!(
     reported(&diagnostics),
     [
-      at("value collections come with #57", 21),
+      at("value collections come with #438", 21),
       at("no namespace `https://example.com/ui`", 41),
     ]
   );
@@ -859,7 +919,7 @@ fn attached_problems_are_reported() {
     }),
     name: "Tag".to_owned(),
     span: span(30, 31),
-    value: Err(Diagnostic::error(span(31, 32), "value objects come with #57").into()),
+    value: Err(Diagnostic::error(span(31, 32), "value objects come with #438").into()),
   };
   let document = Document {
     root: element(
@@ -882,7 +942,7 @@ fn attached_problems_are_reported() {
     [
       at("`Rack` has no attached property `Bogus`", 10),
       at("no type `Dock`", 20),
-      at("value objects come with #57", 31),
+      at("value objects come with #438", 31),
       at("`Rack.Tag` is set twice", 51),
     ]
   );

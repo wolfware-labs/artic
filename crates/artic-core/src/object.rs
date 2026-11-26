@@ -9,9 +9,9 @@ use std::fmt::Debug;
 /// The tree stores nodes as `Box<dyn Object>`, so every node type has to implement this trait. It
 /// bundles the supertraits the tree relies on:
 ///
-/// - [`Any`] lets the tree give a node back as its concrete type, through
-///   [`UiTree::get_as`](crate::tree::UiTree::get_as) and
-///   [`UiTree::get_as_mut`](crate::tree::UiTree::get_as_mut). Because `Any` requires `'static`, node
+/// - [`Any`] lets a `dyn Object` come back as its concrete type, through its own `is`, `downcast_ref`,
+///   `downcast_mut` and `downcast`, which [`UiTree::get_as`](crate::tree::UiTree::get_as) and
+///   [`UiTree::get_as_mut`](crate::tree::UiTree::get_as_mut) use. Because `Any` requires `'static`, node
 ///   types can't borrow non-`'static` data.
 /// - [`Debug`] lets the tree itself implement `Debug`.
 ///
@@ -82,7 +82,87 @@ pub trait Object: Debug + Any {
   fn visit_properties(&self, visitor: &mut PropertyVisitor<'_>);
 }
 
+impl dyn Object {
+  /// Whether the object is a `T`.
+  #[must_use]
+  pub fn is<T: Object>(&self) -> bool {
+    (self as &dyn Any).is::<T>()
+  }
+
+  /// The object as a `T`, or `None` when it's of another type.
+  #[must_use]
+  pub fn downcast_ref<T: Object>(&self) -> Option<&T> {
+    (self as &dyn Any).downcast_ref()
+  }
+
+  /// The object as a mutable `T`, or `None` when it's of another type.
+  #[must_use]
+  pub fn downcast_mut<T: Object>(&mut self) -> Option<&mut T> {
+    (self as &mut dyn Any).downcast_mut()
+  }
+
+  /// The object as a `T`, or the object itself when it's of another type, so the caller can try
+  /// the next one, as a type that takes several kinds of object does.
+  ///
+  /// # Errors
+  ///
+  /// The object, unchanged, when it isn't a `T`.
+  pub fn downcast<T: Object>(self: Box<Self>) -> Result<Box<T>, Box<dyn Object>> {
+    if !self.is::<T>() {
+      return Err(self);
+    }
+    let object: Box<dyn Any> = self;
+    Ok(object.downcast().expect("checked above that the object is a `T`"))
+  }
+}
+
 /// Calls `action` with each property `object` lists.
 pub(crate) fn for_each_property(object: &dyn Object, mut action: impl FnMut(AnyProperty<'_>)) {
   object.visit_properties(&mut PropertyVisitor::new(&mut action));
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[derive(Debug, PartialEq)]
+  struct Stop(f32);
+
+  impl Object for Stop {
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+  }
+
+  #[derive(Debug)]
+  struct Other;
+
+  impl Object for Other {
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+  }
+
+  // An object of the type asked for comes out as that type, and one of another type comes back
+  // whole, so the caller can try the next type.
+  #[test]
+  fn downcast_gives_back_an_object_of_another_type() {
+    let stop: Box<dyn Object> = Box::new(Stop(0.5));
+    let other: Box<dyn Object> = Box::new(Other);
+
+    assert!(stop.is::<Stop>() && !stop.is::<Other>());
+    assert_eq!(stop.downcast::<Stop>().ok(), Some(Box::new(Stop(0.5))));
+    let other = other.downcast::<Stop>().expect_err("not a Stop");
+    assert!(other.is::<Other>());
+  }
+
+  // A borrowed object comes out as the type asked for, and as `None` when it's of another type.
+  #[test]
+  fn downcast_ref_and_mut_give_none_for_another_type() {
+    let mut stop: Box<dyn Object> = Box::new(Stop(0.5));
+
+    assert_eq!(stop.downcast_ref::<Stop>(), Some(&Stop(0.5)));
+    assert!(stop.downcast_ref::<Other>().is_none());
+    assert!(stop.downcast_mut::<Other>().is_none());
+    if let Some(stop) = stop.downcast_mut::<Stop>() {
+      stop.0 = 1.0;
+    }
+    assert_eq!(stop.downcast_ref::<Stop>(), Some(&Stop(1.0)));
+  }
 }

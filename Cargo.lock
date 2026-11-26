@@ -430,6 +430,8 @@ version = "0.1.0"
 dependencies = [
  "artic-core",
  "artic-layout",
+ "artic-macros",
+ "artic-registry",
  "pretty_assertions",
  "raw-window-handle",
  "static_assertions",

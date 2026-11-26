@@ -29,10 +29,10 @@ reachable!(
     LayoutMethods, SizeToContent, Surface, Visibility,
   },
   artic_layout::{
-    CornerRadius, FontFamily, FontStyle, FontWeight, HorizontalAlignment, Orientation, TextAlignment, TextTrimming,
-    TextWrapping, Thickness, Transform, VerticalAlignment,
+    CornerRadius, FontFamily, FontStyle, FontWeight, HorizontalAlignment, Orientation, RelativePoint, RelativeScalar,
+    TextAlignment, TextTrimming, TextWrapping, Thickness, Transform, VerticalAlignment,
   },
-  artic_render::{BoxShadow, Brush},
+  artic_render::{BoxShadow, Brush, Color, GradientStop, LinearGradientBrush, RadialGradientBrush, SolidColorBrush},
 );
 
 /// Value types every crate reaches without a path: the standard library's.

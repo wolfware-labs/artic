@@ -12,11 +12,11 @@ pub fn event(span: Span) -> Diagnostic {
 /// An element written as a property's value, such as a brush written as an element.
 #[must_use]
 pub fn value_object(span: Span) -> Diagnostic {
-  Diagnostic::error(span, "value objects come with #57")
+  Diagnostic::error(span, "value objects come with #438")
 }
 
 /// Content for a collection of values, such as gradient stops.
 #[must_use]
 pub fn value_collection(span: Span) -> Diagnostic {
-  Diagnostic::error(span, "value collections come with #57")
+  Diagnostic::error(span, "value collections come with #438")
 }

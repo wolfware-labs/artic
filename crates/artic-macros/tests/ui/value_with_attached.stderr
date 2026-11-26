@@ -1,0 +1,5 @@
+error: a value takes no `attached`, `value_provider`, `override_defaults`, `code_type_root` or `whitespace`
+ --> tests/ui/value_with_attached.rs:4:6
+  |
+4 | #[ui(value, attached(name = "Row", ty = usize, target = children))]
+  |      ^^^^^

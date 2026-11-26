@@ -60,7 +60,6 @@ use hierarchy::Tree;
 pub use node_map::NodeMap;
 use objects::Objects;
 use outside::{Outside, Place};
-use std::any::Any;
 #[cfg(debug_assertions)]
 use std::cell::RefCell;
 #[cfg(debug_assertions)]
@@ -303,7 +302,7 @@ impl UiTree {
   /// it, and to dropping the tree, which frees every node. A property is disposed only if this node
   /// lists it: where a field replaced through `get_mut` goes unreported, in release builds or when the
   /// tree is dropped, one swapped in from another node stays that node's, and a new one is left.
-  fn free_node(&mut self, node_id: NodeId) {
+  fn free_node(&mut self, node_id: NodeId) -> Box<dyn Object> {
     let object = self.objects.free(node_id).expect("free passes only live nodes");
     let listed = self.listed.remove(node_id.0).unwrap_or_default();
     for_each_property(object.as_ref(), |property| {
@@ -320,6 +319,7 @@ impl UiTree {
     self.logical.remove(node_id);
     self.visual.remove(node_id);
     self.structure_generation += 1;
+    object
   }
 
   /// Returns a reference to the node referred to by `id`, or `None` if `id` is stale.
@@ -364,8 +364,7 @@ impl UiTree {
   where
     T: Object,
   {
-    let node: &dyn Any = self.get(id)?;
-    node.downcast_ref()
+    self.get(id)?.downcast_ref()
   }
 
   /// Returns a mutable reference to the node referred to by `id`, or `None` if `id` is stale.
@@ -418,8 +417,7 @@ impl UiTree {
   where
     T: Object,
   {
-    let node: &mut dyn Any = self.get_mut(id)?;
-    node.downcast_mut()
+    self.get_mut(id)?.downcast_mut()
   }
 
   /// Returns the number of live nodes in the tree.
@@ -746,6 +744,50 @@ impl UiTree {
   /// ```
   #[track_caller]
   pub fn free(&mut self, id: NodeId) {
+    drop(self.free_subtree(id));
+  }
+
+  /// Frees `id` as [`free`](UiTree::free) does, and returns its object instead of dropping it.
+  ///
+  /// Its properties and attached values are disposed with it, as `free` disposes them, so the
+  /// object comes back holding its plain fields only: take a node whose state is plain data, such
+  /// as a value a UI language staged in the tree before moving it into a property.
+  ///
+  /// # Panics
+  ///
+  /// As [`free`](UiTree::free) does.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use artic_core::Object;
+  /// use artic_core::property::PropertyVisitor;
+  /// use artic_core::tree::UiTree;
+  ///
+  /// #[derive(Debug)]
+  /// struct Stop {
+  ///   offset: f32,
+  /// }
+  /// impl Object for Stop {
+  ///   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+  /// }
+  ///
+  /// let mut tree = UiTree::new();
+  /// let staged = tree.alloc(Box::new(Stop { offset: 0.5 }));
+  ///
+  /// let object = tree.take(staged);
+  /// assert_eq!(object.downcast::<Stop>().map(|stop| stop.offset).ok(), Some(0.5));
+  /// assert!(!tree.contains(staged));
+  /// ```
+  #[track_caller]
+  #[must_use = "the object is dropped if unused; free the node instead"]
+  pub fn take(&mut self, id: NodeId) -> Box<dyn Object> {
+    self.free_subtree(id)
+  }
+
+  /// Frees `id` and its subtree, and returns `id`'s object.
+  #[track_caller]
+  fn free_subtree(&mut self, id: NodeId) -> Box<dyn Object> {
     self.check_touched();
     self.check(id);
     let mut subtree = HashSet::from([id]);
@@ -766,9 +808,11 @@ impl UiTree {
         }
       }
     }
+    subtree.remove(&id);
     for node in subtree {
-      self.free_node(node);
+      drop(self.free_node(node));
     }
+    self.free_node(id)
   }
 
   /// Returns the frame stages `id` needs redone, or none if `id` is stale.

@@ -41,12 +41,12 @@ macro_rules! element_type {
       static ENTRY: $crate::__private::ElementType = $crate::__private::ElementType {
         type_id: ::core::any::TypeId::of::<$ty>,
         cast: |object| {
-          (object as &dyn ::core::any::Any)
+          object
             .downcast_ref::<$ty>()
             .map(|element| element as &dyn $crate::__private::Element)
         },
         cast_mut: |object| {
-          (object as &mut dyn ::core::any::Any)
+          object
             .downcast_mut::<$ty>()
             .map(|element| element as &mut dyn $crate::__private::Element)
         },

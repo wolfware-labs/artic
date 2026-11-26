@@ -2,7 +2,7 @@
 //! ([loader design](https://github.com/wolfware-labs/artic/blob/main/docs/design/loader-values.md)),
 //! which the content route already returns.
 
-use artic_core::tree::LinkError;
+use artic_core::tree::{LinkError, NodeId};
 
 /// Why a value or a child element from a UI language was refused. Positions are added by the loader.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -36,6 +36,10 @@ pub enum ValueError {
   /// The child can't be linked to its parent.
   #[error("can't add the child")]
   InvalidChild(#[source] LinkError),
+  /// An object given as a staged value that isn't one: a stale id, the owner itself, or a node
+  /// linked in either tree. Only a detached leaf is taken as a value.
+  #[error("the object isn't a staged value")]
+  NotStaged(NodeId),
   /// A second child for an element that takes one.
   #[error("this element takes a single child")]
   OneChildOnly,
@@ -68,6 +72,15 @@ mod tests {
     };
 
     assert_eq!(error.to_string(), "this element's content takes only `Item`");
+  }
+
+  // An object that isn't a staged value is refused in the registry's words, which no UI language
+  // owns.
+  #[test]
+  fn not_staged_names_no_language() {
+    let id = artic_core::tree::UiTree::new().alloc(Box::new(Leaf));
+
+    assert_eq!(ValueError::NotStaged(id).to_string(), "the object isn't a staged value");
   }
 
   // A refused child says so, and the link error is its source.
