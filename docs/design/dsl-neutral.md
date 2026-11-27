@@ -20,7 +20,7 @@ Below the XAML layer, every name that says XAML changes:
 | `XamlCollection` | `UiCollection` |
 | `XAML_TYPES`, the link-time list of types | `UI_TYPES` |
 | `MarkupExtensionInfo`, `#[xaml(markup_extension(...))]`, `TypeInfo::markup_extension`, `TypeInfo::is_markup_extension()` | `ValueProviderInfo`, `#[ui(value_provider(...))]`, `TypeInfo::value_provider`, `TypeInfo::is_value_provider()` |
-| `value_must_implement_fromstr_or_derive_xamltype`, `ViaXamlType` | `value_must_implement_fromstr_or_derive_uitype`, `ViaUiType` |
+| `value_must_implement_fromstr_or_derive_xamltype`, `ViaXamlType` | neutral names, since replaced by the `Written` routes ([value objects](value-objects.md)) |
 | `#[xaml_class]`, `#[xaml_static]` (planned in the spec, not built) | `#[ui_class]`, `#[ui_static]` |
 | in `artic-macros`: the `derive_xaml_*` functions, the `xaml_type/`, `xaml_enum.rs` and `xaml_properties.rs` modules, `XamlField`, `xaml_fields`, `xaml_name` | `derive_ui_*`, `ui_type/`, `ui_enum.rs`, `ui_properties.rs`, `UiField`, `ui_fields`, `ui_name` |
 | tests named after XAML: `stroke_defaults_match_xaml`, the controls' `*_is_xaml_content`, the trybuild cases `element_derives_xaml_type`, `xaml_on_plain_field`, `value_not_text_or_xaml_type`, `attached_value_not_text_or_xaml_type`, and `tests/xaml_enum.rs` | the same names with `ui` |
