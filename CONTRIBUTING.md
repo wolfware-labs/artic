@@ -29,6 +29,7 @@ CI runs these on every pull request. Run them locally before pushing:
 | Layering | `cargo test -p docs-check --test layers` and `cargo deny check bans` | Docs, Test, Deny |
 | UI-language neutral | `scripts/check-ui-neutral.sh` | Lint |
 | Checkout credentials (every `actions/checkout` sets `persist-credentials: false`; needs [yq](https://github.com/mikefarah/yq)) | `scripts/check-checkout-credentials.sh` and its self-test, `scripts/test-check-checkout-credentials.sh` | Lint |
+| Unused dependencies (a dependency only generated code or a document's code block names goes in `[package.metadata.cargo-machete] ignored`, with the reason) | `cargo machete` ([cargo-machete](https://github.com/bnjbvr/cargo-machete)) | Lint |
 | Docs | `cargo doc --workspace --no-deps` with `RUSTDOCFLAGS=-D warnings` | Docs |
 | Code in documents | `cargo test -p docs-check` | Docs |
 | Links in documents | `lychee --offline --include-fragments --root-dir "$PWD" '*.md' 'docs/**/*.md'` | Docs |
