@@ -3,10 +3,14 @@
 //!
 //! - [`ToRust`]: the trait, implemented here for the standard types a value can hold.
 //! - [`RustExpr`]: the string builder an impl writes into.
+//! - [`Written`]: how a UI language writes a value, as text, an object or a child element, which
+//!   picks the conversions a property of that type is loaded with.
 
+mod route;
 mod rust_expr;
 mod std_impls;
 
+pub use route::{AsChild, AsObject, AsText, RefusesObject, TakesObject, Written};
 pub use rust_expr::RustExpr;
 
 /// A value that can write the Rust expression that builds it, for code generated at build time.

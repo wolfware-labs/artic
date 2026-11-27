@@ -170,6 +170,8 @@ impl ToRust for BoxShadow {
   }
 }
 
+artic_core::text_value!(BoxShadow);
+
 fn parse_shadow(text: &str) -> Result<BoxShadow, ShadowProblem> {
   let tokens: Vec<&str> = text.split_whitespace().collect();
   let Some((color, numbers)) = tokens.split_last() else {

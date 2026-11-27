@@ -18,6 +18,9 @@ mod value_error;
 mod with_children;
 
 pub use access::PropertyAccess;
+/// How a UI language writes a property's value type, re-exported beside [`ToRust`] for a value
+/// type of an app's own.
+pub use artic_core::{AsChild, AsObject, AsText, RefusesObject, TakesObject, Written};
 /// What [`PropertyInfo::literal`] writes with, re-exported so a code generator needs only this crate.
 pub use artic_core::{RustExpr, ToRust};
 pub use collection::{UiCollection, check_child, is_a, type_names};

@@ -287,6 +287,17 @@ impl ToRust for RelativeScalar {
   }
 }
 
+artic_core::text_value!(
+  Thickness,
+  CornerRadius,
+  Point,
+  Size,
+  Rect,
+  Transform,
+  RelativePoint,
+  RelativeScalar
+);
+
 /// Whether the values may be negative.
 #[derive(Clone, Copy, PartialEq)]
 enum Sign {

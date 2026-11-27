@@ -176,6 +176,8 @@ impl ToRust for FontFamily {
   }
 }
 
+artic_core::text_value!(FontFamily);
+
 impl ToRust for FamilyName {
   fn to_rust(&self, out: &mut RustExpr) {
     match self {
@@ -396,6 +398,8 @@ impl ToRust for FontWeight {
     }
   }
 }
+
+artic_core::text_value!(FontWeight);
 
 fn parse_weight(text: &str) -> Result<FontWeight, WeightProblem> {
   if let Some(&(_, weight)) = WEIGHT_NAMES.iter().find(|(name, _)| name.eq_ignore_ascii_case(text)) {

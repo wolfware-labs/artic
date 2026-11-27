@@ -10,12 +10,12 @@ pub use crate::{
   TypeKind, UiCollection, UiType, UiValue, ValueError, ValueProviderInfo, Whitespace, WithChildren, check_child, is_a,
   register_type,
 };
-pub use artic_core::Object;
 pub use artic_core::event::Event;
 pub use artic_core::property::{
   Affects, AttachedKey, Inheritance, ParseEnumError, Precedence, Property, PropertyKey, PropertyVisitor, SharedKey, inherit,
 };
 pub use artic_core::tree::{Handle, NodeId, UiTree};
+pub use artic_core::{AsChild, AsObject, AsText, Object, RefusesObject, TakesObject, Written};
 pub use std::marker::PhantomData;
 
 /// Wraps a property's value type for the check below. `R` is what the value may be: [`AnyValue`]
@@ -180,6 +180,130 @@ pub trait ViaChild {
 }
 
 impl ViaChild for &&ValueCheck<NodeId, AnyValue> {}
+
+/// The conversions of a value written as the marker `Self` says, for the value type `V`: generated
+/// code names them as `<<V as Written>::As as Route<V>>`, so the value type alone picks them, and
+/// no method lookup or trait in scope where the code expands takes part.
+#[diagnostic::on_unimplemented(
+  message = "`{V}` can't be written the way its `Written` impl says",
+  note = "a value written as text (`AsText`) implements `FromStr` and `ToRust`, one written as an object (`AsObject`) derives `UiType`, and only `NodeId` is written as a child (`AsChild`)"
+)]
+pub trait Route<V> {
+  /// Gives the thunks' conversions from text and from a node.
+  fn value_ops() -> ValueOps<V>;
+
+  /// Gives the literal's conversion: parse text and write the value it gives, or refuse it.
+  fn literal_ops() -> LiteralOps<V>;
+}
+
+impl<V> Route<V> for AsText
+where
+  V: FromStr + ToRust,
+  V::Err: Display,
+{
+  fn value_ops() -> ValueOps<V> {
+    ValueOps {
+      parse: |text, expected| {
+        text.parse().map_err(|error: V::Err| ValueError::Parse {
+          expected,
+          message: error.to_string(),
+        })
+      },
+      node: not_a_node,
+    }
+  }
+
+  fn literal_ops() -> LiteralOps<V> {
+    LiteralOps {
+      write: |text, out| {
+        let value: V = text.parse().map_err(|error: V::Err| error.to_string())?;
+        value.to_rust(out);
+        Ok(())
+      },
+      value: PhantomData,
+    }
+  }
+}
+
+/// Text and a node are both refused: the value is an object, which the loader moves in as one.
+impl<V: UiType> Route<V> for AsObject {
+  fn value_ops() -> ValueOps<V> {
+    ValueOps {
+      parse: not_text,
+      node: not_a_node,
+    }
+  }
+
+  fn literal_ops() -> LiteralOps<V> {
+    element_literal_ops()
+  }
+}
+
+/// Text is refused; a node is the value.
+impl Route<NodeId> for AsChild {
+  fn value_ops() -> ValueOps<NodeId> {
+    ValueOps {
+      parse: not_text,
+      node: |node, _| Ok(node),
+    }
+  }
+
+  fn literal_ops() -> LiteralOps<NodeId> {
+    element_literal_ops()
+  }
+}
+
+/// The routes a value type's plain field may take: text or an object, never a node, since a value
+/// taken out of the tree would leave the node with no owner.
+#[diagnostic::on_unimplemented(
+  message = "a value's `#[ui]` fields are plain data, not a `NodeId`",
+  label = "its node would stay in the tree with no owner once the value is taken out"
+)]
+pub trait PlainRoute<V>: Route<V> {
+  /// Gives the thunks' conversions, as [`Route::value_ops`] does, for a plain field.
+  fn plain_value_ops() -> ValueOps<V> {
+    Self::value_ops()
+  }
+}
+
+impl<V> PlainRoute<V> for AsText where AsText: Route<V> {}
+
+impl<V> PlainRoute<V> for AsObject where AsObject: Route<V> {}
+
+/// How a staged object becomes a value of type `V`, as the marker `Self` says: generated code
+/// names it as `<<V as Written>::FromObject as ObjectRoute<V>>`.
+pub trait ObjectRoute<V> {
+  /// Gives the conversion that takes the staged object out of the tree as the value of the
+  /// owner's property, or refuses it.
+  fn object_ops() -> ObjectOps<V>;
+}
+
+impl<V: FromUiObject> ObjectRoute<V> for TakesObject {
+  fn object_ops() -> ObjectOps<V> {
+    ObjectOps {
+      take: |tree, owner, object, _| {
+        check_staged(tree, owner, object)?;
+        V::from_object(tree, object)
+      },
+    }
+  }
+}
+
+/// The staged object is taken out, so none is left behind, and refused.
+impl<V> ObjectRoute<V> for RefusesObject {
+  fn object_ops() -> ObjectOps<V> {
+    ObjectOps {
+      take: |tree, owner, object, expected| {
+        check_staged(tree, owner, object)?;
+        drop(tree.take(object));
+        Err(ValueError::WrongType {
+          expected,
+          found: AN_OBJECT,
+        })
+      },
+    }
+  }
+}
 
 /// What a property's `set_object` says it was given when its value type isn't taken from an object.
 const AN_OBJECT: &str = "an object";
@@ -561,6 +685,110 @@ mod tests {
   }
 
   static GAUGE: TypeInfo = TypeInfo::node("Gauge", "tests::Gauge", |_| false);
+
+  impl Object for Gauge {
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+  }
+
+  impl Written for Gauge {
+    type As = AsObject;
+    type FromObject = RefusesObject;
+  }
+
+  /// A tree holding two gauges: an owner, and a detached one to stage or set as a node.
+  fn two_gauges() -> (UiTree, NodeId, NodeId) {
+    let mut tree = UiTree::new();
+    let owner = tree.alloc(Box::new(Gauge));
+    let other = tree.alloc(Box::new(Gauge));
+    (tree, owner, other)
+  }
+
+  // Text parses through a text value's route, which refuses a node.
+  #[test]
+  fn text_route_parses_and_refuses_a_node() {
+    let (_, _, node) = two_gauges();
+    let ops = <<f32 as Written>::As as Route<f32>>::value_ops();
+
+    assert_eq!((ops.parse)("1.5", "f32"), Ok(1.5));
+    assert_eq!(
+      (ops.node)(node, "f32"),
+      Err(ValueError::WrongType {
+        expected: "f32",
+        found: "an element",
+      })
+    );
+  }
+
+  // An object's route refuses both text and a node: the loader moves the object in as one.
+  #[test]
+  fn object_route_refuses_text_and_a_node() {
+    let (_, _, node) = two_gauges();
+    let ops = <<Gauge as Written>::As as Route<Gauge>>::value_ops();
+
+    assert_eq!(
+      (ops.parse)("1.5", "Gauge").err(),
+      Some(ValueError::WrongType {
+        expected: "Gauge",
+        found: "text",
+      })
+    );
+    assert_eq!(
+      (ops.node)(node, "Gauge").err(),
+      Some(ValueError::WrongType {
+        expected: "Gauge",
+        found: "an element",
+      })
+    );
+  }
+
+  // A child's route takes the node as the value and refuses text.
+  #[test]
+  fn child_route_takes_a_node_and_refuses_text() {
+    let (_, _, node) = two_gauges();
+    let ops = <<NodeId as Written>::As as Route<NodeId>>::value_ops();
+
+    assert_eq!((ops.node)(node, "NodeId"), Ok(node));
+    assert_eq!(
+      (ops.parse)("1.5", "NodeId"),
+      Err(ValueError::WrongType {
+        expected: "NodeId",
+        found: "text",
+      })
+    );
+  }
+
+  // A text value's literal writes the Rust the text parses to; an object's and a child's refuse
+  // text.
+  #[test]
+  fn literal_routes_write_text_and_refuse_elements() {
+    let mut out = RustExpr::new();
+    (<<f32 as Written>::As as Route<f32>>::literal_ops().write)("1.5", &mut out).expect("a number");
+    assert_eq!(out.take(), "1.5_f32");
+
+    let object = <<Gauge as Written>::As as Route<Gauge>>::literal_ops().write;
+    let child = <<NodeId as Written>::As as Route<NodeId>>::literal_ops().write;
+    for write in [object, child] {
+      assert_eq!(write("1.5", &mut RustExpr::new()), Err(TAKES_AN_ELEMENT.to_owned()));
+    }
+  }
+
+  // A value type not taken from objects takes the staged object out of the tree, so none is left
+  // behind, and refuses it.
+  #[test]
+  fn refused_object_is_taken_out_and_refused() {
+    let (mut tree, owner, object) = two_gauges();
+    let ops = <<f32 as Written>::FromObject as ObjectRoute<f32>>::object_ops();
+
+    assert_eq!(
+      (ops.take)(&mut tree, owner, object, "f32"),
+      Err(ValueError::WrongType {
+        expected: "f32",
+        found: "an object",
+      })
+    );
+    assert!(!tree.contains(object));
+    assert!(tree.contains(owner));
+  }
 
   // The check resolves for a FromStr type, a UI type and a child node, and a plain field's check
   // for the first two. A type that is none of them fails to compile, which the derive's
