@@ -17,7 +17,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::str::FromStr;
 
 // Stand-ins for value types: the real geometry, brush and pointer types live in crates above the
-// macros, which these tests can't depend on. They only need to parse from text and have defaults.
+// macros, which these tests can't depend on. They only need to parse from text, write themselves as
+// Rust, be written as text and have defaults.
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 struct Thickness(f32);
@@ -73,6 +74,8 @@ impl ToRust for Brush {
     out.call(env!("CARGO_CRATE_NAME"), "Brush", &[&self.0]);
   }
 }
+
+artic_core::text_value!(Thickness, CornerRadius, Brush);
 
 #[derive(Debug)]
 struct PointerEvent;

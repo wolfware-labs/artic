@@ -1,23 +1,15 @@
-error[E0599]: the method `value_must_parse_from_text_and_implement_torust_or_derive_uitype` exists for reference `&&artic_registry::__private::ValueCheck<NodeId, artic_registry::__private::PlainValue>`, but its trait bounds were not satisfied
-  --> tests/ui/value_with_node_alias.rs:13:18
+error[E0277]: a value's `#[ui]` fields are plain data, not a `NodeId`
+  --> tests/ui/value_with_node_alias.rs:10:18
    |
-13 |   sample: Option<Sample>,
-   |                  ^^^^^^ method cannot be called due to unsatisfied trait bounds
+10 |   sample: Option<Sample>,
+   |                  ^^^^^^ its node would stay in the tree with no owner once the value is taken out
    |
-  ::: $WORKSPACE/crates/artic-core/src/tree.rs
+   = help: the trait `artic_registry::__private::PlainRoute<NodeId>` is not implemented for `AsChild`
+help: the following other types implement trait `artic_registry::__private::PlainRoute<V>`
+  --> $WORKSPACE/crates/artic-registry/src/__private.rs
    |
-   | pub struct NodeId(SlotId);
-   | ----------------- doesn't satisfy `NodeId: FromStr`, `NodeId: ToRust` or `NodeId: UiType`
+   | impl<V> PlainRoute<V> for AsText where AsText: Route<V> {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `AsText`
    |
-  ::: $WORKSPACE/crates/artic-registry/src/__private.rs
-   |
-   | pub struct ValueCheck<T, R>(pub PhantomData<(T, R)>);
-   | --------------------------- doesn't satisfy `_: ViaFromStr`
-   |
-   = note: the following trait bounds were not satisfied:
-           `NodeId: UiType`
-           which is required by `&artic_registry::__private::ValueCheck<NodeId, artic_registry::__private::PlainValue>: artic_registry::__private::ViaUiType`
-           `NodeId: FromStr`
-           which is required by `artic_registry::__private::ValueCheck<NodeId, artic_registry::__private::PlainValue>: artic_registry::__private::ViaFromStr`
-           `NodeId: ToRust`
-           which is required by `artic_registry::__private::ValueCheck<NodeId, artic_registry::__private::PlainValue>: artic_registry::__private::ViaFromStr`
+   | impl<V> PlainRoute<V> for AsObject where AsObject: Route<V> {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `AsObject`

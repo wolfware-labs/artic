@@ -1,29 +1,22 @@
-error[E0599]: the method `value_must_parse_from_text_and_implement_torust_or_derive_uitype` exists for reference `&&artic_registry::__private::ValueCheck<Telemetry, artic_registry::__private::AnyValue>`, but its trait bounds were not satisfied
-  --> tests/ui/value_without_to_rust.rs:20:21
+error[E0277]: the trait bound `Telemetry: ToRust` is not satisfied
+  --> tests/ui/value_without_to_rust.rs:22:21
+   |
+22 |   reading: Property<Telemetry>,
+   |                     ^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `ToRust` is not implemented for `Telemetry`
+  --> tests/ui/value_without_to_rust.rs:7:1
    |
  7 | struct Telemetry;
-   | ---------------- doesn't satisfy `Telemetry: ToRust` or `Telemetry: UiType`
-...
-20 |   reading: Property<Telemetry>,
-   |                     ^^^^^^^^^ method cannot be called due to unsatisfied trait bounds
-   |
-  ::: $WORKSPACE/crates/artic-registry/src/__private.rs
-   |
-   | pub struct ValueCheck<T, R>(pub PhantomData<(T, R)>);
-   | --------------------------- doesn't satisfy `_: ViaFromStr`
-   |
-   = note: the following trait bounds were not satisfied:
-           `Telemetry: UiType`
-           which is required by `&artic_registry::__private::ValueCheck<Telemetry, artic_registry::__private::AnyValue>: artic_registry::__private::ViaUiType`
-           `Telemetry: ToRust`
-           which is required by `artic_registry::__private::ValueCheck<Telemetry, artic_registry::__private::AnyValue>: artic_registry::__private::ViaFromStr`
-note: the traits `ToRust` and `UiType` must be implemented
-  --> $WORKSPACE/crates/artic-registry/src/descriptors.rs
-   |
-   | pub trait UiType {
    | ^^^^^^^^^^^^^^^^
-   |
-  ::: $WORKSPACE/crates/artic-core/src/to_rust.rs
-   |
-   | pub trait ToRust {
-   | ^^^^^^^^^^^^^^^^
+   = help: the following other types implement trait `ToRust`:
+             &T
+             NonZero<i128>
+             NonZero<i16>
+             NonZero<i32>
+             NonZero<i64>
+             NonZero<i8>
+             NonZero<isize>
+             NonZero<u128>
+           and $N others
+   = note: required for `AsText` to implement `artic_registry::__private::Route<Telemetry>`

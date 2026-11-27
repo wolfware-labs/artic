@@ -1,32 +1,22 @@
-error[E0599]: the method `value_must_parse_from_text_and_implement_torust_or_derive_uitype` exists for reference `&&artic_registry::__private::ValueCheck<Telemetry, artic_registry::__private::AnyValue>`, but its trait bounds were not satisfied
+error[E0277]: `Telemetry` can't be written in a UI language
   --> tests/ui/value_not_text_or_ui_type.rs:10:21
    |
- 5 | struct Telemetry;
-   | ---------------- doesn't satisfy `Telemetry: FromStr`, `Telemetry: ToRust` or `Telemetry: UiType`
-...
 10 |   reading: Property<Telemetry>,
-   |                     ^^^^^^^^^ method cannot be called due to unsatisfied trait bounds
+   |                     ^^^^^^^^^ neither text, an object nor a child element
    |
-  ::: $WORKSPACE/crates/artic-registry/src/__private.rs
+help: the trait `Written` is not implemented for `Telemetry`
+  --> tests/ui/value_not_text_or_ui_type.rs:5:1
    |
-   | pub struct ValueCheck<T, R>(pub PhantomData<(T, R)>);
-   | --------------------------- doesn't satisfy `_: ViaFromStr`
-   |
-   = note: the following trait bounds were not satisfied:
-           `Telemetry: UiType`
-           which is required by `&artic_registry::__private::ValueCheck<Telemetry, artic_registry::__private::AnyValue>: artic_registry::__private::ViaUiType`
-           `Telemetry: FromStr`
-           which is required by `artic_registry::__private::ValueCheck<Telemetry, artic_registry::__private::AnyValue>: artic_registry::__private::ViaFromStr`
-           `Telemetry: ToRust`
-           which is required by `artic_registry::__private::ValueCheck<Telemetry, artic_registry::__private::AnyValue>: artic_registry::__private::ViaFromStr`
-note: the traits `FromStr`, `ToRust`,  and `UiType` must be implemented
-  --> $WORKSPACE/crates/artic-registry/src/descriptors.rs
-   |
-   | pub trait UiType {
+ 5 | struct Telemetry;
    | ^^^^^^^^^^^^^^^^
-  --> $RUST/core/src/str/traits.rs
-   |
-  ::: $WORKSPACE/crates/artic-core/src/to_rust.rs
-   |
-   | pub trait ToRust {
-   | ^^^^^^^^^^^^^^^^
+   = note: derive `UiType` or `UiEnum`, or implement `FromStr` and `ToRust` and add `artic_core::text_value!(Telemetry)`
+   = help: the following other types implement trait `Written`:
+             Gauge
+             NodeId
+             NonZero<i128>
+             NonZero<i16>
+             NonZero<i32>
+             NonZero<i64>
+             NonZero<i8>
+             NonZero<isize>
+           and $N others

@@ -184,6 +184,23 @@ impl ViaChild for &&ValueCheck<NodeId, AnyValue> {}
 /// The conversions of a value written as the marker `Self` says, for the value type `V`: generated
 /// code names them as `<<V as Written>::As as Route<V>>`, so the value type alone picks them, and
 /// no method lookup or trait in scope where the code expands takes part.
+///
+/// The derive checks every property's value type outside the thunks the `access` feature keeps, so
+/// a type a UI language can't write fails to compile with the feature off too:
+///
+/// ```compile_fail,E0277
+/// use artic_core::property::Property;
+/// use artic_macros::UiType;
+///
+/// #[derive(Debug, Default, PartialEq)]
+/// struct Telemetry;
+///
+/// #[derive(Debug, UiType)]
+/// struct Gauge {
+///   #[ui]
+///   reading: Property<Telemetry>,
+/// }
+/// ```
 #[diagnostic::on_unimplemented(
   message = "`{V}` can't be written the way its `Written` impl says",
   note = "a value written as text (`AsText`) implements `FromStr` and `ToRust`, one written as an object (`AsObject`) derives `UiType`, and only `NodeId` is written as a child (`AsChild`)"
@@ -420,21 +437,24 @@ where
 /// The function `PropertyInfo::literal` holds for a property of value type `$value`: `Some` with
 /// the `literals` feature, `None` without, so an app's registry keeps no `ToRust` code.
 ///
-/// A user trait with the check's method name, in scope where it expands, can't stand in for the
-/// check with a type of its own:
+/// It names the value's route by its full path, so a trait in scope with the route's method name
+/// changes nothing:
 ///
-/// ```compile_fail,E0308
+/// ```
 /// struct Mine;
 ///
 /// trait Lookalike {
-///   fn literal_ops(&self) -> Mine {
+///   fn literal_ops() -> Mine {
 ///     Mine
 ///   }
 /// }
 ///
 /// impl<T> Lookalike for T {}
 ///
-/// let _ = artic_registry::__private::literal!(f32);
+/// let write = artic_registry::__private::literal!(f32).expect("the literals feature is on");
+/// let mut out = artic_registry::RustExpr::new();
+/// write("1.5", &mut out).expect("a number");
+/// assert_eq!(out.take(), "1.5_f32");
 /// ```
 #[cfg(feature = "literals")]
 #[doc(hidden)]
@@ -443,11 +463,7 @@ macro_rules! __literal {
   ($value:ty) => {
     ::core::option::Option::Some({
       fn literal(text: &str, out: &mut $crate::RustExpr) -> ::core::result::Result<(), ::std::string::String> {
-        use $crate::__private::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-        let ops = $crate::__private::exactly::<$crate::__private::LiteralOps<$value>>(
-          (&&$crate::__private::ValueCheck::<$value, $crate::__private::AnyValue>($crate::__private::PhantomData))
-            .literal_ops(),
-        );
+        let ops = <<$value as $crate::__private::Written>::As as $crate::__private::Route<$value>>::literal_ops();
         (ops.write)(text, out)
       }
       literal as $crate::WriteLiteral

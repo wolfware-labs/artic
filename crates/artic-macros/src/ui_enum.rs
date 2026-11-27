@@ -3,8 +3,9 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Error, Fields, Ident};
 
-/// Writes a `FromStr` impl that matches the enum's variant names, ignoring ASCII case, and a
-/// `ToRust` impl that writes the variant's path.
+/// Writes a `FromStr` impl that matches the enum's variant names, ignoring ASCII case, a `ToRust`
+/// impl that writes the variant's path, and a `Written` impl that says the enum is written as
+/// text.
 pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
   let variants = unit_variants(input)?;
   let root = crate_root(None, &input.ident, ENUM)?;
@@ -37,6 +38,11 @@ pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
           #(Self::#variants => #paths,)*
         });
       }
+    }
+
+    impl #root::__private::Written for #ident {
+      type As = #root::__private::AsText;
+      type FromObject = #root::__private::RefusesObject;
     }
   })
 }
