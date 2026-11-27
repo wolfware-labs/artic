@@ -626,6 +626,22 @@ mod tests {
     );
   }
 
+  // A plain field's route converts as the value's own route does: text parses, a node is refused.
+  #[test]
+  fn plain_route_converts_as_the_value_route() {
+    let (_, _, node) = two_gauges();
+    let ops = <<f32 as Written>::As as PlainRoute<f32>>::plain_value_ops();
+
+    assert_eq!((ops.parse)("1.5", "f32"), Ok(1.5));
+    assert_eq!(
+      (ops.node)(node, "f32"),
+      Err(ValueError::WrongType {
+        expected: "f32",
+        found: "an element",
+      })
+    );
+  }
+
   // A child's route takes the node as the value and refuses text.
   #[test]
   fn child_route_takes_a_node_and_refuses_text() {

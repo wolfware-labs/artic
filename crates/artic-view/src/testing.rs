@@ -155,3 +155,54 @@ pub fn visibility(file: SourceId, text: &str, at: usize) -> Member {
     span: span(file, at, at + 1),
   }))
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use artic_core::property::PropertyVisitor;
+  use pretty_assertions::assert_eq;
+
+  /// An object with no properties, to hand the stubs something to refuse.
+  #[derive(Debug)]
+  struct Bare;
+
+  impl Object for Bare {
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+  }
+
+  // The stub that reads a node panics: a test that reaches it built a tree it says it doesn't.
+  #[test]
+  #[should_panic(expected = "these tests never read a node")]
+  fn no_object_panics() {
+    no_object(&Bare);
+  }
+
+  // The stub that creates a node panics: a test that reaches it built a tree it says it doesn't.
+  #[test]
+  #[should_panic(expected = "these tests never create a node")]
+  fn new_node_panics() {
+    new_node(&mut UiTree::new());
+  }
+
+  // The stub that adds a child panics: a test that reaches it built a tree it says it doesn't.
+  #[test]
+  #[should_panic(expected = "these tests never add a child")]
+  fn add_child_panics() {
+    let mut tree = UiTree::new();
+    let (parent, child) = (tree.alloc(Box::new(Bare)), tree.alloc(Box::new(Bare)));
+    let _ = add_child(&mut tree, parent, child);
+  }
+
+  static BARE: TypeInfo = info("Bare", "test_ui::bare::Bare");
+
+  // `info` called at run time gives the descriptor a static built with it holds: a creatable node
+  // type with nothing else set.
+  #[test]
+  fn info_at_run_time_matches_its_static() {
+    let built = info(BARE.name, BARE.rust_path);
+
+    assert_eq!(format!("{built:?}"), format!("{BARE:?}"));
+    assert!(built.new.is_some());
+    assert!(built.content.is_none());
+  }
+}

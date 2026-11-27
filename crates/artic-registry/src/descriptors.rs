@@ -590,6 +590,30 @@ mod tests {
     assert_eq!(out.as_str(), r#""Hi""#);
   }
 
+  // The constructors and setters called at run time give the descriptors that statics built
+  // with them hold.
+  #[test]
+  fn setters_at_run_time_match_their_statics() {
+    let built_type = TypeInfo::node(SET_TYPE.name, SET_TYPE.rust_path, SET_TYPE.is)
+      .with_new(SET_TYPE.new.expect("a constructor"))
+      .with_kind(SET_TYPE.kind)
+      .with_content(SET_TYPE.content.expect("content"))
+      .with_properties(SET_TYPE.properties)
+      .with_groups(SET_TYPE.groups)
+      .with_events(SET_TYPE.events)
+      .with_attached_properties(SET_TYPE.attached_properties)
+      .with_whitespace(SET_TYPE.whitespace)
+      .with_code_type_root(SET_TYPE.code_type_root);
+    let built_property = PropertyInfo::new(SET_PROPERTY.name, SET_PROPERTY.field, SET_PROPERTY.value_type)
+      .with_affects(SET_PROPERTY.affects)
+      .with_inherits(SET_PROPERTY.inherits)
+      .with_literal(SET_PROPERTY.literal.expect("a literal"))
+      .with_access(SET_PROPERTY.access.expect("an access"));
+
+    assert_eq!(format!("{built_type:?}"), format!("{SET_TYPE:?}"));
+    assert_eq!(format!("{built_property:?}"), format!("{SET_PROPERTY:?}"));
+  }
+
   // An attached property is found by its name among the ones its owner declares, and only there.
   #[test]
   fn attached_property_is_found_by_name() {
