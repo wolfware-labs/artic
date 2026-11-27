@@ -8,6 +8,9 @@
 // so the cost follows the node's property count: `Border.Padding` is a property of the type itself,
 // `TextBlock.HorizontalAlignment` one of the layout group every control holds.
 //
+// Besides text, a property's access takes a node as the value (`set_node`) and a staged object
+// (`set_object`), which a property not taken from objects takes out of the tree and refuses.
+//
 // Compare against main as the core benches do:
 //
 //   cargo bench -p artic-controls --bench loader -- --save-baseline main
@@ -16,7 +19,7 @@
 // Each bench checks once, before it's timed, that both ways write the value they say they do.
 
 use artic_controls::{Border, TextBlock};
-use artic_core::property::Precedence;
+use artic_core::property::{Precedence, Property};
 use artic_core::tree::{NodeId, UiTree};
 use artic_layout::HorizontalAlignment;
 use artic_layout::geometry::Thickness;
@@ -31,6 +34,8 @@ const PADDINGS: [&str; 2] = ["4,8", "8,4"];
 const ALIGNMENTS: [&str; 2] = ["Left", "Right"];
 const COLORS: [&str; 2] = ["#3B82F6", "SteelBlue"];
 const OPACITIES: [&str; 2] = ["0.5", "0.25"];
+/// Which of two child nodes each write sets, named as text so they go through `compare`.
+const CHILDREN: [&str; 2] = ["first", "second"];
 
 /// A value holding its stops in a `Vec`, a collection no brush uses: an app's own value type
 /// can.
@@ -39,6 +44,14 @@ const OPACITIES: [&str; 2] = ["0.5", "0.25"];
 struct Ramp {
   #[ui(content)]
   stops: Vec<GradientStop>,
+}
+
+/// A node type with a property that holds a node, which no control has: a UI language sets it
+/// from an element written inside.
+#[derive(Debug, UiType)]
+struct Holder {
+  #[ui]
+  child: Property<Option<NodeId>>,
 }
 
 /// The function that creates a node of `type_info` from its defaults.
@@ -297,6 +310,63 @@ fn value_field_clear(c: &mut Criterion) {
   compare(c, "loader/value_field_clear", &mut tree, OPACITIES, loaded, typed);
 }
 
+/// `Holder.Child` set to a node: the loader's `set_node` against setting the property directly.
+fn node_property(c: &mut Criterion) {
+  let (mut tree, node) = one(Holder::TYPE_INFO);
+  let children = [
+    tree.alloc(Box::new(Holder::default())),
+    tree.alloc(Box::new(Holder::default())),
+  ];
+  let pick = move |text: &str| children[usize::from(text == CHILDREN[1])];
+  let child = access(Holder::TYPE_INFO, "Child");
+  let read = |tree: &UiTree| tree.get_as::<Holder>(node).and_then(|holder| holder.child.get());
+  let loaded = |tree: &mut UiTree, text: &str| {
+    (child.set_node)(tree, node, pick(text), Precedence::Local).expect("a node property");
+  };
+  let typed = |tree: &mut UiTree, text: &str| {
+    tree
+      .get_as::<Holder>(node)
+      .expect("a Holder node")
+      .child
+      .set_at(Precedence::Local, Some(pick(text)));
+  };
+  loaded(&mut tree, CHILDREN[0]);
+  assert_eq!(read(&tree), Some(children[0]));
+  typed(&mut tree, CHILDREN[1]);
+  assert_eq!(read(&tree), Some(children[1]));
+
+  compare(c, "loader/node_property", &mut tree, CHILDREN, loaded, typed);
+}
+
+/// `Border.Padding` given a staged `Ramp`: a property not taken from objects takes the staged
+/// object out of the tree and refuses it. The `typed` side stages the ramp and takes it out, so the
+/// gap is the access's check and its error.
+fn refused_object(c: &mut Criterion) {
+  let (mut tree, node) = one(Border::TYPE_INFO);
+  let new_ramp = constructor(Ramp::TYPE_INFO);
+  let padding = access(Border::TYPE_INFO, "Padding");
+  let loaded = |tree: &mut UiTree, _: &str| {
+    let ramp = new_ramp(tree);
+    let refused = (padding.set_object)(tree, node, ramp, Precedence::Local);
+    black_box(refused).expect_err("a Thickness isn't taken from an object");
+  };
+  let typed = |tree: &mut UiTree, _: &str| {
+    let ramp = new_ramp(tree);
+    black_box(tree.take(ramp));
+  };
+  let staged = new_ramp(&mut tree);
+  assert_eq!(
+    (padding.set_object)(&mut tree, node, staged, Precedence::Local),
+    Err(ValueError::WrongType {
+      expected: "Thickness",
+      found: "an object",
+    })
+  );
+  assert!(!tree.contains(staged), "the refused object is taken out of the tree");
+
+  compare(c, "loader/refused_object", &mut tree, PADDINGS, loaded, typed);
+}
+
 criterion_group!(
   benches,
   own_property,
@@ -304,6 +374,8 @@ criterion_group!(
   object_property,
   gradient_property,
   value_collection,
-  value_field_clear
+  value_field_clear,
+  node_property,
+  refused_object
 );
 criterion_main!(benches);
