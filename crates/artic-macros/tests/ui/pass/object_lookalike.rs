@@ -1,7 +1,7 @@
 // A trait in scope that would take any staged object as a default value changes nothing: the
 // generated code names each value's object route by its full path, so a property not taken from
 // objects still takes the staged object out of the tree and refuses it.
-#![allow(dead_code)]
+#![allow(dead_code, reason = "the lookalike items only have to be in scope")]
 
 use artic_core::property::{Precedence, Property};
 use artic_core::tree::{NodeId, UiTree};

@@ -1,6 +1,6 @@
 // A trait in scope with the routes' method names, implemented for every type, changes nothing:
 // the generated code names each value's route by its full path, so the real conversions run.
-#![allow(dead_code)]
+#![allow(dead_code, reason = "the lookalike items only have to be in scope")]
 
 use artic_core::property::{Precedence, Property};
 use artic_core::tree::{NodeId, UiTree};

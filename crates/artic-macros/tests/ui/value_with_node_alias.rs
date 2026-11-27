@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(dead_code, reason = "the lookalike items only have to be in scope")]
 
 use artic_core::tree::NodeId;
 use artic_macros::UiType;
