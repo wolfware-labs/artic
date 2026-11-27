@@ -118,7 +118,6 @@ pub fn type_names(types: &[&TypeInfo]) -> String {
 #[cfg(test)]
 pub(crate) mod tests {
   use super::*;
-  use crate::Whitespace;
   use artic_core::property::PropertyVisitor;
   use pretty_assertions::assert_eq;
 
@@ -132,21 +131,7 @@ pub(crate) mod tests {
 
   /// A descriptor named `name` that recognizes nodes with `is`, kept for the whole test run.
   fn info(name: &'static str, is: fn(&dyn Object) -> bool) -> &'static TypeInfo {
-    Box::leak(Box::new(TypeInfo {
-      name,
-      rust_path: name,
-      is,
-      new: None,
-      content: None,
-      properties: &[],
-      groups: &[],
-      events: &[],
-      attached_properties: &[],
-      value_provider: None,
-      whitespace: Whitespace::Collapse,
-      code_type_root: false,
-      kind: crate::TypeKind::Node,
-    }))
+    Box::leak(Box::new(TypeInfo::node(name, name, is)))
   }
 
   /// The descriptors of `Leaf` and of two types no node here has, `Other` and `Third`.

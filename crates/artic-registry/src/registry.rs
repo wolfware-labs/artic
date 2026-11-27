@@ -136,7 +136,7 @@ impl Registry {
 mod tests {
   use super::*;
   use crate::collection::tests::Leaf;
-  use crate::{AttachedTarget, PropertyGroupInfo, PropertyInfo, Whitespace};
+  use crate::{AttachedTarget, PropertyGroupInfo, PropertyInfo};
   use artic_core::property::Affects;
   use artic_core::tree::{NodeId, UiTree};
   use pretty_assertions::assert_eq;
@@ -147,32 +147,11 @@ mod tests {
 
   /// Returns a descriptor with no properties, events or attached properties.
   const fn info(name: &'static str, rust_path: &'static str) -> TypeInfo {
-    TypeInfo {
-      name,
-      rust_path,
-      is: crate::is_a::<Leaf>,
-      new: Some(new_node),
-      content: None,
-      properties: &[],
-      groups: &[],
-      events: &[],
-      attached_properties: &[],
-      value_provider: None,
-      whitespace: Whitespace::Collapse,
-      code_type_root: false,
-      kind: crate::TypeKind::Node,
-    }
+    TypeInfo::node(name, rust_path, crate::is_a::<Leaf>).with_new(new_node)
   }
 
-  static GROUP: [PropertyInfo; 1] = [PropertyInfo {
-    name: "Margin",
-    field: "margin",
-    value_type: "Thickness",
-    affects: Affects::LAYOUT,
-    inherits: false,
-    literal: None,
-    access: &crate::access::tests::UNWRITTEN,
-  }];
+  static GROUP: [PropertyInfo; 1] =
+    [PropertyInfo::new("Margin", "margin", "Thickness", &crate::access::tests::UNWRITTEN).with_affects(Affects::LAYOUT)];
   static GROUPS: [PropertyGroupInfo; 1] = [PropertyGroupInfo {
     field: "layout",
     properties: &GROUP,
@@ -182,10 +161,7 @@ mod tests {
   // A type's properties include its groups', each with the field of the group it lives in.
   #[test]
   fn property_lookup_searches_groups() {
-    let info = TypeInfo {
-      groups: &GROUPS,
-      ..info("Border", "artic_controls::Border")
-    };
+    let info = info("Border", "artic_controls::Border").with_groups(&GROUPS);
 
     let found = info.property("Margin").expect("Margin, from the group");
     assert_eq!(found.group, Some("layout"));
@@ -195,20 +171,10 @@ mod tests {
   // A type's own property named like a group's is a duplicate.
   #[test]
   fn own_property_shadowing_a_group_is_a_duplicate() {
-    static OWN: [PropertyInfo; 1] = [PropertyInfo {
-      name: "Margin",
-      field: "margin",
-      value_type: "f32",
-      affects: Affects::NONE,
-      inherits: false,
-      literal: None,
-      access: &crate::access::tests::UNWRITTEN,
-    }];
-    static BORDER: TypeInfo = TypeInfo {
-      properties: &OWN,
-      groups: &GROUPS,
-      ..info("Border", "artic_controls::Border")
-    };
+    static OWN: [PropertyInfo; 1] = [PropertyInfo::new("Margin", "margin", "f32", &crate::access::tests::UNWRITTEN)];
+    static BORDER: TypeInfo = info("Border", "artic_controls::Border")
+      .with_properties(&OWN)
+      .with_groups(&GROUPS);
 
     let error = Registry::from_types(&[&BORDER]).unwrap_err();
     assert_eq!(
@@ -222,15 +188,12 @@ mod tests {
 
   static BUTTON: TypeInfo = info("Button", "artic_controls::Button");
   static GAUGE: TypeInfo = info("Gauge", "app::views::Gauge");
-  static GRID: TypeInfo = TypeInfo {
-    attached_properties: &[AttachedPropertyInfo {
-      name: "Row",
-      value_type: "usize",
-      target: AttachedTarget::ChildrenOfOwner,
-      literal: None,
-    }],
-    ..info("Grid", "artic_controls::Grid")
-  };
+  static GRID: TypeInfo = info("Grid", "artic_controls::Grid").with_attached_properties(&[AttachedPropertyInfo {
+    name: "Row",
+    value_type: "usize",
+    target: AttachedTarget::ChildrenOfOwner,
+    literal: None,
+  }]);
 
   static HOME_PAGE: TypeInfo = info("Page", "my_app::home::Page");
   static SETTINGS_PAGE: TypeInfo = info("Page", "my_app::settings::Page");
@@ -349,23 +312,20 @@ mod tests {
   // Every duplicate is reported at once, sorted, whatever order the types came in.
   #[test]
   fn every_duplicate_is_reported_in_sorted_order() {
-    static GRID_AGAIN: TypeInfo = TypeInfo {
-      attached_properties: &[
-        AttachedPropertyInfo {
-          name: "Row",
-          value_type: "usize",
-          target: AttachedTarget::ChildrenOfOwner,
-          literal: None,
-        },
-        AttachedPropertyInfo {
-          name: "Row",
-          value_type: "usize",
-          target: AttachedTarget::ChildrenOfOwner,
-          literal: None,
-        },
-      ],
-      ..info("Grid", "artic_controls::Grid")
-    };
+    static GRID_AGAIN: TypeInfo = info("Grid", "artic_controls::Grid").with_attached_properties(&[
+      AttachedPropertyInfo {
+        name: "Row",
+        value_type: "usize",
+        target: AttachedTarget::ChildrenOfOwner,
+        literal: None,
+      },
+      AttachedPropertyInfo {
+        name: "Row",
+        value_type: "usize",
+        target: AttachedTarget::ChildrenOfOwner,
+        literal: None,
+      },
+    ]);
 
     let forward = Registry::from_types(&[&GRID, &GRID_AGAIN, &BUTTON]).expect_err("duplicates");
     let backward = Registry::from_types(&[&BUTTON, &GRID_AGAIN, &GRID]).expect_err("duplicates");

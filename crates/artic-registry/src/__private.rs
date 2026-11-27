@@ -515,15 +515,7 @@ mod tests {
 
   /// A group property whose field is written `field`.
   fn property(field: &'static str) -> PropertyInfo {
-    PropertyInfo {
-      name: "Width",
-      field,
-      value_type: "f32",
-      affects: Affects::LAYOUT,
-      inherits: false,
-      literal: None,
-      access: &crate::access::tests::UNWRITTEN,
-    }
+    PropertyInfo::new("Width", field, "f32", &crate::access::tests::UNWRITTEN).with_affects(Affects::LAYOUT)
   }
 
   // A raw field and a plain one of the same name clash, either way round, since both get the
@@ -544,21 +536,7 @@ mod tests {
     const TYPE_INFO: &'static TypeInfo = &GAUGE;
   }
 
-  static GAUGE: TypeInfo = TypeInfo {
-    name: "Gauge",
-    rust_path: "tests::Gauge",
-    is: |_| false,
-    new: None,
-    content: None,
-    properties: &[],
-    groups: &[],
-    events: &[],
-    attached_properties: &[],
-    value_provider: None,
-    whitespace: Whitespace::Collapse,
-    code_type_root: false,
-    kind: TypeKind::Node,
-  };
+  static GAUGE: TypeInfo = TypeInfo::node("Gauge", "tests::Gauge", |_| false);
 
   // The check resolves for a FromStr type, a UI type and a child node, and a plain field's check
   // for the first two. A type that is none of them fails to compile, which the derive's

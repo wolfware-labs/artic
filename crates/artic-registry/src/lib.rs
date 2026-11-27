@@ -44,7 +44,7 @@ use linkme::distributed_slice;
 /// use artic_core::Object;
 /// use artic_core::property::PropertyVisitor;
 /// use artic_core::tree::{NodeId, UiTree};
-/// use artic_registry::{Registry, TypeInfo, TypeKind, Whitespace, is_a};
+/// use artic_registry::{Registry, TypeInfo, is_a};
 ///
 /// #[derive(Debug)]
 /// struct Gauge;
@@ -52,21 +52,8 @@ use linkme::distributed_slice;
 ///   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 /// }
 ///
-/// static GAUGE: TypeInfo = TypeInfo {
-///   name: "Gauge",
-///   rust_path: "my_app::views::Gauge",
-///   is: is_a::<Gauge>,
-///   new: Some(|tree: &mut UiTree| -> NodeId { tree.alloc(Box::new(Gauge)) }),
-///   content: None,
-///   properties: &[],
-///   groups: &[],
-///   events: &[],
-///   attached_properties: &[],
-///   value_provider: None,
-///   whitespace: Whitespace::Collapse,
-///   code_type_root: false,
-///   kind: TypeKind::Node,
-/// };
+/// static GAUGE: TypeInfo = TypeInfo::node("Gauge", "my_app::views::Gauge", is_a::<Gauge>)
+///   .with_new(|tree: &mut UiTree| -> NodeId { tree.alloc(Box::new(Gauge)) });
 ///
 /// artic_registry::register_type!(GAUGE);
 ///
@@ -103,7 +90,7 @@ pub static UI_TYPES: [&'static TypeInfo];
 /// use artic_core::Object;
 /// use artic_core::property::PropertyVisitor;
 /// use artic_core::tree::{NodeId, UiTree};
-/// use artic_registry::{Registry, TypeInfo, TypeKind, Whitespace, is_a};
+/// use artic_registry::{Registry, TypeInfo, is_a};
 ///
 /// #[derive(Debug)]
 /// struct Dial;
@@ -111,21 +98,8 @@ pub static UI_TYPES: [&'static TypeInfo];
 ///   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 /// }
 ///
-/// static DIAL: TypeInfo = TypeInfo {
-///   name: "Dial",
-///   rust_path: "my_app::views::Dial",
-///   is: is_a::<Dial>,
-///   new: Some(|tree: &mut UiTree| -> NodeId { tree.alloc(Box::new(Dial)) }),
-///   content: None,
-///   properties: &[],
-///   groups: &[],
-///   events: &[],
-///   attached_properties: &[],
-///   value_provider: None,
-///   whitespace: Whitespace::Collapse,
-///   code_type_root: false,
-///   kind: TypeKind::Node,
-/// };
+/// static DIAL: TypeInfo = TypeInfo::node("Dial", "my_app::views::Dial", is_a::<Dial>)
+///   .with_new(|tree: &mut UiTree| -> NodeId { tree.alloc(Box::new(Dial)) });
 ///
 /// artic_registry::register_type!(DIAL);
 ///
