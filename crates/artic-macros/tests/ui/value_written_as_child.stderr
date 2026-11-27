@@ -1,0 +1,14 @@
+error[E0277]: `Telemetry` can't be written the way its `Written` impl says
+  --> tests/ui/value_written_as_child.rs:16:21
+   |
+16 |   reading: Property<Telemetry>,
+   |                     ^^^^^^^^^ the trait `artic_registry::__private::Route<Telemetry>` is not implemented for `AsChild`
+   |
+   = note: a value written as text (`AsText`) implements `FromStr` and `ToRust`, one written as an object (`AsObject`) derives `UiType`, and only `NodeId` is written as a child (`AsChild`)
+help: the trait `Route<Telemetry>` is not implemented for `AsChild`
+      but trait `Route<NodeId>` is implemented for it
+  --> $WORKSPACE/crates/artic-registry/src/__private.rs
+   |
+   | impl Route<NodeId> for AsChild {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: for that trait implementation, expected `NodeId`, found `Telemetry`

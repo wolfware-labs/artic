@@ -1,7 +1,7 @@
 error[E0277]: a value's `#[ui]` fields are plain data, not a `NodeId`
-  --> tests/ui/value_with_node_alias.rs:10:18
+  --> tests/ui/value_with_node_alias.rs:38:18
    |
-10 |   sample: Option<Sample>,
+38 |   sample: Option<Sample>,
    |                  ^^^^^^ its node would stay in the tree with no owner once the value is taken out
    |
    = help: the trait `artic_registry::__private::PlainRoute<NodeId>` is not implemented for `AsChild`
