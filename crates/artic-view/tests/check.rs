@@ -4,6 +4,7 @@ mod common;
 
 use artic_diagnostics::Diagnostic;
 use artic_view::document::{Content, Document, Member, Text, TypeUse};
+use artic_view::testing::*;
 use artic_view::{CheckedContent, FieldVisibility, check};
 use common::*;
 use pretty_assertions::assert_eq;
@@ -13,9 +14,10 @@ use pretty_assertions::assert_eq;
 fn unknown_property_is_reported_at_its_name() {
   let document = Document {
     root: element(
+      file(),
       &PANEL,
       0,
-      vec![property_problem("Height", 10, "value objects come with #438")],
+      vec![property_problem(file(), "Height", 10, "value objects come with #438")],
     ),
   };
 
@@ -32,40 +34,55 @@ fn unknown_property_is_reported_at_its_name() {
 fn value_is_reported_where_an_element_goes() {
   let as_child = Document {
     root: element(
+      file(),
       &PANEL,
       0,
-      vec![content(5, vec![Content::Element(element(&TINT, 10, Vec::new()))])],
+      vec![content(
+        file(),
+        5,
+        vec![Content::Element(element(file(), &TINT, 10, Vec::new()))],
+      )],
     ),
   };
   let as_root = Document {
-    root: element(&TINT, 0, Vec::new()),
+    root: element(file(), &TINT, 0, Vec::new()),
   };
 
   let in_a_list = Document {
     root: element(
+      file(),
       &GALLERY,
       0,
-      vec![content(5, vec![Content::Element(element(&TINT, 10, Vec::new()))])],
+      vec![content(
+        file(),
+        5,
+        vec![Content::Element(element(file(), &TINT, 10, Vec::new()))],
+      )],
     ),
   };
   let in_no_content = Document {
     root: element(
+      file(),
       &IMAGE,
       0,
-      vec![content(5, vec![Content::Element(element(&TINT, 10, Vec::new()))])],
+      vec![content(
+        file(),
+        5,
+        vec![Content::Element(element(file(), &TINT, 10, Vec::new()))],
+      )],
     ),
   };
 
   let beside_a_child = |nodes| Document {
-    root: element(&FRAME, 0, vec![content(5, nodes)]),
+    root: element(file(), &FRAME, 0, vec![content(file(), 5, nodes)]),
   };
   let value_second = beside_a_child(vec![
-    Content::Element(element(&PANEL, 10, Vec::new())),
-    Content::Element(element(&TINT, 20, Vec::new())),
+    Content::Element(element(file(), &PANEL, 10, Vec::new())),
+    Content::Element(element(file(), &TINT, 20, Vec::new())),
   ]);
   let value_first = beside_a_child(vec![
-    Content::Element(element(&TINT, 10, Vec::new())),
-    Content::Element(element(&PANEL, 20, Vec::new())),
+    Content::Element(element(file(), &TINT, 10, Vec::new())),
+    Content::Element(element(file(), &PANEL, 20, Vec::new())),
   ]);
 
   let (child_view, child_diagnostics) = check(&as_child);
@@ -85,9 +102,9 @@ fn value_is_reported_where_an_element_goes() {
 // children are still checked.
 #[test]
 fn type_without_new_is_reported_at_its_element() {
-  let login = element(&LOGIN, 10, vec![property("Width", 20, "4")]);
+  let login = element(file(), &LOGIN, 10, vec![property(file(), "Width", 20, "4")]);
   let document = Document {
-    root: element(&PANEL, 0, vec![content(5, vec![Content::Element(login)])]),
+    root: element(file(), &PANEL, 0, vec![content(file(), 5, vec![Content::Element(login)])]),
   };
 
   let (_, diagnostics) = check(&document);
@@ -105,7 +122,7 @@ fn type_without_new_is_reported_at_its_element() {
 #[test]
 fn event_names_its_issue() {
   let document = Document {
-    root: element(&PANEL, 0, vec![property("Click", 10, "on_click")]),
+    root: element(file(), &PANEL, 0, vec![property(file(), "Click", 10, "on_click")]),
   };
 
   let (_, diagnostics) = check(&document);
@@ -117,14 +134,19 @@ fn event_names_its_issue() {
 #[test]
 fn property_set_twice_points_at_both() {
   let document = Document {
-    root: element(&PANEL, 0, vec![property("Width", 10, "1"), property("Width", 20, "2")]),
+    root: element(
+      file(),
+      &PANEL,
+      0,
+      vec![property(file(), "Width", 10, "1"), property(file(), "Width", 20, "2")],
+    ),
   };
 
   let (view, diagnostics) = check(&document);
 
   assert_eq!(reported(&diagnostics), [at("`Width` is set twice", 21)]);
   let diagnostic = diagnostics.iter().next().expect("one diagnostic");
-  assert_eq!(diagnostic.labels[0].span, span(11, 12));
+  assert_eq!(diagnostic.labels[0].span, span(file(), 11, 12));
   assert_eq!(view.elements[0].properties.len(), 1);
   assert_eq!(view.elements[0].properties[0].1.text, "1");
 }
@@ -133,7 +155,12 @@ fn property_set_twice_points_at_both() {
 #[test]
 fn value_problem_is_reported_once_its_property_is_found() {
   let document = Document {
-    root: element(&PANEL, 0, vec![property_problem("Width", 10, "`{Binding}` comes with #94")]),
+    root: element(
+      file(),
+      &PANEL,
+      0,
+      vec![property_problem(file(), "Width", 10, "`{Binding}` comes with #94")],
+    ),
   };
 
   let (view, diagnostics) = check(&document);
@@ -146,7 +173,7 @@ fn value_problem_is_reported_once_its_property_is_found() {
 #[test]
 fn content_text_sets_the_content_property() {
   let document = Document {
-    root: element(&LABEL, 0, vec![content(20, vec![text("Hello", 21)])]),
+    root: element(file(), &LABEL, 0, vec![content(file(), 20, vec![text(file(), "Hello", 21)])]),
   };
 
   let (view, diagnostics) = check(&document);
@@ -154,7 +181,7 @@ fn content_text_sets_the_content_property() {
   assert!(diagnostics.is_empty(), "{diagnostics}");
   let (property, value) = &view.elements[0].properties[0];
   assert_eq!(property.info.name, "Text");
-  assert_eq!((value.text.as_str(), value.span), ("Hello", span(20, 21)));
+  assert_eq!((value.text.as_str(), value.span), ("Hello", span(file(), 20, 21)));
 }
 
 // A content property reads the text after the language's rules, whitespace significant or not:
@@ -164,10 +191,10 @@ fn content_text_reads_the_ruled_text() {
   let raw = Content::Text {
     text: "a b".to_owned(),
     raw: " a  b ".to_owned(),
-    span: span(21, 22),
+    span: span(file(), 21, 22),
   };
   let document = Document {
-    root: element(&CODE, 0, vec![content(20, vec![raw])]),
+    root: element(file(), &CODE, 0, vec![content(file(), 20, vec![raw])]),
   };
 
   let (view, _) = check(&document);
@@ -180,9 +207,13 @@ fn content_text_reads_the_ruled_text() {
 fn content_text_and_its_attribute_are_set_twice() {
   let document = Document {
     root: element(
+      file(),
       &LABEL,
       0,
-      vec![property("Text", 10, "Hi"), content(20, vec![text("Hello", 21)])],
+      vec![
+        property(file(), "Text", 10, "Hi"),
+        content(file(), 20, vec![text(file(), "Hello", 21)]),
+      ],
     ),
   };
 
@@ -196,9 +227,13 @@ fn content_text_and_its_attribute_are_set_twice() {
 // never checked and the text isn't set.
 #[test]
 fn element_in_content_text_ends_the_content() {
-  let nodes = vec![text("a", 21), Content::Element(unknown(22, Vec::new())), text("b", 30)];
+  let nodes = vec![
+    text(file(), "a", 21),
+    Content::Element(unknown(file(), 22, Vec::new())),
+    text(file(), "b", 30),
+  ];
   let document = Document {
-    root: element(&LABEL, 0, vec![content(20, nodes)]),
+    root: element(file(), &LABEL, 0, vec![content(file(), 20, nodes)]),
   };
 
   let (view, diagnostics) = check(&document);
@@ -212,11 +247,11 @@ fn element_in_content_text_ends_the_content() {
 #[test]
 fn one_child_counts_every_element() {
   let nodes = vec![
-    Content::Element(unknown(21, Vec::new())),
-    Content::Element(element(&IMAGE, 30, Vec::new())),
+    Content::Element(unknown(file(), 21, Vec::new())),
+    Content::Element(element(file(), &IMAGE, 30, Vec::new())),
   ];
   let document = Document {
-    root: element(&FRAME, 0, vec![content(20, nodes)]),
+    root: element(file(), &FRAME, 0, vec![content(file(), 20, nodes)]),
   };
 
   let (view, diagnostics) = check(&document);
@@ -232,11 +267,11 @@ fn one_child_counts_every_element() {
 #[test]
 fn one_child_with_two_keeps_none() {
   let nodes = vec![
-    Content::Element(element(&IMAGE, 21, Vec::new())),
-    Content::Element(element(&IMAGE, 30, Vec::new())),
+    Content::Element(element(file(), &IMAGE, 21, Vec::new())),
+    Content::Element(element(file(), &IMAGE, 30, Vec::new())),
   ];
   let document = Document {
-    root: element(&FRAME, 0, vec![content(20, nodes)]),
+    root: element(file(), &FRAME, 0, vec![content(file(), 20, nodes)]),
   };
 
   let (view, diagnostics) = check(&document);
@@ -248,9 +283,13 @@ fn one_child_with_two_keeps_none() {
 // Text among children is reported with a hint, and blank text is ignored.
 #[test]
 fn text_among_children_is_reported_with_help() {
-  let nodes = vec![blank(20), text("hi", 21), Content::Element(element(&IMAGE, 30, Vec::new()))];
+  let nodes = vec![
+    blank(file(), 20),
+    text(file(), "hi", 21),
+    Content::Element(element(file(), &IMAGE, 30, Vec::new())),
+  ];
   let document = Document {
-    root: element(&PANEL, 0, vec![content(20, nodes)]),
+    root: element(file(), &PANEL, 0, vec![content(file(), 20, nodes)]),
   };
 
   let (view, diagnostics) = check(&document);
@@ -264,9 +303,14 @@ fn text_among_children_is_reported_with_help() {
 // A type that takes no content reports its text and its elements, and still checks the elements.
 #[test]
 fn no_content_reports_and_still_checks_elements() {
-  let child = element(&PANEL, 30, vec![property("Height", 31, "1")]);
+  let child = element(file(), &PANEL, 30, vec![property(file(), "Height", 31, "1")]);
   let document = Document {
-    root: element(&IMAGE, 0, vec![content(20, vec![text("x", 21), Content::Element(child)])]),
+    root: element(
+      file(),
+      &IMAGE,
+      0,
+      vec![content(file(), 20, vec![text(file(), "x", 21), Content::Element(child)])],
+    ),
   };
 
   let (view, diagnostics) = check(&document);
@@ -288,10 +332,15 @@ fn no_content_reports_and_still_checks_elements() {
 #[test]
 fn value_collection_never_reaches_its_elements() {
   let filled = Document {
-    root: element(&STOPS, 0, vec![content(20, vec![Content::Element(unknown(21, Vec::new()))])]),
+    root: element(
+      file(),
+      &STOPS,
+      0,
+      vec![content(file(), 20, vec![Content::Element(unknown(file(), 21, Vec::new()))])],
+    ),
   };
   let blank_only = Document {
-    root: element(&STOPS, 0, vec![content(20, vec![blank(20)])]),
+    root: element(file(), &STOPS, 0, vec![content(file(), 20, vec![blank(file(), 20)])]),
   };
 
   let (_, filled) = check(&filled);
@@ -304,9 +353,14 @@ fn value_collection_never_reaches_its_elements() {
 // A name that isn't a field is reported, with the reason as help, each time it's written.
 #[test]
 fn invalid_name_is_reported_each_time() {
-  let child = element(&IMAGE, 20, vec![name("1x", 25)]);
+  let child = element(file(), &IMAGE, 20, vec![name(file(), "1x", 25)]);
   let document = Document {
-    root: element(&PANEL, 0, vec![name("1x", 5), content(19, vec![Content::Element(child)])]),
+    root: element(
+      file(),
+      &PANEL,
+      0,
+      vec![name(file(), "1x", 5), content(file(), 19, vec![Content::Element(child)])],
+    ),
   };
 
   let (view, diagnostics) = check(&document);
@@ -323,16 +377,21 @@ fn invalid_name_is_reported_each_time() {
 // Two elements with one name are reported at the second, pointing at the first, which keeps it.
 #[test]
 fn two_elements_with_one_name() {
-  let child = element(&IMAGE, 21, vec![name("email", 30)]);
+  let child = element(file(), &IMAGE, 21, vec![name(file(), "email", 30)]);
   let document = Document {
-    root: element(&PANEL, 0, vec![name("email", 10), content(20, vec![Content::Element(child)])]),
+    root: element(
+      file(),
+      &PANEL,
+      0,
+      vec![name(file(), "email", 10), content(file(), 20, vec![Content::Element(child)])],
+    ),
   };
 
   let (view, diagnostics) = check(&document);
 
   assert_eq!(reported(&diagnostics), [at("`email` names two elements", 30)]);
   let diagnostic = diagnostics.iter().next().expect("one diagnostic");
-  assert_eq!(diagnostic.labels[0].span, span(10, 11));
+  assert_eq!(diagnostic.labels[0].span, span(file(), 10, 11));
   assert_eq!(diagnostic.help, None);
   assert_eq!(view.names.len(), 1);
   assert_eq!((view.names[0].name.text.as_str(), view.names[0].element), ("email", 1));
@@ -341,9 +400,14 @@ fn two_elements_with_one_name() {
 // Two names with one snake_case field name two elements, and the help names both spellings.
 #[test]
 fn two_spellings_of_one_field() {
-  let child = element(&IMAGE, 21, vec![name("Email", 30)]);
+  let child = element(file(), &IMAGE, 21, vec![name(file(), "Email", 30)]);
   let document = Document {
-    root: element(&PANEL, 0, vec![name("email", 10), content(20, vec![Content::Element(child)])]),
+    root: element(
+      file(),
+      &PANEL,
+      0,
+      vec![name(file(), "email", 10), content(file(), 20, vec![Content::Element(child)])],
+    ),
   };
 
   let (view, diagnostics) = check(&document);
@@ -360,9 +424,14 @@ fn two_spellings_of_one_field() {
 // Each checked name carries the field it gives, in the order the elements are built.
 #[test]
 fn checked_name_carries_its_field() {
-  let child = element(&IMAGE, 21, vec![name("EmailAddress", 30)]);
+  let child = element(file(), &IMAGE, 21, vec![name(file(), "EmailAddress", 30)]);
   let document = Document {
-    root: element(&PANEL, 0, vec![name("Type", 10), content(20, vec![Content::Element(child)])]),
+    root: element(
+      file(),
+      &PANEL,
+      0,
+      vec![name(file(), "Type", 10), content(file(), 20, vec![Content::Element(child)])],
+    ),
   };
 
   let (view, diagnostics) = check(&document);
@@ -380,14 +449,15 @@ fn checked_name_carries_its_field() {
 // but not its properties.
 #[test]
 fn unknown_type_still_checks_its_name_and_children() {
-  let child = element(&PANEL, 21, vec![property("Height", 22, "1")]);
+  let child = element(file(), &PANEL, 21, vec![property(file(), "Height", 22, "1")]);
   let document = Document {
     root: unknown(
+      file(),
       0,
       vec![
-        name("1x", 5),
-        property("Width", 10, "1"),
-        content(20, vec![Content::Element(child)]),
+        name(file(), "1x", 5),
+        property(file(), "Width", 10, "1"),
+        content(file(), 20, vec![Content::Element(child)]),
       ],
     ),
   };
@@ -410,10 +480,10 @@ fn unknown_type_still_checks_its_name_and_children() {
 #[test]
 fn unsupported_member_is_reported_on_any_element() {
   let found = Document {
-    root: element(&PANEL, 0, vec![unsupported(10)]),
+    root: element(file(), &PANEL, 0, vec![unsupported(file(), 10)]),
   };
   let missing = Document {
-    root: unknown(0, vec![unsupported(10)]),
+    root: unknown(file(), 0, vec![unsupported(file(), 10)]),
   };
 
   let (_, found) = check(&found);
@@ -429,9 +499,12 @@ fn unsupported_member_is_reported_on_any_element() {
 // A problem keyed `once` is reported at its first use only.
 #[test]
 fn once_problem_is_reported_once() {
-  let nodes = vec![Content::Element(undeclared(20)), Content::Element(undeclared(30))];
+  let nodes = vec![
+    Content::Element(undeclared(file(), 20)),
+    Content::Element(undeclared(file(), 30)),
+  ];
   let document = Document {
-    root: element(&PANEL, 0, vec![content(19, nodes)]),
+    root: element(file(), &PANEL, 0, vec![content(file(), 19, nodes)]),
   };
 
   let (_, diagnostics) = check(&document);
@@ -442,10 +515,15 @@ fn once_problem_is_reported_once() {
 // A `once` problem the walk never reaches doesn't spend its key: the next reached use reports it.
 #[test]
 fn once_key_is_spent_only_where_reached() {
-  let stops = element(&STOPS, 20, vec![content(21, vec![Content::Element(undeclared(22))])]);
-  let nodes = vec![Content::Element(stops), Content::Element(undeclared(40))];
+  let stops = element(
+    file(),
+    &STOPS,
+    20,
+    vec![content(file(), 21, vec![Content::Element(undeclared(file(), 22))])],
+  );
+  let nodes = vec![Content::Element(stops), Content::Element(undeclared(file(), 40))];
   let document = Document {
-    root: element(&PANEL, 0, vec![content(19, nodes)]),
+    root: element(file(), &PANEL, 0, vec![content(file(), 19, nodes)]),
   };
 
   let (_, diagnostics) = check(&document);
@@ -462,10 +540,13 @@ fn once_key_is_spent_only_where_reached() {
 // The view lists children before their parent, the root last, with its span and its names.
 #[test]
 fn view_lists_children_first() {
-  let label = element(&LABEL, 30, vec![content(31, vec![text("Hi", 32)])]);
-  let nodes = vec![Content::Element(element(&IMAGE, 20, Vec::new())), Content::Element(label)];
+  let label = element(file(), &LABEL, 30, vec![content(file(), 31, vec![text(file(), "Hi", 32)])]);
+  let nodes = vec![
+    Content::Element(element(file(), &IMAGE, 20, Vec::new())),
+    Content::Element(label),
+  ];
   let document = Document {
-    root: element(&PANEL, 0, vec![name("form", 5), content(19, nodes)]),
+    root: element(file(), &PANEL, 0, vec![name(file(), "form", 5), content(file(), 19, nodes)]),
   };
 
   let (view, diagnostics) = check(&document);
@@ -474,7 +555,7 @@ fn view_lists_children_first() {
   let names: Vec<&str> = view.elements.iter().map(|element| element.ty.info.name).collect();
   assert_eq!(names, ["Image", "Label", "Panel"]);
   assert_eq!(view.root, Some(2));
-  assert_eq!(view.span, span(0, 1));
+  assert_eq!(view.span, span(file(), 0, 1));
   assert_eq!(view.elements[2].content, CheckedContent::Children(vec![0, 1]));
   assert_eq!((view.names[0].name.text.as_str(), view.names[0].element), ("form", 2));
 }
@@ -483,21 +564,24 @@ fn view_lists_children_first() {
 #[test]
 fn code_type_on_the_root_is_kept() {
   let document = Document {
-    root: element(&HOST, 0, vec![code_type("app::views::Login", 5)]),
+    root: element(file(), &HOST, 0, vec![code_type(file(), "app::views::Login", 5)]),
   };
 
   let (view, diagnostics) = check(&document);
 
   assert!(diagnostics.is_empty());
   let code_type = view.code_type.expect("a code type");
-  assert_eq!((code_type.text.as_str(), code_type.span), ("app::views::Login", span(5, 6)));
+  assert_eq!(
+    (code_type.text.as_str(), code_type.span),
+    ("app::views::Login", span(file(), 5, 6))
+  );
 }
 
 // A view without a code type has none.
 #[test]
 fn a_view_without_a_code_type_has_none() {
   let document = Document {
-    root: element(&HOST, 0, Vec::new()),
+    root: element(file(), &HOST, 0, Vec::new()),
   };
 
   let (view, diagnostics) = check(&document);
@@ -509,9 +593,9 @@ fn a_view_without_a_code_type_has_none() {
 // A code type written below the root is reported there and isn't the view's.
 #[test]
 fn code_type_below_the_root_is_reported() {
-  let child = element(&HOST, 21, vec![code_type("app::views::Login", 25)]);
+  let child = element(file(), &HOST, 21, vec![code_type(file(), "app::views::Login", 25)]);
   let document = Document {
-    root: element(&PANEL, 0, vec![content(20, vec![Content::Element(child)])]),
+    root: element(file(), &PANEL, 0, vec![content(file(), 20, vec![Content::Element(child)])]),
   };
 
   let (view, diagnostics) = check(&document);
@@ -527,14 +611,19 @@ fn code_type_below_the_root_is_reported() {
 #[test]
 fn code_type_named_twice_points_at_both() {
   let document = Document {
-    root: element(&HOST, 0, vec![code_type("app::One", 5), code_type("app::Two", 9)]),
+    root: element(
+      file(),
+      &HOST,
+      0,
+      vec![code_type(file(), "app::One", 5), code_type(file(), "app::Two", 9)],
+    ),
   };
 
   let (view, diagnostics) = check(&document);
 
   assert_eq!(reported(&diagnostics), [at("the code type is named twice", 9)]);
   let diagnostic = diagnostics.iter().next().expect("one diagnostic");
-  assert_eq!(diagnostic.labels[0].span, span(5, 6));
+  assert_eq!(diagnostic.labels[0].span, span(file(), 5, 6));
   assert_eq!(view.code_type.map(|code_type| code_type.text).as_deref(), Some("app::One"));
 }
 
@@ -544,7 +633,7 @@ fn code_type_named_twice_points_at_both() {
 fn code_type_root_content_is_a_child_or_children() {
   for (root, name) in [(&CAPTION, "Caption"), (&BAG, "Bag")] {
     let document = Document {
-      root: element(root, 0, vec![code_type("app::views::Login", 5)]),
+      root: element(file(), root, 0, vec![code_type(file(), "app::views::Login", 5)]),
     };
 
     let (_, diagnostics) = check(&document);
@@ -568,7 +657,7 @@ fn code_type_root_content_is_a_child_or_children() {
 #[test]
 fn code_type_root_with_a_child_is_accepted() {
   let document = Document {
-    root: element(&HOST, 0, vec![code_type("app::views::Login", 5)]),
+    root: element(file(), &HOST, 0, vec![code_type(file(), "app::views::Login", 5)]),
   };
 
   let (_, diagnostics) = check(&document);
@@ -580,7 +669,7 @@ fn code_type_root_with_a_child_is_accepted() {
 #[test]
 fn root_type_must_allow_a_code_type() {
   let document = Document {
-    root: element(&PANEL, 0, vec![code_type("app::views::Login", 5)]),
+    root: element(file(), &PANEL, 0, vec![code_type(file(), "app::views::Login", 5)]),
   };
 
   let (_, diagnostics) = check(&document);
@@ -595,7 +684,7 @@ fn root_type_must_allow_a_code_type() {
 #[test]
 fn unknown_root_reports_only_its_type() {
   let document = Document {
-    root: unknown(0, vec![code_type("app::views::Login", 5)]),
+    root: unknown(file(), 0, vec![code_type(file(), "app::views::Login", 5)]),
   };
 
   let (_, diagnostics) = check(&document);
@@ -608,11 +697,11 @@ fn unknown_root_reports_only_its_type() {
 #[test]
 fn named_code_type_root_is_reported() {
   for members in [
-    vec![name("login", 5), code_type("app::views::Login", 9)],
-    vec![code_type("app::views::Login", 9), name("login", 5)],
+    vec![name(file(), "login", 5), code_type(file(), "app::views::Login", 9)],
+    vec![code_type(file(), "app::views::Login", 9), name(file(), "login", 5)],
   ] {
     let document = Document {
-      root: element(&HOST, 0, members),
+      root: element(file(), &HOST, 0, members),
     };
 
     let (view, diagnostics) = check(&document);
@@ -630,14 +719,14 @@ fn named_code_type_root_is_reported() {
 #[test]
 fn root_name_leaves_a_child_its_name() {
   for members in [
-    [name("login", 5), code_type("app::views::Login", 9)],
-    [code_type("app::views::Login", 9), name("login", 5)],
+    [name(file(), "login", 5), code_type(file(), "app::views::Login", 9)],
+    [code_type(file(), "app::views::Login", 9), name(file(), "login", 5)],
   ] {
-    let child = element(&IMAGE, 30, vec![name("login", 31)]);
+    let child = element(file(), &IMAGE, 30, vec![name(file(), "login", 31)]);
     let mut members = members.to_vec();
-    members.push(content(19, vec![Content::Element(child)]));
+    members.push(content(file(), 19, vec![Content::Element(child)]));
     let document = Document {
-      root: element(&HOST, 0, members),
+      root: element(file(), &HOST, 0, members),
     };
 
     let (view, diagnostics) = check(&document);
@@ -655,12 +744,22 @@ fn root_name_leaves_a_child_its_name() {
 #[test]
 fn field_visibility_is_kept_with_its_name() {
   let children = [
-    element(&IMAGE, 20, vec![name("a", 21), visibility("pub", 22)]),
-    element(&IMAGE, 30, vec![visibility("pub(crate)", 31), name("b", 32)]),
-    element(&IMAGE, 40, vec![name("c", 41)]),
+    element(file(), &IMAGE, 20, vec![name(file(), "a", 21), visibility(file(), "pub", 22)]),
+    element(
+      file(),
+      &IMAGE,
+      30,
+      vec![visibility(file(), "pub(crate)", 31), name(file(), "b", 32)],
+    ),
+    element(file(), &IMAGE, 40, vec![name(file(), "c", 41)]),
   ];
   let document = Document {
-    root: element(&PANEL, 0, vec![content(10, children.map(Content::Element).into())]),
+    root: element(
+      file(),
+      &PANEL,
+      0,
+      vec![content(file(), 10, children.map(Content::Element).into())],
+    ),
   };
 
   let (view, diagnostics) = check(&document);
@@ -683,7 +782,7 @@ fn field_visibility_is_kept_with_its_name() {
 fn other_field_visibility_is_reported() {
   for text in ["pub(super)", "private", " pub", "pub(crate) ", ""] {
     let document = Document {
-      root: element(&PANEL, 0, vec![name("panel", 5), visibility(text, 9)]),
+      root: element(file(), &PANEL, 0, vec![name(file(), "panel", 5), visibility(file(), text, 9)]),
     };
 
     let (view, diagnostics) = check(&document);
@@ -707,10 +806,10 @@ fn other_field_visibility_is_reported() {
 #[test]
 fn field_visibility_needs_a_name() {
   let unnamed = Document {
-    root: element(&PANEL, 0, vec![visibility("pub", 9)]),
+    root: element(file(), &PANEL, 0, vec![visibility(file(), "pub", 9)]),
   };
   let misnamed = Document {
-    root: element(&PANEL, 0, vec![name("1x", 5), visibility("pub", 9)]),
+    root: element(file(), &PANEL, 0, vec![name(file(), "1x", 5), visibility(file(), "pub", 9)]),
   };
 
   let (_, unnamed) = check(&unnamed);
@@ -726,12 +825,13 @@ fn field_visibility_needs_a_name() {
 fn front_end_problems_are_reported() {
   let document = Document {
     root: element(
+      file(),
       &HOST,
       0,
       vec![
-        Member::CodeType(Err(Diagnostic::error(span(5, 6), "takes text").into())),
-        name("host", 7),
-        Member::FieldVisibility(Err(Diagnostic::error(span(9, 10), "takes text").into())),
+        Member::CodeType(Err(Diagnostic::error(span(file(), 5, 6), "takes text").into())),
+        name(file(), "host", 7),
+        Member::FieldVisibility(Err(Diagnostic::error(span(file(), 9, 10), "takes text").into())),
       ],
     ),
   };
@@ -748,10 +848,17 @@ fn front_end_problems_are_reported() {
 // adds nothing.
 #[test]
 fn text_becomes_wrapper_elements() {
-  let image = || Content::Element(element(&IMAGE, 30, Vec::new()));
-  let nodes = vec![blank(10), text("Hello ", 20), image(), blank(40), image(), blank(50)];
+  let image = || Content::Element(element(file(), &IMAGE, 30, Vec::new()));
+  let nodes = vec![
+    blank(file(), 10),
+    text(file(), "Hello ", 20),
+    image(),
+    blank(file(), 40),
+    image(),
+    blank(file(), 50),
+  ];
   let document = Document {
-    root: element(&PARAGRAPH, 0, vec![content(5, nodes)]),
+    root: element(file(), &PARAGRAPH, 0, vec![content(file(), 5, nodes)]),
   };
 
   let (view, diagnostics) = check(&document);
@@ -770,9 +877,14 @@ fn text_becomes_wrapper_elements() {
 // Text written as nothing between two elements adds no space, even in a significant type.
 #[test]
 fn empty_text_between_elements_adds_nothing() {
-  let image = || Content::Element(element(&IMAGE, 30, Vec::new()));
+  let image = || Content::Element(element(file(), &IMAGE, 30, Vec::new()));
   let document = Document {
-    root: element(&PARAGRAPH, 0, vec![content(5, vec![image(), text("", 40), image()])]),
+    root: element(
+      file(),
+      &PARAGRAPH,
+      0,
+      vec![content(file(), 5, vec![image(), text(file(), "", 40), image()])],
+    ),
   };
 
   let (view, _) = check(&document);
@@ -783,9 +895,14 @@ fn empty_text_between_elements_adds_nothing() {
 // Blank text between two elements adds nothing in a type whose whitespace collapses.
 #[test]
 fn blank_text_between_elements_adds_nothing_when_it_collapses() {
-  let image = || Content::Element(element(&IMAGE, 30, Vec::new()));
+  let image = || Content::Element(element(file(), &IMAGE, 30, Vec::new()));
   let document = Document {
-    root: element(&PANEL, 0, vec![content(5, vec![image(), blank(40), image()])]),
+    root: element(
+      file(),
+      &PANEL,
+      0,
+      vec![content(file(), 5, vec![image(), blank(file(), 40), image()])],
+    ),
   };
 
   let (view, _) = check(&document);
@@ -797,7 +914,7 @@ fn blank_text_between_elements_adds_nothing_when_it_collapses() {
 #[test]
 fn a_wrapper_without_a_content_property_reports_the_text() {
   let document = Document {
-    root: element(&SHELF, 0, vec![content(5, vec![text("Hi", 20)])]),
+    root: element(file(), &SHELF, 0, vec![content(file(), 5, vec![text(file(), "Hi", 20)])]),
   };
 
   let (_, diagnostics) = check(&document);
@@ -810,7 +927,7 @@ fn a_wrapper_without_a_content_property_reports_the_text() {
 fn a_wrapper_the_collection_cannot_use_reports_the_text() {
   for (collection, name) in [(&PINBOARD, "Pinboard"), (&GALLERY, "Gallery")] {
     let document = Document {
-      root: element(collection, 0, vec![content(5, vec![text("Hi", 20)])]),
+      root: element(file(), collection, 0, vec![content(file(), 5, vec![text(file(), "Hi", 20)])]),
     };
 
     let (_, diagnostics) = check(&document);
@@ -823,12 +940,17 @@ fn a_wrapper_the_collection_cannot_use_reports_the_text() {
 // significant: only blank text with an element on each side counts as a space.
 #[test]
 fn blank_text_at_the_edges_adds_nothing() {
-  let image = || Content::Element(element(&IMAGE, 30, Vec::new()));
+  let image = || Content::Element(element(file(), &IMAGE, 30, Vec::new()));
   let document = Document {
     root: element(
+      file(),
       &PARAGRAPH,
       0,
-      vec![content(5, vec![blank(10), image(), text("x", 40), image(), blank(50)])],
+      vec![content(
+        file(),
+        5,
+        vec![blank(file(), 10), image(), text(file(), "x", 40), image(), blank(file(), 50)],
+      )],
     ),
   };
 
@@ -843,9 +965,14 @@ fn blank_text_at_the_edges_adds_nothing() {
 // isn't reported: there is no text to report.
 #[test]
 fn blank_text_without_a_wrapper_is_not_reported() {
-  let image = || Content::Element(element(&IMAGE, 30, Vec::new()));
+  let image = || Content::Element(element(file(), &IMAGE, 30, Vec::new()));
   let document = Document {
-    root: element(&SHELF, 0, vec![content(5, vec![image(), blank(40), image()])]),
+    root: element(
+      file(),
+      &SHELF,
+      0,
+      vec![content(file(), 5, vec![image(), blank(file(), 40), image()])],
+    ),
   };
 
   let (view, diagnostics) = check(&document);
@@ -858,17 +985,18 @@ fn blank_text_without_a_wrapper_is_not_reported() {
 // root or on a child of another type; one for any element is kept on the root.
 #[test]
 fn attached_target_follows_the_parent() {
-  let inside = element(&IMAGE, 20, vec![attached(&RACK, "Slot", 30, "1")]);
-  let outside = element(&IMAGE, 50, vec![attached(&RACK, "Slot", 60, "2")]);
-  let panel = element(&PANEL, 40, vec![content(45, vec![Content::Element(outside)])]);
+  let inside = element(file(), &IMAGE, 20, vec![attached(file(), &RACK, "Slot", 30, "1")]);
+  let outside = element(file(), &IMAGE, 50, vec![attached(file(), &RACK, "Slot", 60, "2")]);
+  let panel = element(file(), &PANEL, 40, vec![content(file(), 45, vec![Content::Element(outside)])]);
   let document = Document {
     root: element(
+      file(),
       &RACK,
       0,
       vec![
-        attached(&RACK, "Tag", 5, "top"),
-        attached(&RACK, "Slot", 8, "0"),
-        content(10, vec![Content::Element(inside), Content::Element(panel)]),
+        attached(file(), &RACK, "Tag", 5, "top"),
+        attached(file(), &RACK, "Slot", 8, "0"),
+        content(file(), 10, vec![Content::Element(inside), Content::Element(panel)]),
       ],
     ),
   };
@@ -887,9 +1015,9 @@ fn attached_target_follows_the_parent() {
 // is kept.
 #[test]
 fn attached_target_inside_an_unknown_type_is_kept() {
-  let child = element(&IMAGE, 20, vec![attached(&RACK, "Slot", 30, "1")]);
+  let child = element(file(), &IMAGE, 20, vec![attached(file(), &RACK, "Slot", 30, "1")]);
   let document = Document {
-    root: unknown(0, vec![content(10, vec![Content::Element(child)])]),
+    root: unknown(file(), 0, vec![content(file(), 10, vec![Content::Element(child)])]),
   };
 
   let (view, diagnostics) = check(&document);
@@ -903,34 +1031,35 @@ fn attached_target_inside_an_unknown_type_is_kept() {
 #[test]
 fn attached_problems_are_reported() {
   let missing_owner = Member::Attached {
-    owner: Err(Diagnostic::error(span(20, 21), "no type `Dock`").into()),
+    owner: Err(Diagnostic::error(span(file(), 20, 21), "no type `Dock`").into()),
     name: "Side".to_owned(),
-    span: span(20, 21),
+    span: span(file(), 20, 21),
     value: Ok(Text {
       text: "Left".to_owned(),
-      span: span(21, 22),
+      span: span(file(), 21, 22),
     }),
   };
   let bad_value = Member::Attached {
     owner: Ok(TypeUse {
       info: &RACK,
       module: None,
-      span: span(30, 31),
+      span: span(file(), 30, 31),
     }),
     name: "Tag".to_owned(),
-    span: span(30, 31),
-    value: Err(Diagnostic::error(span(31, 32), "value objects come with #438").into()),
+    span: span(file(), 30, 31),
+    value: Err(Diagnostic::error(span(file(), 31, 32), "value objects come with #438").into()),
   };
   let document = Document {
     root: element(
+      file(),
       &IMAGE,
       0,
       vec![
-        attached(&RACK, "Bogus", 10, "1"),
+        attached(file(), &RACK, "Bogus", 10, "1"),
         missing_owner,
         bad_value,
-        attached(&RACK, "Tag", 40, "a"),
-        attached(&RACK, "Tag", 50, "b"),
+        attached(file(), &RACK, "Tag", 40, "a"),
+        attached(file(), &RACK, "Tag", 50, "b"),
       ],
     ),
   };
@@ -954,12 +1083,16 @@ fn attached_problems_are_reported() {
 #[test]
 fn two_attached_properties_of_one_owner_are_both_kept() {
   let child = element(
+    file(),
     &IMAGE,
     20,
-    vec![attached(&RACK, "Slot", 30, "1"), attached(&RACK, "Tag", 40, "a")],
+    vec![
+      attached(file(), &RACK, "Slot", 30, "1"),
+      attached(file(), &RACK, "Tag", 40, "a"),
+    ],
   );
   let document = Document {
-    root: element(&RACK, 0, vec![content(10, vec![Content::Element(child)])]),
+    root: element(file(), &RACK, 0, vec![content(file(), 10, vec![Content::Element(child)])]),
   };
 
   let (view, diagnostics) = check(&document);

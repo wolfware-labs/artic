@@ -513,6 +513,7 @@ dependencies = [
  "artic-diagnostics",
  "artic-ident",
  "artic-registry",
+ "artic-view",
  "pretty_assertions",
  "syn 3.0.9",
 ]
