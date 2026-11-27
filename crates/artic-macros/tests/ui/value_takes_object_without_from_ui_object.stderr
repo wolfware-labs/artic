@@ -1,0 +1,20 @@
+error[E0277]: the trait bound `Telemetry: UiValue` is not satisfied
+  --> tests/ui/value_takes_object_without_from_ui_object.rs:32:21
+   |
+32 |   reading: Property<Telemetry>,
+   |                     ^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `UiValue` is not implemented for `Telemetry`
+  --> tests/ui/value_takes_object_without_from_ui_object.rs:8:1
+   |
+ 8 | struct Telemetry;
+   | ^^^^^^^^^^^^^^^^
+help: the trait `artic_registry::__private::ObjectRoute<V>` is conditionally implemented for `TakesObject`
+  --> $WORKSPACE/crates/artic-registry/src/__private.rs
+   |
+   | impl<V: FromUiObject> ObjectRoute<V> for TakesObject {
+   | ^^^^^^^^------------^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |         |
+   |         unsatisfied requirement introduced here: `Telemetry: FromUiObject`
+   = note: required for `Telemetry` to implement `FromUiObject`
+   = note: required for `TakesObject` to implement `artic_registry::__private::ObjectRoute<Telemetry>`

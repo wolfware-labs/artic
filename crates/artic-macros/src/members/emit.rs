@@ -77,14 +77,19 @@ pub fn properties_static(owner: &Ident, members: &Members) -> TokenStream {
 }
 
 /// The `__checks` function, never called, whose body fails to compile when a property's value
-/// type can't be written in a UI language or a flattened field isn't a group, followed by the
-/// derive's `extra_checks`.
+/// type can't be written in a UI language, its object route can't take it from an object, or a
+/// flattened field isn't a group, followed by the derive's `extra_checks`.
 pub fn checks(members: &Members, extra_checks: impl IntoIterator<Item = TokenStream>) -> TokenStream {
   let values = members
     .properties
     .iter()
-    .map(|field| value_check(field.value))
-    .chain(members.values.iter().map(|field| plain_value_check(field.value)));
+    .flat_map(|field| [value_check(field.value), object_check(field.value)])
+    .chain(
+      members
+        .values
+        .iter()
+        .flat_map(|field| [plain_value_check(field.value), object_check(field.value)]),
+    );
   let groups = members.groups.iter().map(|group| {
     let ty = group.ty;
     quote_spanned!(ty.span()=> __artic::assert_property_group::<#ty>();)
@@ -269,9 +274,7 @@ fn access_tokens(access: &Access) -> TokenStream {
     })
   };
   let ops = value_ops(value);
-  let object_ops = quote_spanned!(value.span()=>
-    <<#value as __artic::Written>::FromObject as __artic::ObjectRoute<#value>>::object_ops()
-  );
+  let object_ops = object_ops(value);
   let parsed = set(quote!((#ops.parse)(text, ::core::stringify!(#value))?));
   let node_value = set(quote!((#ops.node)(child, ::core::stringify!(#value))?));
   let object = set(quote!((#object_ops.take)(tree, node, object, ::core::stringify!(#value))?));
@@ -360,6 +363,22 @@ pub fn value_check(value: &Type) -> TokenStream {
 fn plain_value_check(value: &Type) -> TokenStream {
   quote_spanned!(value.span()=>
     <<#value as __artic::Written>::As as __artic::PlainRoute<#value>>::plain_value_ops();
+  )
+}
+
+/// The check that a property's value type can be taken from an object the way its `Written` impl
+/// says, pointing at the type: the thunks the `access` feature keeps convert through this route,
+/// so the check keeps a crate that builds without the feature from breaking once one turns it on.
+fn object_check(value: &Type) -> TokenStream {
+  let ops = object_ops(value);
+  quote_spanned!(value.span()=> #ops;)
+}
+
+/// The `ObjectOps` the loader's `set_object` thunk converts with, pointing at the type: the object
+/// route the value type's `Written` impl names, by a fully qualified path.
+fn object_ops(value: &Type) -> TokenStream {
+  quote_spanned!(value.span()=>
+    <<#value as __artic::Written>::FromObject as __artic::ObjectRoute<#value>>::object_ops()
   )
 }
 

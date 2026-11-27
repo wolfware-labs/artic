@@ -178,6 +178,46 @@ impl<V> PlainRoute<V> for AsObject where AsObject: Route<V> {}
 
 /// How a staged object becomes a value of type `V`, as the marker `Self` says: generated code
 /// names it as `<<V as Written>::FromObject as ObjectRoute<V>>`.
+///
+/// The derive checks every property's object route outside the thunks the `access` feature keeps,
+/// so a value type whose `Written` impl says it takes objects but which can't be taken from one
+/// fails to compile with the feature off too:
+///
+/// ```compile_fail,E0277
+/// use artic_core::property::Property;
+/// use artic_core::{AsText, RustExpr, TakesObject, ToRust, Written};
+/// use artic_macros::UiType;
+/// use std::convert::Infallible;
+/// use std::str::FromStr;
+///
+/// #[derive(Debug, Default, PartialEq)]
+/// struct Telemetry;
+///
+/// impl FromStr for Telemetry {
+///   type Err = Infallible;
+///
+///   fn from_str(_text: &str) -> Result<Self, Self::Err> {
+///     Ok(Telemetry)
+///   }
+/// }
+///
+/// impl ToRust for Telemetry {
+///   fn to_rust(&self, out: &mut RustExpr) {
+///     out.raw("Telemetry");
+///   }
+/// }
+///
+/// impl Written for Telemetry {
+///   type As = AsText;
+///   type FromObject = TakesObject;
+/// }
+///
+/// #[derive(Debug, UiType)]
+/// struct Gauge {
+///   #[ui]
+///   reading: Property<Telemetry>,
+/// }
+/// ```
 pub trait ObjectRoute<V> {
   /// Gives the conversion that takes the staged object out of the tree as the value of the
   /// owner's property, or refuses it.

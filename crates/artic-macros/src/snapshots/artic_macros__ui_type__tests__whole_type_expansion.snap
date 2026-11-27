@@ -487,9 +487,21 @@ const _: () = {
     #[allow(dead_code)]
     fn __checks() {
         <<f32 as __artic::Written>::As as __artic::Route<f32>>::value_ops();
+        <<f32 as __artic::Written>::FromObject as __artic::ObjectRoute<
+            f32,
+        >>::object_ops();
         <<bool as __artic::Written>::As as __artic::Route<bool>>::value_ops();
+        <<bool as __artic::Written>::FromObject as __artic::ObjectRoute<
+            bool,
+        >>::object_ops();
         <<i32 as __artic::Written>::As as __artic::Route<i32>>::value_ops();
+        <<i32 as __artic::Written>::FromObject as __artic::ObjectRoute<
+            i32,
+        >>::object_ops();
         <<String as __artic::Written>::As as __artic::Route<String>>::value_ops();
+        <<String as __artic::Written>::FromObject as __artic::ObjectRoute<
+            String,
+        >>::object_ops();
         __artic::assert_property_group::<Layout>();
         <<usize as __artic::Written>::As as __artic::Route<usize>>::value_ops();
         <<usize as __artic::Written>::As as __artic::Route<usize>>::value_ops();

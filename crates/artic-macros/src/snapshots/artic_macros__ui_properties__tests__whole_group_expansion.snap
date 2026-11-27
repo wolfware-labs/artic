@@ -137,7 +137,13 @@ const _: () = {
     #[allow(dead_code)]
     fn __checks() {
         <<f32 as __artic::Written>::As as __artic::Route<f32>>::value_ops();
+        <<f32 as __artic::Written>::FromObject as __artic::ObjectRoute<
+            f32,
+        >>::object_ops();
         <<Thickness as __artic::Written>::As as __artic::Route<Thickness>>::value_ops();
+        <<Thickness as __artic::Written>::FromObject as __artic::ObjectRoute<
+            Thickness,
+        >>::object_ops();
     }
 };
 ///The builder methods of the `Layout` group, on every type that flattens it.
