@@ -253,7 +253,6 @@ dependencies = [
  "artic-macros",
  "artic-registry",
  "artic-render",
- "artic-style",
  "artic-test",
  "codspeed-criterion-compat",
  "pretty_assertions",

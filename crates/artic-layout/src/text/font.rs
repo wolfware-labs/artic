@@ -141,7 +141,7 @@ pub struct ParseFontFamilyError {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum FamilyProblem {
   /// The text is empty, or only whitespace.
-  #[error("it's empty")]
+  #[error("it is empty")]
   Empty,
   /// A name between commas is empty, as in `Inter,,Arial`, or a quoted name is, as in `''`.
   #[error("a name is empty")]
@@ -594,7 +594,7 @@ mod tests {
     assert_eq!(problem(""), FamilyProblem::Empty);
     assert_eq!(
       "  ".parse::<FontFamily>().unwrap_err().to_string(),
-      "invalid FontFamily '  ': it's empty; expected forms like 'Inter, sans-serif' or 'system-ui'"
+      "invalid FontFamily '  ': it is empty; expected forms like 'Inter, sans-serif' or 'system-ui'"
     );
   }
 

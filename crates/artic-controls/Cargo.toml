@@ -15,7 +15,6 @@ artic-element.workspace = true
 artic-registry.workspace = true
 artic-layout.workspace = true
 artic-render.workspace = true
-artic-style.workspace = true
 artic-macros.workspace = true
 
 [dev-dependencies]

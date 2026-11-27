@@ -200,11 +200,10 @@ fn stale_ids_have_no_element() {
 /// prelude, so it compiles only if the macro names everything by its full path.
 #[no_implicit_prelude]
 mod hygiene {
-  #[allow(dead_code)]
+  #[expect(dead_code, reason = "only there to shadow the name the macro must not use")]
   struct Element;
-  #[allow(dead_code)]
+  #[expect(dead_code, reason = "only there to shadow the name the macro must not use")]
   struct Any;
-  #[allow(dead_code)]
   mod linkme {}
 
   ::artic_element::element_type!(super::Block);

@@ -34,6 +34,10 @@ name = "hello"
 path = "examples/hello/main.rs"
 test = true
 
+[[example]]
+name = "smoke"
+test = true
+
 [[test]]
 name = "window"
 harness = false

@@ -17,6 +17,7 @@ impl Object for OtherControl {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
+// `get_as` finds a node as its own type and as no other.
 #[test]
 fn get_as_wrong_type_returns_none() {
   let mut tree = UiTree::new();
@@ -25,6 +26,8 @@ fn get_as_wrong_type_returns_none() {
   assert_eq!(tree.get_as::<Control>(n1), Some(&Control));
   assert!(tree.get_as::<OtherControl>(n1).is_none());
 }
+
+// `get_as_mut` finds nothing when asked for another type.
 #[test]
 fn get_as_mut_wrong_type_returns_none() {
   let mut tree = UiTree::new();
@@ -39,6 +42,7 @@ impl Object for Counter {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
+// Nodes of two types live in one tree, each found only as its own type.
 #[test]
 fn nodes_of_different_types_share_one_arena() {
   let mut tree = UiTree::new();
@@ -51,6 +55,7 @@ fn nodes_of_different_types_share_one_arena() {
   assert!(tree.get_as::<Control>(counter).is_none());
 }
 
+// A change made through `get_as_mut` shows through `get_as`.
 #[test]
 fn get_as_mut_changes_are_visible_through_get_as() {
   let mut tree = UiTree::new();
@@ -59,6 +64,7 @@ fn get_as_mut_changes_are_visible_through_get_as() {
   assert_eq!(tree.get_as::<Counter>(n1), Some(&Counter(2)));
 }
 
+// `get` and `get_mut` give the node as an `Object`.
 #[test]
 fn get_and_get_mut_return_the_node_as_object() {
   let mut tree = UiTree::new();
@@ -67,6 +73,7 @@ fn get_and_get_mut_return_the_node_as_object() {
   assert_eq!(format!("{:?}", tree.get_mut(n1).unwrap()), "Counter(3)");
 }
 
+// A freed id reaches nothing through any accessor once its slot is reused.
 #[test]
 fn stale_id_returns_none_from_every_accessor() {
   let mut tree = UiTree::new();
@@ -97,6 +104,7 @@ fn bits_name_one_node_for_its_life() {
   assert_eq!(first.to_bits() as u32, reused.to_bits() as u32);
 }
 
+// A copied id equals the original, and two nodes' ids differ.
 #[test]
 fn copied_node_ids_are_equal_and_distinct_nodes_are_not() {
   let mut tree = UiTree::new();
@@ -107,6 +115,7 @@ fn copied_node_ids_are_equal_and_distinct_nodes_are_not() {
   assert_ne!(n1, n2);
 }
 
+// A default tree holds no node.
 #[test]
 fn default_tree_arena_is_empty() {
   let tree = UiTree::default();

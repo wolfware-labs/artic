@@ -2,6 +2,7 @@ use artic_core::Object;
 use artic_core::property::PropertyVisitor;
 use artic_core::tree::UiTree;
 
+// A node allocated from outside the crate is found again as its own type.
 #[test]
 fn allocate_control() {
   #[derive(Debug, PartialEq, Eq)]

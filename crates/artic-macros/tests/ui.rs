@@ -2,6 +2,7 @@
 // its `.stderr` file; each `tests/ui/pass/*.rs` file must build and run. Regenerate the errors
 // with `TRYBUILD=overwrite`.
 
+// Every compile-fail case fails with its expected error, and every pass case builds and runs.
 #[test]
 fn ui() {
   let cases = trybuild::TestCases::new();

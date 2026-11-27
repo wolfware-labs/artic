@@ -29,7 +29,7 @@ CI runs these on every pull request. Run them locally before pushing:
 | Layering | `cargo test -p docs-check --test layers` and `cargo deny check bans` | Docs, Test, Deny |
 | UI-language neutral | `scripts/check-ui-neutral.sh` | Lint |
 | Checkout credentials (every `actions/checkout` sets `persist-credentials: false`; needs [yq](https://github.com/mikefarah/yq)) | `scripts/check-checkout-credentials.sh` and its self-test, `scripts/test-check-checkout-credentials.sh` | Lint |
-| Docs | `cargo doc --workspace --no-deps --exclude docs-check` with `RUSTDOCFLAGS=-D warnings` | Docs |
+| Docs | `cargo doc --workspace --no-deps` with `RUSTDOCFLAGS=-D warnings` | Docs |
 | Code in documents | `cargo test -p docs-check` | Docs |
 | Links in documents | `lychee --offline --include-fragments --root-dir "$PWD" '*.md' 'docs/**/*.md'` | Docs |
 | Dependency policy | `cargo deny check` | Deny |

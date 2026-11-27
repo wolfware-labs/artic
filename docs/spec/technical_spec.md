@@ -90,7 +90,7 @@ Each layer builds on the ones below it. The exact dependency edges and the rules
 | `artic-theme` | Default theme: token dictionaries (light, dark, touch density) and the default `ControlTemplate` for every v1 control (D18) | `ArticTheme` |
 | `artic-i18n` | Optional fluent-rs implementation of the `Localizer` trait (D6) | `FluentLocalizer` |
 | `artic-test` | Dev-dependency test utilities: `TestHost`, headless tree helpers, tree serializer (D14) | `TestHost` |
-| `artic-test-fonts` | The test font's files and licence as byte constants, with no dependencies, so `artic-text`'s tests and `artic-test` share one copy | `REGULAR`, `BOLD` |
+| `artic-test-fonts` | The test font's files and license as byte constants, with no dependencies, so `artic-text`'s tests and `artic-test` share one copy | `REGULAR`, `BOLD` |
 | `artic-cli` | `cargo-artic` binary: `check`, `new`, `schema`, `inspect`, `ios`, `android`, `lsp` (D15) | CLI |
 | `artic-lsp` | Language server: source-based type index, diagnostics, completion, hover, navigation, formatting, rename (D21, D22) | `Server` |
 
@@ -390,7 +390,7 @@ pub struct LoginVm {
 impl LoginVm {
     fn can_submit(&self) -> bool { !self.email.get().is_empty() }
     #[command(enabled = can_submit)]
-    async fn sign_in(&self, cx: &VmCx) -> Result<(), AuthError> { … }
+    async fn sign_in(&self, cx: &VmCx) -> Result<(), AuthError> { /* … */ }
 }
 ```
 
@@ -432,9 +432,9 @@ pub trait ElementImpl {                           // what a control writes; #[el
 }
 pub trait HasState<S> { fn state(&self) -> &S; fn state_mut(&mut self) -> &mut S; }
 // State traits: only methods the state determines, defaulted, given by blanket impls
-pub trait Templated: Element + HasState<TemplateState> { fn template(&self) -> &Property<Option<ControlTemplate>> { … } }
-pub trait HasContent: Element + HasState<ContentState> { fn content(&self) -> &Property<Content> { … } }
-pub trait Selecting: Element + HasState<SelectionState> { fn selection(&self) -> &Selection { … } }
+pub trait Templated: Element + HasState<TemplateState> { fn template(&self) -> &Property<Option<ControlTemplate>> { /* … */ } }
+pub trait HasContent: Element + HasState<ContentState> { fn content(&self) -> &Property<Content> { /* … */ } }
+pub trait Selecting: Element + HasState<SelectionState> { fn selection(&self) -> &Selection { /* … */ } }
 impl<T: Element + HasState<ContentState>> HasContent for T {}   // and likewise for the others
 
 #[element]                                        // adds the groups and derive(UiType), which writes Default

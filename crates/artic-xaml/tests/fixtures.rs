@@ -8,6 +8,7 @@ use artic_xaml::parse;
 use std::fmt::Write;
 use std::path::Path;
 
+// Every valid fixture parses, and its infoset matches the snapshot.
 #[test]
 fn valid() {
   insta::glob!("fixtures/valid/**/*.xaml", |path| {
@@ -18,6 +19,7 @@ fn valid() {
   });
 }
 
+// Every invalid fixture fails, and its rendered errors match the snapshot.
 #[test]
 fn invalid() {
   insta::glob!("fixtures/invalid/**/*.xaml", |path| {

@@ -188,7 +188,7 @@ fn opacity_blends_the_layer() {
     let pixels = render(renderer, &mut tree, root, &mut nodes, PixelFormat::Rgba8);
 
     let [r, g, b, a] = pixel(&pixels, 3, 3);
-    assert!(r.abs_diff(128) <= 2 && r == g && g == b, "half-white grey, got {r} {g} {b}");
+    assert!(r.abs_diff(128) <= 2 && r == g && g == b, "half-white gray, got {r} {g} {b}");
     assert_eq!(a, 255);
   });
 }

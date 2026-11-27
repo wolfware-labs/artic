@@ -444,7 +444,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-rust
       - name: Build docs
-        run: cargo doc --workspace --no-deps --exclude docs-check
+        run: cargo doc --workspace --no-deps
       - name: Code in documents
         if: ${{ !cancelled() }}
         run: cargo test -p docs-check
