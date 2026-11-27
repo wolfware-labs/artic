@@ -150,8 +150,7 @@ mod tests {
     TypeInfo::node(name, rust_path, crate::is_a::<Leaf>).with_new(new_node)
   }
 
-  static GROUP: [PropertyInfo; 1] =
-    [PropertyInfo::new("Margin", "margin", "Thickness", &crate::access::tests::UNWRITTEN).with_affects(Affects::LAYOUT)];
+  static GROUP: [PropertyInfo; 1] = [PropertyInfo::new("Margin", "margin", "Thickness").with_affects(Affects::LAYOUT)];
   static GROUPS: [PropertyGroupInfo; 1] = [PropertyGroupInfo {
     field: "layout",
     properties: &GROUP,
@@ -171,7 +170,7 @@ mod tests {
   // A type's own property named like a group's is a duplicate.
   #[test]
   fn own_property_shadowing_a_group_is_a_duplicate() {
-    static OWN: [PropertyInfo; 1] = [PropertyInfo::new("Margin", "margin", "f32", &crate::access::tests::UNWRITTEN)];
+    static OWN: [PropertyInfo; 1] = [PropertyInfo::new("Margin", "margin", "f32")];
     static BORDER: TypeInfo = info("Border", "artic_controls::Border")
       .with_properties(&OWN)
       .with_groups(&GROUPS);

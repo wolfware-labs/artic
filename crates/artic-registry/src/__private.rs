@@ -344,6 +344,30 @@ macro_rules! __literal {
 
 pub use crate::__literal as literal;
 
+/// What `PropertyInfo::access` holds for a property whose thunks are `$access`: `Some` with the
+/// `access` feature, `None` without, so an app without a runtime loader keeps no thunks.
+#[cfg(feature = "access")]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __access {
+  ($access:expr) => {
+    ::core::option::Option::Some($access)
+  };
+}
+
+/// What `PropertyInfo::access` holds for a property whose thunks are `$access`: `Some` with the
+/// `access` feature, `None` without, so an app without a runtime loader keeps no thunks.
+#[cfg(not(feature = "access"))]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __access {
+  ($access:expr) => {
+    ::core::option::Option::None
+  };
+}
+
+pub use crate::__access as access;
+
 /// The function `AttachedPropertyInfo::literal` holds for an attached property of type
 /// `Option<$value>`: it writes the `$value` text gives inside `Some(...)`, since the owner's setter
 /// takes the whole `Option`. `None` without the `literals` feature.
@@ -515,7 +539,7 @@ mod tests {
 
   /// A group property whose field is written `field`.
   fn property(field: &'static str) -> PropertyInfo {
-    PropertyInfo::new("Width", field, "f32", &crate::access::tests::UNWRITTEN).with_affects(Affects::LAYOUT)
+    PropertyInfo::new("Width", field, "f32").with_affects(Affects::LAYOUT)
   }
 
   // A raw field and a plain one of the same name clash, either way round, since both get the

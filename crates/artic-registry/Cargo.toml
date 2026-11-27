@@ -16,6 +16,8 @@ thiserror.workspace = true
 [features]
 # Fills `PropertyInfo::literal`, for a build-time code generator. Apps leave it off.
 literals = []
+# Fills `PropertyInfo::access`, for a runtime loader. Apps without one leave it off.
+access = []
 
 [dev-dependencies]
 artic-macros.workspace = true

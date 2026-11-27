@@ -175,7 +175,7 @@ pub fn property_info(field: &PropertyField) -> TokenStream {
       affects: #key.affects(),
       inherits: #key.inherits(),
       literal: __artic::literal!(#value),
-      access: #access,
+      access: __artic::access!(#access),
     }
   }
 }
@@ -209,7 +209,7 @@ fn value_field_info(owner: &Ident, field: &ValueField) -> TokenStream {
       affects: __artic::Affects::NONE,
       inherits: false,
       literal: __artic::literal!(#value),
-      access: #access,
+      access: __artic::access!(#access),
     }
   }
 }

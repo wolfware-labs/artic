@@ -21,7 +21,7 @@ syn.workspace = true
 [dev-dependencies]
 artic-core.workspace = true
 artic-element.workspace = true
-artic-registry.workspace = true
+artic-registry = { workspace = true, features = ["access"] }
 insta.workspace = true
 pretty_assertions.workspace = true
 prettyplease.workspace = true

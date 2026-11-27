@@ -236,16 +236,18 @@ pub struct PropertyInfo {
   /// what the builder method takes. `Some` only when this crate's `literals` feature is on, which
   /// a build-time code generator turns on; an app's registry holds `None`.
   pub literal: Option<WriteLiteral>,
-  /// How a UI language's runtime loader writes the property.
-  pub access: &'static PropertyAccess,
+  /// How a UI language's runtime loader writes the property. `Some` only when this crate's
+  /// `access` feature is on, which a runtime loader turns on; an app without one keeps no thunks.
+  pub access: Option<&'static PropertyAccess>,
 }
 
 impl PropertyInfo {
-  /// A property named `name`, held in `field`, whose value is of the type at `value_type`,
-  /// written through `access`, usable in a `static`. It starts with [`Affects::NONE`], doesn't
-  /// inherit, and has no [`literal`](PropertyInfo::literal). The `with_*` methods set the others.
+  /// A property named `name`, held in `field`, whose value is of the type at `value_type`, usable
+  /// in a `static`. It starts with [`Affects::NONE`], doesn't inherit, and has no
+  /// [`literal`](PropertyInfo::literal) or [`access`](PropertyInfo::access). The `with_*` methods
+  /// set the others.
   #[must_use]
-  pub const fn new(name: &'static str, field: &'static str, value_type: &'static str, access: &'static PropertyAccess) -> Self {
+  pub const fn new(name: &'static str, field: &'static str, value_type: &'static str) -> Self {
     Self {
       name,
       field,
@@ -253,7 +255,7 @@ impl PropertyInfo {
       affects: Affects::NONE,
       inherits: false,
       literal: None,
-      access,
+      access: None,
     }
   }
 
@@ -275,6 +277,13 @@ impl PropertyInfo {
   #[must_use]
   pub const fn with_literal(mut self, literal: WriteLiteral) -> Self {
     self.literal = Some(literal);
+    self
+  }
+
+  /// The property, written by a runtime loader through `access`.
+  #[must_use]
+  pub const fn with_access(mut self, access: &'static PropertyAccess) -> Self {
+    self.access = Some(access);
     self
   }
 }
@@ -463,11 +472,9 @@ mod tests {
 
   static BORDER: TypeInfo = TypeInfo::node("Border", "artic_controls::Border", crate::is_a::<Border>)
     .with_new(new_border)
-    .with_properties(&[
-      PropertyInfo::new(PADDING.name(), "padding", "f32", &crate::access::tests::UNWRITTEN)
-        .with_affects(PADDING.affects())
-        .with_inherits(PADDING.inherits()),
-    ])
+    .with_properties(&[PropertyInfo::new(PADDING.name(), "padding", "f32")
+      .with_affects(PADDING.affects())
+      .with_inherits(PADDING.inherits())])
     .with_events(&[EventInfo {
       name: "PointerPressed",
       args_type: "artic_core::PointerEvent",
@@ -488,7 +495,7 @@ mod tests {
   }
 
   static DEFAULT_TYPE: TypeInfo = TypeInfo::node("Gauge", "app::Gauge", crate::is_a::<Border>);
-  static DEFAULT_PROPERTY: PropertyInfo = PropertyInfo::new("Text", "text", "String", &crate::access::tests::UNWRITTEN);
+  static DEFAULT_PROPERTY: PropertyInfo = PropertyInfo::new("Text", "text", "String");
 
   // The constructors work in a `static` and leave every other field at its documented default.
   #[test]
@@ -512,7 +519,7 @@ mod tests {
     assert_eq!(DEFAULT_PROPERTY.affects, Affects::NONE);
     assert!(!DEFAULT_PROPERTY.inherits);
     assert!(DEFAULT_PROPERTY.literal.is_none());
-    assert!(std::ptr::eq(DEFAULT_PROPERTY.access, &crate::access::tests::UNWRITTEN));
+    assert!(DEFAULT_PROPERTY.access.is_none());
   }
 
   /// Writes text as a string.
@@ -548,10 +555,11 @@ mod tests {
     }])
     .with_whitespace(Whitespace::Significant)
     .with_code_type_root(true);
-  static SET_PROPERTY: PropertyInfo = PropertyInfo::new("Text", "text", "String", &crate::access::tests::UNWRITTEN)
+  static SET_PROPERTY: PropertyInfo = PropertyInfo::new("Text", "text", "String")
     .with_affects(Affects::LAYOUT)
     .with_inherits(true)
-    .with_literal(quoted);
+    .with_literal(quoted)
+    .with_access(&crate::access::tests::UNWRITTEN);
 
   // Each setter sets its own field, and a chain of them keeps the fields set before it.
   #[test]
@@ -573,6 +581,11 @@ mod tests {
     assert!(SET_TYPE.code_type_root);
     assert_eq!(SET_PROPERTY.affects, Affects::LAYOUT);
     assert!(SET_PROPERTY.inherits);
+    assert!(
+      SET_PROPERTY
+        .access
+        .is_some_and(|access| std::ptr::eq(access, &crate::access::tests::UNWRITTEN))
+    );
     assert_eq!(out.as_str(), r#""Hi""#);
   }
 

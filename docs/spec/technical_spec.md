@@ -151,7 +151,7 @@ Each property gets its own `PropertyKey` unless `#[ui(key = FONT_SIZE)]` names a
 | Item | Fields | Consumer |
 | --- | --- | --- |
 | `TypeInfo` | name, Rust path (its first segment is the namespace, `TypeInfo::namespace()`), `new: Option<fn(&mut UiTree) -> NodeId>` (`None` for a type with a `#[ui(required)]` field, such as a view's code type), content (`ContentInfo`: a property or a collection field), properties, `groups` (flattened property groups such as `Layout`), events, attached properties, `value_provider: Option<&ValueProviderInfo>`, whitespace; planned: `kind` (node or value, from the value objects design) | compiler, loader |
-| `PropertyInfo` | name, Rust field path, value type path, `affects: Layout \| Render`, `inherits`, `access: &PropertyAccess` (typed thunks found by the property's key, see below) | compiler emits `node.field.set(v)` directly; loader calls the `access` thunks |
+| `PropertyInfo` | name, Rust field path, value type path, `affects: Layout \| Render`, `inherits`, `access: Option<&PropertyAccess>` (typed thunks found by the property's key, see below; `Some` only with the registry's `access` feature, which the loader turns on) | compiler emits `node.field.set(v)` directly; loader calls the `access` thunks |
 | `AttachedPropertyInfo` | owner, name, value type, target (`AttachedTarget::ChildrenOfOwner` for `Grid.Row`, `Any` for `Accessibility.Name`) | both |
 | `EventInfo` | name, args type path; planned with event routing: `subscribe: fn(&mut UiTree, NodeId, HandlerId)` | both |
 | `ValueProviderInfo` | positional and named argument schema (the value provider's properties); resolving comes with the loader (M2) | both |

@@ -110,7 +110,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-xaml-lang` | `artic-xaml`, `artic-view`, `artic-registry`, `artic-diagnostics` | `artic`, `artic-core`, `artic-macros`, `artic-view-compiler` |
 | `artic-xaml-runtime` | `artic-xaml` (planned #58), `artic-registry` (planned #58), `artic-core` (planned #58) | none |
 | `artic-element` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-macros` | `artic-text` |
-| `artic-controls` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-element`, `artic-style` (planned #106), `artic-macros` | `artic-test` |
+| `artic-controls` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-element`, `artic-style` (planned #106), `artic-macros` | `artic-registry`, `artic-test` |
 | `artic-platform` | `artic-core`, `artic-layout`, `artic-render`, `artic-element` | `artic-test-fonts`, `artic-text` |
 | `artic-cli` | `artic-xaml` (planned #197), `artic-xaml-lang` (planned #197), `artic-lsp` (planned #197) | none |
 | `artic-lsp` | `artic-xaml` (planned #184), `artic-xaml-lang` (planned #184) | none |

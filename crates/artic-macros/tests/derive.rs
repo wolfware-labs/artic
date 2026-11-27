@@ -838,7 +838,8 @@ fn required_field_is_an_argument_of_new() {
 
 /// The loader's access to `property` of `type_info`, an own property or a group's.
 fn access_of(type_info: &'static TypeInfo, property: &str) -> &'static PropertyAccess {
-  type_info.property(property).expect("the property is registered").info.access
+  let info = type_info.property(property).expect("the property is registered").info;
+  info.access.expect("the access feature is on")
 }
 
 // Text parses with the value type's `FromStr` and lands at the level the loader passes.

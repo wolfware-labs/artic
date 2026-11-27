@@ -6,8 +6,7 @@ use artic_core::Object;
 use artic_core::tree::{NodeId, UiTree};
 use artic_diagnostics::{Diagnostic, SourceId, Span};
 use artic_registry::{
-  ContentInfo, ContentMethod, EventInfo, PropertyAccess, PropertyGroupInfo, PropertyInfo, PropertyRef, RustExpr, TypeInfo,
-  ValueError,
+  ContentInfo, ContentMethod, EventInfo, PropertyGroupInfo, PropertyInfo, PropertyRef, RustExpr, TypeInfo, ValueError,
 };
 
 /// Reads no node: these tests never build a tree.
@@ -24,15 +23,6 @@ pub fn new_node(_tree: &mut UiTree) -> NodeId {
 pub fn add_child(_tree: &mut UiTree, _parent: NodeId, _child: NodeId) -> Result<(), ValueError> {
   unreachable!("these tests never add a child")
 }
-
-/// What the loader would do with a test property: nothing, since these tests never load a view.
-pub static UNWRITTEN: PropertyAccess = PropertyAccess {
-  set_text: |_, _, _, _| Err(ValueError::WrongNode),
-  set_node: |_, _, _, _| Err(ValueError::WrongNode),
-  set_object: |_, _, _, _| Err(ValueError::WrongNode),
-  set_null: |_, _, _| Err(ValueError::WrongNode),
-  clear: |_, _, _| Err(ValueError::WrongNode),
-};
 
 /// A node type named `name` at `rust_path` with no content, properties, groups or events, which
 /// markup can create.
@@ -53,8 +43,8 @@ pub fn string(text: &str, out: &mut RustExpr) -> Result<(), String> {
   Ok(())
 }
 
-static WIDTH: [PropertyInfo; 1] = [PropertyInfo::new("Width", "width", "f32", &UNWRITTEN).with_literal(number)];
-static MARGIN: [PropertyInfo; 1] = [PropertyInfo::new("Margin", "margin", "f32", &UNWRITTEN).with_literal(number)];
+static WIDTH: [PropertyInfo; 1] = [PropertyInfo::new("Width", "width", "f32").with_literal(number)];
+static MARGIN: [PropertyInfo; 1] = [PropertyInfo::new("Margin", "margin", "f32").with_literal(number)];
 static LAYOUT: [PropertyGroupInfo; 1] = [PropertyGroupInfo {
   field: "layout",
   properties: &MARGIN,
@@ -66,7 +56,7 @@ static PANEL_EVENTS: [EventInfo; 1] = [EventInfo {
 }];
 
 /// The property `Text`, written as a string.
-pub static TEXT: [PropertyInfo; 1] = [PropertyInfo::new("Text", "text", "String", &UNWRITTEN).with_literal(string)];
+pub static TEXT: [PropertyInfo; 1] = [PropertyInfo::new("Text", "text", "String").with_literal(string)];
 
 /// Takes any number of children; has `Width`, the group `layout` with `Margin`, and the event
 /// `Click`.

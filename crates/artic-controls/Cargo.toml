@@ -18,6 +18,7 @@ artic-render.workspace = true
 artic-macros.workspace = true
 
 [dev-dependencies]
+artic-registry = { workspace = true, features = ["access"] }
 artic-test.workspace = true
 criterion.workspace = true
 proptest.workspace = true
