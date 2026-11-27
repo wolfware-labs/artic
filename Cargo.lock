@@ -483,6 +483,7 @@ dependencies = [
  "artic-test",
  "artic-test-fonts",
  "artic-text",
+ "codspeed-criterion-compat",
  "pollster",
  "pretty_assertions",
  "skrifa 0.49.0",
