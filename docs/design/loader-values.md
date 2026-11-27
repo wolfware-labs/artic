@@ -166,6 +166,8 @@ Every markup extension, a value provider in [the UI language contract](../spec/d
 
 ## Worked examples
 
+The loader turns on the registry's `access` feature, so each `access` below is the `PropertyAccess` its `Some` holds.
+
 **Attribute text.** `<Border Padding="4,8"/>`
 
 1. The loader resolves `Border` with `Registry::type_by_name` (or `type_by_rust_path` for a `using:` prefix) and creates the node with `TypeInfo::new`, reporting a type that has none, such as a view's code type (#59).

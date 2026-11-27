@@ -1,6 +1,6 @@
 ---
 source: crates/artic-macros/src/ui_type.rs
-expression: "prettyplease::unparse(&file)"
+expression: "unparse(expand(&input).expect(\"valid\"))"
 ---
 const _: () = {
     use ::artic_registry::__private as __artic;
@@ -94,21 +94,38 @@ const _: () = {
             inherits: (&__KEY_WIDTH).inherits(),
             literal: __artic::literal!(f32),
             access: __artic::access!(
-                & __artic::PropertyAccess { set_text : | tree, node, text, level | { let
-                value = (<< f32 as __artic::Written > ::As as __artic::Route < f32 >>
-                ::value_ops().parse) (text, ::core::stringify!(f32)) ?;
-                __artic::set_property(tree, node, (& __KEY_WIDTH), level, value) },
-                set_node : | tree, node, child, level | { let value = (<< f32 as
-                __artic::Written > ::As as __artic::Route < f32 >> ::value_ops().node)
-                (child, ::core::stringify!(f32)) ?; __artic::set_property(tree, node, (&
-                __KEY_WIDTH), level, value) }, set_object : | tree, node, object, level |
-                { let value = (<< f32 as __artic::Written > ::FromObject as
-                __artic::ObjectRoute < f32 >> ::object_ops().take) (tree, node, object,
-                ::core::stringify!(f32)) ?; __artic::set_property(tree, node, (&
-                __KEY_WIDTH), level, value) }, set_null : | _, _, _ |
-                ::core::result::Result::Err(__artic::ValueError::NotNullable { property :
-                (& __KEY_WIDTH).name() }), clear : | tree, node, level |
-                __artic::clear_property(tree, node, (& __KEY_WIDTH), level), }
+                &__artic::PropertyAccess {
+                    set_text: |tree, node, text, level| {
+                        let value = (<<f32 as __artic::Written>::As as __artic::Route<
+                            f32,
+                        >>::value_ops()
+                            .parse)(text, ::core::stringify!(f32))?;
+                        __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
+                    },
+                    set_node: |tree, node, child, level| {
+                        let value = (<<f32 as __artic::Written>::As as __artic::Route<
+                            f32,
+                        >>::value_ops()
+                            .node)(child, ::core::stringify!(f32))?;
+                        __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
+                    },
+                    set_object: |tree, node, object, level| {
+                        let value = (<<f32 as __artic::Written>::FromObject as __artic::ObjectRoute<
+                            f32,
+                        >>::object_ops()
+                            .take)(tree, node, object, ::core::stringify!(f32))?;
+                        __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
+                    },
+                    set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
+                        property: (&__KEY_WIDTH).name(),
+                    }),
+                    clear: |tree, node, level| __artic::clear_property(
+                        tree,
+                        node,
+                        (&__KEY_WIDTH),
+                        level,
+                    ),
+                },
             ),
         },
         __artic::PropertyInfo {
@@ -119,21 +136,38 @@ const _: () = {
             inherits: (&__KEY_ENABLED).inherits(),
             literal: __artic::literal!(bool),
             access: __artic::access!(
-                & __artic::PropertyAccess { set_text : | tree, node, text, level | { let
-                value = (<< bool as __artic::Written > ::As as __artic::Route < bool >>
-                ::value_ops().parse) (text, ::core::stringify!(bool)) ?;
-                __artic::set_property(tree, node, (& __KEY_ENABLED), level, value) },
-                set_node : | tree, node, child, level | { let value = (<< bool as
-                __artic::Written > ::As as __artic::Route < bool >> ::value_ops().node)
-                (child, ::core::stringify!(bool)) ?; __artic::set_property(tree, node, (&
-                __KEY_ENABLED), level, value) }, set_object : | tree, node, object, level
-                | { let value = (<< bool as __artic::Written > ::FromObject as
-                __artic::ObjectRoute < bool >> ::object_ops().take) (tree, node, object,
-                ::core::stringify!(bool)) ?; __artic::set_property(tree, node, (&
-                __KEY_ENABLED), level, value) }, set_null : | _, _, _ |
-                ::core::result::Result::Err(__artic::ValueError::NotNullable { property :
-                (& __KEY_ENABLED).name() }), clear : | tree, node, level |
-                __artic::clear_property(tree, node, (& __KEY_ENABLED), level), }
+                &__artic::PropertyAccess {
+                    set_text: |tree, node, text, level| {
+                        let value = (<<bool as __artic::Written>::As as __artic::Route<
+                            bool,
+                        >>::value_ops()
+                            .parse)(text, ::core::stringify!(bool))?;
+                        __artic::set_property(tree, node, (&__KEY_ENABLED), level, value)
+                    },
+                    set_node: |tree, node, child, level| {
+                        let value = (<<bool as __artic::Written>::As as __artic::Route<
+                            bool,
+                        >>::value_ops()
+                            .node)(child, ::core::stringify!(bool))?;
+                        __artic::set_property(tree, node, (&__KEY_ENABLED), level, value)
+                    },
+                    set_object: |tree, node, object, level| {
+                        let value = (<<bool as __artic::Written>::FromObject as __artic::ObjectRoute<
+                            bool,
+                        >>::object_ops()
+                            .take)(tree, node, object, ::core::stringify!(bool))?;
+                        __artic::set_property(tree, node, (&__KEY_ENABLED), level, value)
+                    },
+                    set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
+                        property: (&__KEY_ENABLED).name(),
+                    }),
+                    clear: |tree, node, level| __artic::clear_property(
+                        tree,
+                        node,
+                        (&__KEY_ENABLED),
+                        level,
+                    ),
+                },
             ),
         },
         __artic::PropertyInfo {
@@ -144,21 +178,38 @@ const _: () = {
             inherits: SHARED.key().inherits(),
             literal: __artic::literal!(i32),
             access: __artic::access!(
-                & __artic::PropertyAccess { set_text : | tree, node, text, level | { let
-                value = (<< i32 as __artic::Written > ::As as __artic::Route < i32 >>
-                ::value_ops().parse) (text, ::core::stringify!(i32)) ?;
-                __artic::set_property(tree, node, SHARED.key(), level, value) }, set_node
-                : | tree, node, child, level | { let value = (<< i32 as __artic::Written
-                > ::As as __artic::Route < i32 >> ::value_ops().node) (child,
-                ::core::stringify!(i32)) ?; __artic::set_property(tree, node, SHARED
-                .key(), level, value) }, set_object : | tree, node, object, level | { let
-                value = (<< i32 as __artic::Written > ::FromObject as
-                __artic::ObjectRoute < i32 >> ::object_ops().take) (tree, node, object,
-                ::core::stringify!(i32)) ?; __artic::set_property(tree, node, SHARED
-                .key(), level, value) }, set_null : | _, _, _ |
-                ::core::result::Result::Err(__artic::ValueError::NotNullable { property :
-                SHARED.key().name() }), clear : | tree, node, level |
-                __artic::clear_property(tree, node, SHARED.key(), level), }
+                &__artic::PropertyAccess {
+                    set_text: |tree, node, text, level| {
+                        let value = (<<i32 as __artic::Written>::As as __artic::Route<
+                            i32,
+                        >>::value_ops()
+                            .parse)(text, ::core::stringify!(i32))?;
+                        __artic::set_property(tree, node, SHARED.key(), level, value)
+                    },
+                    set_node: |tree, node, child, level| {
+                        let value = (<<i32 as __artic::Written>::As as __artic::Route<
+                            i32,
+                        >>::value_ops()
+                            .node)(child, ::core::stringify!(i32))?;
+                        __artic::set_property(tree, node, SHARED.key(), level, value)
+                    },
+                    set_object: |tree, node, object, level| {
+                        let value = (<<i32 as __artic::Written>::FromObject as __artic::ObjectRoute<
+                            i32,
+                        >>::object_ops()
+                            .take)(tree, node, object, ::core::stringify!(i32))?;
+                        __artic::set_property(tree, node, SHARED.key(), level, value)
+                    },
+                    set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
+                        property: SHARED.key().name(),
+                    }),
+                    clear: |tree, node, level| __artic::clear_property(
+                        tree,
+                        node,
+                        SHARED.key(),
+                        level,
+                    ),
+                },
             ),
         },
         __artic::PropertyInfo {
@@ -169,22 +220,48 @@ const _: () = {
             inherits: (&__KEY_TEXT).inherits(),
             literal: __artic::literal!(String),
             access: __artic::access!(
-                & __artic::PropertyAccess { set_text : | tree, node, text, level | { let
-                value = ::core::option::Option::Some((<< String as __artic::Written >
-                ::As as __artic::Route < String >> ::value_ops().parse) (text,
-                ::core::stringify!(String)) ?); __artic::set_property(tree, node, (&
-                __KEY_TEXT), level, value) }, set_node : | tree, node, child, level | {
-                let value = ::core::option::Option::Some((<< String as __artic::Written >
-                ::As as __artic::Route < String >> ::value_ops().node) (child,
-                ::core::stringify!(String)) ?); __artic::set_property(tree, node, (&
-                __KEY_TEXT), level, value) }, set_object : | tree, node, object, level |
-                { let value = ::core::option::Option::Some((<< String as __artic::Written
-                > ::FromObject as __artic::ObjectRoute < String >> ::object_ops().take)
-                (tree, node, object, ::core::stringify!(String)) ?);
-                __artic::set_property(tree, node, (& __KEY_TEXT), level, value) },
-                set_null : | tree, node, level | __artic::set_property(tree, node, (&
-                __KEY_TEXT), level, ::core::option::Option::None), clear : | tree, node,
-                level | __artic::clear_property(tree, node, (& __KEY_TEXT), level), }
+                &__artic::PropertyAccess {
+                    set_text: |tree, node, text, level| {
+                        let value = ::core::option::Option::Some(
+                            (<<String as __artic::Written>::As as __artic::Route<
+                                String,
+                            >>::value_ops()
+                                .parse)(text, ::core::stringify!(String))?,
+                        );
+                        __artic::set_property(tree, node, (&__KEY_TEXT), level, value)
+                    },
+                    set_node: |tree, node, child, level| {
+                        let value = ::core::option::Option::Some(
+                            (<<String as __artic::Written>::As as __artic::Route<
+                                String,
+                            >>::value_ops()
+                                .node)(child, ::core::stringify!(String))?,
+                        );
+                        __artic::set_property(tree, node, (&__KEY_TEXT), level, value)
+                    },
+                    set_object: |tree, node, object, level| {
+                        let value = ::core::option::Option::Some(
+                            (<<String as __artic::Written>::FromObject as __artic::ObjectRoute<
+                                String,
+                            >>::object_ops()
+                                .take)(tree, node, object, ::core::stringify!(String))?,
+                        );
+                        __artic::set_property(tree, node, (&__KEY_TEXT), level, value)
+                    },
+                    set_null: |tree, node, level| __artic::set_property(
+                        tree,
+                        node,
+                        (&__KEY_TEXT),
+                        level,
+                        ::core::option::Option::None,
+                    ),
+                    clear: |tree, node, level| __artic::clear_property(
+                        tree,
+                        node,
+                        (&__KEY_TEXT),
+                        level,
+                    ),
+                },
             ),
         },
     ];

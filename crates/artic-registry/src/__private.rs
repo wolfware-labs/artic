@@ -25,6 +25,8 @@ const TAKES_AN_ELEMENT: &str = "this property takes an element, not text";
 const TEXT: &str = "text";
 /// What a property's thunks say they were given as a node, for [`ValueError::WrongType`].
 const AN_ELEMENT: &str = "an element";
+/// What a property's `set_object` says it was given when its value type isn't taken from an object.
+const AN_OBJECT: &str = "an object";
 
 /// How a property's thunks turn what the loader holds into the value type `V`. The value's
 /// [`Route`] gives it, so a property whose type can't be written in a UI language fails at that
@@ -208,9 +210,6 @@ impl<V> ObjectRoute<V> for RefusesObject {
     }
   }
 }
-
-/// What a property's `set_object` says it was given when its value type isn't taken from an object.
-const AN_OBJECT: &str = "an object";
 
 /// How a property's `set_object` takes a staged object as a value of type `V`. The value's
 /// [`ObjectRoute`] gives it.

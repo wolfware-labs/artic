@@ -9,7 +9,7 @@ help: the trait `Written` is not implemented for `Telemetry`
    |
  5 | struct Telemetry;
    | ^^^^^^^^^^^^^^^^
-   = note: derive `UiType` or `UiEnum`, or implement `FromStr` and `ToRust` and add `artic_core::text_value!(Telemetry)`
+   = note: derive `UiType` or `UiEnum`, or implement `FromStr` and `ToRust` and add `artic::core::text_value!(Telemetry)` (`artic_core::text_value!` without the `artic` crate)
    = help: the following other types implement trait `Written`:
              Gauge
              NodeId

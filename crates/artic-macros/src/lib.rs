@@ -46,12 +46,12 @@ use syn::{DeriveInput, parse_macro_input};
 /// Every `Property<T>` and `Event<A>` field must be marked `#[ui]`:
 ///
 /// - `Property<T>` is a property. `T`, or `X` in `Option<X>`, must implement `Written`: be text,
-///   implementing `FromStr` (with a `Display` error) and `ToRust` beside `artic_core::text_value!`,
-///   or a `UiType`, or a `NodeId`, a property that names a node, such as a data context. Its
-///   settings: `default = expr` for the `Default` level (otherwise `T::default()`),
-///   `affects = layout | render` and `inherits` for its generated key, `key = KEY` to
-///   share a key with other types instead (inheritance across types needs it): a
-///   `static PropertyKey`, or an attached property's key such as `TextElement::FONT_SIZE`, which
+///   implementing `FromStr` (with a `Display` error) and `ToRust` beside `artic::core::text_value!`
+///   (`artic_core::text_value!` without the `artic` crate), or a `UiType`, or a `NodeId`, a
+///   property that names a node, such as a data context. Its settings: `default = expr` for the
+///   `Default` level (otherwise `T::default()`), `affects = layout | render` and `inherits` for
+///   its generated key, `key = KEY` to share a key with other types instead (inheritance across
+///   types needs it): a `static PropertyKey`, or an attached property's key such as `TextElement::FONT_SIZE`, which
 ///   also gives the field its default, so `default` can't go beside it, and `name = "..."` to
 ///   rename it (the field name in PascalCase otherwise).
 ///   A bare `inherits` replaces what the property inherits with its own value; `inherits = f`

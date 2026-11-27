@@ -34,7 +34,7 @@ use crate::tree::NodeId;
 #[diagnostic::on_unimplemented(
   message = "`{Self}` can't be written in a UI language",
   label = "neither text, an object nor a child element",
-  note = "derive `UiType` or `UiEnum`, or implement `FromStr` and `ToRust` and add `artic_core::text_value!({Self})`"
+  note = "derive `UiType` or `UiEnum`, or implement `FromStr` and `ToRust` and add `artic::core::text_value!({Self})` (`artic_core::text_value!` without the `artic` crate)"
 )]
 pub trait Written {
   /// How the value is written: [`AsText`], [`AsObject`] or [`AsChild`].

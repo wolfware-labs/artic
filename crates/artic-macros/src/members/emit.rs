@@ -225,8 +225,8 @@ fn value_field_access(owner: &Ident, field: &ValueField) -> TokenStream {
   })
 }
 
-/// What one property's thunks differ in: its value type, whether it is optional, its name, the level parameter its writes use, how a converted value is
-/// written, and how it is cleared.
+/// What one property's thunks differ in: its value type, whether it is optional, its name, the
+/// level parameter its writes use, how a converted value is written, and how it is cleared.
 struct Access<'a> {
   value: &'a Type,
   optional: bool,
@@ -412,10 +412,61 @@ pub fn inheritance_tokens(inherits: Option<&Inherits>) -> TokenStream {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use super::*;
   use pretty_assertions::assert_eq;
+  use proc_macro2::{Group, Spacing, TokenTree};
   use syn::parse_quote;
+
+  /// The derive's output pretty-printed, with each `access!(...)` argument laid out as code too:
+  /// the printer leaves a macro's tokens as they are, which puts a property's thunks on a few long
+  /// lines.
+  pub(crate) fn unparse(expanded: TokenStream) -> String {
+    let file: syn::File = syn::parse2(access_as_call(expanded)).expect("the expansion parses");
+    prettyplease::unparse(&file).replace("__artic::access(", "__artic::access!(")
+  }
+
+  /// `tokens` with each `access!(...)` written as the call `access(...)`, which the printer lays
+  /// out; [`unparse`] puts the `!` back.
+  fn access_as_call(tokens: TokenStream) -> TokenStream {
+    let mut trees = tokens.into_iter().peekable();
+    let mut out = Vec::new();
+    while let Some(tree) = trees.next() {
+      match tree {
+        TokenTree::Group(group) => {
+          let mut inner = Group::new(group.delimiter(), access_as_call(group.stream()));
+          inner.set_span(group.span());
+          out.push(TokenTree::Group(inner));
+        }
+        TokenTree::Ident(ident) if ident == "access" => {
+          out.push(TokenTree::Ident(ident));
+          trees.next_if(
+            |next| matches!(next, TokenTree::Punct(punct) if punct.as_char() == '!' && punct.spacing() == Spacing::Alone),
+          );
+        }
+        other => out.push(other),
+      }
+    }
+    out.into_iter().collect()
+  }
+
+  // The printed expansion lays out what `access!` is given, keeps the macro call, and leaves
+  // another use of the name alone.
+  #[test]
+  fn unparse_lays_out_the_access_argument() {
+    let printed = unparse(quote!(
+      static INFO: Info = Info {
+        access: __artic::access!(&Access { set: |a, b| a + b }),
+        other: access != 1,
+      };
+    ));
+
+    assert!(
+      printed.contains("access: __artic::access!(&Access { set: |a, b| a + b }),"),
+      "{printed}"
+    );
+    assert!(printed.contains("other: access != 1,"), "{printed}");
+  }
 
   // A stage written as a raw identifier names the same constant as the plain one, rather than
   // panicking the derive with an invalid identifier.

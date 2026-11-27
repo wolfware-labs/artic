@@ -80,7 +80,8 @@ impl TypeInfo {
   /// `is` recognizes, usable in a `static`. Every other field starts empty: no
   /// [`new`](TypeInfo::new), so markup alone can't create it, no content, properties, groups,
   /// events or attached properties, not a value provider, [`Whitespace::Collapse`], and no
-  /// [`code_type_root`](TypeInfo::code_type_root). The `with_*` methods set the others.
+  /// [`code_type_root`](TypeInfo::code_type_root). The `with_*` methods set each of these but
+  /// [`value_provider`](TypeInfo::value_provider), which only the derive fills.
   #[must_use]
   pub const fn node(name: &'static str, rust_path: &'static str, is: fn(&dyn Object) -> bool) -> Self {
     Self {
