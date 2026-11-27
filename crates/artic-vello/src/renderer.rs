@@ -407,8 +407,10 @@ fn bands(size: PhysicalSize, rows: u32) -> impl Iterator<Item = (u32, PhysicalSi
 
 /// The tiles one vello pass draws at most. vello keeps a fixed 2^23 words for the tiles' command
 /// lists and reserves 64 for each tile up front, so a pass of 2^17 tiles leaves nothing for a tile
-/// that needs more; half of that leaves the other half to them.
-const PASS_TILES: u32 = 1 << 16;
+/// that needs more; a quarter of that leaves three quarters to them. vello doesn't read back
+/// whether a pass ran out, and one that does draws wrong without an error, so this lowers the risk
+/// without removing it, at the cost of more passes above 4K.
+const PASS_TILES: u32 = 1 << 15;
 
 /// The side of vello's square tiles, in pixels.
 const TILE: u32 = 16;
@@ -632,13 +634,14 @@ mod tests {
     assert!(too_large(1, 17), "too tall");
   }
 
-  // A pass holds whole rows of tiles up to the budget: a 4K frame is one pass, the widest frames
-  // still get a row of tiles, and a width that ends mid-tile counts the whole tile.
+  // A pass holds whole rows of tiles up to the budget: a 4K frame is one pass, a 5K frame two, the
+  // widest frames still get a row of tiles, and a width that ends mid-tile counts the whole tile.
   #[test]
   fn a_pass_holds_whole_rows_of_tiles_up_to_the_budget() {
-    assert_eq!(rows_per_pass(3840), 4368, "4K, 240 tiles wide");
-    assert_eq!(rows_per_pass(16 * 1024), 64 * 16);
-    assert_eq!(rows_per_pass(16 * 1024 - 1), 64 * 16, "the last tile partly covered");
+    assert_eq!(rows_per_pass(3840), 2176, "4K, 240 tiles wide, 2160 rows");
+    assert_eq!(rows_per_pass(5120), 1632, "5K, 320 tiles wide, 2880 rows");
+    assert_eq!(rows_per_pass(16 * 1024), 32 * 16);
+    assert_eq!(rows_per_pass(16 * 1024 - 1), 32 * 16, "the last tile partly covered");
     assert_eq!(rows_per_pass(u32::MAX), 16, "wider than the budget");
   }
 
