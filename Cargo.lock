@@ -318,9 +318,6 @@ dependencies = [
 [[package]]
 name = "artic-i18n"
 version = "0.1.0"
-dependencies = [
- "artic-core",
-]
 
 [[package]]
 name = "artic-ident"
@@ -346,10 +343,6 @@ dependencies = [
 [[package]]
 name = "artic-lsp"
 version = "0.1.0"
-dependencies = [
- "artic-xaml",
- "artic-xaml-lang",
-]
 
 [[package]]
 name = "artic-macros"
@@ -440,10 +433,6 @@ dependencies = [
 [[package]]
 name = "artic-style"
 version = "0.1.0"
-dependencies = [
- "artic-core",
- "artic-registry",
-]
 
 [[package]]
 name = "artic-test"
@@ -481,10 +470,6 @@ dependencies = [
 [[package]]
 name = "artic-theme"
 version = "0.1.0"
-dependencies = [
- "artic-controls",
- "artic-style",
-]
 
 [[package]]
 name = "artic-vello"
@@ -608,11 +593,6 @@ dependencies = [
 [[package]]
 name = "artic-xaml-runtime"
 version = "0.1.0"
-dependencies = [
- "artic-core",
- "artic-registry",
- "artic-xaml",
-]
 
 [[package]]
 name = "as-raw-xcb-connection"
