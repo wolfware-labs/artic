@@ -2,7 +2,7 @@
 # Fails when a workflow or action step runs one of these cargo commands without `--locked` (or
 # `--frozen`) after the subcommand, so CI always builds the committed Cargo.lock, and when a
 # workflow has no top-level `permissions:` block, so every job's token starts read-only whatever the
-# repository setting. The commands: build, test, run, clippy, check, doc, llvm-cov, deny,
+# repository setting. The commands: build, test, run, clippy, check, doc, tree, llvm-cov, deny,
 # `codspeed build`, and mutants, which takes it as `--cargo-arg=--locked`. A flag after a lone `--`
 # goes to the program cargo runs, and one before the subcommand reaches only cargo's built-in
 # commands, so neither counts. Reads every YAML file under .github, or the files given, with yq
@@ -69,7 +69,7 @@ unlocked() {
   sub=${words[i]:-}
   i=$((i + 1))
   case "$sub" in
-    build | test | run | clippy | check | doc | llvm-cov | deny) ;;
+    build | test | run | clippy | check | doc | tree | llvm-cov | deny) ;;
     codspeed) [ "${words[i]:-}" = build ] || return 1 ;;
     mutants)
       while [ "$i" -lt "${#words[@]}" ] && [ "${words[i]}" != -- ]; do

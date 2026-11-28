@@ -14,6 +14,7 @@ jobs:
       - run: cargo test --locked -- --nocapture
       - run: echo start && cargo run --locked -p app
       - run: cargo llvm-cov --locked --workspace --lcov
+      - run: cargo tree --locked -i linkme --depth 0
       - run: cargo deny --locked check
       - run: cargo codspeed build --locked -m simulation
       - run: cargo codspeed run

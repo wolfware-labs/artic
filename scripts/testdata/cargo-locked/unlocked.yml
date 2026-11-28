@@ -16,6 +16,7 @@ jobs:
       - run: cargo check; cargo build --locked # flagged
       - run: cargo fmt --check | cargo check # flagged
       - run: cargo llvm-cov --workspace --lcov # flagged
+      - run: cargo tree -i linkme --depth 0 # flagged
       - run: cargo deny check # flagged
       - run: cargo codspeed build -m simulation # flagged
       - run: cargo mutants --workspace # flagged

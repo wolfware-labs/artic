@@ -29,7 +29,7 @@ CI runs these on every pull request. Run them locally before pushing:
 | Layering | `cargo test -p docs-check --test layers` and `cargo deny check bans` | Docs, Test, Deny |
 | UI-language neutral | `scripts/check-ui-neutral.sh` | Lint |
 | Checkout credentials (every `actions/checkout` sets `persist-credentials: false`; needs [yq](https://github.com/mikefarah/yq)) | `scripts/check-checkout-credentials.sh` and its self-test, `scripts/test-check-checkout-credentials.sh` | Lint |
-| Locked cargo and token permissions (every cargo build, test, run, clippy, check, doc, llvm-cov, deny, `codspeed build` and mutants call in `.github` builds the committed `Cargo.lock` with `--locked`, and every workflow has a top-level `permissions:` block; needs [yq](https://github.com/mikefarah/yq)) | `scripts/check-cargo-locked.sh` and its self-test, `scripts/test-check-cargo-locked.sh` | Lint |
+| Locked cargo and token permissions (every cargo build, test, run, clippy, check, doc, tree, llvm-cov, deny, `codspeed build` and mutants call in `.github` builds the committed `Cargo.lock` with `--locked`, and every workflow has a top-level `permissions:` block; needs [yq](https://github.com/mikefarah/yq)) | `scripts/check-cargo-locked.sh` and its self-test, `scripts/test-check-cargo-locked.sh` | Lint |
 | Docs | `cargo doc --workspace --no-deps --exclude docs-check` with `RUSTDOCFLAGS=-D warnings` | Docs |
 | Code in documents | `cargo test -p docs-check` | Docs |
 | Links in documents | `lychee --offline --include-fragments --root-dir "$PWD" '*.md' 'docs/**/*.md'` | Docs |
