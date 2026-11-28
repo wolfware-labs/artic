@@ -22,8 +22,11 @@
 # quotes or a heredoc, cargo called by a quoted path (`"$HOME/.cargo/bin/cargo" build`), and scripts
 # a step calls. It reads plain commands, not every shell form: a `#` right after `)`, `;`, `&` or
 # `|` isn't taken for a comment, while one after an escaped blank, inside `$'...'` or in `${x# #}`
-# is, and an apostrophe in a heredoc body leaves a quote open for the rest of the step. Its job is
-# to catch a missing `--locked`; it isn't a shell parser.
+# is, and an apostrophe in a heredoc body leaves a quote open for the rest of the step. Separators
+# and grouping characters split the text before quotes are read, so a quoted cargo word after a
+# `;`, `|`, `&`, `(` or backtick (`echo "cargo build; cargo test"`) is flagged though the shell
+# never runs it: an unlocked one fails the check, a false alarm and never a miss. Its job is to
+# catch a missing `--locked`; it isn't a shell parser.
 set -uo pipefail
 set -f
 cd "$(dirname "$0")/.."
