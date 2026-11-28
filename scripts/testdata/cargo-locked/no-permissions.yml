@@ -1,0 +1,8 @@
+# A workflow with no top-level permissions block.
+name: no-permissions
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: cargo build --locked

@@ -253,7 +253,7 @@ jobs:
         with:
           tool: cargo-codspeed@6.0.0
       - name: Build the benches
-        run: cargo codspeed build -m simulation
+        run: cargo codspeed build --locked -m simulation
       - name: Run the benches
         uses: CodSpeedHQ/action@af75f77f17a054769abefaa42fe8dc2975469b5f # v5.6.3
         with:
@@ -407,6 +407,11 @@ jobs:
         run: |
           scripts/test-check-checkout-credentials.sh
           scripts/check-checkout-credentials.sh
+      - name: Locked cargo and token permissions
+        if: ${{ !cancelled() }}
+        run: |
+          scripts/test-check-cargo-locked.sh
+          scripts/check-cargo-locked.sh
       - name: Clippy
         if: ${{ !cancelled() }}
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
@@ -475,4 +480,4 @@ jobs:
         with:
           tool: cargo-deny
       - name: Check
-        run: cargo deny check
+        run: cargo deny --locked check

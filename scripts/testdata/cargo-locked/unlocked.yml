@@ -1,0 +1,35 @@
+# Every step marked `flagged` runs a cargo command that resolves without --locked.
+name: unlocked
+on: push
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: cargo build --workspace # flagged
+      - run: cargo +nightly test # flagged
+      - run: cargo -q clippy --all-targets # flagged
+      - run: RUSTFLAGS=-Dwarnings cargo doc --no-deps # flagged
+      - run: cargo test -- --locked # flagged
+      - run: echo start && cargo run -p app # flagged
+      - run: cargo check; cargo build --locked # flagged
+      - run: cargo fmt --check | cargo check # flagged
+      - run: cargo llvm-cov --workspace --lcov # flagged
+      - run: cargo deny check # flagged
+      - run: cargo codspeed build -m simulation # flagged
+      - run: cargo mutants --workspace # flagged
+      - run: cargo mutants --workspace -- --locked # flagged
+      - run: | # flagged
+          cargo build \
+            --workspace
+      - run: | # flagged
+          for crate in a b; do
+            cargo check -p "$crate" || failed=1
+          done
+      - run: if true; then cargo build; fi # flagged
+      - run: | # flagged
+          cargo build # --locked comes later
+      - uses: CodSpeedHQ/action@0000000000000000000000000000000000000000
+        with:
+          run: cargo build # flagged

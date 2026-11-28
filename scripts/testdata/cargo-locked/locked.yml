@@ -1,0 +1,33 @@
+# Every cargo command here builds the committed lockfile, or resolves nothing.
+name: locked
+on: push
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: cargo build --locked --workspace
+      - run: cargo +nightly test --locked
+      - run: cargo -q clippy --frozen --all-targets
+      - run: RUSTFLAGS=-Dwarnings cargo doc --locked --no-deps
+      - run: cargo test --locked -- --nocapture
+      - run: echo start && cargo run --locked -p app
+      - run: cargo llvm-cov --locked --workspace --lcov
+      - run: cargo deny --locked check
+      - run: cargo codspeed build --locked -m simulation
+      - run: cargo codspeed run
+      - run: cargo mutants --workspace --cargo-arg=--locked
+      - run: cargo mutants --workspace --cargo-arg --locked
+      - run: cargo fmt --all --check
+      - run: cargo metadata --format-version 1
+      - run: echo "cargo build is not run here"
+      - run: |
+          # cargo build would resolve, but this is a comment
+          cargo build \
+            --locked
+      - run: if true; then cargo build --locked; fi
+      - run: |
+          for crate in a b; do
+            cargo check --locked -p "$crate" || failed=1
+          done

@@ -1,0 +1,7 @@
+# A composite action: it has no permissions of its own, so only its cargo calls are checked.
+name: action
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: cargo test --locked
