@@ -23,8 +23,17 @@ jobs:
       - run: cargo mutants --workspace -C --locked
       - run: cargo mutants --workspace -C--locked
       - run: cargo mutants --workspace --cargo-arg=--frozen
-      - run: cargo machete
+      - run: |
+          echo "step #1"; cargo test --locked
+      - run: |
+          echo 'a\' # cargo build
+      - run: |
+          echo \" # cargo build
+      - run: |
+          echo "a" # cargo build
       - run: cargo --version
+      - run: cargo machete
+      - run: cargo machete --skip-target-dir -- --with-metadata
       - run: which cargo
       - run: cargo -C crates/x fmt --check
       - run: cargo --color always fmt --check

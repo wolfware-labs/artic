@@ -3,16 +3,18 @@
 # the subcommand, so CI always builds the committed Cargo.lock, and when a workflow has no top-level
 # `permissions:` block, so every job's token starts read-only whatever the repository setting. It
 # fails closed: every subcommand needs the flag except those that never resolve dependencies (fmt,
-# `codspeed run`, machete, version, help, and `--version`, `-V` or `--help` alone), and mutants
-# takes it as `--cargo-arg=--locked`. A flag after a lone `--` goes to the program cargo runs, and
+# `codspeed run`, version, help, `--version`, `-V` or `--help` alone, and machete without
+# `--with-metadata`, which has no `--locked` and so is always flagged with it), and mutants takes it
+# as `--cargo-arg=--locked`. A flag after a lone `--` goes to the program cargo runs, and
 # one before the subcommand reaches only cargo's built-in commands, so neither counts. Reads every
 # YAML file under .github, or the files given, with yq (mikefarah), aliases expanded.
 #
-# It reads `run:` text a word at a time: `#` after a blank starts a comment, then a backslash at a
-# line's end joins the next line; each line, and the text between `;`, `&&`, `||`, `|` and `&`, is a
-# command, checked from its first word `cargo`, so a prefix (`VAR=value`, `if`, `timeout 600`, a `(`
-# or `$(`) doesn't hide it, and an unquoted `cargo build` in an `echo` counts too. Not read: quotes
-# and heredocs (a cargo command built inside one isn't seen) and scripts a step calls.
+# It reads `run:` text a word at a time: `#` at a word's start outside quotes begins a comment
+# (`strip_comments`), then a backslash at a line's end joins the next line; each line, and the text
+# between `;`, `&&`, `||`, `|` and `&`, is a command, checked from its first word whose base name is
+# `cargo` (or `cargo.exe`), so a prefix (`VAR=value`, `if`, `timeout 600`, a `(` or `$(`) or a path
+# (`~/.cargo/bin/cargo`) doesn't hide it, and an unquoted `cargo build` in an `echo` counts too. Not
+# read: a cargo command inside quotes or a heredoc, and scripts a step calls.
 set -uo pipefail
 set -f
 cd "$(dirname "$0")/.."
@@ -55,6 +57,34 @@ if [ "$status" -ne 0 ]; then
   exit "$status"
 fi
 
+# Removes shell comments from `run:` text on stdin: a `#` at the start of a line or after a blank,
+# outside single and double quotes. A backslash escapes the next character outside quotes and inside
+# double quotes, never inside single quotes; a quote stays open across lines.
+strip_comments() {
+  awk '
+    {
+      out = ""
+      n = length($0)
+      for (i = 1; i <= n; i++) {
+        c = substr($0, i, 1)
+        if (c == "\\" && quote != "\047") {
+          out = out c substr($0, i + 1, 1)
+          i++
+          continue
+        }
+        if (quote == "") {
+          if (c == "#" && (i == 1 || substr($0, i - 1, 1) ~ /[ \t]/)) break
+          if (c == "\"" || c == "\047") quote = c
+        } else if (c == quote) {
+          quote = ""
+        }
+        out = out c
+      }
+      print out
+    }
+  '
+}
+
 # Whether the cargo command in `words`, from the word after `cargo`, may resolve without the
 # lockfile.
 unlocked() {
@@ -70,8 +100,17 @@ unlocked() {
   sub=${words[i]:-}
   i=$((i + 1))
   case "$sub" in
-    '' | fmt | machete | version | help) return 1 ;;
+    '' | fmt | version | help) return 1 ;;
     codspeed) [ "${words[i]:-}" != run ] || return 1 ;;
+    machete)
+      while [ "$i" -lt "${#words[@]}" ] && [ "${words[i]}" != -- ]; do
+        case "${words[i]}" in
+          --with-metadata | --with-metadata=*) return 0 ;;
+        esac
+        i=$((i + 1))
+      done
+      return 1
+      ;;
     mutants)
       while [ "$i" -lt "${#words[@]}" ] && [ "${words[i]}" != -- ]; do
         case "${words[i]}" in
@@ -99,12 +138,14 @@ hits=()
 while IFS=$'\t' read -r file line encoded; do
   [ -n "$file" ] || continue
   text=$(printf '%s' "$encoded" | base64 -d)
-  text=$(printf '%s\n' "$text" | sed -e 's/\(^\|[[:space:]]\)#.*//' | sed -e ':a' -e '/\\$/{N;s/\\\n/ /;ba' -e '}')
+  text=$(printf '%s\n' "$text" | strip_comments | sed -e ':a' -e '/\\$/{N;s/\\\n/ /;ba' -e '}')
   commands=$(printf '%s\n' "$text" | sed -e 's/&&/\n/g' -e 's/||/\n/g' -e 's/[;|&]/\n/g' -e 's/[(){}`]/ /g')
   while IFS= read -r command; do
     read -r -a words <<<"$command"
     i=0
-    while [ "$i" -lt "${#words[@]}" ] && [ "${words[i]}" != cargo ]; do
+    while [ "$i" -lt "${#words[@]}" ]; do
+      base=${words[i]##*/}
+      [ "${base%.exe}" != cargo ] || break
       i=$((i + 1))
     done
     [ "$i" -lt "${#words[@]}" ] || continue

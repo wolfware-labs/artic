@@ -57,6 +57,21 @@ jobs:
       - run: cargo build &# --locked # flagged
       - run: cargo -C crates/x build # flagged
       - run: cargo --color always build # flagged
+      - run: | # flagged
+          echo "step #1"; cargo test
+      - run: | # flagged
+          echo "a\" # b"; cargo test
+      - run: | # flagged
+          echo 'step #1'; cargo test
+      - run: | # flagged
+          echo "first
+          # still quoted"; cargo test
+      - run: echo a#b; cargo test # flagged
+      - run: /usr/bin/cargo build # flagged
+      - run: ~/.cargo/bin/cargo test # flagged
+      - run: cargo.exe build # flagged
+      - run: cargo machete --skip-target-dir --with-metadata # flagged
+      - run: cargo machete --with-metadata=true # flagged
       - uses: CodSpeedHQ/action@0000000000000000000000000000000000000000
         with:
           run: cargo build # flagged
