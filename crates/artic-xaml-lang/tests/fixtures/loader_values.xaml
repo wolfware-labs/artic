@@ -1,0 +1,13 @@
+<!-- Each value source the compiler supports: attribute text, an attached property, a property
+     element with text, a child, a content collection, text content and a wrapped text piece. -->
+<StackPanel xmlns="https://artic.rs/ui" Spacing="8" TextElement.FontSize="20">
+  <Border Padding="4">
+    <Border.Margin>8,4</Border.Margin>
+    <TextBlock Text="Child"/>
+  </Border>
+  <TextBlock>
+    Hello
+    <Run>there</Run>
+    <Bold>world</Bold>
+  </TextBlock>
+</StackPanel>
