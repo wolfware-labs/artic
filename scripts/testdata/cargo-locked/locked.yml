@@ -53,6 +53,15 @@ jobs:
       - run: cargo machete crates/a_b-c.d C:/work/app
       # Prefixes, separators, comments and quotes.
       - run: echo start && cargo run --locked -p app
+      - run: cargo run --locked -p artic-examples --example smoke
+      - run: cargo run -p x --locked
+      - run: cargo run -q --bin x --locked input.txt
+      - run: |
+          cargo rustc -p a --package a --bin b --example e --test t --bench b -F f --features f \
+            -j 2 --jobs 2 --profile p --target t --target-dir d -m m --manifest-path m \
+            --message-format short --color always --config k=v -Z x --print cfg --crate-type lib \
+            --locked
+      - run: cargo rustdoc --output-format json --locked
       - run: if cargo test --locked; then echo ok; fi
       - run: timeout 600 cargo test --locked
       - run: out=$(cargo build --locked)

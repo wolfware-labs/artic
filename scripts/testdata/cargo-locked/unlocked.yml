@@ -108,6 +108,21 @@ jobs:
       - run: cargo build ( --locked # flagged
       - run: cargo build ) --locked # flagged
       - run: cargo build `x` --locked # flagged
+      - run: cargo build * --locked # flagged
+      - run: cargo build ?? --locked # flagged
+      - run: cargo build [-]* --locked # flagged
+      - run: cargo build @extra --locked # flagged
+      - run: cargo build %ARGS% --locked # flagged
+      - run: cargo build ~+ --locked # flagged
+      - run: cargo build <args.txt --locked # flagged
+      - run: cargo mutants * --cargo-arg=--locked # flagged
+      - run: cargo mutants @extra --cargo-arg=--locked # flagged
+      # A flag after the first argument of run, rustc or rustdoc goes to the program.
+      - run: cargo run a --locked # flagged
+      - run: cargo rustc a --locked # flagged
+      - run: cargo rustdoc a --frozen # flagged
+      - run: cargo run -p x --example smoke input.txt --locked # flagged
+      - run: cargo run -q a --locked # flagged
       - run: cargo +$TC mutants --cargo-arg=--locked # flagged
       - run: cargo mutants $X --cargo-arg --locked # flagged
       - run: cargo mutants 'x' -C--frozen # flagged

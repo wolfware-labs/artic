@@ -12,12 +12,15 @@
 # counts only before any word that may expand, so write it first: an option, toolchain or subcommand
 # word with a character outside letters, digits and `_ . = + / : -` flags the call whatever follows
 # (`cargo +$TC test --locked` can run `cargo +x build -- test --locked`, and
-# `cargo +${{ matrix.rust }} build --locked` is flagged for that reason), and after the subcommand a
-# word with `$`, a quote, a backslash or a grouping character hides every flag after it
-# (`cargo test --locked -p "$crate"` passes, `cargo build $ARGS --locked` doesn't). mutants takes
-# the flag as `--cargo-arg=--locked`. A flag after a lone `--` goes to the program cargo runs, and
-# one before the subcommand reaches only cargo's built-in commands, so neither counts. Reads every
-# YAML file under .github, or the files given, with yq (mikefarah), aliases expanded.
+# `cargo +${{ matrix.rust }} build --locked` is flagged for that reason), and after the subcommand
+# any word with a character outside that set (a variable, quote, glob, splat or redirection) hides
+# every flag after it (`cargo test --locked -p "$crate"` passes, `cargo build $ARGS --locked`
+# doesn't). run, rustc and rustdoc pass the program every word from their first argument that isn't
+# an option or an option's value, so there the flag must come before it
+# (`cargo run --locked -p app --example smoke`, not `cargo run -q a --locked`). mutants takes the
+# flag as `--cargo-arg=--locked`. A flag after a lone `--` goes to the program cargo runs, and one
+# before the subcommand reaches only cargo's built-in commands, so neither counts. Reads every YAML
+# file under .github, or the files given, with yq (mikefarah), aliases expanded.
 #
 # It reads `run:` text a word at a time: `#` at a word's start outside quotes begins a comment
 # (`strip_comments`), then a backslash at a line's end joins the next line; each line, and the text
@@ -111,11 +114,12 @@ toolchain_chars='A-Za-z0-9_.-'
 path_chars='A-Za-z0-9_./:-'
 option_chars='A-Za-z0-9_.=+/:-'
 
-# Whether a word after the subcommand may expand, or be split or joined by the shell: it holds `$`,
-# a quote, a backslash or a grouping character. A flag after such a word may not reach cargo.
+# Whether a word after the subcommand may stand for other words once a shell reads it: it holds a
+# character outside `option_chars`, so a variable, quote, glob, splat or redirection is never taken
+# as plain. A flag after such a word may not reach cargo.
 expands() {
   case "$1" in
-    *[\$\"\'\\\`\(\)\{\}]*) return 0 ;;
+    *[!$option_chars]*) return 0 ;;
   esac
   return 1
 }
@@ -183,11 +187,29 @@ unlocked() {
       return 0
       ;;
   esac
+  # run, rustc and rustdoc hand the program every word from the first one that is neither an option
+  # nor an option's value; the value-taking options are those `cargo <sub> --help` lists (1.100.1).
+  local program_args=0 value_next=0
+  case "$sub" in
+    run | rustc | rustdoc) program_args=1 ;;
+  esac
   for word in "${words[@]:i}"; do
     [ "$word" != -- ] || break
     ! expands "$word" || return 0
     case "$word" in
       --locked | --frozen) return 1 ;;
+    esac
+    [ "$program_args" = 1 ] || continue
+    if [ "$value_next" = 1 ]; then
+      value_next=0
+      continue
+    fi
+    case "$word" in
+      -p | --package | --bin | --example | --test | --bench | -F | --features | -j | --jobs | \
+        --profile | --target | --target-dir | -m | --manifest-path | --message-format | --color | \
+        --config | -Z | --print | --crate-type | --output-format) value_next=1 ;;
+      -*) ;;
+      *) return 0 ;;
     esac
   done
   return 0
