@@ -6,6 +6,7 @@ use artic::view::CratePaths;
 use artic_diagnostics::{SourceId, SourceMap};
 use artic_registry::Registry;
 use artic_xaml_lang::Xaml;
+use proc_macro2::{TokenStream, TokenTree};
 use std::path::Path;
 use syn::visit::Visit;
 
@@ -96,13 +97,34 @@ fn compiled_output_has_no_loader_values() {
   insta::glob!("../../artic-xaml/tests/fixtures", "valid/**/*.xaml", check);
 }
 
-// The guards see a name in a path, a method call and a field, and not in a string or a comment.
+// The guards see each of their names in a path, a method call, a field or a macro's tokens, and
+// not in a string or a comment.
 #[test]
 fn guards_see_names_in_code_only() {
-  let code = "fn f(t: T) { ::m::set_text(); t.set_node(1); let _ = t.access; }";
-  let quoted = "// set_text\nfn f() { let _ = \"set_text access\"; }";
+  let loader = "fn f(t: T) { let _: PropertyAccess = t.access; ::m::set_text(); t.set_node(1); \
+    t.set_object(); t.set_null(); t.add_child(); let _: ValueError = e; }";
+  let registry = "fn f(t: T) { ::m::Registry::new(); let _: TypeInfo = t.x; ::artic_registry::f(); t.registry; }";
+  let in_macro = "fn f() { m!(x.set_text()); }";
+  let quoted = "// set_text\nfn f() { let _ = \"set_text access\"; m!(\"set_text\"); }";
 
-  assert_eq!(named(code, &LOADER_NAMES), ["set_text", "set_node", "access"]);
+  assert_eq!(
+    named(loader, &LOADER_NAMES),
+    [
+      "PropertyAccess",
+      "access",
+      "set_text",
+      "set_node",
+      "set_object",
+      "set_null",
+      "add_child",
+      "ValueError"
+    ]
+  );
+  assert_eq!(
+    named(registry, &REGISTRY_NAMES),
+    ["Registry", "TypeInfo", "artic_registry", "registry"]
+  );
+  assert_eq!(named(in_macro, &LOADER_NAMES), ["set_text"]);
   assert_eq!(named(quoted, &LOADER_NAMES), Vec::<String>::new());
 }
 
@@ -117,12 +139,31 @@ fn named(rust: &str, forbidden: &[&str]) -> Vec<String> {
     .collect()
 }
 
-/// Every identifier in a file: path segments, method names, fields and bindings alike.
+/// Every identifier in a file: path segments, method names, fields and bindings alike, and those
+/// in a macro call's tokens.
 struct Idents(Vec<String>);
+
+impl Idents {
+  /// Collects every identifier in `tokens`, inside groups too.
+  fn tokens(&mut self, tokens: TokenStream) {
+    for tree in tokens {
+      match tree {
+        TokenTree::Ident(ident) => self.0.push(ident.to_string()),
+        TokenTree::Group(group) => self.tokens(group.stream()),
+        TokenTree::Punct(_) | TokenTree::Literal(_) => {}
+      }
+    }
+  }
+}
 
 impl<'ast> Visit<'ast> for Idents {
   fn visit_ident(&mut self, ident: &'ast syn::Ident) {
     self.0.push(ident.to_string());
+  }
+
+  fn visit_macro(&mut self, mac: &'ast syn::Macro) {
+    syn::visit::visit_macro(self, mac);
+    self.tokens(mac.tokens.clone());
   }
 }
 

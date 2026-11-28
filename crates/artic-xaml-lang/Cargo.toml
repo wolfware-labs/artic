@@ -21,6 +21,7 @@ artic-macros.workspace = true
 artic-view-compiler.workspace = true
 insta = { workspace = true, features = ["glob"] }
 pretty_assertions.workspace = true
+proc-macro2.workspace = true
 syn = { workspace = true, features = ["visit"] }
 
 [lints]
