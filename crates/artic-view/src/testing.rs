@@ -160,6 +160,7 @@ pub fn visibility(file: SourceId, text: &str, at: usize) -> Member {
 mod tests {
   use super::*;
   use artic_core::property::PropertyVisitor;
+  use artic_diagnostics::SourceMap;
   use pretty_assertions::assert_eq;
 
   /// An object with no properties, to hand the stubs something to refuse.
@@ -204,5 +205,73 @@ mod tests {
     assert_eq!(format!("{built:?}"), format!("{BARE:?}"));
     assert!(built.new.is_some());
     assert!(built.content.is_none());
+  }
+
+  /// A file to place spans in.
+  fn file() -> SourceId {
+    SourceMap::new().add("view.ui", "")
+  }
+
+  /// The text a member holds, or a panic naming the member it got.
+  fn text_of(member: Member) -> Text {
+    match member {
+      Member::Name(Ok(text)) | Member::CodeType(Ok(text)) | Member::FieldVisibility(Ok(text)) => text,
+      other => panic!("expected a member holding text, got {other:?}"),
+    }
+  }
+
+  // An element written at 10 spans byte 10, and its type's name byte 11.
+  #[test]
+  fn element_spans_its_start_and_its_type_name_after_it() {
+    let file = file();
+    let built = element(file, &PANEL, 10, Vec::new());
+
+    assert_eq!(built.span, Span::new(file, 10, 11));
+    assert_eq!(built.ty.expect("a found type").span, Span::new(file, 11, 12));
+  }
+
+  // An unknown element written at 10 spans byte 10, and its missing type is reported at byte 11.
+  #[test]
+  fn unknown_spans_its_start_and_reports_its_type_after_it() {
+    let file = file();
+    let built = unknown(file, 10, Vec::new());
+
+    assert_eq!(built.span, Span::new(file, 10, 11));
+    let problem = built.ty.expect_err("a type that wasn't found");
+    assert_eq!(problem.diagnostic.span, Span::new(file, 11, 12));
+    assert_eq!(problem.diagnostic.message, "no type `Gauge`");
+  }
+
+  // A property named at 10 spans byte 10, and its value byte 11.
+  #[test]
+  fn property_spans_its_name_and_its_value_after_it() {
+    let file = file();
+    let Member::Property { name, span, value } = property(file, "Width", 10, "4") else {
+      panic!("expected a property");
+    };
+
+    assert_eq!(name, "Width");
+    assert_eq!(span, Span::new(file, 10, 11));
+    assert_eq!(
+      value.expect("a value"),
+      Text {
+        text: "4".to_owned(),
+        span: Span::new(file, 11, 12),
+      }
+    );
+  }
+
+  // A name, a code type and a field visibility written at 10 each span byte 10.
+  #[test]
+  fn text_members_span_the_byte_they_are_written_at() {
+    let file = file();
+    let at = |text: &str| Text {
+      text: text.to_owned(),
+      span: Span::new(file, 10, 11),
+    };
+
+    assert_eq!(text_of(name(file, "panel", 10)), at("panel"));
+    assert_eq!(text_of(code_type(file, "app::View", 10)), at("app::View"));
+    assert_eq!(text_of(visibility(file, "pub(crate)", 10)), at("pub(crate)"));
   }
 }
