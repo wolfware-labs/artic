@@ -1,0 +1,5 @@
+error[E0080]: evaluation panicked: `Reading` is a value type (`TypeKind::Value`), so a property takes its staged object: its `Written` impl writes `type FromObject = TakesObject`, not `node_type_value!`
+  --> tests/ui/value_type_written_as_node_type.rs:26:28
+   |
+26 |   reading: Property<Option<Reading>>,
+   |                            ^^^^^^^ evaluation of `_::__checks::_` failed here

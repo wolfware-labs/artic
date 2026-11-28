@@ -232,6 +232,7 @@ jobs:
 
   # The criterion benches (artic-core, artic-layout, artic-controls, artic) under CodSpeed's CPU
   # simulation; CodSpeed compares a pull request against the latest commit of main that has a run.
+  # artic-vello's render bench needs a GPU, which this runner lacks, so it skips and times nothing.
   # The CodSpeed action authenticates with this job's OIDC token, so there's no CodSpeed token to
   # store. The action runs the benches itself, to measure them, and uploads in the same step, so
   # the token can't move to a job of its own as `codecov`'s does: the job holds it in every step,
@@ -416,6 +417,15 @@ jobs:
       - name: Clippy
         if: ${{ !cancelled() }}
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - uses: taiki-e/install-action@75a7c0f87bd666af3cdb75c5b9e9d03ab6044e6f # v2.90.6
+        if: ${{ !cancelled() }}
+        with:
+          tool: cargo-machete@0.9.2
+      # A dependency only generated code or a document's code block names goes in its crate's
+      # `[package.metadata.cargo-machete] ignored`, with the reason.
+      - name: Unused dependencies
+        if: ${{ !cancelled() }}
+        run: cargo machete
 
   # The crates app code uses must stay buildable for a later web host (D24). The ones that reach
   # `linkme` wait for #241; docs/design/web-portability.md lists both sets.
@@ -454,7 +464,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-rust
       - name: Build docs
-        run: cargo doc --locked --workspace --no-deps --exclude docs-check
+        run: cargo doc --locked --workspace --no-deps
       - name: Code in documents
         if: ${{ !cancelled() }}
         run: cargo test --locked -p docs-check

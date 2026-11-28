@@ -14,6 +14,8 @@ impl FromStr for Telemetry {
   }
 }
 
+artic_core::text_value!(Telemetry);
+
 #[derive(Debug, UiType)]
 struct Gauge {
   #[ui]

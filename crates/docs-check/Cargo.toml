@@ -9,6 +9,10 @@ rust-version.workspace = true
 license.workspace = true
 publish = false
 
+[package.metadata.cargo-machete]
+# The documents' code blocks, compiled as this crate's doctests, use these; its own code doesn't.
+ignored = ["artic-controls", "artic-core", "artic-registry"]
+
 [dependencies]
 artic-controls.workspace = true
 artic-core.workspace = true

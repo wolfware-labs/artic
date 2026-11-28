@@ -4,6 +4,9 @@ target/
 # cargo-mutants reports (mutants.out and the previous run in mutants.out.old)
 mutants.out*/
 
+# Coverage profiles an instrumented program writes when LLVM_PROFILE_FILE is not set
+*.profraw
+
 # IDE settings
 .idea/
 .vscode/

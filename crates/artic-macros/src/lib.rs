@@ -45,14 +45,17 @@ use syn::{DeriveInput, parse_macro_input};
 ///
 /// Every `Property<T>` and `Event<A>` field must be marked `#[ui]`:
 ///
-/// - `Property<T>` is a property. `T`, or `X` in `Option<X>`, must implement `FromStr` (with a
-///   `Display` error) and `ToRust`, or `UiType`, or be a `NodeId`, a property that names a node, such as a data context. Its
-///   settings: `default = expr` for the `Default` level (otherwise `T::default()`),
-///   `affects = layout | render` and `inherits` for its generated key, `key = KEY` to
-///   share a key with other types instead (inheritance across types needs it): a
-///   `static PropertyKey`, or an attached property's key such as `TextElement::FONT_SIZE`, which
-///   also gives the field its default, so `default` can't go beside it, and `name = "..."` to
-///   rename it (the field name in PascalCase otherwise).
+/// - `Property<T>` is a property. `T`, or `X` in `Option<X>`, must implement `Written`: be text,
+///   implementing `FromStr` (with a `Display` error) and `ToRust` beside `artic::core::text_value!`
+///   (`artic_core::text_value!` without the `artic` crate), or a `UiType`, which a derived type
+///   is, a node type implementing `UiType` by hand becomes with `artic::core::node_type_value!`,
+///   and a hand-written value type becomes by writing its `Written` impl with `TakesObject`, or a
+///   `NodeId`, a property that names a node, such as a data context. Its settings: `default = expr`
+///   for the `Default` level (otherwise `T::default()`), `affects = layout | render` and
+///   `inherits` for its generated key, `key = KEY` to share a key with other types instead
+///   (inheritance across types needs it): a `static PropertyKey`, or an attached property's key
+///   such as `TextElement::FONT_SIZE`, which also gives the field its default, so `default` can't
+///   go beside it, and `name = "..."` to rename it (the field name in PascalCase otherwise).
 ///   A bare `inherits` replaces what the property inherits with its own value; `inherits = f`
 ///   combines the two through `f(own, inherited)`, where a single name such as `and` is one of
 ///   `artic_core::property::inherit`'s functions and a longer path names any
@@ -157,11 +160,12 @@ pub fn derive_ui_properties(input: TokenStream) -> TokenStream {
 /// Parses a fieldless enum from its variant names, ignoring ASCII case, so a UI language can set it from
 /// text: `Orientation="horizontal"` becomes `Orientation::Horizontal`.
 ///
-/// It implements `FromStr` with `Err = ParseEnumError`, whose message lists every valid name, and
-/// `ToRust`, which writes the variant's path at the crate root. Every variant must be a unit
-/// variant, and no two names may differ only in case. The generated code reaches `ParseEnumError`
-/// and `ToRust` through `artic`, `artic-registry` or `artic-core`, whichever the
-/// calling crate depends on first, so a crate that has only `artic-core` can derive it.
+/// It implements `FromStr` with `Err = ParseEnumError`, whose message lists every valid name,
+/// `ToRust`, which writes the variant's path at the crate root, and `Written`, which says the enum
+/// is written as text. Every variant must be a unit variant, and no two names may differ only in
+/// case. The generated code reaches `ParseEnumError`, `ToRust` and `Written` through `artic`,
+/// `artic-registry` or `artic-core`, whichever the calling crate depends on first, so a crate that
+/// has only `artic-core` can derive it.
 #[proc_macro_derive(UiEnum)]
 pub fn derive_ui_enum(input: TokenStream) -> TokenStream {
   let input = parse_macro_input!(input as DeriveInput);

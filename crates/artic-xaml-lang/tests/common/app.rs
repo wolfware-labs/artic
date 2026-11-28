@@ -6,9 +6,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 /// The variables cargo sets for the package whose tests run, or that a coverage run sets for its
-/// own profiles, by name or prefix. The app is another package, so it gets none of them; the
-/// user's configuration, such as `CARGO_NET_OFFLINE` or a linker, stays.
-const OUTER_PACKAGE: [&str; 11] = [
+/// own profiles and rustc wrapper, by name or prefix. The app is another package, so it gets none
+/// of them; the user's configuration, such as `CARGO_NET_OFFLINE` or a linker, stays.
+const OUTER_PACKAGE: [&str; 12] = [
   "CARGO_MANIFEST_",
   "CARGO_PKG_",
   "CARGO_CRATE_NAME",
@@ -20,7 +20,14 @@ const OUTER_PACKAGE: [&str; 11] = [
   "CARGO_LLVM_COV",
   "OUT_DIR",
   "LLVM_PROFILE_FILE",
+  "__CARGO_LLVM_COV",
 ];
+
+/// Set when a coverage run made itself `RUSTC_WRAPPER`, to instrument the workspace's crates.
+const COVERAGE_WRAPPER: &str = "__CARGO_LLVM_COV_RUSTC_WRAPPER";
+
+/// The `RUSTC_WRAPPER` the user had before the coverage run replaced it, such as `sccache`.
+const USER_WRAPPER: &str = "__CARGO_LLVM_COV_RUSTC_WRAPPER_PRE_EXISTING";
 
 /// The repository root.
 fn repository() -> &'static Path {
@@ -74,8 +81,9 @@ impl App {
     App { dir }
   }
 
-  /// Runs `cargo` with `args` in the app, without the outer package's variables, in the
-  /// `target` directory every app shares.
+  /// Runs `cargo` with `args` in the app, without the outer package's variables and with the
+  /// user's own rustc wrapper in place of a coverage run's, in the `target` directory every app
+  /// shares.
   pub fn cargo(&self, args: &[&str]) -> Output {
     let mut command = Command::new(env!("CARGO"));
     for (name, _) in std::env::vars_os() {
@@ -83,6 +91,12 @@ impl App {
       if OUTER_PACKAGE.iter().any(|prefix| name.starts_with(prefix)) {
         command.env_remove(name.as_ref());
       }
+    }
+    if std::env::var_os(COVERAGE_WRAPPER).is_some() {
+      match std::env::var_os(USER_WRAPPER) {
+        Some(wrapper) => command.env("RUSTC_WRAPPER", wrapper),
+        None => command.env_remove("RUSTC_WRAPPER"),
+      };
     }
     command
       .args(args)

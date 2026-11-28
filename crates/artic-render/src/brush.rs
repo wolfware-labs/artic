@@ -1,6 +1,6 @@
 use crate::{Color, ParseColorError};
 use artic_core::tree::{NodeId, UiTree};
-use artic_core::{RustExpr, ToRust};
+use artic_core::{AsText, RustExpr, TakesObject, ToRust, Written};
 use artic_layout::geometry::{RelativePoint, RelativeScalar};
 use artic_macros::UiType;
 use artic_registry::{ANOTHER_OBJECT, FromUiObject, ValueError};
@@ -248,6 +248,12 @@ impl ToRust for Brush {
     };
     out.call(env!("CARGO_CRATE_NAME"), variant, &[brush]);
   }
+}
+
+/// A brush is written as color text, or as one of the brushes a UI language stages.
+impl Written for Brush {
+  type As = AsText;
+  type FromObject = TakesObject;
 }
 
 impl ToRust for SolidColorBrush {

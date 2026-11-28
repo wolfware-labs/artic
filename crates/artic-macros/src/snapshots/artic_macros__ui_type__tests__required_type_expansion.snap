@@ -1,6 +1,6 @@
 ---
 source: crates/artic-macros/src/ui_type.rs
-expression: "prettyplease::unparse(&file)"
+expression: "unparse(expand(&input).expect(\"valid\"))"
 ---
 const _: () = {
     use ::artic_registry::__private as __artic;
@@ -23,62 +23,40 @@ const _: () = {
             affects: (&__KEY_WIDTH).affects(),
             inherits: (&__KEY_WIDTH).inherits(),
             literal: __artic::literal!(f32),
-            access: &__artic::PropertyAccess {
-                set_text: |tree, node, text, level| {
-                    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-                    {
-                        let value = (__artic::exactly::<
-                            __artic::ValueOps<f32>,
-                        >(
-                                (&&__artic::ValueCheck::<
-                                    f32,
-                                    __artic::AnyValue,
-                                >(__artic::PhantomData))
-                                    .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
-                            )
+            access: __artic::access!(
+                &__artic::PropertyAccess {
+                    set_text: |tree, node, text, level| {
+                        let value = (<<f32 as __artic::Written>::As as __artic::Route<
+                            f32,
+                        >>::value_ops()
                             .parse)(text, ::core::stringify!(f32))?;
                         __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
-                    }
-                },
-                set_node: |tree, node, child, level| {
-                    use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-                    {
-                        let value = (__artic::exactly::<
-                            __artic::ValueOps<f32>,
-                        >(
-                                (&&__artic::ValueCheck::<
-                                    f32,
-                                    __artic::AnyValue,
-                                >(__artic::PhantomData))
-                                    .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
-                            )
+                    },
+                    set_node: |tree, node, child, level| {
+                        let value = (<<f32 as __artic::Written>::As as __artic::Route<
+                            f32,
+                        >>::value_ops()
                             .node)(child, ::core::stringify!(f32))?;
                         __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
-                    }
-                },
-                set_object: |tree, node, object, level| {
-                    use __artic::{NotFromObject as _, ViaFromUiObject as _};
-                    {
-                        let value = (__artic::exactly::<
-                            __artic::ObjectOps<f32>,
-                        >(
-                                (&__artic::ObjectCheck::<f32>(__artic::PhantomData))
-                                    .object_ops(),
-                            )
+                    },
+                    set_object: |tree, node, object, level| {
+                        let value = (<<f32 as __artic::Written>::FromObject as __artic::ObjectRoute<
+                            f32,
+                        >>::object_ops()
                             .take)(tree, node, object, ::core::stringify!(f32))?;
                         __artic::set_property(tree, node, (&__KEY_WIDTH), level, value)
-                    }
+                    },
+                    set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
+                        property: (&__KEY_WIDTH).name(),
+                    }),
+                    clear: |tree, node, level| __artic::clear_property(
+                        tree,
+                        node,
+                        (&__KEY_WIDTH),
+                        level,
+                    ),
                 },
-                set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
-                    property: (&__KEY_WIDTH).name(),
-                }),
-                clear: |tree, node, level| __artic::clear_property(
-                    tree,
-                    node,
-                    (&__KEY_WIDTH),
-                    level,
-                ),
-            },
+            ),
         },
     ];
     static __EVENTS: [__artic::EventInfo; 0usize] = [];
@@ -132,14 +110,34 @@ const _: () = {
         const TYPE_INFO: &'static __artic::TypeInfo = &__TYPE_INFO;
     }
     __artic::register_type!(__TYPE_INFO);
-    #[allow(dead_code, clippy::needless_borrow)]
+    impl __artic::Written for Login {
+        type As = __artic::AsObject;
+        type FromObject = __artic::RefusesObject;
+    }
+    #[allow(dead_code)]
     fn __checks() {
-        use __artic::{ViaChild as _, ViaFromStr as _, ViaUiType as _};
-        __artic::exactly::<
-            __artic::ValueOps<f32>,
-        >(
-            (&&__artic::ValueCheck::<f32, __artic::AnyValue>(__artic::PhantomData))
-                .value_must_parse_from_text_and_implement_torust_or_derive_uitype(),
-        );
+        <<f32 as __artic::Written>::As as __artic::Route<f32>>::value_ops();
+        <<f32 as __artic::Written>::FromObject as __artic::ObjectRoute<
+            f32,
+        >>::object_ops();
+        const _: () = match <<f32 as __artic::Written>::As as __artic::KindCheck<
+            f32,
+        >>::MISMATCH {
+            ::core::option::Option::Some(__artic::TypeKind::Value) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(f32),
+                    "` is a value type (`TypeKind::Value`), so a property takes its staged object: ",
+                    "its `Written` impl writes `type FromObject = TakesObject`, not `node_type_value!`")
+                )
+            }
+            ::core::option::Option::Some(__artic::TypeKind::Node) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(f32),
+                    "` is a node type (`TypeKind::Node`), whose objects stay in the tree: ",
+                    "its `Written` impl writes `type FromObject = RefusesObject`, as `artic::core::node_type_value!` does")
+                )
+            }
+            ::core::option::Option::None => {}
+        };
     }
 };

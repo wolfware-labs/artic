@@ -51,3 +51,5 @@ impl ToRust for Classes {
     out.raw("])");
   }
 }
+
+artic_core::text_value!(Classes);

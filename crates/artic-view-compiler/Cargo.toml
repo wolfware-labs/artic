@@ -25,6 +25,7 @@ name = "compile_dir"
 harness = false
 
 [dev-dependencies]
+artic-view = { workspace = true, features = ["testing"] }
 pretty_assertions.workspace = true
 syn = { workspace = true, features = ["full"] }
 

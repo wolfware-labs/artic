@@ -62,7 +62,7 @@ pub struct PropertyInfo {
   pub value_type: &'static str,
   pub affects: Affects,
   pub inherits: bool,
-  pub access: &'static PropertyAccess,   // new
+  pub access: Option<&'static PropertyAccess>,   // new; `Some` with the registry's `access` feature
 }
 
 /// How the loader writes one property. Signatures are type-free; bodies are typed.
@@ -85,7 +85,7 @@ pub struct PropertyAccess {
 
 pub struct AttachedPropertyInfo {
   // existing fields …
-  pub access: &'static PropertyAccess,   // new; where attached values are stored is #31 / #59
+  pub access: Option<&'static PropertyAccess>,   // new; `Some` with the registry's `access` feature; where attached values are stored is #31 / #59
 }
 
 pub struct TypeInfo {
@@ -138,7 +138,7 @@ fn padding_set_text(tree: &mut UiTree, node: NodeId, text: &str, level: Preceden
 
 The thunk finds its property by key with `UiTree::property`, not through the owner's type. A property group's property, such as `Margin` in the `layout` group every control holds, has one `PropertyInfo` and one key for all of them, so its one access writes it on any node that holds the group; a node without the key, or no longer in the tree, is `WrongNode`. Finding a property by key visits every property the node holds. Only the loader pays that: compiled views call typed setters with values written at build time. `cargo bench -p artic-controls --bench loader` compares an access with parsing the same text and setting the field directly.
 
-Every entry is a plain function, present for every property, and refuses what its property can't take, so the loader calls one and reports what it returns. `set_node` is present like `set_object`: the derive can't tell at macro time that a value type is `NodeId`, so it selects the conversion with the same autoref check #18 uses for text, and a property of any other type refuses a node with `WrongType`.
+Every entry is a plain function, present for every property, and refuses what its property can't take, so the loader calls one and reports what it returns. `set_node` is present like `set_object`: the derive can't tell at macro time that a value type is `NodeId`, so the conversion is the one the value type's `Written` impl names, as for text: `NodeId` is written as a child (`AsChild`), and a property of any other type refuses a node with `WrongType`.
 
 `set_object`'s body converts the built object with the value type's `FromUiObject`, which checks "is this a `T`?" with `T` known statically, the same check `UiTree::get_as::<T>` already makes. It happens inside typed code; the loader and the public API never see `Any`. How value objects such as `SolidColorBrush` are staged and converted is the [value objects design](value-objects.md).
 
@@ -166,29 +166,31 @@ Every markup extension, a value provider in [the UI language contract](../spec/d
 
 ## Worked examples
 
+The loader turns on the registry's `access` feature, so every `PropertyInfo::access` is `Some`. It takes the thunks out once per property, `let padding_access = padding.access.expect("the loader turns on the access feature");`, and the steps below write `padding_access` and `background_access` for them.
+
 **Attribute text.** `<Border Padding="4,8"/>`
 
 1. The loader resolves `Border` with `Registry::type_by_name` (or `type_by_rust_path` for a `using:` prefix) and creates the node with `TypeInfo::new`, reporting a type that has none, such as a view's code type (#59).
 2. It finds `PropertyInfo` `Padding` in `border.properties`.
-3. It calls `(padding.access.set_text)(tree, node, "4,8", Precedence::Local)`.
+3. It calls `(padding_access.set_text)(tree, node, "4,8", Precedence::Local)`.
 4. The thunk parses a `Thickness` and calls `border.padding.set_at(Local, value)`.
 
 **A `StaticResource` brush.** `<Border Background="{StaticResource Accent}"/>`, with `<SolidColorBrush x:Key="Accent" Color="#3B82F6"/>` in an ancestor's resources.
 
 1. The loader resolves `Accent` to the entry's node: an `Object` of type `SolidColorBrush`.
 2. It builds that object as it would inline (`TypeInfo::new`, then its members through their own thunks).
-3. It calls `(background.access.set_object)(tree, border, brush, Precedence::Local)`.
+3. It calls `(background_access.set_object)(tree, border, brush, Precedence::Local)`.
 4. The thunk converts the object with `Brush::from_object` ([value objects](value-objects.md)) and sets it.
 
 **A style `Setter`.** `<Style Selector="Border.card"><Setter Property="Padding" Value="12"/></Style>`
 
 1. When the selector matches a `Border`, the style system finds `PropertyInfo` `Padding` on the target type.
-2. It calls `(padding.access.set_text)(tree, node, "12", Precedence::StyleSetter)`.
-3. A local `Padding` on the same `Border` still wins (#13); when the selector stops matching, it calls `(padding.access.clear)(tree, node, Precedence::StyleSetter)`.
+2. It calls `(padding_access.set_text)(tree, node, "12", Precedence::StyleSetter)`.
+3. A local `Padding` on the same `Border` still wins (#13); when the selector stops matching, it calls `(padding_access.clear)(tree, node, Precedence::StyleSetter)`.
 
 **A type mismatch.** `<Border Background="{StaticResource Gap}"/>`, where `Gap` is an `x:Double`.
 
-1. `Gap`'s node is text (`"8"`), so the loader calls `background.access.set_text(…, "8", …)`.
+1. `Gap`'s node is text (`"8"`), so the loader calls `(background_access.set_text)(…, "8", …)`.
 2. `Option<Brush>`'s value type fails to parse `"8"` and returns `ValueError::Parse { expected: "Brush", message }`.
 3. The loader reports `view.xaml:3:21: expected Brush, got '8'` at the `{StaticResource Gap}` span, with a note at `Gap`'s definition.
 
@@ -200,6 +202,6 @@ There is no loader value type to forbid. The guarantee is that code generated by
 
 ## Open questions
 
-- **Binary size.** Every property's thunks are compiled into every binary, release builds included, because `UI_TYPES` keeps the descriptors alive. #57 should measure it. If it matters, the derive can gate `PropertyAccess` behind a feature reached through the `__private` hub.
+- **Binary size.** Settled: `UI_TYPES` keeps the descriptors alive, so every property's thunks were compiled into every binary, release builds included. In the `hello` example's release build they took 502,208 bytes of 28,268,584 (1.8%), 279,424 bytes once stripped (1.3%). The derive now wraps them in `__private::access!`, which gives `Some` only with the registry's `access` feature, as `literal!` does with `literals`: a build without a runtime loader keeps none, and `PropertyInfo::access` is `None`.
 - **Value objects.** Settled by the [value objects design](value-objects.md): values are staged through `TypeInfo::new` and converted with `FromUiObject`, which made `set_object` always present.
 - **Attached property storage.** `AttachedPropertyInfo.access` fixes how the loader writes an attached property, not where the value lives on the target node. That is #31 and #59.

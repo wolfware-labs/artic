@@ -23,7 +23,12 @@ artic-element.workspace = true
 artic-test.workspace = true
 artic-test-fonts.workspace = true
 artic-text.workspace = true
+criterion.workspace = true
 pretty_assertions.workspace = true
+
+[[bench]]
+name = "render"
+harness = false
 
 [lints]
 workspace = true

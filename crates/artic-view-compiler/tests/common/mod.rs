@@ -2,138 +2,14 @@
 
 #![allow(dead_code, reason = "each test binary uses part of it")]
 
-use artic_core::Object;
-use artic_core::property::Affects;
-use artic_core::tree::{NodeId, UiTree};
 use artic_diagnostics::{Diagnostic, Diagnostics, SourceId, SourceMap, Span};
-use artic_registry::{
-  ContentInfo, ContentMethod, PropertyAccess, PropertyGroupInfo, PropertyInfo, Registry, RustExpr, TypeInfo, TypeKind,
-  ValueError, Whitespace,
-};
+use artic_registry::{Registry, TypeInfo};
 use artic_view::Language;
-use artic_view::document::{Content, Document, Element, Member, Text, TypeUse};
-
-/// Reads no node: the compiler never builds a tree.
-fn no_object(_object: &dyn Object) -> bool {
-  unreachable!("the compiler never reads a node")
-}
-
-/// Creates no node: the compiler never builds a tree.
-fn new_node(_tree: &mut UiTree) -> NodeId {
-  unreachable!("the compiler never creates a node")
-}
-
-/// Adds no child: the compiler never builds a tree.
-fn add_child(_tree: &mut UiTree, _parent: NodeId, _child: NodeId) -> Result<(), ValueError> {
-  unreachable!("the compiler never adds a child")
-}
-
-/// Writes a number, or refuses text that isn't one.
-fn number(text: &str, out: &mut RustExpr) -> Result<(), String> {
-  let value: f32 = text.parse().map_err(|_| format!("`{text}` isn't a number"))?;
-  out.f32(value);
-  Ok(())
-}
-
-/// Writes text as a string.
-fn string(text: &str, out: &mut RustExpr) -> Result<(), String> {
-  out.str(text);
-  Ok(())
-}
-
-/// A descriptor with no content, properties or groups.
-const fn info(name: &'static str, rust_path: &'static str) -> TypeInfo {
-  TypeInfo {
-    name,
-    rust_path,
-    is: no_object,
-    new: Some(new_node),
-    content: None,
-    properties: &[],
-    groups: &[],
-    events: &[],
-    attached_properties: &[],
-    value_provider: None,
-    whitespace: Whitespace::Collapse,
-    code_type_root: false,
-    kind: TypeKind::Node,
-  }
-}
-
-/// A property whose text `literal` writes.
-const fn property_info(
-  name: &'static str,
-  field: &'static str,
-  literal: fn(&str, &mut RustExpr) -> Result<(), String>,
-) -> PropertyInfo {
-  PropertyInfo {
-    name,
-    field,
-    value_type: "f32",
-    affects: Affects::NONE,
-    inherits: false,
-    literal: Some(literal),
-    access: &UNWRITTEN,
-  }
-}
-
-/// What the loader would do with a test property: nothing, since these tests never load a view.
-static UNWRITTEN: PropertyAccess = PropertyAccess {
-  set_text: |_, _, _, _| Err(ValueError::WrongNode),
-  set_node: |_, _, _, _| Err(ValueError::WrongNode),
-  set_object: |_, _, _, _| Err(ValueError::WrongNode),
-  set_null: |_, _, _| Err(ValueError::WrongNode),
-  clear: |_, _, _| Err(ValueError::WrongNode),
-};
-
-static WIDTH: [PropertyInfo; 1] = [property_info("Width", "width", number)];
-static MARGIN: [PropertyInfo; 1] = [property_info("Margin", "margin", number)];
-static LAYOUT: [PropertyGroupInfo; 1] = [PropertyGroupInfo {
-  field: "layout",
-  properties: &MARGIN,
-  methods: "test_ui::layout::LayoutMethods",
-}];
-static TEXT: [PropertyInfo; 1] = [property_info("Text", "text", string)];
-
-/// Takes any number of children; has `Width` and the group `layout` with `Margin`.
-pub static PANEL: TypeInfo = TypeInfo {
-  content: Some(ContentInfo::Collection {
-    field: "children",
-    method: Some(ContentMethod::Children),
-    takes: || None,
-    text_wrapper: || None,
-    add_child,
-  }),
-  properties: &WIDTH,
-  groups: &LAYOUT,
-  ..info("Panel", "test_ui::panel::Panel")
-};
-
-/// Takes one child; has the group `layout` with `Margin`; a code type can take its place.
-pub static HOST: TypeInfo = TypeInfo {
-  content: Some(ContentInfo::Collection {
-    field: "child",
-    method: Some(ContentMethod::Child),
-    takes: || None,
-    text_wrapper: || None,
-    add_child,
-  }),
-  groups: &LAYOUT,
-  code_type_root: true,
-  ..info("Host", "test_ui::host::Host")
-};
+use artic_view::document::{Content, Document, Element, Member, TypeUse};
+use artic_view::testing::{HOST, LABEL, PANEL, info, span};
 
 /// Takes no content; a code type can take its place.
-pub static BADGE: TypeInfo = TypeInfo {
-  code_type_root: true,
-  ..info("Badge", "test_ui::badge::Badge")
-};
-
-/// Has `Text`.
-pub static LABEL: TypeInfo = TypeInfo {
-  properties: &TEXT,
-  ..info("Label", "test_ui::label::Label")
-};
+pub static BADGE: TypeInfo = info("Badge", "test_ui::badge::Badge").with_code_type_root(true);
 
 /// The registry of the hand-built types.
 pub fn registry() -> Registry {
@@ -213,73 +89,10 @@ impl Language for Silent {
   }
 }
 
-/// The bytes `at..at + 1` of `file`.
-pub fn span(file: SourceId, at: usize) -> Span {
-  Span::new(file, at, at + 1)
-}
-
-/// An element of type `info` written at `at`.
-pub fn element(file: SourceId, info: &'static TypeInfo, at: usize, members: Vec<Member>) -> Element {
-  Element {
-    ty: Ok(TypeUse {
-      info,
-      module: None,
-      span: span(file, at),
-    }),
-    span: span(file, at),
-    members,
-  }
-}
-
-/// An element at `at` whose type `Gauge` wasn't found.
-pub fn unknown(file: SourceId, at: usize) -> Element {
-  Element {
-    ty: Err(Diagnostic::error(span(file, at), "no type `Gauge`").into()),
-    span: span(file, at),
-    members: Vec::new(),
-  }
-}
-
-/// The property `name` set to `value`, both written at `at`.
-pub fn property(file: SourceId, name: &str, at: usize, value: &str) -> Member {
-  Member::Property {
-    name: name.to_owned(),
-    span: span(file, at),
-    value: Ok(Text {
-      text: value.to_owned(),
-      span: span(file, at),
-    }),
-  }
-}
-
-/// The name `text` at `at`.
-pub fn name(file: SourceId, text: &str, at: usize) -> Member {
-  Member::Name(Ok(Text {
-    text: text.to_owned(),
-    span: span(file, at),
-  }))
-}
-
-/// The code type `path` at `at`.
-pub fn code_type(file: SourceId, path: &str, at: usize) -> Member {
-  Member::CodeType(Ok(Text {
-    text: path.to_owned(),
-    span: span(file, at),
-  }))
-}
-
-/// The field visibility `text` at `at`.
-pub fn visibility(file: SourceId, text: &str, at: usize) -> Member {
-  Member::FieldVisibility(Ok(Text {
-    text: text.to_owned(),
-    span: span(file, at),
-  }))
-}
-
 /// Content of `elements`, starting at `at`.
 pub fn children(file: SourceId, at: usize, elements: Vec<Element>) -> Member {
   Member::Content {
-    span: span(file, at),
+    span: span(file, at, at + 1),
     nodes: elements.into_iter().map(Content::Element).collect(),
   }
 }

@@ -97,7 +97,7 @@ assert_eq!(width.group, Some("layout"));
 A value reaches a property in one of four forms:
 
 - **Text**, parsed with the value type's `FromStr`. A failure is `ValueError::Parse`, carrying the type's own message.
-- **An object** of a type that is itself a `UiType`, such as a brush: built as a node, then converted into the property's type ([value objects](../design/value-objects.md)).
+- **An object** of a type that is itself a `UiType`, such as a brush: built as a node, then converted into the property's type ([value objects](../design/value-objects.md)). The property's type says it is written as an object with `Written`, which `#[derive(UiType)]` implements; a node type implementing `UiType` by hand adds it with `artic_core::node_type_value!`, and a hand-written value type writes it with `TakesObject`.
 - **A child node**, for a property whose type is `NodeId`, or `Option<NodeId>`, filled in by the node written inside it.
 - **Null**, for a property whose type is `Option<T>`. Any other refuses it with `ValueError::NotNullable`.
 

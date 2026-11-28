@@ -14,8 +14,7 @@ use pretty_assertions::assert_eq;
 /// Sets `property` of `node`, whose type `type_info` describes, from `text` as the loader does:
 /// looked up by name, with no value type in sight.
 fn set_text(tree: &mut UiTree, type_info: &'static TypeInfo, node: NodeId, property: &str, text: &str) {
-  let found = type_info.property(property).expect("the property is registered");
-  (found.info.access.set_text)(tree, node, text, Precedence::Local).expect("the text parses");
+  (access(type_info, property).set_text)(tree, node, text, Precedence::Local).expect("the text parses");
 }
 
 /// A control created from its descriptor, as the loader creates one.
@@ -87,8 +86,9 @@ fn a_group_property_has_one_access_for_every_control() {
     .expect("in the layout group");
   assert!(std::ptr::eq(on_border.info, on_block.info));
 
+  let alignment = on_border.info.access.expect("the access feature is on");
   for node in [border, block] {
-    (on_border.info.access.set_text)(&mut tree, node, "Center", Precedence::Local).expect("Center is an alignment");
+    (alignment.set_text)(&mut tree, node, "Center", Precedence::Local).expect("Center is an alignment");
   }
 
   assert_eq!(
@@ -107,7 +107,8 @@ fn a_group_property_has_one_access_for_every_control() {
 
 /// The access of `property` on `type_info`.
 fn access(type_info: &'static TypeInfo, property: &str) -> &'static PropertyAccess {
-  type_info.property(property).expect("the property is registered").info.access
+  let info = type_info.property(property).expect("the property is registered").info;
+  info.access.expect("the access feature is on")
 }
 
 // A brush written as an element is staged, given its members, and moved into `Background`.

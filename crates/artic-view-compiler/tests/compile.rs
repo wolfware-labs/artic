@@ -5,8 +5,9 @@ mod common;
 
 use artic_diagnostics::{SourceId, SourceMap};
 use artic_view::document::Document;
+use artic_view::testing::{HOST, LABEL, PANEL, code_type, element, name, property, unknown, visibility};
 use artic_view_compiler::{CratePaths, compile_str};
-use common::{BADGE, Built, HOST, LABEL, PANEL, children, code_type, element, name, property, registry, unknown, visibility};
+use common::{BADGE, Built, children, registry};
 
 /// Compiles the document `build` makes, with `test_ui` reached as `::ui` and the paths `edit`
 /// adds.
@@ -105,7 +106,10 @@ fn diagnostics_are_sorted_across_stages() {
         file,
         &PANEL,
         0,
-        vec![property(file, "Width", 3, "wide"), children(file, 9, vec![unknown(file, 10)])],
+        vec![
+          property(file, "Width", 2, "wide"),
+          children(file, 9, vec![unknown(file, 9, Vec::new())]),
+        ],
       ),
     }
   }

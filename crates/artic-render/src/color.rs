@@ -71,6 +71,8 @@ impl ToRust for Color {
   }
 }
 
+artic_core::text_value!(Color);
+
 /// Reads the hex digits after a `#`.
 fn hex(digits: &str) -> Result<Color, ColorProblem> {
   let mut nibbles = Vec::with_capacity(8);
