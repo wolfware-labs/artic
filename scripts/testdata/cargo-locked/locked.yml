@@ -39,6 +39,7 @@ jobs:
       - run: cargo machete --no-ignore ./crates
       - run: cargo machete --version
       - run: cargo machete --help
+      - run: cargo machete crates/a_b-c.d C:/work/app
       - run: which cargo
       - run: cargo -C crates/x fmt --check
       - run: cargo --color always fmt --check

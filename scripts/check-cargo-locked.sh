@@ -5,12 +5,12 @@
 # fails closed: every subcommand needs the flag except those that never resolve dependencies (fmt,
 # `codspeed run`, version, help, `--version`, `-V` or `--help` alone, and machete with nothing
 # before a lone `--` but plain paths and its switches that read no metadata: `--skip-target-dir`,
-# `--fix`, `--no-ignore`, `--version`, `--help`; any other option, and any word with `$`, a quote or
-# a backslash, may be `--with-metadata`, which runs cargo metadata and has no `--locked`, so it's
-# flagged), and mutants takes it as `--cargo-arg=--locked`. A flag after a lone `--` goes to the
-# program cargo runs, and one before the subcommand reaches only cargo's built-in commands, so
-# neither counts. Reads every YAML file under .github, or the files given, with yq (mikefarah),
-# aliases expanded.
+# `--fix`, `--no-ignore`, `--version`, `--help`, where a path holds only letters, digits and
+# `_ . / : -`; any other option or word may expand to `--with-metadata`, which runs cargo metadata
+# and has no `--locked`, so it's flagged), and mutants takes it as `--cargo-arg=--locked`. A flag
+# after a lone `--` goes to the program cargo runs, and one before the subcommand reaches only
+# cargo's built-in commands, so neither counts. Reads every YAML file under .github, or the files
+# given, with yq (mikefarah), aliases expanded.
 #
 # It reads `run:` text a word at a time: `#` at a word's start outside quotes begins a comment
 # (`strip_comments`), then a backslash at a line's end joins the next line; each line, and the text
@@ -114,7 +114,7 @@ unlocked() {
       while [ "$i" -lt "${#words[@]}" ] && [ "${words[i]}" != -- ]; do
         case "${words[i]}" in
           --skip-target-dir | --fix | --no-ignore | --version | --help) ;;
-          -* | *[\$\"\'\\]*) return 0 ;;
+          -* | *[!A-Za-z0-9_./:-]*) return 0 ;;
         esac
         i=$((i + 1))
       done

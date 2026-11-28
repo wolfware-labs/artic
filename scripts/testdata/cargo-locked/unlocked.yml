@@ -81,6 +81,10 @@ jobs:
       - run: cargo machete $MACHETE_ARGS # flagged
       - run: cargo machete \--with-metadata # flagged
       - run: cargo machete --skip-target-dir -x # flagged
+      - run: cargo machete @margs # flagged
+      - run: cargo machete %MACHETE_ARGS% # flagged
+      - run: cargo machete ^--with-metadata # flagged
+      - run: cargo machete * # flagged
       - uses: CodSpeedHQ/action@0000000000000000000000000000000000000000
         with:
           run: cargo build # flagged
