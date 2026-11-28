@@ -49,13 +49,12 @@ use syn::{DeriveInput, parse_macro_input};
 ///   implementing `FromStr` (with a `Display` error) and `ToRust` beside `artic::core::text_value!`
 ///   (`artic_core::text_value!` without the `artic` crate), or a `UiType`, which a derived type
 ///   is and a type implementing `UiType` by hand becomes with `artic::core::object_value!`, or a
-///   `NodeId`, a property that names a node, such as a data context. Its settings:
-///   `default = expr` for the `Default` level (otherwise `T::default()`),
-///   `affects = layout | render` and `inherits` for its generated key, `key = KEY` to share a key
-///   with other types instead (inheritance across types needs it): a `static PropertyKey`, or an
-///   attached property's key such as `TextElement::FONT_SIZE`, which
-///   also gives the field its default, so `default` can't go beside it, and `name = "..."` to
-///   rename it (the field name in PascalCase otherwise).
+///   `NodeId`, a property that names a node, such as a data context. Its settings: `default = expr`
+///   for the `Default` level (otherwise `T::default()`), `affects = layout | render` and
+///   `inherits` for its generated key, `key = KEY` to share a key with other types instead
+///   (inheritance across types needs it): a `static PropertyKey`, or an attached property's key
+///   such as `TextElement::FONT_SIZE`, which also gives the field its default, so `default` can't
+///   go beside it, and `name = "..."` to rename it (the field name in PascalCase otherwise).
 ///   A bare `inherits` replaces what the property inherits with its own value; `inherits = f`
 ///   combines the two through `f(own, inherited)`, where a single name such as `and` is one of
 ///   `artic_core::property::inherit`'s functions and a longer path names any
