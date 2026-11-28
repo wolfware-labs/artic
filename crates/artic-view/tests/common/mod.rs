@@ -1,16 +1,11 @@
 //! Hand-built documents over hand-built types, as a language's front end would read them.
 
-use artic_diagnostics::{Diagnostic, Diagnostics, SourceId, SourceMap};
+use artic_diagnostics::{Diagnostic, Diagnostics, SourceId};
 use artic_registry::{
   AttachedPropertyInfo, AttachedTarget, ContentInfo, ContentMethod, PropertyRef, TypeInfo, TypeKind, Whitespace,
 };
 use artic_view::document::{Content, Element, Member, Problem, Text, TypeUse};
 use artic_view::testing::{LABEL, TEXT, add_child, info, no_object, span};
-
-/// The view's file, the one source these tests make.
-pub fn file() -> SourceId {
-  SourceMap::new().add("view.ui", "")
-}
 
 /// Takes one child.
 pub static FRAME: TypeInfo = info("Frame", "test_ui::Frame").with_content(ContentInfo::Collection {

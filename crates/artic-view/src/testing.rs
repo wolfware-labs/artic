@@ -4,7 +4,7 @@
 use crate::document::{Element, Member, Text, TypeUse};
 use artic_core::Object;
 use artic_core::tree::{NodeId, UiTree};
-use artic_diagnostics::{Diagnostic, SourceId, Span};
+use artic_diagnostics::{Diagnostic, SourceId, SourceMap, Span};
 use artic_registry::{
   ContentInfo, ContentMethod, EventInfo, PropertyGroupInfo, PropertyInfo, PropertyRef, RustExpr, TypeInfo, ValueError,
 };
@@ -93,6 +93,11 @@ pub static LABEL: TypeInfo = info("Label", "test_ui::label::Label")
   }))
   .with_properties(&TEXT);
 
+/// A view's file, `view.ui`, empty: a source the spans below can point into.
+pub fn file() -> SourceId {
+  SourceMap::new().add("view.ui", "")
+}
+
 /// The bytes `start..end` of `file`.
 pub fn span(file: SourceId, start: usize, end: usize) -> Span {
   Span::new(file, start, end)
@@ -160,7 +165,6 @@ pub fn visibility(file: SourceId, text: &str, at: usize) -> Member {
 mod tests {
   use super::*;
   use artic_core::property::PropertyVisitor;
-  use artic_diagnostics::SourceMap;
   use pretty_assertions::assert_eq;
 
   /// An object with no properties, to hand the stubs something to refuse.
@@ -205,11 +209,6 @@ mod tests {
     assert_eq!(format!("{built:?}"), format!("{BARE:?}"));
     assert!(built.new.is_some());
     assert!(built.content.is_none());
-  }
-
-  /// A file to place spans in.
-  fn file() -> SourceId {
-    SourceMap::new().add("view.ui", "")
   }
 
   /// The text a member holds, or a panic naming the member it got.
