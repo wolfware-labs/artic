@@ -3,7 +3,8 @@
 # the subcommand, so CI always builds the committed Cargo.lock, and when a workflow has no top-level
 # `permissions:` block, so every job's token starts read-only whatever the repository setting. It
 # fails closed: every subcommand needs the flag except those that never resolve dependencies (fmt,
-# `codspeed run`, version, help, `--version`, `-V` or `--help` alone, and machete with nothing
+# `codspeed run`, version, help, cargo with no subcommand and only a toolchain, `--version`, `-V`,
+# `--help` or `-h`, and machete with nothing
 # before a lone `--` but plain paths and its switches that read no metadata: `--skip-target-dir`,
 # `--fix`, `--no-ignore`, `--version`, `--help`, where a path holds only letters, digits and
 # `_ . / : -`, and a backtick, parenthesis or brace is a word of its own; any other option or word
@@ -24,9 +25,10 @@
 # `|` isn't taken for a comment, while one after an escaped blank, inside `$'...'` or in `${x# #}`
 # is, and an apostrophe in a heredoc body leaves a quote open for the rest of the step. Separators
 # and grouping characters split the text before quotes are read, so a quoted cargo word after a
-# `;`, `|`, `&`, `(` or backtick (`echo "cargo build; cargo test"`) is flagged though the shell
-# never runs it: an unlocked one fails the check, a false alarm and never a miss. Its job is to
-# catch a missing `--locked`; it isn't a shell parser.
+# `;`, `|`, `&` or `(` (`echo "cargo build; cargo test"`) is flagged though the shell never runs
+# it, a false alarm, and a split inside a quoted option value (`cargo --config "a;b" build`) leaves
+# cargo with no subcommand, which is flagged too. Its job is to catch a missing `--locked`; it
+# isn't a shell parser.
 set -uo pipefail
 set -f
 cd "$(dirname "$0")/.."
@@ -110,9 +112,18 @@ unlocked() {
     esac
   done
   sub=${words[i]:-}
+  if [ -z "$sub" ]; then
+    for flag in "${words[@]}"; do
+      case "$flag" in
+        +* | --version | -V | --help | -h) ;;
+        *) return 0 ;;
+      esac
+    done
+    return 1
+  fi
   i=$((i + 1))
   case "$sub" in
-    '' | fmt | version | help) return 1 ;;
+    fmt | version | help) return 1 ;;
     codspeed) [ "${words[i]:-}" != run ] || return 1 ;;
     machete)
       while [ "$i" -lt "${#words[@]}" ] && [ "${words[i]}" != -- ]; do

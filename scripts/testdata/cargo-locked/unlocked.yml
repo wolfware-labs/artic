@@ -90,6 +90,9 @@ jobs:
       - run: cargo machete {margs} # flagged
       - run: echo `cargo build` # flagged
       - run: echo "see cargo build; cargo test" # flagged
+      - run: cargo --config "a;b" build # flagged
+      - run: cargo -Z "a&b" build # flagged
+      - run: cargo --config build # flagged
       - uses: CodSpeedHQ/action@0000000000000000000000000000000000000000
         with:
           run: cargo build # flagged

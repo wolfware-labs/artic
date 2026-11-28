@@ -32,6 +32,9 @@ jobs:
       - run: |
           echo "a" # cargo build
       - run: cargo --version
+      - run: cargo -V
+      - run: cargo +nightly --version
+      - run: cargo --help
       - run: cargo machete
       - run: cargo machete --skip-target-dir -- --with-metadata
       - run: cargo machete --skip-target-dir
