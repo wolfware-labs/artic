@@ -15,9 +15,9 @@
 # `cargo +${{ matrix.rust }} build --locked` is flagged for that reason), and after the subcommand
 # any word with a character outside that set (a variable, quote, glob, splat or redirection) hides
 # every flag after it (`cargo test --locked -p "$crate"` passes, `cargo build $ARGS --locked`
-# doesn't). run (and its alias r), rustc, rustdoc and a wrapper's `run` pass the program every word
-# from their first argument that isn't an option or an option's value, so there the flag must come
-# before it
+# doesn't). run (and its alias r), rustc and rustdoc, alone or under a wrapper, pass the program
+# every word from their first argument that isn't an option or an option's value, so there the flag
+# must come before it
 # (`cargo run --locked -p app --example smoke`, not `cargo run -q a --locked`). mutants takes the
 # flag as `--cargo-arg=--locked`. A flag after a lone `--` goes to the program cargo runs, and one
 # before the subcommand reaches only cargo's built-in commands, so neither counts. Reads every YAML
@@ -188,11 +188,11 @@ unlocked() {
       return 0
       ;;
   esac
-  # run (and its alias r), rustc and rustdoc, and a wrapper's `run` (`cargo llvm-cov --lcov run`,
-  # `cargo miri run`) wherever it stands, hand the program every word from the first one that is
-  # neither an option nor an option's value; the value-taking options are those
-  # `cargo <sub> --help` lists (1.99.1). A `run` word anywhere turns the rule on, which fails
-  # closed when it is only a test filter or an option's value.
+  # run (and its alias r), rustc and rustdoc, and the same words under a wrapper (`cargo llvm-cov
+  # --lcov r`, `cargo hack rustc`) wherever they stand, hand the program every word from the first
+  # one that is neither an option nor an option's value; the value-taking options are those
+  # `cargo <sub> --help` lists (1.99.1). Any of those words turns the rule on, which fails closed
+  # when it is only a test filter or an option's value.
   local program_args=0 value_next=0
   case "$sub" in
     run | r | rustc | rustdoc) program_args=1 ;;
@@ -203,9 +203,13 @@ unlocked() {
     case "$word" in
       --locked | --frozen) return 1 ;;
     esac
-    if [ "$program_args" = 0 ] && [ "$word" = run ]; then
-      program_args=1
-      continue
+    if [ "$program_args" = 0 ]; then
+      case "$word" in
+        run | r | rustc | rustdoc)
+          program_args=1
+          continue
+          ;;
+      esac
     fi
     [ "$program_args" = 1 ] || continue
     if [ "$value_next" = 1 ]; then
