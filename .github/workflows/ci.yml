@@ -66,7 +66,8 @@ jobs:
               - 'rust-toolchain.toml'
               - 'rustfmt.toml'
               - '.cargo/**'
-              # Every workflow, not only this one: Lint checks their checkouts.
+              # Every workflow, not only this one: Lint checks their checkouts, cargo calls
+              # and permissions.
               - '.github/workflows/**'
               - '.github/actions/**'
               - '.github/scripts/**'

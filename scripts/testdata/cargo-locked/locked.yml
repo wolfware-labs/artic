@@ -1,4 +1,4 @@
-# Every cargo command here builds the committed lockfile, or resolves nothing.
+# Every cargo command here builds the committed lockfile, or is one the check leaves alone.
 name: locked
 on: push
 permissions:
@@ -19,6 +19,11 @@ jobs:
       - run: cargo codspeed run
       - run: cargo mutants --workspace --cargo-arg=--locked
       - run: cargo mutants --workspace --cargo-arg --locked
+      - run: cargo mutants --workspace -C --locked
+      - run: if cargo test --locked; then echo ok; fi
+      - run: timeout 600 cargo test --locked
+      - run: out=$(cargo build --locked)
+      - run: cargo --config net.retry=3 build --locked
       - run: cargo fmt --all --check
       - run: cargo metadata --format-version 1
       - run: echo "cargo build is not run here"

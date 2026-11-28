@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# Fails when a workflow or action step runs a cargo command that resolves dependencies without
-# `--locked` (or `--frozen`), so CI always builds the committed Cargo.lock, and when a workflow has no
-# top-level `permissions:` block, so every job's token starts read-only whatever the repository
-# setting. The commands: build, test, run, clippy, check, doc, llvm-cov, deny, `codspeed build`, and
-# mutants, which takes it as `--cargo-arg=--locked`. A flag after a lone `--` goes to the program
-# cargo runs, not to cargo, so it doesn't count. Reads every YAML file under .github, or the files
-# given, with yq (mikefarah).
+# Fails when a workflow or action step runs one of these cargo commands without `--locked` (or
+# `--frozen`) after the subcommand, so CI always builds the committed Cargo.lock, and when a
+# workflow has no top-level `permissions:` block, so every job's token starts read-only whatever the
+# repository setting. The commands: build, test, run, clippy, check, doc, llvm-cov, deny,
+# `codspeed build`, and mutants, which takes it as `--cargo-arg=--locked`. A flag after a lone `--`
+# goes to the program cargo runs, and one before the subcommand reaches only cargo's built-in
+# commands, so neither counts. Reads every YAML file under .github, or the files given, with yq
+# (mikefarah).
 #
-# It reads `run:` text a word at a time: a command starts a line or follows `;`, `&&`, `||` or `|`,
-# after any `VAR=value` words and `do`, `then`, `else`, `time` or `!`; a backslash at a line's end
-# joins the next line, and `#` after a blank starts a comment. Quotes and heredocs aren't parsed, so a
-# cargo command built inside a quoted string or a heredoc isn't seen.
+# It reads `run:` text a word at a time: each line, and the text between `;`, `&&`, `||` and `|`, is
+# a command, checked from its first word `cargo`, so a prefix (`VAR=value`, `if`, `timeout 600`, a
+# `(` or `$(`) doesn't hide it; an unquoted `cargo build` in an `echo` counts too. A backslash at a
+# line's end joins the next line, and `#` after a blank starts a comment. Quotes and heredocs aren't
+# parsed, so a cargo command built inside a quoted string or a heredoc isn't seen.
 set -uo pipefail
 set -f
 cd "$(dirname "$0")/.."
@@ -57,8 +59,12 @@ fi
 unlocked() {
   local -a words=("$@")
   local i=0 sub flag
-  while [ "$i" -lt "${#words[@]}" ] && [[ ${words[i]} == [+-]* ]]; do
-    i=$((i + 1))
+  while [ "$i" -lt "${#words[@]}" ]; do
+    case "${words[i]}" in
+      -Z | -C | --config | --color) i=$((i + 2)) ;;
+      [+-]*) i=$((i + 1)) ;;
+      *) break ;;
+    esac
   done
   sub=${words[i]:-}
   i=$((i + 1))
@@ -94,18 +100,14 @@ while IFS=$'\t' read -r file line encoded; do
   [ -n "$file" ] || continue
   text=$(printf '%s' "$encoded" | base64 -d)
   text=$(printf '%s\n' "$text" | sed -e ':a' -e '/\\$/{N;s/\\\n/ /;ba' -e '}' -e 's/\(^\|[[:space:]]\)#.*//')
-  commands=$(printf '%s\n' "$text" | sed -e 's/&&/\n/g' -e 's/||/\n/g' -e 's/;/\n/g' -e 's/|/\n/g')
+  commands=$(printf '%s\n' "$text" | sed -e 's/&&/\n/g' -e 's/||/\n/g' -e 's/[;|]/\n/g' -e 's/[(){}`]/ /g')
   while IFS= read -r command; do
     read -r -a words <<<"$command"
     i=0
-    while [ "$i" -lt "${#words[@]}" ]; do
-      case "${words[i]}" in
-        do | then | else | time | '!') ;;
-        *) [[ ${words[i]} =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || break ;;
-      esac
+    while [ "$i" -lt "${#words[@]}" ] && [ "${words[i]}" != cargo ]; do
       i=$((i + 1))
     done
-    [ "${words[i]:-}" = cargo ] || continue
+    [ "$i" -lt "${#words[@]}" ] || continue
     if unlocked "${words[@]:i+1}"; then
       hits+=("$file:$line: $(printf '%s' "${words[*]:i}")")
     fi

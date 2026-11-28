@@ -30,6 +30,16 @@ jobs:
       - run: if true; then cargo build; fi # flagged
       - run: | # flagged
           cargo build # --locked comes later
+      - run: if cargo test; then echo ok; fi # flagged
+      - run: while ! cargo check; do sleep 1; done # flagged
+      - run: timeout 600 cargo test # flagged
+      - run: env RUST_LOG=debug cargo test # flagged
+      - run: (cargo build) # flagged
+      - run: out=$(cargo build) # flagged
+      - run: "{ cargo build; }" # flagged
+      - run: cargo --config net.retry=3 test # flagged
+      - run: cargo -Z unstable-options build # flagged
+      - run: cargo --locked build # flagged
       - uses: CodSpeedHQ/action@0000000000000000000000000000000000000000
         with:
           run: cargo build # flagged
