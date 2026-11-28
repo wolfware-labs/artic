@@ -104,7 +104,7 @@ fn guards_see_names_in_code_only() {
   let loader = "fn f(t: T) { let _: PropertyAccess = t.access; ::m::set_text(); t.set_node(1); \
     t.set_object(); t.set_null(); t.add_child(); let _: ValueError = e; }";
   let registry = "fn f(t: T) { ::m::Registry::new(); let _: TypeInfo = t.x; ::artic_registry::f(); t.registry; }";
-  let in_macro = "fn f() { m!(x.set_text()); }";
+  let in_macro = "fn f() { m!(f(x.set_text())); m![{ y.access }]; }";
   let quoted = "// set_text\nfn f() { let _ = \"set_text access\"; m!(\"set_text\"); }";
 
   assert_eq!(
@@ -124,7 +124,7 @@ fn guards_see_names_in_code_only() {
     named(registry, &REGISTRY_NAMES),
     ["Registry", "TypeInfo", "artic_registry", "registry"]
   );
-  assert_eq!(named(in_macro, &LOADER_NAMES), ["set_text"]);
+  assert_eq!(named(in_macro, &LOADER_NAMES), ["set_text", "access"]);
   assert_eq!(named(quoted, &LOADER_NAMES), Vec::<String>::new());
 }
 
