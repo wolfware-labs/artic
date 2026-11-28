@@ -469,8 +469,9 @@ macro_rules! __literal {
 
 pub use crate::__literal as literal;
 
-/// What `PropertyInfo::access` holds for a property whose thunks are `$access`: `Some` with the
-/// `access` feature, `None` without, so an app without a runtime loader keeps no thunks.
+/// What `PropertyInfo::access` and `AttachedPropertyInfo::access` hold for a property whose thunks
+/// are `$access`: `Some` with the `access` feature, `None` without, so an app without a runtime
+/// loader keeps no thunks.
 #[cfg(feature = "access")]
 #[doc(hidden)]
 #[macro_export]
@@ -480,8 +481,9 @@ macro_rules! __access {
   };
 }
 
-/// What `PropertyInfo::access` holds for a property whose thunks are `$access`: `Some` with the
-/// `access` feature, `None` without, so an app without a runtime loader keeps no thunks.
+/// What `PropertyInfo::access` and `AttachedPropertyInfo::access` hold for a property whose thunks
+/// are `$access`: `Some` with the `access` feature, `None` without, so an app without a runtime
+/// loader keeps no thunks.
 #[cfg(not(feature = "access"))]
 #[doc(hidden)]
 #[macro_export]
