@@ -3,8 +3,8 @@
 # the subcommand, so CI always builds the committed Cargo.lock, and when a workflow has no top-level
 # `permissions:` block, so every job's token starts read-only whatever the repository setting. It
 # fails closed: every subcommand needs the flag except those that never resolve dependencies (fmt,
-# `codspeed run`, version, help, cargo with no subcommand and only a toolchain, `--version`, `-V`,
-# `--help` or `-h`, and machete with nothing
+# `codspeed run`, version, help, cargo with no subcommand and only a toolchain of letters, digits
+# and `_ . -`, `--version`, `-V`, `--help` or `-h`, and machete with nothing
 # before a lone `--` but plain paths and its switches that read no metadata: `--skip-target-dir`,
 # `--fix`, `--no-ignore`, `--version`, `--help`, where a path holds only letters, digits and
 # `_ . / : -`, and a backtick, parenthesis or brace is a word of its own; any other option or word
@@ -27,8 +27,9 @@
 # and grouping characters split the text before quotes are read, so a quoted cargo word after a
 # `;`, `|`, `&` or `(` (`echo "cargo build; cargo test"`) is flagged though the shell never runs
 # it, a false alarm, and a split inside a quoted option value (`cargo --config "a;b" build`) leaves
-# cargo with no subcommand, which is flagged too. Its job is to catch a missing `--locked`; it
-# isn't a shell parser.
+# cargo with no subcommand, which is flagged too. The closing `)` or backtick of a substitution is
+# read as part of the cargo call, so `v=$(cargo -V)` is flagged unless it carries `--locked`, a
+# false alarm. Its job is to catch a missing `--locked`; it isn't a shell parser.
 set -uo pipefail
 set -f
 cd "$(dirname "$0")/.."
@@ -115,6 +116,7 @@ unlocked() {
   if [ -z "$sub" ]; then
     for flag in "${words[@]}"; do
       case "$flag" in
+        +*[!A-Za-z0-9_.-]*) return 0 ;;
         +* | --version | -V | --help | -h) ;;
         *) return 0 ;;
       esac

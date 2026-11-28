@@ -93,6 +93,10 @@ jobs:
       - run: cargo --config "a;b" build # flagged
       - run: cargo -Z "a&b" build # flagged
       - run: cargo --config build # flagged
+      - run: cargo +$TC # flagged
+      - run: cargo +nightly$EXTRA # flagged
+      - run: cargo +"a;b" build # flagged
+      - run: v=$(cargo -V) # flagged
       - uses: CodSpeedHQ/action@0000000000000000000000000000000000000000
         with:
           run: cargo build # flagged
