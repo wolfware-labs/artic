@@ -233,13 +233,13 @@ fn value_field_access(owner: &Ident, field: &ValueField) -> TokenStream {
 
 /// What one property's thunks differ in: its value type, whether it is optional, its name, the
 /// level parameter its writes use, how a converted value is written, and how it is cleared.
-struct Access<'a> {
-  value: &'a Type,
-  optional: bool,
-  name: TokenStream,
-  level: TokenStream,
-  write: &'a dyn Fn(TokenStream) -> TokenStream,
-  clear: TokenStream,
+pub struct Access<'a> {
+  pub value: &'a Type,
+  pub optional: bool,
+  pub name: TokenStream,
+  pub level: TokenStream,
+  pub write: &'a dyn Fn(TokenStream) -> TokenStream,
+  pub clear: TokenStream,
 }
 
 /// A `PropertyAccess` built from `access`. A `Property<Option<V>>` or an `Option<V>` field parses
@@ -250,7 +250,7 @@ struct Access<'a> {
 /// language can't write fails once, there. An object converts through the value's object route,
 /// which refuses one for a value type not taken from objects. Each converts the value before
 /// writing it, so a conversion that needs the tree mutably ends before the write borrows it.
-fn access_tokens(access: &Access) -> TokenStream {
+pub fn access_tokens(access: &Access) -> TokenStream {
   let Access {
     value,
     optional,
@@ -370,7 +370,7 @@ fn plain_value_check(value: &Type) -> TokenStream {
 /// The check that a property's value type can be taken from an object the way its `Written` impl
 /// says, pointing at the type: the thunks the `access` feature keeps convert through this route,
 /// so the check keeps a crate that builds without the feature from breaking once one turns it on.
-fn object_check(value: &Type) -> TokenStream {
+pub fn object_check(value: &Type) -> TokenStream {
   let ops = object_ops(value);
   quote_spanned!(value.span()=> #ops;)
 }
@@ -379,7 +379,7 @@ fn object_check(value: &Type) -> TokenStream {
 /// (`TypeKind::Value`) takes its staged object and a node type refuses it, so a hand-written
 /// `Written` impl that says otherwise fails to compile here instead of refusing every staged value
 /// at run time. Text and child elements have no kind to check.
-fn kind_check(value: &Type) -> TokenStream {
+pub fn kind_check(value: &Type) -> TokenStream {
   quote_spanned!(value.span()=>
     const _: () = match <<#value as __artic::Written>::As as __artic::KindCheck<#value>>::MISMATCH {
       ::core::option::Option::Some(__artic::TypeKind::Value) => ::core::panic!("{}", ::core::concat!(

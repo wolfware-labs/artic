@@ -218,6 +218,41 @@ impl<V> PlainRoute<V> for AsObject where AsObject: Route<V> {}
 ///   reading: Property<Telemetry>,
 /// }
 /// ```
+///
+/// An attached property's value type is checked the same way:
+///
+/// ```compile_fail,E0277
+/// use artic_core::{AsText, RustExpr, TakesObject, ToRust, Written};
+/// use artic_macros::UiType;
+/// use std::convert::Infallible;
+/// use std::str::FromStr;
+///
+/// #[derive(Debug, Clone, Default, PartialEq)]
+/// struct Telemetry;
+///
+/// impl FromStr for Telemetry {
+///   type Err = Infallible;
+///
+///   fn from_str(_text: &str) -> Result<Self, Self::Err> {
+///     Ok(Telemetry)
+///   }
+/// }
+///
+/// impl ToRust for Telemetry {
+///   fn to_rust(&self, out: &mut RustExpr) {
+///     out.raw("Telemetry");
+///   }
+/// }
+///
+/// impl Written for Telemetry {
+///   type As = AsText;
+///   type FromObject = TakesObject;
+/// }
+///
+/// #[derive(Debug, UiType)]
+/// #[ui(attached(name = "Reading", ty = Telemetry, target = any))]
+/// struct Gauge;
+/// ```
 pub trait ObjectRoute<V> {
   /// Gives the conversion that takes the staged object out of the tree as the value of the
   /// owner's property, or refuses it.

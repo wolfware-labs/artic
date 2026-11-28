@@ -1,6 +1,7 @@
-// `PropertyInfo::access`: with the `access` feature, each derived property carries the thunks a
-// runtime loader writes it through; without it, no property carries any, so an app without a
-// loader keeps none. CI runs this file both ways.
+// `PropertyInfo::access` and `AttachedPropertyInfo::access`: with the `access` feature, each
+// derived property and attached property carries the thunks a runtime loader writes it through;
+// without it, none carries any, so an app without a loader keeps none. CI runs this file both
+// ways.
 
 use artic_core::property::Property;
 use artic_core::tree::NodeId;
@@ -15,6 +16,7 @@ struct Needle {
 }
 
 #[derive(Debug, UiType)]
+#[ui(attached(name = "Slot", ty = usize, target = any))]
 struct Gauge {
   #[ui]
   width: Property<f32>,
@@ -24,7 +26,8 @@ struct Gauge {
   child: Property<Option<NodeId>>,
 }
 
-// Without the feature, no property of a type or of a value type has thunks.
+// Without the feature, no property of a type or of a value type has thunks, nor does an attached
+// property.
 #[cfg(not(feature = "access"))]
 #[test]
 fn no_property_has_access_without_the_feature() {
@@ -33,15 +36,22 @@ fn no_property_has_access_without_the_feature() {
   for info in properties {
     assert!(info.access.is_none(), "{} has thunks", info.name);
   }
+  for info in Gauge::TYPE_INFO.attached_properties {
+    assert!(info.access.is_none(), "{} has thunks", info.name);
+  }
 }
 
-// With the feature, every property of a type and of a value type has its thunks.
+// With the feature, every property of a type and of a value type has its thunks, and so does
+// every attached property.
 #[cfg(feature = "access")]
 #[test]
 fn every_property_has_access_with_the_feature() {
   let properties = Gauge::TYPE_INFO.properties.iter().chain(Needle::TYPE_INFO.properties);
 
   for info in properties {
+    assert!(info.access.is_some(), "{} has no thunks", info.name);
+  }
+  for info in Gauge::TYPE_INFO.attached_properties {
     assert!(info.access.is_some(), "{} has no thunks", info.name);
   }
 }

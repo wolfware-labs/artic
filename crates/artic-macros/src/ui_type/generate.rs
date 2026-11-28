@@ -1,8 +1,9 @@
 use crate::crate_root::{REGISTRY, crate_root};
 use crate::members::emit::{
-  affects_tokens, checks, default_impl, inheritance_tokens, key_path, key_static, properties_static, value_check, visits,
+  Access, access_tokens, affects_tokens, checks, default_impl, inheritance_tokens, key_path, key_static, kind_check,
+  object_check, properties_static, value_check, visits,
 };
-use crate::members::{Content, GroupField, Members, PropertyField, generic_argument, value_type};
+use crate::members::{Content, GroupField, Members, PropertyField, generic_argument, is_optional, value_type};
 use crate::ui_type::analysis::TypeAnalysis;
 use crate::ui_type::attributes::{Attached, Target, Whitespace};
 use crate::ui_type::builders::builders;
@@ -38,7 +39,13 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
   };
   let attached_helpers = attached.iter().map(|attached| attached_helpers(ident, attached));
   let type_info = type_info(analysis);
-  let checks = checks(members, attached.iter().map(|attached| value_check(value_type(&attached.ty))));
+  let checks = checks(
+    members,
+    attached.iter().flat_map(|attached| {
+      let value = value_type(&attached.ty);
+      [value_check(value), object_check(value), kind_check(value)]
+    }),
+  );
   Ok(quote! {
     const _: () = {
       use #root::__private as __artic;
@@ -389,9 +396,16 @@ fn attached_helpers(owner: &Ident, attached: &Attached) -> TokenStream {
   }
 }
 
-/// The `AttachedPropertyInfo` of one attached property.
+/// The `AttachedPropertyInfo` of one attached property, whose access writes the node's value of
+/// the property's key: its attached value, or its field that shares the key.
 fn attached_info(attached: &Attached) -> TokenStream {
-  let Attached { name, ty, target, .. } = attached;
+  let Attached {
+    name,
+    ty,
+    target,
+    key_static: key,
+    ..
+  } = attached;
   let target = match target {
     Target::Any => quote!(__artic::AttachedTarget::Any),
     Target::Children => quote!(__artic::AttachedTarget::ChildrenOfOwner),
@@ -400,13 +414,21 @@ fn attached_info(attached: &Attached) -> TokenStream {
     Some(inner) => quote!(__artic::optional_literal!(#inner)),
     None => quote!(__artic::literal!(#ty)),
   };
+  let access = access_tokens(&Access {
+    value: value_type(ty),
+    optional: is_optional(ty),
+    name: quote!(#name),
+    level: quote!(level),
+    write: &|value| quote!(__artic::set_attached(tree, node, &#key, level, #value)),
+    clear: quote!(|tree, node, level| __artic::clear_attached(tree, node, &#key, level)),
+  });
   quote! {
     __artic::AttachedPropertyInfo {
       name: #name,
       value_type: ::core::stringify!(#ty),
       target: #target,
       literal: #literal,
-      access: ::core::option::Option::None,
+      access: __artic::access!(#access),
     }
   }
 }

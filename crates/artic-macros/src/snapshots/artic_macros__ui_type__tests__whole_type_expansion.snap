@@ -277,14 +277,98 @@ const _: () = {
             value_type: ::core::stringify!(usize),
             target: __artic::AttachedTarget::ChildrenOfOwner,
             literal: __artic::literal!(usize),
-            access: ::core::option::Option::None,
+            access: __artic::access!(
+                &__artic::PropertyAccess {
+                    set_text: |tree, node, text, level| {
+                        let value = (<<usize as __artic::Written>::As as __artic::Route<
+                            usize,
+                        >>::value_ops()
+                            .parse)(text, ::core::stringify!(usize))?;
+                        __artic::set_attached(tree, node, &__ATTACHED_ROW, level, value)
+                    },
+                    set_node: |tree, node, child, level| {
+                        let value = (<<usize as __artic::Written>::As as __artic::Route<
+                            usize,
+                        >>::value_ops()
+                            .node)(child, ::core::stringify!(usize))?;
+                        __artic::set_attached(tree, node, &__ATTACHED_ROW, level, value)
+                    },
+                    set_object: |tree, node, object, level| {
+                        let value = (<<usize as __artic::Written>::FromObject as __artic::ObjectRoute<
+                            usize,
+                        >>::object_ops()
+                            .take)(tree, node, object, ::core::stringify!(usize))?;
+                        __artic::set_attached(tree, node, &__ATTACHED_ROW, level, value)
+                    },
+                    set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
+                        property: "Row",
+                    }),
+                    clear: |tree, node, level| __artic::clear_attached(
+                        tree,
+                        node,
+                        &__ATTACHED_ROW,
+                        level,
+                    ),
+                },
+            ),
         },
         __artic::AttachedPropertyInfo {
             name: "ColumnSpan",
             value_type: ::core::stringify!(usize),
             target: __artic::AttachedTarget::Any,
             literal: __artic::literal!(usize),
-            access: ::core::option::Option::None,
+            access: __artic::access!(
+                &__artic::PropertyAccess {
+                    set_text: |tree, node, text, level| {
+                        let value = (<<usize as __artic::Written>::As as __artic::Route<
+                            usize,
+                        >>::value_ops()
+                            .parse)(text, ::core::stringify!(usize))?;
+                        __artic::set_attached(
+                            tree,
+                            node,
+                            &__ATTACHED_COLUMN_SPAN,
+                            level,
+                            value,
+                        )
+                    },
+                    set_node: |tree, node, child, level| {
+                        let value = (<<usize as __artic::Written>::As as __artic::Route<
+                            usize,
+                        >>::value_ops()
+                            .node)(child, ::core::stringify!(usize))?;
+                        __artic::set_attached(
+                            tree,
+                            node,
+                            &__ATTACHED_COLUMN_SPAN,
+                            level,
+                            value,
+                        )
+                    },
+                    set_object: |tree, node, object, level| {
+                        let value = (<<usize as __artic::Written>::FromObject as __artic::ObjectRoute<
+                            usize,
+                        >>::object_ops()
+                            .take)(tree, node, object, ::core::stringify!(usize))?;
+                        __artic::set_attached(
+                            tree,
+                            node,
+                            &__ATTACHED_COLUMN_SPAN,
+                            level,
+                            value,
+                        )
+                    },
+                    set_null: |_, _, _| ::core::result::Result::Err(__artic::ValueError::NotNullable {
+                        property: "ColumnSpan",
+                    }),
+                    clear: |tree, node, level| __artic::clear_attached(
+                        tree,
+                        node,
+                        &__ATTACHED_COLUMN_SPAN,
+                        level,
+                    ),
+                },
+            ),
         },
     ];
     static __GROUPS: [__artic::PropertyGroupInfo; 1usize] = [
@@ -582,6 +666,50 @@ const _: () = {
         };
         __artic::assert_property_group::<Layout>();
         <<usize as __artic::Written>::As as __artic::Route<usize>>::value_ops();
+        <<usize as __artic::Written>::FromObject as __artic::ObjectRoute<
+            usize,
+        >>::object_ops();
+        const _: () = match <<usize as __artic::Written>::As as __artic::KindCheck<
+            usize,
+        >>::MISMATCH {
+            ::core::option::Option::Some(__artic::TypeKind::Value) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(usize),
+                    "` is a value type (`TypeKind::Value`), so a property takes its staged object: ",
+                    "its `Written` impl writes `type FromObject = TakesObject`, not `node_type_value!`")
+                )
+            }
+            ::core::option::Option::Some(__artic::TypeKind::Node) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(usize),
+                    "` is a node type (`TypeKind::Node`), whose objects stay in the tree: ",
+                    "its `Written` impl writes `type FromObject = RefusesObject`, as `artic::core::node_type_value!` does")
+                )
+            }
+            ::core::option::Option::None => {}
+        };
         <<usize as __artic::Written>::As as __artic::Route<usize>>::value_ops();
+        <<usize as __artic::Written>::FromObject as __artic::ObjectRoute<
+            usize,
+        >>::object_ops();
+        const _: () = match <<usize as __artic::Written>::As as __artic::KindCheck<
+            usize,
+        >>::MISMATCH {
+            ::core::option::Option::Some(__artic::TypeKind::Value) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(usize),
+                    "` is a value type (`TypeKind::Value`), so a property takes its staged object: ",
+                    "its `Written` impl writes `type FromObject = TakesObject`, not `node_type_value!`")
+                )
+            }
+            ::core::option::Option::Some(__artic::TypeKind::Node) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(usize),
+                    "` is a node type (`TypeKind::Node`), whose objects stay in the tree: ",
+                    "its `Written` impl writes `type FromObject = RefusesObject`, as `artic::core::node_type_value!` does")
+                )
+            }
+            ::core::option::Option::None => {}
+        };
     }
 };
