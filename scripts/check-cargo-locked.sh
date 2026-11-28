@@ -9,7 +9,9 @@
 # `--fix`, `--no-ignore`, `--version`, `--help`, where a path holds only letters, digits and
 # `_ . / : -`, and a backtick, parenthesis or brace is a word of its own; any other option or word
 # may expand to `--with-metadata`, which runs cargo metadata and has no `--locked`, so it's
-# flagged), and mutants takes it as `--cargo-arg=--locked`. A flag
+# flagged). An exempt subcommand is flagged too when an option or toolchain word before it holds a
+# character outside letters, digits and `_ . = + / : -` (`cargo +$TC fmt` can expand to another
+# subcommand). mutants takes the flag as `--cargo-arg=--locked`. A flag
 # after a lone `--` goes to the program cargo runs, and one before the subcommand reaches only
 # cargo's built-in commands, so neither counts. Reads every YAML file under .github, or the files
 # given, with yq (mikefarah), aliases expanded.
@@ -28,8 +30,8 @@
 # `;`, `|`, `&` or `(` (`echo "cargo build; cargo test"`) is flagged though the shell never runs
 # it, a false alarm, and a split inside a quoted option value (`cargo --config "a;b" build`) leaves
 # cargo with no subcommand, which is flagged too. The closing `)` or backtick of a substitution is
-# read as part of the cargo call, so `v=$(cargo -V)` is flagged unless it carries `--locked`, a
-# false alarm. Its job is to catch a missing `--locked`; it isn't a shell parser.
+# read as part of the cargo call, so `v=$(cargo -V)` is flagged, a false alarm; `cargo version`
+# outside a substitution passes. Its job is to catch a missing `--locked`; it isn't a shell parser.
 set -uo pipefail
 set -f
 cd "$(dirname "$0")/.."
@@ -104,13 +106,19 @@ strip_comments() {
 # lockfile.
 unlocked() {
   local -a words=("$@")
-  local i=0 sub flag
+  local i=0 sub flag skip unsafe=0
   while [ "$i" -lt "${#words[@]}" ]; do
     case "${words[i]}" in
-      -Z | -C | --config | --color) i=$((i + 2)) ;;
-      [+-]*) i=$((i + 1)) ;;
+      -Z | -C | --config | --color) skip=2 ;;
+      [+-]*) skip=1 ;;
       *) break ;;
     esac
+    for flag in "${words[@]:i:skip}"; do
+      case "$flag" in
+        *[!A-Za-z0-9_.=+/:-]*) unsafe=1 ;;
+      esac
+    done
+    i=$((i + skip))
   done
   sub=${words[i]:-}
   if [ -z "$sub" ]; then
@@ -125,9 +133,18 @@ unlocked() {
   fi
   i=$((i + 1))
   case "$sub" in
-    fmt | version | help) return 1 ;;
-    codspeed) [ "${words[i]:-}" != run ] || return 1 ;;
+    fmt | version | help)
+      [ "$unsafe" = 1 ]
+      return
+      ;;
+    codspeed)
+      if [ "${words[i]:-}" = run ]; then
+        [ "$unsafe" = 1 ]
+        return
+      fi
+      ;;
     machete)
+      [ "$unsafe" = 0 ] || return 0
       while [ "$i" -lt "${#words[@]}" ] && [ "${words[i]}" != -- ]; do
         case "${words[i]}" in
           --skip-target-dir | --fix | --no-ignore | --version | --help) ;;

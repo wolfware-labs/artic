@@ -97,6 +97,12 @@ jobs:
       - run: cargo +nightly$EXTRA # flagged
       - run: cargo +"a;b" build # flagged
       - run: v=$(cargo -V) # flagged
+      - run: cargo +$TC fmt # flagged
+      - run: cargo --color $X fmt # flagged
+      - run: cargo -Z$X version # flagged
+      - run: cargo --config $X help # flagged
+      - run: cargo +$TC codspeed run # flagged
+      - run: cargo +$TC machete # flagged
       - uses: CodSpeedHQ/action@0000000000000000000000000000000000000000
         with:
           run: cargo build # flagged
