@@ -22,6 +22,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Jobs that need more (the change filter, Codecov, CodSpeed and the gates) widen it for themselves.
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -101,19 +105,19 @@ jobs:
       - uses: ./.github/actions/setup-lavapipe
       - uses: ./.github/actions/setup-display
       - name: Build
-        run: cargo build --workspace --all-targets
+        run: cargo build --locked --workspace --all-targets
       # Without a GPU the goldens skip and pass, and without a display the window test does;
       # lavapipe and Xvfb are there, so a missing adapter or display fails.
       - name: Test
         env:
           ARTIC_REQUIRE_GPU: "1"
           ARTIC_REQUIRE_DISPLAY: "1"
-        run: cargo test --workspace
+        run: cargo test --locked --workspace
         timeout-minutes: 30
       - name: Test the facade's features
-        run: cargo test -p artic --all-features
+        run: cargo test --locked -p artic --all-features
       - name: Test the registry without literals
-        run: cargo test -p artic-registry
+        run: cargo test --locked -p artic-registry
       - name: Keep the golden diffs
         if: failure()
         uses: ./.github/actions/keep-goldens
@@ -123,7 +127,7 @@ jobs:
       - name: Smoke on X11
         shell: bash
         run: |
-          cargo run -p artic-examples --example smoke | tee "$RUNNER_TEMP/smoke-x11.log"
+          cargo run --locked -p artic-examples --example smoke | tee "$RUNNER_TEMP/smoke-x11.log"
           grep -q "display server: X11" "$RUNNER_TEMP/smoke-x11.log"
         timeout-minutes: 5
         env:
@@ -132,13 +136,13 @@ jobs:
       - name: Idle on X11
         shell: bash
         run: |
-          cargo run -p artic-examples --example frames | tee "$RUNNER_TEMP/frames-x11.log"
+          cargo run --locked -p artic-examples --example frames | tee "$RUNNER_TEMP/frames-x11.log"
           grep -q "llvmpipe" "$RUNNER_TEMP/frames-x11.log"
         timeout-minutes: 5
         env:
           WAYLAND_DISPLAY: ""
       - name: Hello on X11
-        run: cargo run -p artic-examples --example hello
+        run: cargo run --locked -p artic-examples --example hello
         timeout-minutes: 5
         env:
           ARTIC_HELLO_SECONDS: "3"
@@ -148,7 +152,7 @@ jobs:
       - name: Smoke on Wayland
         shell: bash
         run: |
-          cargo run -p artic-examples --example smoke | tee "$RUNNER_TEMP/smoke-wayland.log"
+          cargo run --locked -p artic-examples --example smoke | tee "$RUNNER_TEMP/smoke-wayland.log"
           grep -q "display server: Wayland" "$RUNNER_TEMP/smoke-wayland.log"
         timeout-minutes: 5
         env:
@@ -158,14 +162,14 @@ jobs:
       - name: Idle on Wayland
         shell: bash
         run: |
-          cargo run -p artic-examples --example frames | tee "$RUNNER_TEMP/frames-wayland.log"
+          cargo run --locked -p artic-examples --example frames | tee "$RUNNER_TEMP/frames-wayland.log"
           grep -q "llvmpipe" "$RUNNER_TEMP/frames-wayland.log"
         timeout-minutes: 5
         env:
           DISPLAY: ""
           WAYLAND_DISPLAY: ${{ steps.wayland.outputs.socket }}
       - name: Hello on Wayland
-        run: cargo run -p artic-examples --example hello
+        run: cargo run --locked -p artic-examples --example hello
         timeout-minutes: 5
         env:
           ARTIC_HELLO_SECONDS: "3"
@@ -193,7 +197,7 @@ jobs:
       # compiler output under instrumentation, still leaves a report. lavapipe lets the goldens run,
       # so the renderer's draw paths count as covered.
       - name: Measure
-        run: cargo llvm-cov --workspace --ignore-run-fail --lcov --output-path lcov.info
+        run: cargo llvm-cov --locked --workspace --ignore-run-fail --lcov --output-path lcov.info
         timeout-minutes: 30
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -324,9 +328,9 @@ jobs:
       - uses: ./.github/actions/setup-rust
       - uses: ./.github/actions/setup-lavapipe
       - name: Build
-        run: cargo build --workspace --all-targets
+        run: cargo build --locked --workspace --all-targets
       - name: Test
-        run: cargo test --workspace
+        run: cargo test --locked --workspace
         timeout-minutes: 30
         env:
           ARTIC_REQUIRE_GPU: "1"
@@ -334,15 +338,15 @@ jobs:
         if: failure()
         uses: ./.github/actions/keep-goldens
       - name: Smoke
-        run: cargo run -p artic-examples --example smoke
+        run: cargo run --locked -p artic-examples --example smoke
         timeout-minutes: 5
         env:
           ARTIC_SMOKE_FRAMES: "60"
       - name: Idle
-        run: cargo run -p artic-examples --example frames
+        run: cargo run --locked -p artic-examples --example frames
         timeout-minutes: 5
       - name: Hello
-        run: cargo run -p artic-examples --example hello
+        run: cargo run --locked -p artic-examples --example hello
         timeout-minutes: 5
         env:
           ARTIC_HELLO_SECONDS: "3"
@@ -358,10 +362,10 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-rust
       - name: Build
-        run: cargo build --workspace --all-targets
+        run: cargo build --locked --workspace --all-targets
       # The runners have a Metal adapter, so the goldens run instead of skipping.
       - name: Test
-        run: cargo test --workspace
+        run: cargo test --locked --workspace
         timeout-minutes: 30
         env:
           ARTIC_REQUIRE_GPU: "1"
@@ -369,15 +373,15 @@ jobs:
         if: failure()
         uses: ./.github/actions/keep-goldens
       - name: Smoke
-        run: cargo run -p artic-examples --example smoke
+        run: cargo run --locked -p artic-examples --example smoke
         timeout-minutes: 5
         env:
           ARTIC_SMOKE_FRAMES: "60"
       - name: Idle
-        run: cargo run -p artic-examples --example frames
+        run: cargo run --locked -p artic-examples --example frames
         timeout-minutes: 5
       - name: Hello
-        run: cargo run -p artic-examples --example hello
+        run: cargo run --locked -p artic-examples --example hello
         timeout-minutes: 5
         env:
           ARTIC_HELLO_SECONDS: "3"
@@ -405,7 +409,7 @@ jobs:
           scripts/check-checkout-credentials.sh
       - name: Clippy
         if: ${{ !cancelled() }}
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
   # The crates app code uses must stay buildable for a later web host (D24). The ones that reach
   # `linkme` wait for #241; docs/design/web-portability.md lists both sets.
@@ -427,7 +431,7 @@ jobs:
         run: |
           failed=0
           for crate in artic-core artic-diagnostics artic-ident artic-i18n artic-layout artic-text artic-xaml; do
-            cargo check --target wasm32-unknown-unknown -p "$crate" || failed=1
+            cargo check --locked --target wasm32-unknown-unknown -p "$crate" || failed=1
           done
           exit "$failed"
 
@@ -444,10 +448,10 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-rust
       - name: Build docs
-        run: cargo doc --workspace --no-deps --exclude docs-check
+        run: cargo doc --locked --workspace --no-deps --exclude docs-check
       - name: Code in documents
         if: ${{ !cancelled() }}
-        run: cargo test -p docs-check
+        run: cargo test --locked -p docs-check
       - name: Links in documents
         if: ${{ !cancelled() }}
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
