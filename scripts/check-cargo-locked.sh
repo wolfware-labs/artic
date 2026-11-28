@@ -4,17 +4,20 @@
 # `permissions:` block, so every job's token starts read-only whatever the repository setting. It
 # fails closed: every subcommand needs the flag except those that never resolve dependencies (fmt,
 # `codspeed run`, version, help, cargo with no subcommand and only a toolchain of letters, digits
-# and `_ . -`, `--version`, `-V`, `--help` or `-h`, and machete with nothing
-# before a lone `--` but plain paths and its switches that read no metadata: `--skip-target-dir`,
-# `--fix`, `--no-ignore`, `--version`, `--help`, where a path holds only letters, digits and
-# `_ . / : -`, and a backtick, parenthesis or brace is a word of its own; any other option or word
-# may expand to `--with-metadata`, which runs cargo metadata and has no `--locked`, so it's
-# flagged). An exempt subcommand is flagged too when an option or toolchain word before it holds a
-# character outside letters, digits and `_ . = + / : -` (`cargo +$TC fmt` can expand to another
-# subcommand). mutants takes the flag as `--cargo-arg=--locked`. A flag
-# after a lone `--` goes to the program cargo runs, and one before the subcommand reaches only
-# cargo's built-in commands, so neither counts. Reads every YAML file under .github, or the files
-# given, with yq (mikefarah), aliases expanded.
+# and `_ . -`, `--version`, `-V`, `--help` or `-h`, and machete with nothing before a lone `--` but
+# plain paths and its switches that read no metadata: `--skip-target-dir`, `--fix`, `--no-ignore`,
+# `--version`, `--help`, where a path holds only letters, digits and `_ . / : -`, and a backtick,
+# parenthesis or brace is a word of its own; any other option or word may expand to
+# `--with-metadata`, which runs cargo metadata and has no `--locked`, so it's flagged). The flag
+# counts only before any word that may expand, so write it first: an option, toolchain or subcommand
+# word with a character outside letters, digits and `_ . = + / : -` flags the call whatever follows
+# (`cargo +$TC test --locked` can run `cargo +x build -- test --locked`, and
+# `cargo +${{ matrix.rust }} build --locked` is flagged for that reason), and after the subcommand a
+# word with `$`, a quote, a backslash or a grouping character hides every flag after it
+# (`cargo test --locked -p "$crate"` passes, `cargo build $ARGS --locked` doesn't). mutants takes
+# the flag as `--cargo-arg=--locked`. A flag after a lone `--` goes to the program cargo runs, and
+# one before the subcommand reaches only cargo's built-in commands, so neither counts. Reads every
+# YAML file under .github, or the files given, with yq (mikefarah), aliases expanded.
 #
 # It reads `run:` text a word at a time: `#` at a word's start outside quotes begins a comment
 # (`strip_comments`), then a backslash at a line's end joins the next line; each line, and the text
@@ -108,6 +111,15 @@ toolchain_chars='A-Za-z0-9_.-'
 path_chars='A-Za-z0-9_./:-'
 option_chars='A-Za-z0-9_.=+/:-'
 
+# Whether a word after the subcommand may expand, or be split or joined by the shell: it holds `$`,
+# a quote, a backslash or a grouping character. A flag after such a word may not reach cargo.
+expands() {
+  case "$1" in
+    *[\$\"\'\\\`\(\)\{\}]*) return 0 ;;
+  esac
+  return 1
+}
+
 # Whether the cargo command in `words`, from the word after `cargo`, may resolve without the
 # lockfile: 0 (a hit) when it may, 1 when it can't.
 unlocked() {
@@ -126,6 +138,7 @@ unlocked() {
     done
     i=$((i + skip))
   done
+  [ "$unsafe" = 0 ] || return 0
   sub=${words[i]:-}
   if [ -z "$sub" ]; then
     for word in "${words[@]}"; do
@@ -137,20 +150,14 @@ unlocked() {
     done
     return 1
   fi
+  case "$sub" in
+    *[!$option_chars]*) return 0 ;;
+  esac
   i=$((i + 1))
   case "$sub" in
-    fmt | version | help)
-      [ "$unsafe" = 0 ] || return 0
-      return 1
-      ;;
-    codspeed)
-      if [ "${words[i]:-}" = run ]; then
-        [ "$unsafe" = 0 ] || return 0
-        return 1
-      fi
-      ;;
+    fmt | version | help) return 1 ;;
+    codspeed) [ "${words[i]:-}" != run ] || return 1 ;;
     machete)
-      [ "$unsafe" = 0 ] || return 0
       for word in "${words[@]:i}"; do
         [ "$word" != -- ] || break
         case "$word" in
@@ -162,6 +169,7 @@ unlocked() {
       ;;
     mutants)
       while [ "$i" -lt "${#words[@]}" ] && [ "${words[i]}" != -- ]; do
+        ! expands "${words[i]}" || return 0
         case "${words[i]}" in
           --cargo-arg=--locked | --cargo-arg=--frozen | -C--locked | -C--frozen) return 1 ;;
           --cargo-arg | -C)
@@ -177,6 +185,7 @@ unlocked() {
   esac
   for word in "${words[@]:i}"; do
     [ "$word" != -- ] || break
+    ! expands "$word" || return 0
     case "$word" in
       --locked | --frozen) return 1 ;;
     esac

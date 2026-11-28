@@ -17,7 +17,8 @@ jobs:
       - run: cargo tree --locked -i linkme --depth 0
       - run: cargo deny --locked check
       - run: cargo codspeed build --locked -m simulation
-      - run: cargo +$TC build --locked
+      - run: cargo test --locked -p "$crate"
+      - run: cargo build --locked $ARGS
       - run: cargo --config net.retry=3 build --locked
       # mutants with the flag for the cargo it runs.
       - run: cargo mutants --workspace --cargo-arg=--locked
@@ -25,6 +26,7 @@ jobs:
       - run: cargo mutants --workspace -C --locked
       - run: cargo mutants --workspace -C--locked
       - run: cargo mutants --workspace --cargo-arg=--frozen
+      - run: cargo mutants --cargo-arg=--locked --workspace --shard "$SHARD" --output "$RUNNER_TEMP"
       - run: cargo mutants --workspace --cargo-arg --frozen
       # Commands that never resolve.
       - run: cargo codspeed run
@@ -33,6 +35,8 @@ jobs:
       - run: cargo +nightly --version
       - run: cargo --help
       - run: cargo -h
+      - run: cargo help build
+      - run: cargo version
       - run: cargo +nightly fmt --check
       - run: cargo --color always -C crates/x --config net.retry=3 fmt
       - run: cargo -Z unstable-options fmt --check

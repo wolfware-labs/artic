@@ -94,6 +94,23 @@ jobs:
       - run: cargo --config $X help # flagged
       - run: cargo +$TC codspeed run # flagged
       - run: cargo +$TC machete # flagged
+      # A word that may expand before the flag, which can move the flag past a `--`.
+      - run: cargo +$TC test --locked # flagged
+      - run: cargo +$TC build --locked # flagged
+      - run: cargo +${{ matrix.rust }} build --locked # flagged
+      - run: cargo -Z$X test --locked # flagged
+      - run: cargo $SUB --locked # flagged
+      - run: cargo build $ARGS --locked # flagged
+      - run: cargo build "a b" --locked # flagged
+      - run: cargo build \x --locked # flagged
+      - run: cargo build { --locked # flagged
+      - run: cargo build } --locked # flagged
+      - run: cargo build ( --locked # flagged
+      - run: cargo build ) --locked # flagged
+      - run: cargo build `x` --locked # flagged
+      - run: cargo +$TC mutants --cargo-arg=--locked # flagged
+      - run: cargo mutants $X --cargo-arg --locked # flagged
+      - run: cargo mutants 'x' -C--frozen # flagged
       # machete arguments that may be `--with-metadata`.
       - run: cargo machete --skip-target-dir --with-metadata # flagged
       - run: cargo machete --with-metadata=true # flagged
