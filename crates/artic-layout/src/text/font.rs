@@ -141,7 +141,7 @@ pub struct ParseFontFamilyError {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum FamilyProblem {
   /// The text is empty, or only whitespace.
-  #[error("it's empty")]
+  #[error("it is empty")]
   Empty,
   /// A name between commas is empty, as in `Inter,,Arial`, or a quoted name is, as in `''`.
   #[error("a name is empty")]
@@ -175,6 +175,8 @@ impl ToRust for FontFamily {
     out.call(env!("CARGO_CRATE_NAME"), "FontFamily::from_names", &[&self.names()]);
   }
 }
+
+artic_core::text_value!(FontFamily);
 
 impl ToRust for FamilyName {
   fn to_rust(&self, out: &mut RustExpr) {
@@ -397,6 +399,8 @@ impl ToRust for FontWeight {
   }
 }
 
+artic_core::text_value!(FontWeight);
+
 fn parse_weight(text: &str) -> Result<FontWeight, WeightProblem> {
   if let Some(&(_, weight)) = WEIGHT_NAMES.iter().find(|(name, _)| name.eq_ignore_ascii_case(text)) {
     return Ok(weight);
@@ -594,7 +598,7 @@ mod tests {
     assert_eq!(problem(""), FamilyProblem::Empty);
     assert_eq!(
       "  ".parse::<FontFamily>().unwrap_err().to_string(),
-      "invalid FontFamily '  ': it's empty; expected forms like 'Inter, sans-serif' or 'system-ui'"
+      "invalid FontFamily '  ': it is empty; expected forms like 'Inter, sans-serif' or 'system-ui'"
     );
   }
 

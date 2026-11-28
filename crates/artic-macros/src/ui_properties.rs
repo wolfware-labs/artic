@@ -145,6 +145,7 @@ fn exposed(field: &Visibility, group: &Visibility) -> bool {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::members::emit::tests::unparse;
   use syn::parse_quote;
 
   /// The methods trait for `input`, pretty-printed.
@@ -211,8 +212,7 @@ mod tests {
       }
     };
 
-    let file: syn::File = syn::parse2(expand(&input).expect("valid")).expect("parses");
-    insta::assert_snapshot!(prettyplease::unparse(&file));
+    insta::assert_snapshot!(unparse(expand(&input).expect("valid")));
   }
 
   // A group's methods live in its trait and its key constants on the group, so a field whose

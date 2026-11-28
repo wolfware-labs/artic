@@ -172,7 +172,7 @@ The app is a library; each target has a **launcher**, a few lines that name a ho
 
 ```rust,ignore
 // The app crate (a library), the same for every target.
-pub fn app() -> artic::App { … }
+pub fn app() -> artic::App { /* … */ }
 
 // launchers/desktop/src/main.rs
 fn main() -> Result<(), Box<dyn std::error::Error>> {

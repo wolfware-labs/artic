@@ -1,7 +1,6 @@
 use crate::crate_root::{REGISTRY, crate_root};
 use crate::members::emit::{
-  ValueRoute, affects_tokens, checks, default_impl, inheritance_tokens, key_path, key_static, properties_static, value_check,
-  visits,
+  affects_tokens, checks, default_impl, inheritance_tokens, key_path, key_static, properties_static, value_check, visits,
 };
 use crate::members::{Content, GroupField, Members, PropertyField, generic_argument, value_type};
 use crate::ui_type::analysis::TypeAnalysis;
@@ -32,14 +31,14 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
   let content_functions = content_functions(ident, members, is_value);
   let builders = (!is_value).then(|| builders(analysis));
   let value_impl = is_value.then(|| quote!(impl __artic::UiValue for #ident {}));
+  let from_object = if is_value {
+    quote!(__artic::TakesObject)
+  } else {
+    quote!(__artic::RefusesObject)
+  };
   let attached_helpers = attached.iter().map(|attached| attached_helpers(ident, attached));
   let type_info = type_info(analysis);
-  let checks = checks(
-    members,
-    attached
-      .iter()
-      .map(|attached| value_check(value_type(&attached.ty), ValueRoute::AnyValue)),
-  );
+  let checks = checks(members, attached.iter().map(|attached| value_check(value_type(&attached.ty))));
   Ok(quote! {
     const _: () = {
       use #root::__private as __artic;
@@ -71,6 +70,11 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
       }
 
       #type_info
+
+      impl __artic::Written for #ident {
+        type As = __artic::AsObject;
+        type FromObject = #from_object;
+      }
 
       #value_impl
 

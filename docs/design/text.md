@@ -25,7 +25,7 @@ The issue predates the [backends design](backends.md), which removed `Renderer::
 | `artic-render` | `Command::Text` and `SceneBuilder::text` | unchanged |
 | `artic-platform` | the runner owns one engine and lends it to each surface's `Pipeline::prepare` and `Pipeline::measure` | tests dev-depend on `artic-text` and `artic-test-fonts` |
 | `artic-vello` | draws `Command::Text` | unchanged |
-| `artic-test-fonts` (new) | the test font's files and licence, as `pub const` byte slices | none |
+| `artic-test-fonts` (new) | the test font's files and license, as `pub const` byte slices | none |
 | `artic-test`, `artic` | create the engine: the test font's and the system's | add `artic-text`; `artic-test` also adds `artic-test-fonts` |
 | `artic-winit` | the `frames` example creates `Engine::system()` | a dev-dependency on `artic-text` |
 
@@ -98,7 +98,7 @@ pub struct ParseFontWeightError { pub text: String, pub problem: WeightProblem }
 pub enum WeightProblem { UnknownName, OutOfRange }
 ```
 
-`"Inter,,Arial"` is `EmptyName`, `"'Segoe UI"` is `UnclosedQuote`, and `"'Segoe' UI"` is `PartlyQuoted`: a name is quoted whole or not at all. Messages quote the text and show the forms: `invalid FontFamily '': it's empty; expected forms like 'Inter, sans-serif' or 'system-ui'`.
+`"Inter,,Arial"` is `EmptyName`, `"'Segoe UI"` is `UnclosedQuote`, and `"'Segoe' UI"` is `PartlyQuoted`: a name is quoted whole or not at all. Messages quote the text and show the forms: `invalid FontFamily '': it is empty; expected forms like 'Inter, sans-serif' or 'system-ui'`.
 
 ## 3. The `TextEngine` trait
 
@@ -241,7 +241,7 @@ Freeing memory on a memory warning (#146) decides then what to drop.
 
 ## 7. Testing
 
-The test font is a font under the SIL Open Font License, picked in the plan by size, with a regular and a bold face as separate files and no italic face. Bold then selects a real face; italic is synthesized, and so is bold when the engine is given only the regular face. The files and their licence live in `artic-test-fonts`, a published crate in layer 0 with no dependencies and no code beyond `pub const REGULAR: &[u8]` and `pub const BOLD: &[u8]`, filled with `include_bytes!`. `artic-text` dev-depends on it for its own tests, and `artic-test` depends on it, so `artic_test::text::engine()` and every golden use the same bytes. A crate with no dependencies can't be part of a cycle, and no production crate gains a test-only API.
+The test font is a font under the SIL Open Font License, picked in the plan by size, with a regular and a bold face as separate files and no italic face. Bold then selects a real face; italic is synthesized, and so is bold when the engine is given only the regular face. The files and their license live in `artic-test-fonts`, a published crate in layer 0 with no dependencies and no code beyond `pub const REGULAR: &[u8]` and `pub const BOLD: &[u8]`, filled with `include_bytes!`. `artic-text` dev-depends on it for its own tests, and `artic-test` depends on it, so `artic_test::text::engine()` and every golden use the same bytes. A crate with no dependencies can't be part of a cycle, and no production crate gains a test-only API.
 
 | Crate | Tests |
 | --- | --- |
@@ -285,6 +285,6 @@ The test font is a font under the SIL Open Font License, picked in the plan by s
 | --- | --- | --- |
 | A | this document and the documents in section 8 | approved |
 | B | section 2 and the `TextEngine` trait: the value types and their parsers, in `artic-layout`; no caller changes | the value-type tests in section 7 pass |
-| C | section 4: `artic-text`, with `parley` and `fontique` pinned exactly in the workspace beside `vello`; the `artic-test-fonts` crate with the test font and its licence | the `artic-text` tests pass |
+| C | section 4: `artic-text`, with `parley` and `fontique` pinned exactly in the workspace beside `vello`; the `artic-test-fonts` crate with the test font and its license | the `artic-text` tests pass |
 | D | the rest of section 3: `text()`, `set_measured` and `set_arranged`, `RenderCx::layout_result`, `LayoutStats::results`, `PixelGrid`, and the engine through `LayoutManager::run` and `measure`, `Pipeline::prepare` and `measure`, the runner, `artic_test::text::engine()` in `Headless` and `render_tree`, and `Engine::system()` in the `frames` example | the `artic-layout`, `artic-element`, `artic-platform`, `artic-test` and `artic-controls` tests pass, including the property tests with snapping on, and the workspace builds with `--all-targets` |
 | E | sections 5 and 6: `Command::Text`, `SceneBuilder::text`, vello drawing, the goldens and the example; closes #37 | the `artic-render` and `artic-vello` tests pass |

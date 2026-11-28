@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 macro_rules! reachable {
   ($($krate:ident::{$($name:ident),* $(,)?}),* $(,)?) => {
     $(
-      #[allow(unused_imports, non_snake_case)]
+      #[allow(unused_imports, non_snake_case, reason = "the imports only check that each path resolves")]
       mod $krate {
         use ::$krate::{$($name),*};
       }

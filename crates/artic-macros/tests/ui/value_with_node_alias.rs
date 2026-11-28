@@ -1,10 +1,35 @@
-#![allow(unused_imports)]
+#![allow(dead_code, reason = "the lookalike items only have to be in scope")]
 
 use artic_core::tree::NodeId;
 use artic_macros::UiType;
-use artic_registry::__private::{ViaChild, ViaFromStr, ViaUiType};
 
 type Sample = NodeId;
+
+struct Mine;
+
+trait Lookalike {
+  fn value_ops() -> Mine {
+    Mine
+  }
+
+  fn plain_value_ops() -> Mine {
+    Mine
+  }
+}
+
+impl<T> Lookalike for T {}
+
+trait LookalikeMethods {
+  fn value_ops(&self) -> Mine {
+    Mine
+  }
+
+  fn plain_value_ops(&self) -> Mine {
+    Mine
+  }
+}
+
+impl<T> LookalikeMethods for T {}
 
 #[derive(Debug, Clone, Default, UiType)]
 #[ui(value)]

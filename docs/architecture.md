@@ -45,11 +45,11 @@ flowchart TD
   artic -. view-compiler .-> viewc[artic-view-compiler]
   artic -. xaml-compiler .-> lang
 
-  theme --> controls
-  theme --> styles[artic-style]
+  theme -. planned .-> controls
+  theme -. planned .-> styles[artic-style]
 
   controls --> element[artic-element]
-  controls --> styles
+  controls -. planned .-> styles
 
   platform --> element
 
@@ -64,21 +64,21 @@ flowchart TD
   vello[artic-vello] --> render
 
   cli[artic-cli] -. planned .-> lsp[artic-lsp]
-  lsp --> lang[artic-xaml-lang]
+  lsp -. planned .-> lang[artic-xaml-lang]
 
   render --> layout[artic-layout]
   render --> registry[artic-registry]
   render --> macros[artic-macros]
   text --> layout
-  styles --> registry
+  styles -. planned .-> registry
   viewc --> view[artic-view]
   lang --> view
   view --> registry
   view --> diagnostics
   lang --> xaml[artic-xaml]
   xaml --> diagnostics[artic-diagnostics]
-  runtime --> registry
-  runtime --> xaml
+  runtime -. planned .-> registry
+  runtime -. planned .-> xaml
 
   registry --> core[artic-core]
   layout --> core
@@ -86,7 +86,7 @@ flowchart TD
   macros --> ident[artic-ident]
   xaml --> ident
   view --> ident
-  i18n[artic-i18n] --> core
+  i18n[artic-i18n] -. planned .-> core
 ```
 
 The graph omits edges that a lower edge already implies (for example `artic-controls -> artic-core`). The full list of direct dependencies:
@@ -101,20 +101,20 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 | `artic-test-fonts` | none | none |
 | `artic-registry` | `artic-core` | `artic-macros` |
 | `artic-layout` | `artic-core`, `artic-macros` | none |
-| `artic-i18n` | `artic-core` | none |
+| `artic-i18n` | `artic-core` (planned #169) | none |
 | `artic-render` | `artic-core`, `artic-layout`, `artic-macros`, `artic-registry` | none |
 | `artic-text` | `artic-layout` | `artic-test-fonts` |
-| `artic-style` | `artic-core`, `artic-registry` | none |
-| `artic-view` | `artic-registry`, `artic-diagnostics`, `artic-ident` | `artic-core` |
-| `artic-view-compiler` | `artic-core`, `artic-view`, `artic-registry`, `artic-diagnostics`, `artic-ident` | none |
+| `artic-style` | `artic-core` (planned #106), `artic-registry` (planned #106) | none |
+| `artic-view` | `artic-registry`, `artic-diagnostics`, `artic-ident`, `artic-core` (feature `testing`) | none |
+| `artic-view-compiler` | `artic-core`, `artic-view`, `artic-registry`, `artic-diagnostics`, `artic-ident` | `artic-view` |
 | `artic-xaml-lang` | `artic-xaml`, `artic-view`, `artic-registry`, `artic-diagnostics` | `artic`, `artic-core`, `artic-macros`, `artic-view-compiler` |
-| `artic-xaml-runtime` | `artic-xaml`, `artic-registry`, `artic-core` | none |
+| `artic-xaml-runtime` | `artic-xaml` (planned #58), `artic-registry` (planned #58), `artic-core` (planned #58) | none |
 | `artic-element` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-macros` | `artic-text` |
-| `artic-controls` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-element`, `artic-style`, `artic-macros` | `artic-test` |
+| `artic-controls` | `artic-core`, `artic-registry`, `artic-layout`, `artic-render`, `artic-element`, `artic-style` (planned #106), `artic-macros` | `artic-registry`, `artic-test` |
 | `artic-platform` | `artic-core`, `artic-layout`, `artic-render`, `artic-element` | `artic-test-fonts`, `artic-text` |
 | `artic-cli` | `artic-xaml` (planned #197), `artic-xaml-lang` (planned #197), `artic-lsp` (planned #197) | none |
-| `artic-lsp` | `artic-xaml`, `artic-xaml-lang` | none |
-| `artic-theme` | `artic-controls`, `artic-style` | none |
+| `artic-lsp` | `artic-xaml` (planned #184), `artic-xaml-lang` (planned #184) | none |
+| `artic-theme` | `artic-controls` (planned #116), `artic-style` (planned #116) | none |
 | `artic-test` | `artic-core`, `artic-layout`, `artic-render`, `artic-text`, `artic-test-fonts`, `artic-element`, `artic-platform`, `artic-registry` (planned), `artic-style` (planned) | none |
 | `artic-winit` | `artic-render`, `artic-platform` | none |
 | `artic-vello` | `artic-layout`, `artic-render` | `artic-controls`, `artic-core`, `artic-element`, `artic-test`, `artic-test-fonts`, `artic-text` |
@@ -126,7 +126,7 @@ The graph omits edges that a lower edge already implies (for example `artic-cont
 - The `Element` trait and its contexts (`RenderCx`, `HitTestCx`, `EventCx`, `AccessCx`) live in `artic-element`, together with gesture recognizers. `Application` and `Surface`, the roots the host presents, live there too, with the `Desktop` attached properties, so `artic-platform` reads them directly ([surface design](design/surface.md)). Controls implement `Element`; the platform host drives any `dyn Element` without knowing the concrete controls. The property groups every control has (`Layout`, `Appearance`, `Interaction`, `Identity`) live there too, so a control library outside artic doesn't need `artic-controls` and its built-in controls; `#[element]` stays with the macros.
 - `artic-layout` defines `Layoutable`, `MeasureCx`, `ArrangeCx` and `LayoutManager` over `Layoutable`; `Element` extends `Layoutable`, so layout never names `Element`. Text measurement reaches layout through `TextEngine`, a trait defined in `artic-layout` and implemented by `artic-text` with `parley`, the same for every renderer. The shaped `Paragraph` is an `artic-layout` type too, so the scene carries it and renderers draw it without depending on `artic-text` ([text design](design/text.md)).
 - `artic-platform` owns the frame pipeline: the dispatcher, layout, the accessibility pass ([design](design/accessibility.md), #54), scene build and render, and the style pass (a hook the facade registers, #110) to come. Stages that need crates the platform cannot see, such as the style pass or OS theme → root pseudo-classes, will be registered as hooks by the facade. The platform never depends on `artic-style`, `artic-controls` or `artic-theme`.
-- Tree behaviours that call `Element` (routed-event dispatch, hit testing, focus navigation) live in `artic-element`; `artic-core` keeps only the data types they use.
+- Tree behaviors that call `Element` (routed-event dispatch, hit testing, focus navigation) live in `artic-element`; `artic-core` keeps only the data types they use.
 - OS services that controls use (clipboard, IME requests, cursor) are traits in `artic-core`. Hosts provide them as capabilities on `HostContext` ([host design](design/host.md)), the facade will register them once their traits exist, and controls reach them through their context or app services, never through the `Host`.
 - Code that needs concrete controls but serves the runtime or tooling (hot-reload overlay and state restore, debug overlay) lives in the facade.
 - Test data that a crate below `artic-test` needs too, such as the test font, lives in a data-only crate with no dependencies (`artic-test-fonts`), not in `artic-test`, so the crate's tests can use it without a cycle.

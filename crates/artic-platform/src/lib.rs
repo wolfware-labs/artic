@@ -7,7 +7,7 @@
 //! - [`SurfaceInfo`], [`DisplayId`] and [`HostEvent`] are what a host reports, and [`Waker`] wakes
 //!   its loop from other threads.
 //! - [`Pipeline`] draws one surface's frames, and [`Runner`] presents an `Application`'s surfaces
-//!   and drives their frames from a host through [`run`], with [`Hooks`] for the stages above the
+//!   and drives their frames from a host through [`run()`], with [`Hooks`] for the stages above the
 //!   platform.
 //! - [`AccessTree`] builds one surface's accessibility tree, and each frame only what changed in it.
 //!

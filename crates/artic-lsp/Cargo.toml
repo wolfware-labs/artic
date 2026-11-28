@@ -8,9 +8,5 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
-[dependencies]
-artic-xaml.workspace = true
-artic-xaml-lang.workspace = true
-
 [lints]
 workspace = true

@@ -95,11 +95,11 @@ pub fn parse_field_attributes(field: &Field) -> syn::Result<Option<FieldAttribut
       } else if meta.path.is_ident("name") {
         attributes.name = Some(meta.value()?.parse::<LitStr>()?);
       } else if meta.path.is_ident("flatten") {
-        attributes.flatten = Some(meta.path.get_ident().map_or_else(Span::call_site, Ident::span));
+        attributes.flatten = Some(key_span(&meta));
       } else if meta.path.is_ident("content") {
-        attributes.content = Some(meta.path.get_ident().map_or_else(Span::call_site, Ident::span));
+        attributes.content = Some(key_span(&meta));
       } else if meta.path.is_ident("required") {
-        attributes.required = Some(meta.path.get_ident().map_or_else(Span::call_site, Ident::span));
+        attributes.required = Some(key_span(&meta));
       } else {
         return Err(unknown_key(
           &meta,
@@ -137,6 +137,11 @@ pub fn parse_field_attributes(field: &Field) -> syn::Result<Option<FieldAttribut
     ));
   }
   Ok(found)
+}
+
+/// The span of a `ui` key, for the setting it turns on.
+fn key_span(meta: &ParseNestedMeta) -> Span {
+  meta.path.get_ident().map_or_else(Span::call_site, Ident::span)
 }
 
 /// The error for a `ui` key that isn't one of `expected`.

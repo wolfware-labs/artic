@@ -379,9 +379,9 @@ fn layers_carry_opacity_as_set() {
   assert!(opacity(f32::NAN).is_nan());
 }
 
-// A rotation pivots on the element's centre, which stays where it was.
+// A rotation pivots on the element's center, which stays where it was.
 #[test]
-fn transform_pivots_on_the_centre() {
+fn transform_pivots_on_the_center() {
   let appearance = Appearance::default();
   appearance
     .render_transform
@@ -389,13 +389,13 @@ fn transform_pivots_on_the_centre() {
 
   let transform = appearance.layers(Size::new(100.0, 40.0)).transform.expect("a transform");
 
-  let centre = transform.apply(Point::new(50.0, 20.0));
-  assert!((centre.x - 50.0).abs() < 1e-4 && (centre.y - 20.0).abs() < 1e-4, "{centre:?}");
+  let center = transform.apply(Point::new(50.0, 20.0));
+  assert!((center.x - 50.0).abs() < 1e-4 && (center.y - 20.0).abs() < 1e-4, "{center:?}");
 }
 
-// A scale grows the element away from its centre, so its top-left corner moves up and left.
+// A scale grows the element away from its center, so its top-left corner moves up and left.
 #[test]
-fn scale_grows_from_the_centre() {
+fn scale_grows_from_the_center() {
   let appearance = Appearance::default();
   appearance.render_transform.set(Some(Transform::scale(2.0, 2.0)));
 

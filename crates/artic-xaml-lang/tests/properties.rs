@@ -33,6 +33,8 @@ impl ToRust for Broken {
   }
 }
 
+artic_core::text_value!(Broken);
+
 /// A test type with an event and a property of the broken value type.
 #[derive(Debug, UiType)]
 struct Knob {

@@ -355,7 +355,11 @@ fn own_properties_register_beside_the_groups() {
 mod shadowed {
   use super::{ElementImpl, element};
 
-  #[allow(non_upper_case_globals, dead_code)]
+  #[expect(
+    non_upper_case_globals,
+    dead_code,
+    reason = "the constant is only there to shadow the name the macro must not use"
+  )]
   const value: u8 = 0;
 
   /// A control declared beside that constant.

@@ -54,7 +54,14 @@ pub enum Whitespace {
 /// A Rust type that UI languages can name, described by a [`TypeInfo`].
 ///
 /// `#[derive(UiType)]` implements it. A type that implements it can also be the value of a
-/// property, written as an object rather than as text.
+/// property, written as an object rather than as text, once it implements
+/// [`Written`](crate::Written): the derive writes that impl. A node type that implements `UiType` by
+/// hand adds it with `artic::core::node_type_value!(T)` (`artic_core::node_type_value!` without the
+/// `artic` crate); a value type that implements it by hand, taken from a staged object through
+/// [`FromUiObject`](crate::FromUiObject), writes it out with `type As = AsObject` and
+/// `type FromObject = TakesObject`. A property the derive declares with such a type fails to
+/// compile when the impl doesn't fit the type's [`kind`](TypeInfo::kind): a
+/// [`TypeKind::Value`] takes its staged object, a [`TypeKind::Node`] refuses it.
 pub trait UiType {
   /// The type's registry descriptor.
   const TYPE_INFO: &'static TypeInfo;
@@ -76,6 +83,95 @@ pub fn crate_and_item(path: &str) -> (&str, &str) {
 }
 
 impl TypeInfo {
+  /// A descriptor of a [`TypeKind::Node`] type named `name`, defined at `rust_path`, whose nodes
+  /// `is` recognizes, usable in a `static`. Every other field starts empty: no
+  /// [`new`](TypeInfo::new), so markup alone can't create it, no content, properties, groups,
+  /// events or attached properties, not a value provider, [`Whitespace::Collapse`], and no
+  /// [`code_type_root`](TypeInfo::code_type_root). The `with_*` methods set each of these but
+  /// [`value_provider`](TypeInfo::value_provider), which only the derive fills.
+  #[must_use]
+  pub const fn node(name: &'static str, rust_path: &'static str, is: fn(&dyn Object) -> bool) -> Self {
+    Self {
+      name,
+      rust_path,
+      is,
+      new: None,
+      kind: TypeKind::Node,
+      content: None,
+      properties: &[],
+      groups: &[],
+      events: &[],
+      attached_properties: &[],
+      value_provider: None,
+      whitespace: Whitespace::Collapse,
+      code_type_root: false,
+    }
+  }
+
+  /// The descriptor, with `new` creating its nodes.
+  #[must_use]
+  pub const fn with_new(mut self, new: fn(&mut UiTree) -> NodeId) -> Self {
+    self.new = Some(new);
+    self
+  }
+
+  /// The descriptor, with its objects of kind `kind`.
+  #[must_use]
+  pub const fn with_kind(mut self, kind: TypeKind) -> Self {
+    self.kind = kind;
+    self
+  }
+
+  /// The descriptor, with `content` receiving what is written inside the element.
+  #[must_use]
+  pub const fn with_content(mut self, content: ContentInfo) -> Self {
+    self.content = Some(content);
+    self
+  }
+
+  /// The descriptor, with `properties` as its own properties.
+  #[must_use]
+  pub const fn with_properties(mut self, properties: &'static [PropertyInfo]) -> Self {
+    self.properties = properties;
+    self
+  }
+
+  /// The descriptor, embedding `groups`.
+  #[must_use]
+  pub const fn with_groups(mut self, groups: &'static [PropertyGroupInfo]) -> Self {
+    self.groups = groups;
+    self
+  }
+
+  /// The descriptor, with `events` as its events.
+  #[must_use]
+  pub const fn with_events(mut self, events: &'static [EventInfo]) -> Self {
+    self.events = events;
+    self
+  }
+
+  /// The descriptor, owning `attached_properties`.
+  #[must_use]
+  pub const fn with_attached_properties(mut self, attached_properties: &'static [AttachedPropertyInfo]) -> Self {
+    self.attached_properties = attached_properties;
+    self
+  }
+
+  /// The descriptor, treating whitespace inside the element as `whitespace` says.
+  #[must_use]
+  pub const fn with_whitespace(mut self, whitespace: Whitespace) -> Self {
+    self.whitespace = whitespace;
+    self
+  }
+
+  /// The descriptor, with a view's code type able to take its place at the root when
+  /// `code_type_root` is `true`.
+  #[must_use]
+  pub const fn with_code_type_root(mut self, code_type_root: bool) -> Self {
+    self.code_type_root = code_type_root;
+    self
+  }
+
   /// The type's namespace: the crate it's defined in, the first segment of its
   /// [`rust_path`](TypeInfo::rust_path), such as `artic_controls`. A language reaches types by
   /// namespace and name, or by Rust path.
@@ -148,8 +244,56 @@ pub struct PropertyInfo {
   /// what the builder method takes. `Some` only when this crate's `literals` feature is on, which
   /// a build-time code generator turns on; an app's registry holds `None`.
   pub literal: Option<WriteLiteral>,
-  /// How a UI language's runtime loader writes the property.
-  pub access: &'static PropertyAccess,
+  /// How a UI language's runtime loader writes the property. `Some` only when this crate's
+  /// `access` feature is on, which a runtime loader turns on; an app without one keeps no thunks.
+  pub access: Option<&'static PropertyAccess>,
+}
+
+impl PropertyInfo {
+  /// A property named `name`, held in `field`, whose value is of the type at `value_type`, usable
+  /// in a `static`. It starts with [`Affects::NONE`], doesn't inherit, and has no
+  /// [`literal`](PropertyInfo::literal) or [`access`](PropertyInfo::access). The `with_*` methods
+  /// set the others.
+  #[must_use]
+  pub const fn new(name: &'static str, field: &'static str, value_type: &'static str) -> Self {
+    Self {
+      name,
+      field,
+      value_type,
+      affects: Affects::NONE,
+      inherits: false,
+      literal: None,
+      access: None,
+    }
+  }
+
+  /// The property, with a change to it redoing the stages `affects` names.
+  #[must_use]
+  pub const fn with_affects(mut self, affects: Affects) -> Self {
+    self.affects = affects;
+    self
+  }
+
+  /// The property, taking its value from a logical ancestor when `inherits` is `true`.
+  #[must_use]
+  pub const fn with_inherits(mut self, inherits: bool) -> Self {
+    self.inherits = inherits;
+    self
+  }
+
+  /// The property, with `literal` writing the Rust expression for its text.
+  #[must_use]
+  pub const fn with_literal(mut self, literal: WriteLiteral) -> Self {
+    self.literal = Some(literal);
+    self
+  }
+
+  /// The property, written by a runtime loader through `access`.
+  #[must_use]
+  pub const fn with_access(mut self, access: &'static PropertyAccess) -> Self {
+    self.access = Some(access);
+    self
+  }
 }
 
 /// Parses a property's text and writes the Rust expression that builds the value, or returns why
@@ -334,32 +478,15 @@ mod tests {
     }))
   }
 
-  static BORDER: TypeInfo = TypeInfo {
-    name: "Border",
-    rust_path: "artic_controls::Border",
-    is: crate::is_a::<Border>,
-    new: Some(new_border),
-    content: None,
-    properties: &[PropertyInfo {
-      name: PADDING.name(),
-      field: "padding",
-      value_type: "f32",
-      affects: PADDING.affects(),
-      inherits: PADDING.inherits(),
-      literal: None,
-      access: &crate::access::tests::UNWRITTEN,
-    }],
-    groups: &[],
-    events: &[EventInfo {
+  static BORDER: TypeInfo = TypeInfo::node("Border", "artic_controls::Border", crate::is_a::<Border>)
+    .with_new(new_border)
+    .with_properties(&[PropertyInfo::new(PADDING.name(), "padding", "f32")
+      .with_affects(PADDING.affects())
+      .with_inherits(PADDING.inherits())])
+    .with_events(&[EventInfo {
       name: "PointerPressed",
       args_type: "artic_core::PointerEvent",
-    }],
-    attached_properties: &[],
-    value_provider: None,
-    whitespace: Whitespace::Collapse,
-    code_type_root: false,
-    kind: TypeKind::Node,
-  };
+    }]);
 
   // A descriptor written as a `static` copies its property metadata from the property's key at
   // compile time, and its constructor creates a node.
@@ -375,28 +502,142 @@ mod tests {
     assert!(tree.get_as::<Border>(node).is_some());
   }
 
+  static DEFAULT_TYPE: TypeInfo = TypeInfo::node("Gauge", "app::Gauge", crate::is_a::<Border>);
+  static DEFAULT_PROPERTY: PropertyInfo = PropertyInfo::new("Text", "text", "String");
+
+  // The constructors work in a `static` and leave every other field at its documented default.
+  #[test]
+  fn constructors_fill_the_defaults() {
+    assert_eq!((DEFAULT_TYPE.name, DEFAULT_TYPE.rust_path), ("Gauge", "app::Gauge"));
+    assert!(DEFAULT_TYPE.new.is_none());
+    assert_eq!(DEFAULT_TYPE.kind, TypeKind::Node);
+    assert!(DEFAULT_TYPE.content.is_none());
+    assert!(DEFAULT_TYPE.properties.is_empty());
+    assert!(DEFAULT_TYPE.groups.is_empty());
+    assert!(DEFAULT_TYPE.events.is_empty());
+    assert!(DEFAULT_TYPE.attached_properties.is_empty());
+    assert!(DEFAULT_TYPE.value_provider.is_none());
+    assert_eq!(DEFAULT_TYPE.whitespace, Whitespace::Collapse);
+    assert!(!DEFAULT_TYPE.code_type_root);
+
+    assert_eq!(
+      (DEFAULT_PROPERTY.name, DEFAULT_PROPERTY.field, DEFAULT_PROPERTY.value_type),
+      ("Text", "text", "String")
+    );
+    assert_eq!(DEFAULT_PROPERTY.affects, Affects::NONE);
+    assert!(!DEFAULT_PROPERTY.inherits);
+    assert!(DEFAULT_PROPERTY.literal.is_none());
+    assert!(DEFAULT_PROPERTY.access.is_none());
+  }
+
+  /// Writes text as a string.
+  fn quoted(text: &str, out: &mut RustExpr) -> Result<(), String> {
+    out.str(text);
+    Ok(())
+  }
+
+  static GROUPS: [PropertyGroupInfo; 1] = [PropertyGroupInfo {
+    field: "layout",
+    properties: &[],
+    methods: "artic_element::LayoutMethods",
+  }];
+
+  static SET_TYPE: TypeInfo = TypeInfo::node("Shelf", "app::Shelf", crate::is_a::<Border>)
+    .with_new(new_border)
+    .with_kind(TypeKind::Value)
+    .with_content(ContentInfo::Property(PropertyRef {
+      group: None,
+      info: &SET_PROPERTY,
+    }))
+    .with_properties(std::slice::from_ref(&SET_PROPERTY))
+    .with_groups(&GROUPS)
+    .with_events(&[EventInfo {
+      name: "PointerPressed",
+      args_type: "artic_core::PointerEvent",
+    }])
+    .with_attached_properties(&[AttachedPropertyInfo {
+      name: "Slot",
+      value_type: "usize",
+      target: AttachedTarget::Any,
+      literal: None,
+    }])
+    .with_whitespace(Whitespace::Significant)
+    .with_code_type_root(true);
+  static SET_PROPERTY: PropertyInfo = PropertyInfo::new("Text", "text", "String")
+    .with_affects(Affects::LAYOUT)
+    .with_inherits(true)
+    .with_literal(quoted)
+    .with_access(&crate::access::tests::UNWRITTEN);
+
+  // Each setter sets its own field, and a chain of them keeps the fields set before it.
+  #[test]
+  fn setters_set_their_field() {
+    let mut tree = UiTree::new();
+    let mut out = RustExpr::new();
+
+    let node = (SET_TYPE.new.expect("a constructor"))(&mut tree);
+    (SET_PROPERTY.literal.expect("a literal"))("Hi", &mut out).expect("any text");
+
+    assert!(tree.get_as::<Border>(node).is_some());
+    assert_eq!(SET_TYPE.kind, TypeKind::Value);
+    assert!(matches!(SET_TYPE.content, Some(ContentInfo::Property(found)) if found.info.name == "Text"));
+    assert_eq!(SET_TYPE.properties.len(), 1);
+    assert_eq!(SET_TYPE.groups[0].field, "layout");
+    assert_eq!(SET_TYPE.events[0].name, "PointerPressed");
+    assert_eq!(SET_TYPE.attached_properties[0].name, "Slot");
+    assert_eq!(SET_TYPE.whitespace, Whitespace::Significant);
+    assert!(SET_TYPE.code_type_root);
+    assert_eq!(SET_PROPERTY.affects, Affects::LAYOUT);
+    assert!(SET_PROPERTY.inherits);
+    assert!(
+      SET_PROPERTY
+        .access
+        .is_some_and(|access| std::ptr::eq(access, &crate::access::tests::UNWRITTEN))
+    );
+    assert_eq!(out.as_str(), r#""Hi""#);
+  }
+
+  // The constructors and setters called at run time give the descriptors that statics built
+  // with them hold.
+  #[test]
+  fn setters_at_run_time_match_their_statics() {
+    let built_type = TypeInfo::node(SET_TYPE.name, SET_TYPE.rust_path, SET_TYPE.is)
+      .with_new(SET_TYPE.new.expect("a constructor"))
+      .with_kind(SET_TYPE.kind)
+      .with_content(SET_TYPE.content.expect("content"))
+      .with_properties(SET_TYPE.properties)
+      .with_groups(SET_TYPE.groups)
+      .with_events(SET_TYPE.events)
+      .with_attached_properties(SET_TYPE.attached_properties)
+      .with_whitespace(SET_TYPE.whitespace)
+      .with_code_type_root(SET_TYPE.code_type_root);
+    let built_property = PropertyInfo::new(SET_PROPERTY.name, SET_PROPERTY.field, SET_PROPERTY.value_type)
+      .with_affects(SET_PROPERTY.affects)
+      .with_inherits(SET_PROPERTY.inherits)
+      .with_literal(SET_PROPERTY.literal.expect("a literal"))
+      .with_access(SET_PROPERTY.access.expect("an access"));
+
+    assert_eq!(format!("{built_type:?}"), format!("{SET_TYPE:?}"));
+    assert_eq!(format!("{built_property:?}"), format!("{SET_PROPERTY:?}"));
+  }
+
   // An attached property is found by its name among the ones its owner declares, and only there.
   #[test]
   fn attached_property_is_found_by_name() {
-    static DOCK: TypeInfo = TypeInfo {
-      name: "Dock",
-      rust_path: "artic_controls::Dock",
-      attached_properties: &[
-        AttachedPropertyInfo {
-          name: "Side",
-          value_type: "artic_controls::Side",
-          target: AttachedTarget::ChildrenOfOwner,
-          literal: None,
-        },
-        AttachedPropertyInfo {
-          name: "Order",
-          value_type: "usize",
-          target: AttachedTarget::Any,
-          literal: None,
-        },
-      ],
-      ..BORDER
-    };
+    static DOCK: TypeInfo = TypeInfo::node("Dock", "artic_controls::Dock", crate::is_a::<Border>).with_attached_properties(&[
+      AttachedPropertyInfo {
+        name: "Side",
+        value_type: "artic_controls::Side",
+        target: AttachedTarget::ChildrenOfOwner,
+        literal: None,
+      },
+      AttachedPropertyInfo {
+        name: "Order",
+        value_type: "usize",
+        target: AttachedTarget::Any,
+        literal: None,
+      },
+    ]);
 
     assert_eq!(DOCK.attached_property("Order").map(|info| info.value_type), Some("usize"));
     assert!(DOCK.attached_property("Padding").is_none());

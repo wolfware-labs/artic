@@ -1,0 +1,276 @@
+//! Hand-built types and documents for tests, as a language's front end would read them: types no
+//! node backs, and members written at given byte offsets of a file.
+
+use crate::document::{Element, Member, Text, TypeUse};
+use artic_core::Object;
+use artic_core::tree::{NodeId, UiTree};
+use artic_diagnostics::{Diagnostic, SourceId, SourceMap, Span};
+use artic_registry::{
+  ContentInfo, ContentMethod, EventInfo, PropertyGroupInfo, PropertyInfo, PropertyRef, RustExpr, TypeInfo, ValueError,
+};
+
+/// Reads no node: these tests never build a tree.
+pub fn no_object(_object: &dyn Object) -> bool {
+  unreachable!("these tests never read a node")
+}
+
+/// Creates no node: these tests never build a tree.
+pub fn new_node(_tree: &mut UiTree) -> NodeId {
+  unreachable!("these tests never create a node")
+}
+
+/// Adds no child: these tests never build a tree.
+pub fn add_child(_tree: &mut UiTree, _parent: NodeId, _child: NodeId) -> Result<(), ValueError> {
+  unreachable!("these tests never add a child")
+}
+
+/// A node type named `name` at `rust_path` with no content, properties, groups or events, which
+/// markup can create.
+pub const fn info(name: &'static str, rust_path: &'static str) -> TypeInfo {
+  TypeInfo::node(name, rust_path, no_object).with_new(new_node)
+}
+
+/// Writes a number, or refuses text that isn't one.
+pub fn number(text: &str, out: &mut RustExpr) -> Result<(), String> {
+  let value: f32 = text.parse().map_err(|_| format!("`{text}` isn't a number"))?;
+  out.f32(value);
+  Ok(())
+}
+
+/// Writes text as a string.
+pub fn string(text: &str, out: &mut RustExpr) -> Result<(), String> {
+  out.str(text);
+  Ok(())
+}
+
+static WIDTH: [PropertyInfo; 1] = [PropertyInfo::new("Width", "width", "f32").with_literal(number)];
+static MARGIN: [PropertyInfo; 1] = [PropertyInfo::new("Margin", "margin", "f32").with_literal(number)];
+static LAYOUT: [PropertyGroupInfo; 1] = [PropertyGroupInfo {
+  field: "layout",
+  properties: &MARGIN,
+  methods: "test_ui::layout::LayoutMethods",
+}];
+static PANEL_EVENTS: [EventInfo; 1] = [EventInfo {
+  name: "Click",
+  args_type: "test_ui::ClickArgs",
+}];
+
+/// The property `Text`, written as a string.
+pub static TEXT: [PropertyInfo; 1] = [PropertyInfo::new("Text", "text", "String").with_literal(string)];
+
+/// Takes any number of children; has `Width`, the group `layout` with `Margin`, and the event
+/// `Click`.
+pub static PANEL: TypeInfo = info("Panel", "test_ui::panel::Panel")
+  .with_content(ContentInfo::Collection {
+    field: "children",
+    method: Some(ContentMethod::Children),
+    takes: || None,
+    text_wrapper: || None,
+    add_child,
+  })
+  .with_properties(&WIDTH)
+  .with_groups(&LAYOUT)
+  .with_events(&PANEL_EVENTS);
+
+/// Takes one child; has the group `layout` with `Margin`; a view's code type can take its place
+/// at the root.
+pub static HOST: TypeInfo = info("Host", "test_ui::host::Host")
+  .with_content(ContentInfo::Collection {
+    field: "child",
+    method: Some(ContentMethod::Child),
+    takes: || None,
+    text_wrapper: || None,
+    add_child,
+  })
+  .with_groups(&LAYOUT)
+  .with_code_type_root(true);
+
+/// Its content sets `Text`, whitespace collapsed.
+pub static LABEL: TypeInfo = info("Label", "test_ui::label::Label")
+  .with_content(ContentInfo::Property(PropertyRef {
+    group: None,
+    info: &TEXT[0],
+  }))
+  .with_properties(&TEXT);
+
+/// A view's file, `view.ui`, empty: a source the spans below can point into.
+pub fn file() -> SourceId {
+  SourceMap::new().add("view.ui", "")
+}
+
+/// The bytes `start..end` of `file`.
+pub fn span(file: SourceId, start: usize, end: usize) -> Span {
+  Span::new(file, start, end)
+}
+
+/// An element of type `info` written at `at`, its type's name at `at + 1`.
+pub fn element(file: SourceId, info: &'static TypeInfo, at: usize, members: Vec<Member>) -> Element {
+  Element {
+    ty: Ok(TypeUse {
+      info,
+      module: None,
+      span: span(file, at + 1, at + 2),
+    }),
+    span: span(file, at, at + 1),
+    members,
+  }
+}
+
+/// An element at `at` whose type `Gauge` wasn't found, reported at `at + 1`.
+pub fn unknown(file: SourceId, at: usize, members: Vec<Member>) -> Element {
+  Element {
+    ty: Err(Diagnostic::error(span(file, at + 1, at + 2), "no type `Gauge`").into()),
+    span: span(file, at, at + 1),
+    members,
+  }
+}
+
+/// The property `name` named at `at`, set to `value` at `at + 1`.
+pub fn property(file: SourceId, name: &str, at: usize, value: &str) -> Member {
+  Member::Property {
+    name: name.to_owned(),
+    span: span(file, at, at + 1),
+    value: Ok(Text {
+      text: value.to_owned(),
+      span: span(file, at + 1, at + 2),
+    }),
+  }
+}
+
+/// The name `text` at `at`.
+pub fn name(file: SourceId, text: &str, at: usize) -> Member {
+  Member::Name(Ok(Text {
+    text: text.to_owned(),
+    span: span(file, at, at + 1),
+  }))
+}
+
+/// The code type `path` at `at`.
+pub fn code_type(file: SourceId, path: &str, at: usize) -> Member {
+  Member::CodeType(Ok(Text {
+    text: path.to_owned(),
+    span: span(file, at, at + 1),
+  }))
+}
+
+/// The field visibility `text` at `at`.
+pub fn visibility(file: SourceId, text: &str, at: usize) -> Member {
+  Member::FieldVisibility(Ok(Text {
+    text: text.to_owned(),
+    span: span(file, at, at + 1),
+  }))
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use artic_core::property::PropertyVisitor;
+  use pretty_assertions::assert_eq;
+
+  /// An object with no properties, to hand the stubs something to refuse.
+  #[derive(Debug)]
+  struct Bare;
+
+  impl Object for Bare {
+    fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
+  }
+
+  // The stub that reads a node panics: a test that reaches it built a tree it says it doesn't.
+  #[test]
+  #[should_panic(expected = "these tests never read a node")]
+  fn no_object_panics() {
+    no_object(&Bare);
+  }
+
+  // The stub that creates a node panics: a test that reaches it built a tree it says it doesn't.
+  #[test]
+  #[should_panic(expected = "these tests never create a node")]
+  fn new_node_panics() {
+    new_node(&mut UiTree::new());
+  }
+
+  // The stub that adds a child panics: a test that reaches it built a tree it says it doesn't.
+  #[test]
+  #[should_panic(expected = "these tests never add a child")]
+  fn add_child_panics() {
+    let mut tree = UiTree::new();
+    let (parent, child) = (tree.alloc(Box::new(Bare)), tree.alloc(Box::new(Bare)));
+    let _ = add_child(&mut tree, parent, child);
+  }
+
+  static BARE: TypeInfo = info("Bare", "test_ui::bare::Bare");
+
+  // `info` called at run time gives the descriptor a static built with it holds: a creatable node
+  // type with nothing else set.
+  #[test]
+  fn info_at_run_time_matches_its_static() {
+    let built = info(BARE.name, BARE.rust_path);
+
+    assert_eq!(format!("{built:?}"), format!("{BARE:?}"));
+    assert!(built.new.is_some());
+    assert!(built.content.is_none());
+  }
+
+  /// The text a member holds, or a panic naming the member it got.
+  fn text_of(member: Member) -> Text {
+    match member {
+      Member::Name(Ok(text)) | Member::CodeType(Ok(text)) | Member::FieldVisibility(Ok(text)) => text,
+      other => panic!("expected a member holding text, got {other:?}"),
+    }
+  }
+
+  // An element written at 10 spans byte 10, and its type's name byte 11.
+  #[test]
+  fn element_spans_its_start_and_its_type_name_after_it() {
+    let file = file();
+    let built = element(file, &PANEL, 10, Vec::new());
+
+    assert_eq!(built.span, Span::new(file, 10, 11));
+    assert_eq!(built.ty.expect("a found type").span, Span::new(file, 11, 12));
+  }
+
+  // An unknown element written at 10 spans byte 10, and its missing type is reported at byte 11.
+  #[test]
+  fn unknown_spans_its_start_and_reports_its_type_after_it() {
+    let file = file();
+    let built = unknown(file, 10, Vec::new());
+
+    assert_eq!(built.span, Span::new(file, 10, 11));
+    let problem = built.ty.expect_err("a type that wasn't found");
+    assert_eq!(problem.diagnostic.span, Span::new(file, 11, 12));
+    assert_eq!(problem.diagnostic.message, "no type `Gauge`");
+  }
+
+  // A property named at 10 spans byte 10, and its value byte 11.
+  #[test]
+  fn property_spans_its_name_and_its_value_after_it() {
+    let file = file();
+    let Member::Property { name, span, value } = property(file, "Width", 10, "4") else {
+      panic!("expected a property");
+    };
+
+    assert_eq!(name, "Width");
+    assert_eq!(span, Span::new(file, 10, 11));
+    assert_eq!(
+      value.expect("a value"),
+      Text {
+        text: "4".to_owned(),
+        span: Span::new(file, 11, 12),
+      }
+    );
+  }
+
+  // A name, a code type and a field visibility written at 10 each span byte 10.
+  #[test]
+  fn text_members_span_the_byte_they_are_written_at() {
+    let file = file();
+    let at = |text: &str| Text {
+      text: text.to_owned(),
+      span: Span::new(file, 10, 11),
+    };
+
+    assert_eq!(text_of(name(file, "panel", 10)), at("panel"));
+    assert_eq!(text_of(code_type(file, "app::View", 10)), at("app::View"));
+    assert_eq!(text_of(visibility(file, "pub(crate)", 10)), at("pub(crate)"));
+  }
+}

@@ -15,6 +15,7 @@ pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::members::emit::tests::unparse;
   use syn::parse_quote;
 
   // A type using every setting, expanded whole: the snapshot pins everything the derive writes.
@@ -40,8 +41,7 @@ mod tests {
       }
     };
 
-    let file: syn::File = syn::parse2(expand(&input).expect("valid")).expect("parses");
-    insta::assert_snapshot!(prettyplease::unparse(&file));
+    insta::assert_snapshot!(unparse(expand(&input).expect("valid")));
   }
 
   // A type with required fields: `new` takes them in order, and there is no `Default` and no
@@ -58,8 +58,7 @@ mod tests {
       }
     };
 
-    let file: syn::File = syn::parse2(expand(&input).expect("valid")).expect("parses");
-    insta::assert_snapshot!(prettyplease::unparse(&file));
+    insta::assert_snapshot!(unparse(expand(&input).expect("valid")));
   }
 
   // Each setting only a node type has is refused on a value, at the type or at the field.

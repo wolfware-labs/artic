@@ -11,6 +11,8 @@ macro_rules! integers {
         out.raw(&format!("{self}_{}", stringify!($ty)));
       }
     }
+
+    crate::text_value!($ty);
   )*};
 }
 
@@ -23,6 +25,8 @@ macro_rules! non_zero {
         out.raw(&format!("::core::num::{}::new({self}_{}).unwrap()", stringify!($ty), stringify!($int)));
       }
     }
+
+    crate::text_value!($ty);
   )*};
 }
 
@@ -62,6 +66,8 @@ impl ToRust for String {
     out.raw(")");
   }
 }
+
+crate::text_value!(f32, f64, bool, char, String);
 
 impl<T: ToRust> ToRust for [T] {
   /// Writes an array literal of the items.

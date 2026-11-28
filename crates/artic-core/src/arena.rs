@@ -228,6 +228,7 @@ mod tests {
   #[derive(Debug, PartialEq, Eq)]
   struct Item;
 
+  // An id freed once no longer reaches anything.
   #[test]
   fn stale_id_after_free_returns_none() {
     let mut arena = Arena::new();
@@ -236,6 +237,7 @@ mod tests {
     assert!(arena.get(n1).is_none());
   }
 
+  // A reused slot gets a new generation, so the old id and the new one differ.
   #[test]
   fn generation_distinguishes_reused_slots() {
     let mut arena = Arena::new();
@@ -249,6 +251,7 @@ mod tests {
     assert_ne!(n2.generation, n1.generation);
   }
 
+  // An old id stays dead after another value takes its slot.
   #[test]
   fn stale_id_does_not_resolve_after_slot_reuse() {
     let mut arena = Arena::new();
@@ -259,6 +262,7 @@ mod tests {
     assert_eq!(n2.index, n1.index);
   }
 
+  // `len` goes up with each alloc and down with each free.
   #[test]
   fn len_tracks_allocs_and_frees() {
     let mut arena = Arena::new();
@@ -273,6 +277,7 @@ mod tests {
     assert_eq!(arena.len(), 0);
   }
 
+  // Freeing an id twice gives nothing the second time and leaves `len` as it was.
   #[test]
   fn double_free_returns_none_and_keeps_len() {
     let mut arena = Arena::new();
@@ -283,6 +288,7 @@ mod tests {
     assert_eq!(arena.len(), 1);
   }
 
+  // A slot freed at the highest generation comes back at the lowest one.
   #[test]
   fn generation_wraps_from_max_to_min() {
     let mut arena = Arena::new();
@@ -299,6 +305,7 @@ mod tests {
     assert_eq!(n2.generation, SlotGeneration::MIN);
   }
 
+  // An id past the end of the arena reaches nothing, for free, get and get_mut.
   #[test]
   fn out_of_range_id_returns_none() {
     let mut arena = Arena::new();
@@ -310,6 +317,7 @@ mod tests {
     assert!(arena.get_mut(n1).is_none());
   }
 
+  // A reused slot counts once in `len`.
   #[test]
   fn len_is_correct_after_slot_reuse() {
     let mut arena = Arena::new();
@@ -320,6 +328,7 @@ mod tests {
     assert_eq!(arena.len(), 2);
   }
 
+  // An arena holding a value isn't empty.
   #[test]
   fn is_not_empty_after_alloc() {
     let mut arena = Arena::new();
@@ -327,6 +336,7 @@ mod tests {
     assert!(!arena.is_empty());
   }
 
+  // `new` and `default` both start empty.
   #[test]
   fn new_and_default_arenas_are_empty() {
     let new: Arena<Item> = Arena::new();
@@ -337,6 +347,7 @@ mod tests {
     assert_eq!(default.len(), 0);
   }
 
+  // Each id gets back the value it was allocated with.
   #[test]
   fn get_returns_the_value_for_each_id() {
     let mut arena = Arena::new();
@@ -347,6 +358,7 @@ mod tests {
     assert_eq!(arena.get(n2), Some(&"second"));
   }
 
+  // A change made through `get_mut` shows through `get`.
   #[test]
   fn get_mut_changes_are_visible_through_get() {
     let mut arena = Arena::new();
@@ -364,6 +376,7 @@ mod tests {
     assert_eq!(arena.ids().collect::<Vec<_>>(), [first, third]);
   }
 
+  // `free` hands back the value it removes.
   #[test]
   fn free_returns_the_stored_value() {
     let mut arena = Arena::new();
@@ -371,6 +384,7 @@ mod tests {
     assert_eq!(arena.free(n1), Some(String::from("hello")));
   }
 
+  // `contains` is true while an id is live, and stays false for it once its slot is reused.
   #[test]
   fn contains_tracks_liveness() {
     let mut arena = Arena::new();
@@ -383,6 +397,7 @@ mod tests {
     assert!(arena.contains(n2));
   }
 
+  // An old id can't change the value that reused its slot.
   #[test]
   fn stale_id_get_mut_returns_none_after_slot_reuse() {
     let mut arena = Arena::new();
@@ -404,6 +419,7 @@ mod tests {
     assert_eq!(arena.len(), 1);
   }
 
+  // Freed slots come back last freed first.
   #[test]
   fn alloc_reuses_the_most_recently_freed_slot() {
     let mut arena = Arena::new();
@@ -415,6 +431,7 @@ mod tests {
     assert_eq!(arena.alloc(Item).index, n1.index);
   }
 
+  // The arena fills freed slots before it grows its storage.
   #[test]
   fn freed_slots_are_reused_before_storage_grows() {
     let mut arena = Arena::new();
@@ -444,6 +461,7 @@ mod tests {
     assert_eq!(arena.get(n3), Some(&3));
   }
 
+  // Dropping the arena drops the values still in it.
   #[test]
   fn dropping_the_arena_drops_live_values() {
     let value = Rc::new(());

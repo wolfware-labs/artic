@@ -9,6 +9,10 @@ license.workspace = true
 repository.workspace = true
 publish = false
 
+[package.metadata.cargo-machete]
+# `#[derive(UiType)]` expands to paths through `artic_registry`; the source never names it.
+ignored = ["artic-registry"]
+
 [dependencies]
 artic-core.workspace = true
 artic-macros.workspace = true

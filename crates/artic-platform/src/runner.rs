@@ -21,7 +21,7 @@ use std::time::Duration;
 /// each frame's stages.
 ///
 /// Build it with the tree, a renderer, a text engine and the root node, an `Application` or a code
-/// type of one, register hooks, and hand it to [`run`](crate::run). After every call from the host
+/// type of one, register hooks, and hand it to [`run`](crate::run()). After every call from the host
 /// it reconciles the surfaces with the host: a surface opened is presented, one closed or taken out
 /// of the tree is taken down, and one whose title, size or chrome changed is updated.
 pub struct Runner<R> {

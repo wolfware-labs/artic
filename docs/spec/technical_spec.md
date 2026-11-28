@@ -90,7 +90,7 @@ Each layer builds on the ones below it. The exact dependency edges and the rules
 | `artic-theme` | Default theme: token dictionaries (light, dark, touch density) and the default `ControlTemplate` for every v1 control (D18) | `ArticTheme` |
 | `artic-i18n` | Optional fluent-rs implementation of the `Localizer` trait (D6) | `FluentLocalizer` |
 | `artic-test` | Dev-dependency test utilities: `TestHost`, headless tree helpers, tree serializer (D14) | `TestHost` |
-| `artic-test-fonts` | The test font's files and licence as byte constants, with no dependencies, so `artic-text`'s tests and `artic-test` share one copy | `REGULAR`, `BOLD` |
+| `artic-test-fonts` | The test font's files and license as byte constants, with no dependencies, so `artic-text`'s tests and `artic-test` share one copy | `REGULAR`, `BOLD` |
 | `artic-cli` | `cargo-artic` binary: `check`, `new`, `schema`, `inspect`, `ios`, `android`, `lsp` (D15) | CLI |
 | `artic-lsp` | Language server: source-based type index, diagnostics, completion, hover, navigation, formatting, rename (D21, D22) | `Server` |
 
@@ -142,7 +142,7 @@ pub struct Border {
 }
 ```
 
-The derive emits a `TypeInfo` static and registers it with `linkme` (distributed slice) so the registry is assembled at link time. It also writes the type's `Default` (each property created with its key and default) and `Object` impls, so the struct derives `Debug` but not `Default`. With them come the builder methods: `Border::new()`, one method per property, and `build(tree)`, which returns a `Handle<Border>` ([builder API](../design/builder-api.md)). Field types decide everything: a `Property<T>` is a settable property if `T: FromStr<Err: Display> + ToRust` or `T: UiType` (looking through `Option`, and `NodeId` marks a child slot); an `Event<A>` is an event; a `#[ui(flatten)]` field is a property group (`#[derive(UiProperties)]`, such as `Layout`) whose properties are listed as the type's; any other `#[ui]` field must implement `UiCollection` and accepts child elements. `#[ui(content)]` marks the one property or collection field that receives content written inside the element (a flattened group may mark one of its properties instead); a collection field must be it, since children reach a type only through its content, and `#[ui(override_defaults)]` on the struct makes `Default` call the type's `OverrideDefaults` impl after building the fields.
+The derive emits a `TypeInfo` static and registers it with `linkme` (distributed slice) so the registry is assembled at link time. It also writes the type's `Default` (each property created with its key and default) and `Object` impls, so the struct derives `Debug` but not `Default`. With them come the builder methods: `Border::new()`, one method per property, and `build(tree)`, which returns a `Handle<Border>` ([builder API](../design/builder-api.md)). Field types decide everything: a `Property<T>` is a settable property if `T: Written`, which says how a UI language writes it: as text (`AsText`, with `T: FromStr<Err: Display> + ToRust`), as an object (`AsObject`, a `UiType`: the derive writes the impl, a node type implementing `UiType` by hand adds it with `artic_core::node_type_value!`, and a hand-written value type writes it with `TakesObject`), or as a child (`AsChild`: `NodeId` marks a child slot), looking through `Option`; an `Event<A>` is an event; a `#[ui(flatten)]` field is a property group (`#[derive(UiProperties)]`, such as `Layout`) whose properties are listed as the type's; any other `#[ui]` field must implement `UiCollection` and accepts child elements. `#[ui(content)]` marks the one property or collection field that receives content written inside the element (a flattened group may mark one of its properties instead); a collection field must be it, since children reach a type only through its content, and `#[ui(override_defaults)]` on the struct makes `Default` call the type's `OverrideDefaults` impl after building the fields.
 
 Each property gets its own `PropertyKey` unless `#[ui(key = FONT_SIZE)]` names a shared one; properties that inherit across types share their key. `affects = layout | render` and `inherits` set the metadata of a generated key.
 
@@ -151,7 +151,7 @@ Each property gets its own `PropertyKey` unless `#[ui(key = FONT_SIZE)]` names a
 | Item | Fields | Consumer |
 | --- | --- | --- |
 | `TypeInfo` | name, Rust path (its first segment is the namespace, `TypeInfo::namespace()`), `new: Option<fn(&mut UiTree) -> NodeId>` (`None` for a type with a `#[ui(required)]` field, such as a view's code type), content (`ContentInfo`: a property or a collection field), properties, `groups` (flattened property groups such as `Layout`), events, attached properties, `value_provider: Option<&ValueProviderInfo>`, whitespace; planned: `kind` (node or value, from the value objects design) | compiler, loader |
-| `PropertyInfo` | name, Rust field path, value type path, `affects: Layout \| Render`, `inherits`, `access: &PropertyAccess` (typed thunks found by the property's key, see below) | compiler emits `node.field.set(v)` directly; loader calls the `access` thunks |
+| `PropertyInfo` | name, Rust field path, value type path, `affects: Layout \| Render`, `inherits`, `access: Option<&PropertyAccess>` (typed thunks found by the property's key, see below; `Some` only with the registry's `access` feature, which the loader turns on) | compiler emits `node.field.set(v)` directly; loader calls the `access` thunks |
 | `AttachedPropertyInfo` | owner, name, value type, target (`AttachedTarget::ChildrenOfOwner` for `Grid.Row`, `Any` for `Accessibility.Name`) | both |
 | `EventInfo` | name, args type path; planned with event routing: `subscribe: fn(&mut UiTree, NodeId, HandlerId)` | both |
 | `ValueProviderInfo` | positional and named argument schema (the value provider's properties); resolving comes with the loader (M2) | both |
@@ -390,7 +390,7 @@ pub struct LoginVm {
 impl LoginVm {
     fn can_submit(&self) -> bool { !self.email.get().is_empty() }
     #[command(enabled = can_submit)]
-    async fn sign_in(&self, cx: &VmCx) -> Result<(), AuthError> { … }
+    async fn sign_in(&self, cx: &VmCx) -> Result<(), AuthError> { /* … */ }
 }
 ```
 
@@ -432,9 +432,9 @@ pub trait ElementImpl {                           // what a control writes; #[el
 }
 pub trait HasState<S> { fn state(&self) -> &S; fn state_mut(&mut self) -> &mut S; }
 // State traits: only methods the state determines, defaulted, given by blanket impls
-pub trait Templated: Element + HasState<TemplateState> { fn template(&self) -> &Property<Option<ControlTemplate>> { … } }
-pub trait HasContent: Element + HasState<ContentState> { fn content(&self) -> &Property<Content> { … } }
-pub trait Selecting: Element + HasState<SelectionState> { fn selection(&self) -> &Selection { … } }
+pub trait Templated: Element + HasState<TemplateState> { fn template(&self) -> &Property<Option<ControlTemplate>> { /* … */ } }
+pub trait HasContent: Element + HasState<ContentState> { fn content(&self) -> &Property<Content> { /* … */ } }
+pub trait Selecting: Element + HasState<SelectionState> { fn selection(&self) -> &Selection { /* … */ } }
 impl<T: Element + HasState<ContentState>> HasContent for T {}   // and likewise for the others
 
 #[element]                                        // adds the groups and derive(UiType), which writes Default

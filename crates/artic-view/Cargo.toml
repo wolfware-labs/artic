@@ -9,12 +9,17 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+artic-core = { workspace = true, optional = true }
 artic-diagnostics.workspace = true
 artic-ident.workspace = true
 artic-registry.workspace = true
 
+[features]
+# Adds the `testing` module, hand-built types and documents for tests.
+testing = ["dep:artic-core"]
+
 [dev-dependencies]
-artic-core.workspace = true
+artic-view = { workspace = true, features = ["testing"] }
 pretty_assertions.workspace = true
 syn.workspace = true
 
