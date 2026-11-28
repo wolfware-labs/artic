@@ -15,8 +15,9 @@
 # `cargo +${{ matrix.rust }} build --locked` is flagged for that reason), and after the subcommand
 # any word with a character outside that set (a variable, quote, glob, splat or redirection) hides
 # every flag after it (`cargo test --locked -p "$crate"` passes, `cargo build $ARGS --locked`
-# doesn't). run, rustc and rustdoc pass the program every word from their first argument that isn't
-# an option or an option's value, so there the flag must come before it
+# doesn't). run (and its alias r), rustc, rustdoc and `llvm-cov run` pass the program every word
+# from their first argument that isn't an option or an option's value, so there the flag must come
+# before it
 # (`cargo run --locked -p app --example smoke`, not `cargo run -q a --locked`). mutants takes the
 # flag as `--cargo-arg=--locked`. A flag after a lone `--` goes to the program cargo runs, and one
 # before the subcommand reaches only cargo's built-in commands, so neither counts. Reads every YAML
@@ -187,11 +188,18 @@ unlocked() {
       return 0
       ;;
   esac
-  # run, rustc and rustdoc hand the program every word from the first one that is neither an option
-  # nor an option's value; the value-taking options are those `cargo <sub> --help` lists (1.100.1).
+  # run (and its alias r), rustc, rustdoc and `llvm-cov run` hand the program every word from the
+  # first one that is neither an option nor an option's value; the value-taking options are those
+  # `cargo <sub> --help` lists (1.99.1).
   local program_args=0 value_next=0
   case "$sub" in
-    run | rustc | rustdoc) program_args=1 ;;
+    run | r | rustc | rustdoc) program_args=1 ;;
+    llvm-cov)
+      if [ "${words[i]:-}" = run ]; then
+        program_args=1
+        i=$((i + 1))
+      fi
+      ;;
   esac
   for word in "${words[@]:i}"; do
     [ "$word" != -- ] || break

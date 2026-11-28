@@ -55,6 +55,9 @@ jobs:
       - run: echo start && cargo run --locked -p app
       - run: cargo run --locked -p artic-examples --example smoke
       - run: cargo run -p x --locked
+      - run: cargo r --locked a
+      - run: cargo llvm-cov run --locked a
+      - run: cargo llvm-cov --locked --workspace --lcov
       - run: cargo run -q --bin x --locked input.txt
       - run: |
           cargo rustc -p a --package a --bin b --example e --test t --bench b -F f --features f \

@@ -119,6 +119,10 @@ jobs:
       - run: cargo mutants @extra --cargo-arg=--locked # flagged
       # A flag after the first argument of run, rustc or rustdoc goes to the program.
       - run: cargo run a --locked # flagged
+      - run: cargo r a --locked # flagged
+      - run: cargo r -q a --locked # flagged
+      - run: cargo llvm-cov run a --locked # flagged
+      - run: cargo llvm-cov run -p x a --locked # flagged
       - run: cargo rustc a --locked # flagged
       - run: cargo rustdoc a --frozen # flagged
       - run: cargo run -p x --example smoke input.txt --locked # flagged
