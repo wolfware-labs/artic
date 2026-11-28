@@ -14,10 +14,11 @@
 # between `;`, `&&`, `||`, `|` and `&`, is a command, checked from its first word whose base name is
 # `cargo` (or `cargo.exe`), so a prefix (`VAR=value`, `if`, `timeout 600`, a `(` or `$(`) or a path
 # (`~/.cargo/bin/cargo`) doesn't hide it, and an unquoted `cargo build` in an `echo` counts too. Not
-# read: a cargo command inside quotes or a heredoc, and scripts a step calls. It reads plain commands,
-# not every shell form: a `#` right after `)`, `;`, `&` or `|` isn't taken for a comment, and an
-# apostrophe in a heredoc body leaves a quote open for the rest of the step. Its job is to catch a
-# missing `--locked`; it isn't a shell parser.
+# read: a cargo command inside quotes or a heredoc, cargo called by a quoted path
+# (`"$HOME/.cargo/bin/cargo" build`), and scripts a step calls. It reads plain commands, not every
+# shell form: a `#` right after `)`, `;`, `&` or `|` isn't taken for a comment, while one after an
+# escaped blank, inside `$'...'` or in `${x# #}` is, and an apostrophe in a heredoc body leaves a quote
+# open for the rest of the step. Its job is to catch a missing `--locked`; it isn't a shell parser.
 set -uo pipefail
 set -f
 cd "$(dirname "$0")/.."
