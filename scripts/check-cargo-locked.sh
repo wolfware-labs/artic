@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Fails when a workflow or action step runs one of these cargo commands without `--locked` (or
-# `--frozen`) after the subcommand, so CI always builds the committed Cargo.lock, and when a
-# workflow has no top-level `permissions:` block, so every job's token starts read-only whatever the
-# repository setting. The commands: build, test, run, clippy, check, doc, tree, llvm-cov, deny,
-# `codspeed build`, and mutants, which takes it as `--cargo-arg=--locked`. A flag after a lone `--`
-# goes to the program cargo runs, and one before the subcommand reaches only cargo's built-in
-# commands, so neither counts. Reads every YAML file under .github, or the files given, with yq
-# (mikefarah).
+# Fails when a workflow or action step runs a cargo command without `--locked` (or `--frozen`) after
+# the subcommand, so CI always builds the committed Cargo.lock, and when a workflow has no top-level
+# `permissions:` block, so every job's token starts read-only whatever the repository setting. It
+# fails closed: every subcommand needs the flag except those that never resolve dependencies (fmt,
+# `codspeed run`, machete, version, help, and `--version`, `-V` or `--help` alone), and mutants
+# takes it as `--cargo-arg=--locked`. A flag after a lone `--` goes to the program cargo runs, and
+# one before the subcommand reaches only cargo's built-in commands, so neither counts. Reads every
+# YAML file under .github, or the files given, with yq (mikefarah), aliases expanded.
 #
-# It reads `run:` text a word at a time: each line, and the text between `;`, `&&`, `||` and `|`, is
-# a command, checked from its first word `cargo`, so a prefix (`VAR=value`, `if`, `timeout 600`, a
-# `(` or `$(`) doesn't hide it; an unquoted `cargo build` in an `echo` counts too. A backslash at a
-# line's end joins the next line, and `#` after a blank starts a comment. Quotes and heredocs aren't
-# parsed, so a cargo command built inside a quoted string or a heredoc isn't seen.
+# It reads `run:` text a word at a time: `#` after a blank starts a comment, then a backslash at a
+# line's end joins the next line; each line, and the text between `;`, `&&`, `||`, `|` and `&`, is a
+# command, checked from its first word `cargo`, so a prefix (`VAR=value`, `if`, `timeout 600`, a `(`
+# or `$(`) doesn't hide it, and an unquoted `cargo build` in an `echo` counts too. Not read: quotes
+# and heredocs (a cargo command built inside one isn't seen) and scripts a step calls.
 set -uo pipefail
 set -f
 cd "$(dirname "$0")/.."
@@ -46,7 +46,7 @@ fi
 
 # One line per `run:` string, steps and action inputs alike: file, line and the text in base64.
 runs=$(yq eval --header-preprocess=false --no-doc '
-  .. | select(tag == "!!map" and has("run")) | .run | select(tag == "!!str")
+  explode(.) | .. | select(tag == "!!map" and has("run")) | .run | select(tag == "!!str")
   | filename + "\t" + (line | tostring) + "\t" + (. | @base64)
 ' "${paths[@]}")
 status=$?
@@ -55,7 +55,8 @@ if [ "$status" -ne 0 ]; then
   exit "$status"
 fi
 
-# Whether the cargo command in `words`, from the word after `cargo`, resolves without the lockfile.
+# Whether the cargo command in `words`, from the word after `cargo`, may resolve without the
+# lockfile.
 unlocked() {
   local -a words=("$@")
   local i=0 sub flag
@@ -69,8 +70,8 @@ unlocked() {
   sub=${words[i]:-}
   i=$((i + 1))
   case "$sub" in
-    build | test | run | clippy | check | doc | tree | llvm-cov | deny) ;;
-    codspeed) [ "${words[i]:-}" = build ] || return 1 ;;
+    '' | fmt | machete | version | help) return 1 ;;
+    codspeed) [ "${words[i]:-}" != run ] || return 1 ;;
     mutants)
       while [ "$i" -lt "${#words[@]}" ] && [ "${words[i]}" != -- ]; do
         case "${words[i]}" in
@@ -84,7 +85,6 @@ unlocked() {
       done
       return 0
       ;;
-    *) return 1 ;;
   esac
   while [ "$i" -lt "${#words[@]}" ] && [ "${words[i]}" != -- ]; do
     case "${words[i]}" in
@@ -99,8 +99,8 @@ hits=()
 while IFS=$'\t' read -r file line encoded; do
   [ -n "$file" ] || continue
   text=$(printf '%s' "$encoded" | base64 -d)
-  text=$(printf '%s\n' "$text" | sed -e ':a' -e '/\\$/{N;s/\\\n/ /;ba' -e '}' -e 's/\(^\|[[:space:]]\)#.*//')
-  commands=$(printf '%s\n' "$text" | sed -e 's/&&/\n/g' -e 's/||/\n/g' -e 's/[;|]/\n/g' -e 's/[(){}`]/ /g')
+  text=$(printf '%s\n' "$text" | sed -e 's/\(^\|[[:space:]]\)#.*//' | sed -e ':a' -e '/\\$/{N;s/\\\n/ /;ba' -e '}')
+  commands=$(printf '%s\n' "$text" | sed -e 's/&&/\n/g' -e 's/||/\n/g' -e 's/[;|&]/\n/g' -e 's/[(){}`]/ /g')
   while IFS= read -r command; do
     read -r -a words <<<"$command"
     i=0
@@ -120,7 +120,7 @@ if [ -n "$unscoped" ]; then
   failed=1
 fi
 if [ "${#hits[@]}" -gt 0 ]; then
-  echo "These cargo commands resolve dependencies; add \`--locked\` (mutants: \`--cargo-arg=--locked\`):"
+  echo "These cargo commands may resolve dependencies; add \`--locked\` (mutants: \`--cargo-arg=--locked\`):"
   printf '%s\n' "${hits[@]}"
   failed=1
 fi

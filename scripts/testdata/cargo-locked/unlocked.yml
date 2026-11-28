@@ -3,6 +3,8 @@ name: unlocked
 on: push
 permissions:
   contents: read
+env:
+  CMD: &c cargo build
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -41,6 +43,20 @@ jobs:
       - run: cargo --config net.retry=3 test # flagged
       - run: cargo -Z unstable-options build # flagged
       - run: cargo --locked build # flagged
+      - run: cargo bench # flagged
+      - run: cargo fetch # flagged
+      - run: cargo nextest run # flagged
+      - run: cargo install cargo-machete # flagged
+      - run: cargo metadata --format-version 1 # flagged
+      - run: cargo b # flagged
+      - run: *c # flagged
+      - run: | # flagged
+          # note \
+          cargo build
+      - run: cargo build & echo --locked # flagged
+      - run: cargo build &# --locked # flagged
+      - run: cargo -C crates/x build # flagged
+      - run: cargo --color always build # flagged
       - uses: CodSpeedHQ/action@0000000000000000000000000000000000000000
         with:
           run: cargo build # flagged
