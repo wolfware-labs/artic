@@ -839,6 +839,41 @@ fn required_field_is_an_argument_of_new() {
   assert!(Login::TYPE_INFO.new.is_none());
 }
 
+/// The loader's access to the attached property `name` that `owner` declares.
+fn attached_access_of(owner: &'static TypeInfo, name: &str) -> &'static PropertyAccess {
+  let info = owner.attached_property(name).expect("the attached property is registered");
+  info.access.expect("the access feature is on")
+}
+
+// An attached property set only on its owner's children is written through its access on any
+// node, at the level the loader passes: whether the node may hold it is the loader's check.
+#[test]
+fn attached_access_writes_at_the_level_on_any_node() {
+  let mut tree = UiTree::new();
+  let border = (Border::TYPE_INFO.new.expect("created from defaults"))(&mut tree);
+  let row = attached_access_of(Grid::TYPE_INFO, "Row");
+
+  (row.set_text)(&mut tree, border, "2", Precedence::StyleSetter).expect("2 is a row");
+  (row.set_text)(&mut tree, border, "3", Precedence::Local).expect("3 is a row");
+  assert_eq!(Grid::row(&tree, border), 3, "a local value overrides a style value");
+
+  (row.clear)(&mut tree, border, Precedence::Local).expect("a live node");
+  assert_eq!(Grid::row(&tree, border), 2);
+}
+
+// An attached property whose type isn't an `Option` refuses null with its name.
+#[test]
+fn attached_access_refuses_null_for_a_plain_type() {
+  let mut tree = UiTree::new();
+  let border = (Border::TYPE_INFO.new.expect("created from defaults"))(&mut tree);
+  let label = attached_access_of(Grid::TYPE_INFO, "Label");
+
+  assert_eq!(
+    (label.set_null)(&mut tree, border, Precedence::Local),
+    Err(ValueError::NotNullable { property: "Label" })
+  );
+}
+
 /// The loader's access to `property` of `type_info`, an own property or a group's.
 fn access_of(type_info: &'static TypeInfo, property: &str) -> &'static PropertyAccess {
   let info = type_info.property(property).expect("the property is registered").info;

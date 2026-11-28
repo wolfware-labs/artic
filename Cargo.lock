@@ -588,6 +588,7 @@ dependencies = [
  "artic-xaml",
  "insta",
  "pretty_assertions",
+ "proc-macro2",
  "syn 3.0.9",
 ]
 

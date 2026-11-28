@@ -1,0 +1,65 @@
+---
+source: crates/artic-xaml-lang/tests/snapshots.rs
+expression: rust
+input_file: crates/artic-xaml-lang/tests/fixtures/loader_values.xaml
+---
+// Generated from loader_values.xaml.
+
+use ::artic::core::tree::{Handle, UiTree};
+use ::artic::element::LayoutMethods as _;
+use ::artic::controls as _;
+use ::artic::core as _;
+use ::artic::element as _;
+use ::artic::layout as _;
+use ::artic::render as _;
+/// The type the view's code is, which takes the root's place, as the view names it.
+#[allow(dead_code, reason = "only a code type's macro reads it")]
+pub const CODE_TYPE: Option<&str> = None;
+/// The nodes of `loader_values.xaml`: its root and one handle per named element.
+#[derive(Clone, Copy, Debug)]
+pub struct View {
+    /// The view's root.
+    pub root: Handle<::artic::controls::StackPanel>,
+}
+/// Builds `loader_values.xaml` in `tree` and returns its nodes.
+pub fn build(tree: &mut UiTree) -> View {
+    // loader_values.xaml:6:6
+    let __e0 = ::artic::controls::TextBlock::new()
+        .text(::std::string::String::from("Child"))
+        .build(tree);
+    // loader_values.xaml:4:4
+    let __e1 = ::artic::controls::Border::new()
+        .padding(::artic::layout::Thickness::new(4.0_f32, 4.0_f32, 4.0_f32, 4.0_f32))
+        .margin(::artic::layout::Thickness::new(8.0_f32, 4.0_f32, 8.0_f32, 4.0_f32))
+        .child(__e0)
+        .build(tree);
+    // loader_values.xaml:9:5
+    let __e2 = ::artic::controls::Run::new()
+        .text(::std::string::String::from("Hello "))
+        .build(tree);
+    // loader_values.xaml:10:6
+    let __e3 = ::artic::controls::Run::new()
+        .text(::std::string::String::from("there"))
+        .build(tree);
+    // loader_values.xaml:11:5
+    let __e4 = ::artic::controls::Run::new()
+        .text(::std::string::String::from(" "))
+        .build(tree);
+    // loader_values.xaml:11:11
+    let __e5 = ::artic::controls::Run::new()
+        .text(::std::string::String::from("world"))
+        .build(tree);
+    // loader_values.xaml:11:6
+    let __e6 = ::artic::controls::Bold::new().inlines([__e5.id()]).build(tree);
+    // loader_values.xaml:8:4
+    let __e7 = ::artic::controls::TextBlock::new()
+        .inlines([__e2.id(), __e3.id(), __e4.id(), __e6.id()])
+        .build(tree);
+    // loader_values.xaml:3:2
+    let __e8 = ::artic::controls::StackPanel::new()
+        .spacing(8.0_f32)
+        .children([__e1.id(), __e7.id()])
+        .build(tree);
+    ::artic::controls::TextElement::set_font_size(tree, __e8.id(), 20.0_f32);
+    View { root: __e8 }
+}

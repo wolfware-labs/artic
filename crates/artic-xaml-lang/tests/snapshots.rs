@@ -1,10 +1,12 @@
 // The compiler's own views over artic's real types, the parser's corpus run through the compiler,
-// and the properties every output has: the same text every run, and no registry in it.
+// and the properties every output has: the same text every run, and no registry or loader access
+// in it.
 
 use artic::view::CratePaths;
 use artic_diagnostics::{SourceId, SourceMap};
 use artic_registry::Registry;
 use artic_xaml_lang::Xaml;
+use proc_macro2::{TokenStream, TokenTree};
 use std::path::Path;
 use syn::visit::Visit;
 
@@ -55,31 +57,113 @@ fn output_is_deterministic() {
   assert_eq!(first, third);
 }
 
+/// The registry's names, which a release app never looks anything up through.
+const REGISTRY_NAMES: [&str; 4] = ["Registry", "TypeInfo", "artic_registry", "registry"];
+
+/// The names of a runtime loader's way in: a property's access, its thunks, a collection's
+/// `add_child` and the error they return.
+const LOADER_NAMES: [&str; 8] = [
+  "PropertyAccess",
+  "access",
+  "set_text",
+  "set_node",
+  "set_object",
+  "set_null",
+  "add_child",
+  "ValueError",
+];
+
 // Generated code names no registry item, so a release app looks nothing up.
 #[test]
 fn compiled_output_has_no_registry() {
   insta::glob!("fixtures/*.xaml", |path| {
     let (sources, file) = load(path);
     let rust = compile(&sources, file, &artic::view::crate_paths()).expect("a valid view");
-    let mut segments = Segments(Vec::new());
-    segments.visit_file(&syn::parse_file(&rust).expect("the output parses"));
-    for name in ["Registry", "TypeInfo", "artic_registry", "registry"] {
-      assert!(
-        !segments.0.iter().any(|segment| segment == name),
-        "{} names `{name}`",
-        path.display()
-      );
-    }
+    assert_eq!(named(&rust, &REGISTRY_NAMES), Vec::<String>::new(), "{}", path.display());
   });
 }
 
-/// Every path segment in a file.
-struct Segments(Vec<String>);
+// Generated code never writes a property through the loader's access: it calls typed builder
+// methods, for the compiler's fixtures and every view of the parser's corpus that compiles.
+#[test]
+fn compiled_output_has_no_loader_values() {
+  let check = |path: &Path| {
+    let (sources, file) = load(path);
+    if let Ok(rust) = compile(&sources, file, &artic::view::crate_paths()) {
+      assert_eq!(named(&rust, &LOADER_NAMES), Vec::<String>::new(), "{}", path.display());
+    }
+  };
+  insta::glob!("fixtures/*.xaml", check);
+  insta::glob!("../../artic-xaml/tests/fixtures", "valid/**/*.xaml", check);
+}
 
-impl<'ast> Visit<'ast> for Segments {
-  fn visit_path_segment(&mut self, segment: &'ast syn::PathSegment) {
-    self.0.push(segment.ident.to_string());
-    syn::visit::visit_path_segment(self, segment);
+// The guards see each of their names in a path, a method call, a field or a macro's tokens, and
+// not in a string or a comment.
+#[test]
+fn guards_see_names_in_code_only() {
+  let loader = "fn f(t: T) { let _: PropertyAccess = t.access; ::m::set_text(); t.set_node(1); \
+    t.set_object(); t.set_null(); t.add_child(); let _: ValueError = e; }";
+  let registry = "fn f(t: T) { ::m::Registry::new(); let _: TypeInfo = t.x; ::artic_registry::f(); t.registry; }";
+  let in_macro = "fn f() { m!(f(x.set_text())); m![{ y.access }]; }";
+  let quoted = "// set_text\nfn f() { let _ = \"set_text access\"; m!(\"set_text\"); }";
+
+  assert_eq!(
+    named(loader, &LOADER_NAMES),
+    [
+      "PropertyAccess",
+      "access",
+      "set_text",
+      "set_node",
+      "set_object",
+      "set_null",
+      "add_child",
+      "ValueError"
+    ]
+  );
+  assert_eq!(
+    named(registry, &REGISTRY_NAMES),
+    ["Registry", "TypeInfo", "artic_registry", "registry"]
+  );
+  assert_eq!(named(in_macro, &LOADER_NAMES), ["set_text", "access"]);
+  assert_eq!(named(quoted, &LOADER_NAMES), Vec::<String>::new());
+}
+
+/// The names among `forbidden` that the Rust file `rust` uses as identifiers, in order.
+fn named(rust: &str, forbidden: &[&str]) -> Vec<String> {
+  let mut idents = Idents(Vec::new());
+  idents.visit_file(&syn::parse_file(rust).expect("the output parses"));
+  idents
+    .0
+    .into_iter()
+    .filter(|name| forbidden.contains(&name.as_str()))
+    .collect()
+}
+
+/// Every identifier in a file: path segments, method names, fields and bindings alike, and those
+/// in a macro call's tokens.
+struct Idents(Vec<String>);
+
+impl Idents {
+  /// Collects every identifier in `tokens`, inside groups too.
+  fn tokens(&mut self, tokens: TokenStream) {
+    for tree in tokens {
+      match tree {
+        TokenTree::Ident(ident) => self.0.push(ident.to_string()),
+        TokenTree::Group(group) => self.tokens(group.stream()),
+        TokenTree::Punct(_) | TokenTree::Literal(_) => {}
+      }
+    }
+  }
+}
+
+impl<'ast> Visit<'ast> for Idents {
+  fn visit_ident(&mut self, ident: &'ast syn::Ident) {
+    self.0.push(ident.to_string());
+  }
+
+  fn visit_macro(&mut self, mac: &'ast syn::Macro) {
+    syn::visit::visit_macro(self, mac);
+    self.tokens(mac.tokens.clone());
   }
 }
 

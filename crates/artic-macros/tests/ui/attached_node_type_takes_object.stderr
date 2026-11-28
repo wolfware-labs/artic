@@ -1,0 +1,5 @@
+error[E0080]: evaluation panicked: `Telemetry` is a node type (`TypeKind::Node`), whose objects stay in the tree: its `Written` impl writes `type FromObject = RefusesObject`, as `artic::core::node_type_value!` does
+  --> tests/ui/attached_node_type_takes_object.rs:33:40
+   |
+33 | #[ui(attached(name = "Telemetry", ty = Telemetry, target = any))]
+   |                                        ^^^^^^^^^ evaluation of `_::__checks::_` failed here

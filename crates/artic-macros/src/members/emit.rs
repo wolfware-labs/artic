@@ -83,7 +83,7 @@ pub fn checks(members: &Members, extra_checks: impl IntoIterator<Item = TokenStr
   let values = members
     .properties
     .iter()
-    .flat_map(|field| [value_check(field.value), object_check(field.value), kind_check(field.value)])
+    .flat_map(|field| property_checks(field.value))
     .chain(members.values.iter().flat_map(|field| {
       [
         plain_value_check(field.value),
@@ -233,13 +233,13 @@ fn value_field_access(owner: &Ident, field: &ValueField) -> TokenStream {
 
 /// What one property's thunks differ in: its value type, whether it is optional, its name, the
 /// level parameter its writes use, how a converted value is written, and how it is cleared.
-struct Access<'a> {
-  value: &'a Type,
-  optional: bool,
-  name: TokenStream,
-  level: TokenStream,
-  write: &'a dyn Fn(TokenStream) -> TokenStream,
-  clear: TokenStream,
+pub struct Access<'a> {
+  pub value: &'a Type,
+  pub optional: bool,
+  pub name: TokenStream,
+  pub level: TokenStream,
+  pub write: &'a dyn Fn(TokenStream) -> TokenStream,
+  pub clear: TokenStream,
 }
 
 /// A `PropertyAccess` built from `access`. A `Property<Option<V>>` or an `Option<V>` field parses
@@ -250,7 +250,7 @@ struct Access<'a> {
 /// language can't write fails once, there. An object converts through the value's object route,
 /// which refuses one for a value type not taken from objects. Each converts the value before
 /// writing it, so a conversion that needs the tree mutably ends before the write borrows it.
-fn access_tokens(access: &Access) -> TokenStream {
+pub fn access_tokens(access: &Access) -> TokenStream {
   let Access {
     value,
     optional,
@@ -352,8 +352,14 @@ fn is_number(ty: &Type) -> bool {
     && NUMBERS.contains(&name.as_str())
 }
 
+/// The checks a property's value type gets, an own property's or an attached one's: it can be
+/// written in a UI language, taken from an object, and its object route fits its kind.
+pub fn property_checks(value: &Type) -> [TokenStream; 3] {
+  [value_check(value), object_check(value), kind_check(value)]
+}
+
 /// The check that a property's value type can be written in a UI language, pointing at the type.
-pub fn value_check(value: &Type) -> TokenStream {
+fn value_check(value: &Type) -> TokenStream {
   let ops = value_ops(value);
   quote_spanned!(value.span()=> #ops;)
 }
