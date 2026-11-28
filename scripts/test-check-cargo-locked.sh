@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Runs check-cargo-locked.sh on its fixtures: it names exactly the lines of unlocked.yml marked
-# `flagged`, names no-permissions.yml for its missing permissions block, and passes locked.yml and
-# the composite action.yml.
+# `flagged`, names no-permissions.yml for its missing permissions block and write-all.yml,
+# write-scope.yml and null-permissions.yml for top-level permissions above read, and passes
+# locked.yml, read-only.yml and the composite action.yml.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 data=scripts/testdata/cargo-locked
@@ -25,7 +26,17 @@ if [ "$status" -ne 1 ] || [ "$output" != "$data/no-permissions.yml: no top-level
   failed=1
 fi
 
-for passing in locked.yml action.yml; do
+for writes in write-all.yml write-scope.yml null-permissions.yml; do
+  output=$(scripts/check-cargo-locked.sh "$data/$writes")
+  status=$?
+  if [ "$status" -ne 1 ] || [ "$output" != "$data/$writes: top-level permissions grant more than read" ]; then
+    echo "$writes: expected exit 1 naming its top-level permissions, got exit $status:"
+    echo "$output"
+    failed=1
+  fi
+done
+
+for passing in locked.yml action.yml read-only.yml; do
   output=$(scripts/check-cargo-locked.sh "$data/$passing")
   status=$?
   if [ "$status" -ne 0 ]; then

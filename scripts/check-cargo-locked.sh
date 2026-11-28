@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Fails when a workflow or action step runs a cargo command without `--locked` (or `--frozen`) after
-# the subcommand, so CI always builds the committed Cargo.lock, and when a workflow has no top-level
-# `permissions:` block, so every job's token starts read-only whatever the repository setting. It
+# the subcommand, so CI always builds the committed Cargo.lock, and when a workflow's top-level
+# `permissions:` is missing or grants more than read (`{}`, `read-all`, `read` and `none` pass), so
+# every job's token starts read-only whatever the repository setting and a job widens it. It
 # fails closed: every subcommand needs the flag except those that never resolve dependencies (fmt,
 # `codspeed run`, version, help, cargo with no subcommand and only a toolchain of letters, digits
 # and `_ . -`, `--version`, `-V`, `--help` or `-h`, and machete with nothing before a lone `--` but
@@ -59,10 +60,16 @@ else
   IFS=$'\n' read -r -d '' -a paths <<<"$files"
 fi
 
-# A workflow is a file with `jobs`; a composite action has none and no token of its own.
+# A workflow is a file with `jobs`; a composite action has none and no token of its own. Its
+# top-level token is `{}`, `read-all` or only `read` and `none` scopes; a job widens what it needs.
 unscoped=$(yq eval --header-preprocess=false --no-doc '
-  select(tag == "!!map" and has("jobs") and (has("permissions") | not))
-  | filename + ": no top-level permissions block"
+  select(tag == "!!map" and has("jobs"))
+  | (select(has("permissions") | not) | filename + ": no top-level permissions block"),
+    (select(has("permissions"))
+      | select(.permissions | ((tag == "!!str" and . != "read-all")
+        or (tag == "!!map" and ([.[] | select(. != "read" and . != "none")] | length) > 0)
+        or (tag != "!!str" and tag != "!!map")))
+      | filename + ": top-level permissions grant more than read")
 ' "${paths[@]}")
 status=$?
 if [ "$status" -ne 0 ]; then

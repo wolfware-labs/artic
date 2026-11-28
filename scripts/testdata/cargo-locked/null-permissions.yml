@@ -1,0 +1,9 @@
+# A workflow whose permissions key has no value, which GitHub reads as the repository default.
+name: null-permissions
+on: push
+permissions:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: cargo build --locked

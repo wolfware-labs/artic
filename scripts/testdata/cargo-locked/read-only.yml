@@ -1,0 +1,31 @@
+# Read-only top-level tokens in each form GitHub accepts; a job widens what it needs.
+name: read-only
+on: push
+permissions: {}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - run: cargo build --locked
+---
+name: read-all
+on: push
+permissions: read-all
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: cargo build --locked
+---
+name: read-scopes
+on: push
+permissions:
+  contents: read
+  pull-requests: none
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: cargo build --locked
