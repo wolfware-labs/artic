@@ -194,6 +194,24 @@ fn an_attached_value_lands_in_the_field_that_shares_its_key() {
   );
 }
 
+// Through the shared key, a `TextBlock`'s font size takes a style value and a local value at
+// their levels, and clearing the local one brings the style value back.
+#[test]
+fn an_attached_write_keeps_the_levels_of_the_field_that_shares_its_key() {
+  let mut tree = UiTree::new();
+  let block = create(&mut tree, TextBlock::TYPE_INFO);
+  let font_size = attached_access(TextElement::TYPE_INFO, "FontSize");
+
+  (font_size.set_text)(&mut tree, block, "12", Precedence::StyleSetter).expect("a number");
+  (font_size.set_text)(&mut tree, block, "20", Precedence::Local).expect("a number");
+  (font_size.clear)(&mut tree, block, Precedence::Local).expect("a live node");
+
+  assert_eq!(
+    tree.get_as::<TextBlock>(block).map(|block| block.format.font_size.get()),
+    Some(12.0)
+  );
+}
+
 // An optional attached property, `Desktop.Width`, is set to a number and then to null.
 #[test]
 fn an_optional_attached_value_is_set_to_null() {
