@@ -34,6 +34,11 @@ jobs:
       - run: cargo --version
       - run: cargo machete
       - run: cargo machete --skip-target-dir -- --with-metadata
+      - run: cargo machete --skip-target-dir
+      - run: cargo machete --fix crates/a
+      - run: cargo machete --no-ignore ./crates
+      - run: cargo machete --version
+      - run: cargo machete --help
       - run: which cargo
       - run: cargo -C crates/x fmt --check
       - run: cargo --color always fmt --check

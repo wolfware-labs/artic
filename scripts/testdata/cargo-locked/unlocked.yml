@@ -72,6 +72,15 @@ jobs:
       - run: cargo.exe build # flagged
       - run: cargo machete --skip-target-dir --with-metadata # flagged
       - run: cargo machete --with-metadata=true # flagged
+      - run: C:\Users\runneradmin\.cargo\bin\cargo.exe build # flagged
+      - run: .\tools\cargo build # flagged
+      - run: CARGO.EXE build # flagged
+      - run: Cargo build # flagged
+      - run: cargo machete "--with-metadata" # flagged
+      - run: cargo machete '--with-metadata' # flagged
+      - run: cargo machete $MACHETE_ARGS # flagged
+      - run: cargo machete \--with-metadata # flagged
+      - run: cargo machete --skip-target-dir -x # flagged
       - uses: CodSpeedHQ/action@0000000000000000000000000000000000000000
         with:
           run: cargo build # flagged

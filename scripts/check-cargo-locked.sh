@@ -3,22 +3,26 @@
 # the subcommand, so CI always builds the committed Cargo.lock, and when a workflow has no top-level
 # `permissions:` block, so every job's token starts read-only whatever the repository setting. It
 # fails closed: every subcommand needs the flag except those that never resolve dependencies (fmt,
-# `codspeed run`, version, help, `--version`, `-V` or `--help` alone, and machete without
-# `--with-metadata`, which has no `--locked` and so is always flagged with it), and mutants takes it
-# as `--cargo-arg=--locked`. A flag after a lone `--` goes to the program cargo runs, and
-# one before the subcommand reaches only cargo's built-in commands, so neither counts. Reads every
-# YAML file under .github, or the files given, with yq (mikefarah), aliases expanded.
+# `codspeed run`, version, help, `--version`, `-V` or `--help` alone, and machete with nothing
+# before a lone `--` but plain paths and its switches that read no metadata: `--skip-target-dir`,
+# `--fix`, `--no-ignore`, `--version`, `--help`; any other option, and any word with `$`, a quote or
+# a backslash, may be `--with-metadata`, which runs cargo metadata and has no `--locked`, so it's
+# flagged), and mutants takes it as `--cargo-arg=--locked`. A flag after a lone `--` goes to the
+# program cargo runs, and one before the subcommand reaches only cargo's built-in commands, so
+# neither counts. Reads every YAML file under .github, or the files given, with yq (mikefarah),
+# aliases expanded.
 #
 # It reads `run:` text a word at a time: `#` at a word's start outside quotes begins a comment
 # (`strip_comments`), then a backslash at a line's end joins the next line; each line, and the text
-# between `;`, `&&`, `||`, `|` and `&`, is a command, checked from its first word whose base name is
-# `cargo` (or `cargo.exe`), so a prefix (`VAR=value`, `if`, `timeout 600`, a `(` or `$(`) or a path
-# (`~/.cargo/bin/cargo`) doesn't hide it, and an unquoted `cargo build` in an `echo` counts too. Not
-# read: a cargo command inside quotes or a heredoc, cargo called by a quoted path
-# (`"$HOME/.cargo/bin/cargo" build`), and scripts a step calls. It reads plain commands, not every
-# shell form: a `#` right after `)`, `;`, `&` or `|` isn't taken for a comment, while one after an
-# escaped blank, inside `$'...'` or in `${x# #}` is, and an apostrophe in a heredoc body leaves a quote
-# open for the rest of the step. Its job is to catch a missing `--locked`; it isn't a shell parser.
+# between `;`, `&&`, `||`, `|` and `&`, is a command, checked from its first word whose name after
+# the last `/` or `\` is `cargo` or `cargo.exe` in any letter case, so a prefix (`VAR=value`,
+# `if`, `timeout 600`, a `(` or `$(`) or a path (`~/.cargo/bin/cargo`, `.\tools\cargo`) doesn't
+# hide it, and an unquoted `cargo build` in an `echo` counts too. Not read: a cargo command inside
+# quotes or a heredoc, cargo called by a quoted path (`"$HOME/.cargo/bin/cargo" build`), and scripts
+# a step calls. It reads plain commands, not every shell form: a `#` right after `)`, `;`, `&` or
+# `|` isn't taken for a comment, while one after an escaped blank, inside `$'...'` or in `${x# #}`
+# is, and an apostrophe in a heredoc body leaves a quote open for the rest of the step. Its job is
+# to catch a missing `--locked`; it isn't a shell parser.
 set -uo pipefail
 set -f
 cd "$(dirname "$0")/.."
@@ -109,7 +113,8 @@ unlocked() {
     machete)
       while [ "$i" -lt "${#words[@]}" ] && [ "${words[i]}" != -- ]; do
         case "${words[i]}" in
-          --with-metadata | --with-metadata=*) return 0 ;;
+          --skip-target-dir | --fix | --no-ignore | --version | --help) ;;
+          -* | *[\$\"\'\\]*) return 0 ;;
         esac
         i=$((i + 1))
       done
@@ -148,8 +153,9 @@ while IFS=$'\t' read -r file line encoded; do
     read -r -a words <<<"$command"
     i=0
     while [ "$i" -lt "${#words[@]}" ]; do
-      base=${words[i]##*/}
-      [ "${base%.exe}" != cargo ] || break
+      case "${words[i]##*[/\\]}" in
+        [Cc][Aa][Rr][Gg][Oo] | [Cc][Aa][Rr][Gg][Oo].[Ee][Xx][Ee]) break ;;
+      esac
       i=$((i + 1))
     done
     [ "$i" -lt "${#words[@]}" ] || continue
