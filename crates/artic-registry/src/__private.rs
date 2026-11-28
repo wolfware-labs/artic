@@ -92,7 +92,7 @@ fn not_text<V>(_text: &str, expected: &'static str) -> std::result::Result<V, Va
 /// ```
 #[diagnostic::on_unimplemented(
   message = "`{V}` can't be written the way its `Written` impl says",
-  note = "a value written as text (`AsText`) implements `FromStr` and `ToRust`, one written as an object (`AsObject`) derives `UiType`, and only `NodeId` is written as a child (`AsChild`)"
+  note = "a value written as text (`AsText`) implements `FromStr` and `ToRust`, one written as an object (`AsObject`) implements `UiType`, and only `NodeId` is written as a child (`AsChild`)"
 )]
 pub trait Route<V> {
   /// Gives the thunks' conversions from text and from a node.
@@ -575,10 +575,7 @@ mod tests {
     fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
-  impl Written for Gauge {
-    type As = AsObject;
-    type FromObject = RefusesObject;
-  }
+  artic_core::object_value!(Gauge);
 
   /// A tree holding two gauges: an owner, and a detached one to stage or set as a node.
   fn two_gauges() -> (UiTree, NodeId, NodeId) {

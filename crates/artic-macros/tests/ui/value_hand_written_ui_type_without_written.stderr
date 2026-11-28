@@ -1,0 +1,22 @@
+error[E0277]: `Telemetry` can't be written in a UI language
+  --> tests/ui/value_hand_written_ui_type_without_written.rs:22:21
+   |
+22 |   reading: Property<Telemetry>,
+   |                     ^^^^^^^^^ neither text, an object nor a child element
+   |
+help: the trait `Written` is not implemented for `Telemetry`
+  --> tests/ui/value_hand_written_ui_type_without_written.rs:7:1
+   |
+ 7 | struct Telemetry;
+   | ^^^^^^^^^^^^^^^^
+   = note: derive `UiType` or `UiEnum`; a `UiType` implemented by hand adds `artic::core::object_value!(Telemetry)`, and a type set from text implements `FromStr` and `ToRust` and adds `artic::core::text_value!(Telemetry)` (`artic_core::` without the `artic` crate)
+   = help: the following other types implement trait `Written`:
+             Gauge
+             NodeId
+             NonZero<i128>
+             NonZero<i16>
+             NonZero<i32>
+             NonZero<i64>
+             NonZero<i8>
+             NonZero<isize>
+           and $N others

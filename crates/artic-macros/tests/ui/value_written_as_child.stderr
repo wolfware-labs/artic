@@ -4,7 +4,7 @@ error[E0277]: `Telemetry` can't be written the way its `Written` impl says
 16 |   reading: Property<Telemetry>,
    |                     ^^^^^^^^^ the trait `artic_registry::__private::Route<Telemetry>` is not implemented for `AsChild`
    |
-   = note: a value written as text (`AsText`) implements `FromStr` and `ToRust`, one written as an object (`AsObject`) derives `UiType`, and only `NodeId` is written as a child (`AsChild`)
+   = note: a value written as text (`AsText`) implements `FromStr` and `ToRust`, one written as an object (`AsObject`) implements `UiType`, and only `NodeId` is written as a child (`AsChild`)
 help: the trait `Route<Telemetry>` is not implemented for `AsChild`
       but trait `Route<NodeId>` is implemented for it
   --> $WORKSPACE/crates/artic-registry/src/__private.rs

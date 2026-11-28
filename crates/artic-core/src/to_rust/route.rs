@@ -30,11 +30,13 @@ use crate::tree::NodeId;
 /// artic_core::text_value!(Percent);
 /// ```
 ///
-/// `#[derive(UiEnum)]` and `#[derive(UiType)]` implement it for the types they derive.
+/// `#[derive(UiEnum)]` and `#[derive(UiType)]` implement it for the types they derive. A type that
+/// implements `UiType` by hand implements it with [`object_value!`](crate::object_value), or, for a
+/// value that also implements `FromUiObject`, writes the impl out with [`TakesObject`].
 #[diagnostic::on_unimplemented(
   message = "`{Self}` can't be written in a UI language",
   label = "neither text, an object nor a child element",
-  note = "derive `UiType` or `UiEnum`, or implement `FromStr` and `ToRust` and add `artic::core::text_value!({Self})` (`artic_core::text_value!` without the `artic` crate)"
+  note = "derive `UiType` or `UiEnum`; a `UiType` implemented by hand adds `artic::core::object_value!({Self})`, and a type set from text implements `FromStr` and `ToRust` and adds `artic::core::text_value!({Self})` (`artic_core::` without the `artic` crate)"
 )]
 pub trait Written {
   /// How the value is written: [`AsText`], [`AsObject`] or [`AsChild`].
@@ -70,6 +72,19 @@ macro_rules! text_value {
   ($($ty:ty),+ $(,)?) => {$(
     impl $crate::Written for $ty {
       type As = $crate::AsText;
+      type FromObject = $crate::RefusesObject;
+    }
+  )+};
+}
+
+/// Implements [`Written`] for each type given as a UI type written as an object and not taken from
+/// one: a type that implements `UiType` by hand. A value that implements `FromUiObject` writes the
+/// impl out instead, with [`AsObject`] and [`TakesObject`].
+#[macro_export]
+macro_rules! object_value {
+  ($($ty:ty),+ $(,)?) => {$(
+    impl $crate::Written for $ty {
+      type As = $crate::AsObject;
       type FromObject = $crate::RefusesObject;
     }
   )+};

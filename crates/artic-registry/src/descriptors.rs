@@ -54,7 +54,11 @@ pub enum Whitespace {
 /// A Rust type that UI languages can name, described by a [`TypeInfo`].
 ///
 /// `#[derive(UiType)]` implements it. A type that implements it can also be the value of a
-/// property, written as an object rather than as text.
+/// property, written as an object rather than as text, once it implements
+/// [`Written`](crate::Written): the derive writes that impl, and a type that implements `UiType` by
+/// hand adds it with `artic::core::object_value!(T)` (`artic_core::object_value!` without the
+/// `artic` crate), or, for a value that implements [`FromUiObject`](crate::FromUiObject), writes it
+/// out with `type As = AsObject` and `type FromObject = TakesObject`.
 pub trait UiType {
   /// The type's registry descriptor.
   const TYPE_INFO: &'static TypeInfo;
