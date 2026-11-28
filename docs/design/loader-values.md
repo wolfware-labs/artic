@@ -85,7 +85,7 @@ pub struct PropertyAccess {
 
 pub struct AttachedPropertyInfo {
   // existing fields …
-  pub access: &'static PropertyAccess,   // new; where attached values are stored is #31 / #59
+  pub access: Option<&'static PropertyAccess>,   // new; `Some` with the registry's `access` feature; where attached values are stored is #31 / #59
 }
 
 pub struct TypeInfo {
