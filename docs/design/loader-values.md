@@ -166,31 +166,31 @@ Every markup extension, a value provider in [the UI language contract](../spec/d
 
 ## Worked examples
 
-The loader turns on the registry's `access` feature, so each `access` below is the `PropertyAccess` its `Some` holds.
+The loader turns on the registry's `access` feature, so every `PropertyInfo::access` is `Some`. It takes the thunks out once per property, `let padding_access = padding.access.expect("the loader turns on the access feature");`, and the steps below write `padding_access` and `background_access` for them.
 
 **Attribute text.** `<Border Padding="4,8"/>`
 
 1. The loader resolves `Border` with `Registry::type_by_name` (or `type_by_rust_path` for a `using:` prefix) and creates the node with `TypeInfo::new`, reporting a type that has none, such as a view's code type (#59).
 2. It finds `PropertyInfo` `Padding` in `border.properties`.
-3. It calls `(padding.access.set_text)(tree, node, "4,8", Precedence::Local)`.
+3. It calls `(padding_access.set_text)(tree, node, "4,8", Precedence::Local)`.
 4. The thunk parses a `Thickness` and calls `border.padding.set_at(Local, value)`.
 
 **A `StaticResource` brush.** `<Border Background="{StaticResource Accent}"/>`, with `<SolidColorBrush x:Key="Accent" Color="#3B82F6"/>` in an ancestor's resources.
 
 1. The loader resolves `Accent` to the entry's node: an `Object` of type `SolidColorBrush`.
 2. It builds that object as it would inline (`TypeInfo::new`, then its members through their own thunks).
-3. It calls `(background.access.set_object)(tree, border, brush, Precedence::Local)`.
+3. It calls `(background_access.set_object)(tree, border, brush, Precedence::Local)`.
 4. The thunk converts the object with `Brush::from_object` ([value objects](value-objects.md)) and sets it.
 
 **A style `Setter`.** `<Style Selector="Border.card"><Setter Property="Padding" Value="12"/></Style>`
 
 1. When the selector matches a `Border`, the style system finds `PropertyInfo` `Padding` on the target type.
-2. It calls `(padding.access.set_text)(tree, node, "12", Precedence::StyleSetter)`.
-3. A local `Padding` on the same `Border` still wins (#13); when the selector stops matching, it calls `(padding.access.clear)(tree, node, Precedence::StyleSetter)`.
+2. It calls `(padding_access.set_text)(tree, node, "12", Precedence::StyleSetter)`.
+3. A local `Padding` on the same `Border` still wins (#13); when the selector stops matching, it calls `(padding_access.clear)(tree, node, Precedence::StyleSetter)`.
 
 **A type mismatch.** `<Border Background="{StaticResource Gap}"/>`, where `Gap` is an `x:Double`.
 
-1. `Gap`'s node is text (`"8"`), so the loader calls `background.access.set_text(…, "8", …)`.
+1. `Gap`'s node is text (`"8"`), so the loader calls `(background_access.set_text)(…, "8", …)`.
 2. `Option<Brush>`'s value type fails to parse `"8"` and returns `ValueError::Parse { expected: "Brush", message }`.
 3. The loader reports `view.xaml:3:21: expected Brush, got '8'` at the `{StaticResource Gap}` span, with a note at `Gap`'s definition.
 
