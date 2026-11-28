@@ -349,6 +349,41 @@ where
   Ok(())
 }
 
+/// Sets `value` at `level` on `node`'s attached property of the kind `key`, created the first
+/// time: the end of every attached property's [`PropertyAccess`] setter.
+pub fn set_attached<T>(
+  tree: &mut UiTree,
+  node: NodeId,
+  key: &'static AttachedKey<T>,
+  level: Precedence,
+  value: T,
+) -> std::result::Result<(), ValueError>
+where
+  T: PartialEq + 'static,
+{
+  crate::access::live(tree, node)?;
+  tree.attached_property(node, key).set_at(level, value);
+  Ok(())
+}
+
+/// Empties `level` of `node`'s attached property of the kind `key`, storing nothing on a node that
+/// holds none: an attached property's [`PropertyAccess::clear`].
+pub fn clear_attached<T>(
+  tree: &UiTree,
+  node: NodeId,
+  key: &'static AttachedKey<T>,
+  level: Precedence,
+) -> std::result::Result<(), ValueError>
+where
+  T: PartialEq + 'static,
+{
+  crate::access::live(tree, node)?;
+  if let Some(property) = tree.property(node, key.key()) {
+    property.clear(level);
+  }
+  Ok(())
+}
+
 /// The function `PropertyInfo::literal` holds for a property of value type `$value`: `Some` with
 /// the `literals` feature, `None` without, so an app's registry keeps no `ToRust` code.
 ///
@@ -744,6 +779,47 @@ mod tests {
     );
     assert!(!tree.contains(object));
     assert!(tree.contains(owner));
+  }
+
+  static SLOT: AttachedKey<usize> = AttachedKey::new("Slot", Affects::LAYOUT, Inheritance::None, || 0);
+
+  // An attached value is set at its level on a node with no field for it, created the first time,
+  // and the local level overrides a style level.
+  #[test]
+  fn set_attached_creates_the_value_at_its_level() {
+    let (mut tree, node, _) = two_gauges();
+
+    set_attached(&mut tree, node, &SLOT, Precedence::StyleSetter, 2).expect("a live node");
+    set_attached(&mut tree, node, &SLOT, Precedence::Local, 3).expect("a live node");
+    assert_eq!(tree.attached(node, &SLOT), 3);
+
+    clear_attached(&tree, node, &SLOT, Precedence::Local).expect("a live node");
+    assert_eq!(tree.attached(node, &SLOT), 2);
+  }
+
+  // A node no longer in the tree is refused by both, before the tree is asked for its value.
+  #[test]
+  fn attached_writes_refuse_a_freed_node() {
+    let (mut tree, node, _) = two_gauges();
+    tree.free(node);
+
+    assert_eq!(
+      set_attached(&mut tree, node, &SLOT, Precedence::Local, 1),
+      Err(ValueError::WrongNode)
+    );
+    assert_eq!(
+      clear_attached(&tree, node, &SLOT, Precedence::Local),
+      Err(ValueError::WrongNode)
+    );
+  }
+
+  // Clearing a value the node never held succeeds and stores nothing on it.
+  #[test]
+  fn clear_attached_on_a_node_without_it_stores_nothing() {
+    let (tree, node, _) = two_gauges();
+
+    assert_eq!(clear_attached(&tree, node, &SLOT, Precedence::Local), Ok(()));
+    assert!(tree.property(node, SLOT.key()).is_none());
   }
 
   // A code type matches only the same whole path, and a view without one matches nothing.

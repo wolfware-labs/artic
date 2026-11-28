@@ -406,6 +406,7 @@ fn attached_info(attached: &Attached) -> TokenStream {
       value_type: ::core::stringify!(#ty),
       target: #target,
       literal: #literal,
+      access: ::core::option::Option::None,
     }
   }
 }

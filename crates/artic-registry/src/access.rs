@@ -14,6 +14,11 @@ use artic_core::tree::{NodeId, UiTree};
 /// [`UiTree::property`] finds it, so an access whose key is an attached key, such as a group's
 /// property that shares one, also writes a node that holds the attached value.
 ///
+/// An attached property's access writes the node's attached value of the owner's key, created
+/// the first time, as [`UiTree::attached_property`] does, or the node's field that shares the key.
+/// Its `clear` empties `level` of a value the node holds, and stores nothing on a node that holds
+/// none. Both refuse a node no longer in the tree with [`ValueError::WrongNode`].
+///
 /// A compiled view never calls them: it sets each property through its typed builder method.
 ///
 /// # Panics
@@ -49,10 +54,17 @@ pub(crate) fn property_of<T>(tree: &UiTree, node: NodeId, key: &'static Property
 where
   T: PartialEq + 'static,
 {
-  if !tree.contains(node) {
-    return Err(ValueError::WrongNode);
-  }
+  live(tree, node)?;
   tree.property(node, key).ok_or(ValueError::WrongNode)
+}
+
+/// [`ValueError::WrongNode`] when `node` is no longer in the tree.
+pub(crate) fn live(tree: &UiTree, node: NodeId) -> Result<(), ValueError> {
+  if tree.contains(node) {
+    Ok(())
+  } else {
+    Err(ValueError::WrongNode)
+  }
 }
 
 #[cfg(test)]

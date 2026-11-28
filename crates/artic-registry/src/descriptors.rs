@@ -406,6 +406,44 @@ pub struct AttachedPropertyInfo {
   /// owner's setter takes, as [`PropertyInfo::literal`] does; for an `Option<V>` property, `Some`
   /// of the `V`. `Some` only with this crate's `literals` feature.
   pub literal: Option<WriteLiteral>,
+  /// How a UI language's runtime loader writes the property on a node, as
+  /// [`PropertyInfo::access`] does: the value is stored as the node's attached value of the
+  /// owner's key, created the first time, or in the node's field that shares the key. `Some` only
+  /// with this crate's `access` feature. The thunks don't check the
+  /// [`target`](AttachedPropertyInfo::target): whether the node may hold the property is the
+  /// loader's check (#59).
+  pub access: Option<&'static PropertyAccess>,
+}
+
+impl AttachedPropertyInfo {
+  /// An attached property named `name`, whose value is of the type at `value_type`, set on the
+  /// elements `target` allows, usable in a `static`. It has no
+  /// [`literal`](AttachedPropertyInfo::literal) or [`access`](AttachedPropertyInfo::access); the
+  /// `with_*` methods set them.
+  #[must_use]
+  pub const fn new(name: &'static str, value_type: &'static str, target: AttachedTarget) -> Self {
+    Self {
+      name,
+      value_type,
+      target,
+      literal: None,
+      access: None,
+    }
+  }
+
+  /// The attached property, with `literal` writing the Rust expression for its text.
+  #[must_use]
+  pub const fn with_literal(mut self, literal: WriteLiteral) -> Self {
+    self.literal = Some(literal);
+    self
+  }
+
+  /// The attached property, written by a runtime loader through `access`.
+  #[must_use]
+  pub const fn with_access(mut self, access: &'static PropertyAccess) -> Self {
+    self.access = Some(access);
+    self
+  }
 }
 
 /// Which elements an attached property may be set on.
@@ -504,6 +542,7 @@ mod tests {
 
   static DEFAULT_TYPE: TypeInfo = TypeInfo::node("Gauge", "app::Gauge", crate::is_a::<Border>);
   static DEFAULT_PROPERTY: PropertyInfo = PropertyInfo::new("Text", "text", "String");
+  static DEFAULT_ATTACHED: AttachedPropertyInfo = AttachedPropertyInfo::new("Row", "usize", AttachedTarget::ChildrenOfOwner);
 
   // The constructors work in a `static` and leave every other field at its documented default.
   #[test]
@@ -528,6 +567,13 @@ mod tests {
     assert!(!DEFAULT_PROPERTY.inherits);
     assert!(DEFAULT_PROPERTY.literal.is_none());
     assert!(DEFAULT_PROPERTY.access.is_none());
+
+    assert_eq!(
+      (DEFAULT_ATTACHED.name, DEFAULT_ATTACHED.value_type, DEFAULT_ATTACHED.target),
+      ("Row", "usize", AttachedTarget::ChildrenOfOwner)
+    );
+    assert!(DEFAULT_ATTACHED.literal.is_none());
+    assert!(DEFAULT_ATTACHED.access.is_none());
   }
 
   /// Writes text as a string.
@@ -555,17 +601,15 @@ mod tests {
       name: "PointerPressed",
       args_type: "artic_core::PointerEvent",
     }])
-    .with_attached_properties(&[AttachedPropertyInfo {
-      name: "Slot",
-      value_type: "usize",
-      target: AttachedTarget::Any,
-      literal: None,
-    }])
+    .with_attached_properties(std::slice::from_ref(&SET_ATTACHED))
     .with_whitespace(Whitespace::Significant)
     .with_code_type_root(true);
   static SET_PROPERTY: PropertyInfo = PropertyInfo::new("Text", "text", "String")
     .with_affects(Affects::LAYOUT)
     .with_inherits(true)
+    .with_literal(quoted)
+    .with_access(&crate::access::tests::UNWRITTEN);
+  static SET_ATTACHED: AttachedPropertyInfo = AttachedPropertyInfo::new("Slot", "usize", AttachedTarget::Any)
     .with_literal(quoted)
     .with_access(&crate::access::tests::UNWRITTEN);
 
@@ -595,6 +639,12 @@ mod tests {
         .is_some_and(|access| std::ptr::eq(access, &crate::access::tests::UNWRITTEN))
     );
     assert_eq!(out.as_str(), r#""Hi""#);
+    assert!(SET_ATTACHED.literal.is_some());
+    assert!(
+      SET_ATTACHED
+        .access
+        .is_some_and(|access| std::ptr::eq(access, &crate::access::tests::UNWRITTEN))
+    );
   }
 
   // The constructors and setters called at run time give the descriptors that statics built
@@ -616,27 +666,21 @@ mod tests {
       .with_inherits(SET_PROPERTY.inherits)
       .with_literal(SET_PROPERTY.literal.expect("a literal"))
       .with_access(SET_PROPERTY.access.expect("an access"));
+    let built_attached = AttachedPropertyInfo::new(SET_ATTACHED.name, SET_ATTACHED.value_type, SET_ATTACHED.target)
+      .with_literal(SET_ATTACHED.literal.expect("a literal"))
+      .with_access(SET_ATTACHED.access.expect("an access"));
 
     assert_eq!(format!("{built_type:?}"), format!("{SET_TYPE:?}"));
     assert_eq!(format!("{built_property:?}"), format!("{SET_PROPERTY:?}"));
+    assert_eq!(format!("{built_attached:?}"), format!("{SET_ATTACHED:?}"));
   }
 
   // An attached property is found by its name among the ones its owner declares, and only there.
   #[test]
   fn attached_property_is_found_by_name() {
     static DOCK: TypeInfo = TypeInfo::node("Dock", "artic_controls::Dock", crate::is_a::<Border>).with_attached_properties(&[
-      AttachedPropertyInfo {
-        name: "Side",
-        value_type: "artic_controls::Side",
-        target: AttachedTarget::ChildrenOfOwner,
-        literal: None,
-      },
-      AttachedPropertyInfo {
-        name: "Order",
-        value_type: "usize",
-        target: AttachedTarget::Any,
-        literal: None,
-      },
+      AttachedPropertyInfo::new("Side", "artic_controls::Side", AttachedTarget::ChildrenOfOwner),
+      AttachedPropertyInfo::new("Order", "usize", AttachedTarget::Any),
     ]);
 
     assert_eq!(DOCK.attached_property("Order").map(|info| info.value_type), Some("usize"));

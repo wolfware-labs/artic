@@ -277,12 +277,14 @@ const _: () = {
             value_type: ::core::stringify!(usize),
             target: __artic::AttachedTarget::ChildrenOfOwner,
             literal: __artic::literal!(usize),
+            access: ::core::option::Option::None,
         },
         __artic::AttachedPropertyInfo {
             name: "ColumnSpan",
             value_type: ::core::stringify!(usize),
             target: __artic::AttachedTarget::Any,
             literal: __artic::literal!(usize),
+            access: ::core::option::Option::None,
         },
     ];
     static __GROUPS: [__artic::PropertyGroupInfo; 1usize] = [

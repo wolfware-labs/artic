@@ -77,18 +77,8 @@ pub static GALLERY: TypeInfo = info("Gallery", "test_ui::Gallery").with_content(
 });
 
 static RACK_ATTACHED: [AttachedPropertyInfo; 2] = [
-  AttachedPropertyInfo {
-    name: "Slot",
-    value_type: "usize",
-    target: AttachedTarget::ChildrenOfOwner,
-    literal: None,
-  },
-  AttachedPropertyInfo {
-    name: "Tag",
-    value_type: "String",
-    target: AttachedTarget::Any,
-    literal: None,
-  },
+  AttachedPropertyInfo::new("Slot", "usize", AttachedTarget::ChildrenOfOwner),
+  AttachedPropertyInfo::new("Tag", "String", AttachedTarget::Any),
 ];
 
 /// Takes any number of children, and owns `Rack.Slot`, only for them, and `Rack.Tag`, for any

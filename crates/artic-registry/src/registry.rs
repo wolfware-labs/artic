@@ -187,12 +187,11 @@ mod tests {
 
   static BUTTON: TypeInfo = info("Button", "artic_controls::Button");
   static GAUGE: TypeInfo = info("Gauge", "app::views::Gauge");
-  static GRID: TypeInfo = info("Grid", "artic_controls::Grid").with_attached_properties(&[AttachedPropertyInfo {
-    name: "Row",
-    value_type: "usize",
-    target: AttachedTarget::ChildrenOfOwner,
-    literal: None,
-  }]);
+  static GRID: TypeInfo = info("Grid", "artic_controls::Grid").with_attached_properties(&[AttachedPropertyInfo::new(
+    "Row",
+    "usize",
+    AttachedTarget::ChildrenOfOwner,
+  )]);
 
   static HOME_PAGE: TypeInfo = info("Page", "my_app::home::Page");
   static SETTINGS_PAGE: TypeInfo = info("Page", "my_app::settings::Page");
@@ -312,18 +311,8 @@ mod tests {
   #[test]
   fn every_duplicate_is_reported_in_sorted_order() {
     static GRID_AGAIN: TypeInfo = info("Grid", "artic_controls::Grid").with_attached_properties(&[
-      AttachedPropertyInfo {
-        name: "Row",
-        value_type: "usize",
-        target: AttachedTarget::ChildrenOfOwner,
-        literal: None,
-      },
-      AttachedPropertyInfo {
-        name: "Row",
-        value_type: "usize",
-        target: AttachedTarget::ChildrenOfOwner,
-        literal: None,
-      },
+      AttachedPropertyInfo::new("Row", "usize", AttachedTarget::ChildrenOfOwner),
+      AttachedPropertyInfo::new("Row", "usize", AttachedTarget::ChildrenOfOwner),
     ]);
 
     let forward = Registry::from_types(&[&GRID, &GRID_AGAIN, &BUTTON]).expect_err("duplicates");
