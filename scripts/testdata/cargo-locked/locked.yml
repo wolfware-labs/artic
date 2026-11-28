@@ -1,0 +1,91 @@
+# Every cargo command here builds the committed lockfile, or is one that never resolves.
+name: locked
+on: push
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # Locked commands.
+      - run: cargo build --locked --workspace
+      - run: cargo +nightly test --locked
+      - run: cargo -q clippy --frozen --all-targets
+      - run: RUSTFLAGS=-Dwarnings cargo doc --locked --no-deps
+      - run: cargo test --locked -- --nocapture
+      - run: cargo llvm-cov --locked --workspace --lcov
+      - run: cargo tree --locked -i linkme --depth 0
+      - run: cargo deny --locked check
+      - run: cargo codspeed build --locked -m simulation
+      - run: cargo test --locked -p "$crate"
+      - run: cargo build --locked $ARGS
+      - run: cargo --config net.retry=3 build --locked
+      # mutants with the flag for the cargo it runs.
+      - run: cargo mutants --workspace --cargo-arg=--locked
+      - run: cargo mutants --workspace --cargo-arg --locked
+      - run: cargo mutants --workspace -C --locked
+      - run: cargo mutants --workspace -C--locked
+      - run: cargo mutants --workspace --cargo-arg=--frozen
+      - run: cargo mutants --cargo-arg=--locked --workspace --shard "$SHARD" --output "$RUNNER_TEMP"
+      - run: cargo mutants --workspace --cargo-arg --frozen
+      # Commands that never resolve.
+      - run: cargo codspeed run
+      - run: cargo --version
+      - run: cargo -V
+      - run: cargo +nightly --version
+      - run: cargo --help
+      - run: cargo -h
+      - run: cargo help build
+      - run: cargo version
+      - run: cargo +nightly fmt --check
+      - run: cargo --color always -C crates/x --config net.retry=3 fmt
+      - run: cargo -Z unstable-options fmt --check
+      - run: which cargo
+      - run: cargo fmt --all --check
+      # machete with paths and its switches that read no metadata.
+      - run: cargo machete
+      - run: cargo machete --skip-target-dir -- --with-metadata
+      - run: cargo machete --skip-target-dir
+      - run: cargo machete --fix crates/a
+      - run: cargo machete --no-ignore ./crates
+      - run: cargo machete --version
+      - run: cargo machete --help
+      - run: cargo machete crates/a_b-c.d C:/work/app
+      # Prefixes, separators, comments and quotes.
+      - run: echo start && cargo run --locked -p app
+      - run: cargo run --locked -p artic-examples --example smoke
+      - run: cargo run -p x --locked
+      - run: cargo r --locked a
+      - run: cargo llvm-cov run --locked a
+      - run: cargo llvm-cov --lcov run --locked a
+      - run: cargo hack run --locked a
+      - run: cargo llvm-cov r --locked a
+      - run: cargo llvm-cov --locked --workspace --lcov
+      - run: cargo run -q --bin x --locked input.txt
+      - run: |
+          cargo rustc -p a --package a --bin b --example e --test t --bench b -F f --features f \
+            -j 2 --jobs 2 --profile p --target t --target-dir d -m m --manifest-path m \
+            --message-format short --color always --config k=v -Z x --print cfg --crate-type lib \
+            --locked
+      - run: cargo rustdoc --output-format json --locked
+      - run: if cargo test --locked; then echo ok; fi
+      - run: timeout 600 cargo test --locked
+      - run: out=$(cargo build --locked)
+      - run: if true; then cargo build --locked; fi
+      - run: |
+          for crate in a b; do
+            cargo check --locked -p "$crate" || failed=1
+          done
+      - run: |
+          # cargo build would resolve, but this is a comment
+          cargo build \
+            --locked
+      - run: echo "cargo build is not run here"
+      - run: |
+          echo "step #1"; cargo test --locked
+      - run: |
+          echo 'a\' # cargo build
+      - run: |
+          echo \" # cargo build
+      - run: |
+          echo "a" # cargo build

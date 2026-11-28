@@ -1,0 +1,164 @@
+# Every step marked `flagged` runs a cargo command that resolves without --locked.
+name: unlocked
+on: push
+permissions:
+  contents: read
+env:
+  CMD: &c cargo build
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # Commands that resolve, with no flag.
+      - run: cargo build --workspace # flagged
+      - run: cargo +nightly test # flagged
+      - run: cargo -q clippy --all-targets # flagged
+      - run: RUSTFLAGS=-Dwarnings cargo doc --no-deps # flagged
+      - run: cargo llvm-cov --workspace --lcov # flagged
+      - run: cargo tree -i linkme --depth 0 # flagged
+      - run: cargo deny check # flagged
+      - run: cargo codspeed build -m simulation # flagged
+      - run: cargo mutants --workspace # flagged
+      - run: cargo bench # flagged
+      - run: cargo fetch # flagged
+      - run: cargo nextest run # flagged
+      - run: cargo install cargo-machete # flagged
+      - run: cargo metadata --format-version 1 # flagged
+      - run: cargo b # flagged
+      # The flag where cargo doesn't read it: after a lone `--`, or before the subcommand.
+      - run: cargo test -- --locked # flagged
+      - run: cargo mutants --workspace -- --locked # flagged
+      - run: cargo --locked build # flagged
+      # Global options that take a value, which isn't the subcommand.
+      - run: cargo --config net.retry=3 test # flagged
+      - run: cargo -Z unstable-options build # flagged
+      - run: cargo -C crates/x build # flagged
+      - run: cargo --color always build # flagged
+      - run: cargo --config build # flagged
+      # Separators and joined lines.
+      - run: echo start && cargo run -p app # flagged
+      - run: cargo check; cargo build --locked # flagged
+      - run: cargo fmt --check | cargo check # flagged
+      - run: | # flagged
+          cargo build \
+            --workspace
+      - run: | # flagged
+          for crate in a b; do
+            cargo check -p "$crate" || failed=1
+          done
+      - run: if true; then cargo build; fi # flagged
+      - run: | # flagged
+          cargo build # --locked comes later
+      - run: | # flagged
+          # note \
+          cargo build
+      - run: cargo build & echo --locked # flagged
+      - run: cargo build &# --locked # flagged
+      # Prefixes and grouping before cargo.
+      - run: if cargo test; then echo ok; fi # flagged
+      - run: while ! cargo check; do sleep 1; done # flagged
+      - run: timeout 600 cargo test # flagged
+      - run: env RUST_LOG=debug cargo test # flagged
+      - run: (cargo build) # flagged
+      - run: out=$(cargo build) # flagged
+      - run: "{ cargo build; }" # flagged
+      - run: echo `cargo build` # flagged
+      # Comments and quotes.
+      - run: | # flagged
+          echo "step #1"; cargo test
+      - run: | # flagged
+          echo "a\" # b"; cargo test
+      - run: | # flagged
+          echo 'step #1'; cargo test
+      - run: | # flagged
+          echo "first
+          # still quoted"; cargo test
+      - run: echo a#b; cargo test # flagged
+      # cargo by path, with `.exe`, in any letter case.
+      - run: /usr/bin/cargo build # flagged
+      - run: ~/.cargo/bin/cargo test # flagged
+      - run: cargo.exe build # flagged
+      - run: C:\Users\runneradmin\.cargo\bin\cargo.exe build # flagged
+      - run: .\tools\cargo build # flagged
+      - run: CARGO.EXE build # flagged
+      - run: Cargo build # flagged
+      # A YAML alias.
+      - run: *c # flagged
+      # Option and toolchain words that expand, in front of an exempt subcommand or none.
+      - run: cargo +$TC # flagged
+      - run: cargo +nightly$EXTRA # flagged
+      - run: cargo +"a;b" build # flagged
+      - run: cargo +$TC fmt # flagged
+      - run: cargo --color $X fmt # flagged
+      - run: cargo -Z$X version # flagged
+      - run: cargo --config $X help # flagged
+      - run: cargo +$TC codspeed run # flagged
+      - run: cargo +$TC machete # flagged
+      # A word that may expand before the flag, which can move the flag past a `--`.
+      - run: cargo +$TC test --locked # flagged
+      - run: cargo +$TC build --locked # flagged
+      - run: cargo +${{ matrix.rust }} build --locked # flagged
+      - run: cargo -Z$X test --locked # flagged
+      - run: cargo $SUB --locked # flagged
+      - run: cargo build $ARGS --locked # flagged
+      - run: cargo build "a b" --locked # flagged
+      - run: cargo build \x --locked # flagged
+      - run: cargo build { --locked # flagged
+      - run: cargo build } --locked # flagged
+      - run: cargo build ( --locked # flagged
+      - run: cargo build ) --locked # flagged
+      - run: cargo build `x` --locked # flagged
+      - run: cargo build * --locked # flagged
+      - run: cargo build ?? --locked # flagged
+      - run: cargo build [-]* --locked # flagged
+      - run: cargo build @extra --locked # flagged
+      - run: cargo build %ARGS% --locked # flagged
+      - run: cargo build ~+ --locked # flagged
+      - run: cargo build <args.txt --locked # flagged
+      - run: cargo mutants * --cargo-arg=--locked # flagged
+      - run: cargo mutants @extra --cargo-arg=--locked # flagged
+      # A flag after the first argument of run, rustc or rustdoc goes to the program.
+      - run: cargo run a --locked # flagged
+      - run: cargo r a --locked # flagged
+      - run: cargo r -q a --locked # flagged
+      - run: cargo llvm-cov run a --locked # flagged
+      - run: cargo llvm-cov run -p x a --locked # flagged
+      - run: cargo llvm-cov --lcov run a --locked # flagged
+      - run: cargo llvm-cov -p x run a --locked # flagged
+      - run: cargo miri run a --locked # flagged
+      - run: cargo hack run a --locked # flagged
+      - run: cargo llvm-cov r a --locked # flagged
+      - run: cargo llvm-cov --lcov r a --locked # flagged
+      - run: cargo hack rustc a --locked # flagged
+      - run: cargo hack rustdoc a --locked # flagged
+      - run: cargo rustc a --locked # flagged
+      - run: cargo rustdoc a --frozen # flagged
+      - run: cargo run -p x --example smoke input.txt --locked # flagged
+      - run: cargo run -q a --locked # flagged
+      - run: cargo +$TC mutants --cargo-arg=--locked # flagged
+      - run: cargo mutants $X --cargo-arg --locked # flagged
+      - run: cargo mutants 'x' -C--frozen # flagged
+      # machete arguments that may be `--with-metadata`.
+      - run: cargo machete --skip-target-dir --with-metadata # flagged
+      - run: cargo machete --with-metadata=true # flagged
+      - run: cargo machete "--with-metadata" # flagged
+      - run: cargo machete '--with-metadata' # flagged
+      - run: cargo machete $MACHETE_ARGS # flagged
+      - run: cargo machete \--with-metadata # flagged
+      - run: cargo machete --skip-target-dir -x # flagged
+      - run: cargo machete @margs # flagged
+      - run: cargo machete %MACHETE_ARGS% # flagged
+      - run: cargo machete ^--with-metadata # flagged
+      - run: cargo machete * # flagged
+      - run: cargo machete `cat margs` # flagged
+      - run: cargo machete (Get-Content margs) # flagged
+      - run: cargo machete {margs} # flagged
+      # Documented false alarms: separators read before quotes, and a substitution's closing `)`.
+      - run: echo "see cargo build; cargo test" # flagged
+      - run: cargo --config "a;b" build # flagged
+      - run: cargo -Z "a&b" build # flagged
+      - run: v=$(cargo -V) # flagged
+      # An action input named `run`.
+      - uses: CodSpeedHQ/action@0000000000000000000000000000000000000000
+        with:
+          run: cargo build # flagged

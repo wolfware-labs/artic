@@ -21,5 +21,5 @@ runs:
         ARTIC_REQUIRE_DISPLAY: "1"
       run: |
         status=0
-        cargo mutants --workspace --in-place --no-shuffle --shard "$SHARD" --output "$RUNNER_TEMP" || status=$?
+        cargo mutants --cargo-arg=--locked --workspace --in-place --no-shuffle --shard "$SHARD" --output "$RUNNER_TEMP" || status=$?
         bash "$GITHUB_ACTION_PATH/verdict.sh" "$RUNNER_TEMP" "$status" | tee -a "$GITHUB_STEP_SUMMARY"
