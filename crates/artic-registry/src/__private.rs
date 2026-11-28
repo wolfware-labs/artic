@@ -251,6 +251,52 @@ impl<V> ObjectRoute<V> for RefusesObject {
   }
 }
 
+/// The kind of type an object route fits: a staged value type's object becomes the value, and a
+/// node type's object stays in the tree, so nothing takes it.
+pub trait RouteKind {
+  /// The kind a type with this object route must have.
+  const KIND: TypeKind;
+}
+
+impl RouteKind for TakesObject {
+  const KIND: TypeKind = TypeKind::Value;
+}
+
+impl RouteKind for RefusesObject {
+  const KIND: TypeKind = TypeKind::Node;
+}
+
+/// Whether a type written as the marker `Self` says has the kind its object route fits: generated
+/// code reads `<<V as Written>::As as KindCheck<V>>::MISMATCH` in a const and fails to compile on
+/// `Some`. Only an object has a kind to check.
+pub trait KindCheck<V> {
+  /// The type's own kind when its object route fits the other kind, else `None`.
+  const MISMATCH: Option<TypeKind>;
+}
+
+impl<V> KindCheck<V> for AsText {
+  const MISMATCH: Option<TypeKind> = None;
+}
+
+impl<V> KindCheck<V> for AsChild {
+  const MISMATCH: Option<TypeKind> = None;
+}
+
+impl<V> KindCheck<V> for AsObject
+where
+  V: UiType + Written<FromObject: RouteKind>,
+{
+  const MISMATCH: Option<TypeKind> = kind_mismatch(V::TYPE_INFO.kind, <V::FromObject as RouteKind>::KIND);
+}
+
+/// `kind` when it isn't `fits`, else `None`.
+const fn kind_mismatch(kind: TypeKind, fits: TypeKind) -> Option<TypeKind> {
+  match (kind, fits) {
+    (TypeKind::Node, TypeKind::Node) | (TypeKind::Value, TypeKind::Value) => None,
+    _ => Some(kind),
+  }
+}
+
 /// How a property's `set_object` takes a staged object as a value of type `V`. The value's
 /// [`ObjectRoute`] gives it.
 #[derive(Debug)]
@@ -599,6 +645,18 @@ mod tests {
         found: "an element",
       })
     );
+  }
+
+  // A node type that refuses objects fits its kind, text and a child have none to check, and a
+  // kind its object route doesn't fit is the mismatch.
+  #[test]
+  fn kind_check_finds_a_route_that_misfits_the_kind() {
+    assert_eq!(<<Gauge as Written>::As as KindCheck<Gauge>>::MISMATCH, None);
+    assert_eq!(<<f32 as Written>::As as KindCheck<f32>>::MISMATCH, None);
+    assert_eq!(<<NodeId as Written>::As as KindCheck<NodeId>>::MISMATCH, None);
+    assert_eq!(kind_mismatch(TypeKind::Value, TypeKind::Node), Some(TypeKind::Value));
+    assert_eq!(kind_mismatch(TypeKind::Node, TypeKind::Value), Some(TypeKind::Node));
+    assert_eq!(kind_mismatch(TypeKind::Value, TypeKind::Value), None);
   }
 
   // An object's route refuses both text and a node: the loader moves the object in as one.

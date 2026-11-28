@@ -59,7 +59,9 @@ pub enum Whitespace {
 /// hand adds it with `artic::core::node_type_value!(T)` (`artic_core::node_type_value!` without the
 /// `artic` crate); a value type that implements it by hand, taken from a staged object through
 /// [`FromUiObject`](crate::FromUiObject), writes it out with `type As = AsObject` and
-/// `type FromObject = TakesObject`.
+/// `type FromObject = TakesObject`. A property the derive declares with such a type fails to
+/// compile when the impl doesn't fit the type's [`kind`](TypeInfo::kind): a
+/// [`TypeKind::Value`] takes its staged object, a [`TypeKind::Node`] refuses it.
 pub trait UiType {
   /// The type's registry descriptor.
   const TYPE_INFO: &'static TypeInfo;

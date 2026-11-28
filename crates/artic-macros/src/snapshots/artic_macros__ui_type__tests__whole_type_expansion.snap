@@ -490,18 +490,94 @@ const _: () = {
         <<f32 as __artic::Written>::FromObject as __artic::ObjectRoute<
             f32,
         >>::object_ops();
+        const _: () = match <<f32 as __artic::Written>::As as __artic::KindCheck<
+            f32,
+        >>::MISMATCH {
+            ::core::option::Option::Some(__artic::TypeKind::Value) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(f32),
+                    "` is a value type (`TypeKind::Value`), so a property takes its staged object: ",
+                    "its `Written` impl writes `type FromObject = TakesObject`, not `node_type_value!`")
+                )
+            }
+            ::core::option::Option::Some(__artic::TypeKind::Node) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(f32),
+                    "` is a node type (`TypeKind::Node`), whose objects stay in the tree: ",
+                    "its `Written` impl writes `type FromObject = RefusesObject`, as `artic::core::node_type_value!` does")
+                )
+            }
+            ::core::option::Option::None => {}
+        };
         <<bool as __artic::Written>::As as __artic::Route<bool>>::value_ops();
         <<bool as __artic::Written>::FromObject as __artic::ObjectRoute<
             bool,
         >>::object_ops();
+        const _: () = match <<bool as __artic::Written>::As as __artic::KindCheck<
+            bool,
+        >>::MISMATCH {
+            ::core::option::Option::Some(__artic::TypeKind::Value) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(bool),
+                    "` is a value type (`TypeKind::Value`), so a property takes its staged object: ",
+                    "its `Written` impl writes `type FromObject = TakesObject`, not `node_type_value!`")
+                )
+            }
+            ::core::option::Option::Some(__artic::TypeKind::Node) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(bool),
+                    "` is a node type (`TypeKind::Node`), whose objects stay in the tree: ",
+                    "its `Written` impl writes `type FromObject = RefusesObject`, as `artic::core::node_type_value!` does")
+                )
+            }
+            ::core::option::Option::None => {}
+        };
         <<i32 as __artic::Written>::As as __artic::Route<i32>>::value_ops();
         <<i32 as __artic::Written>::FromObject as __artic::ObjectRoute<
             i32,
         >>::object_ops();
+        const _: () = match <<i32 as __artic::Written>::As as __artic::KindCheck<
+            i32,
+        >>::MISMATCH {
+            ::core::option::Option::Some(__artic::TypeKind::Value) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(i32),
+                    "` is a value type (`TypeKind::Value`), so a property takes its staged object: ",
+                    "its `Written` impl writes `type FromObject = TakesObject`, not `node_type_value!`")
+                )
+            }
+            ::core::option::Option::Some(__artic::TypeKind::Node) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(i32),
+                    "` is a node type (`TypeKind::Node`), whose objects stay in the tree: ",
+                    "its `Written` impl writes `type FromObject = RefusesObject`, as `artic::core::node_type_value!` does")
+                )
+            }
+            ::core::option::Option::None => {}
+        };
         <<String as __artic::Written>::As as __artic::Route<String>>::value_ops();
         <<String as __artic::Written>::FromObject as __artic::ObjectRoute<
             String,
         >>::object_ops();
+        const _: () = match <<String as __artic::Written>::As as __artic::KindCheck<
+            String,
+        >>::MISMATCH {
+            ::core::option::Option::Some(__artic::TypeKind::Value) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(String),
+                    "` is a value type (`TypeKind::Value`), so a property takes its staged object: ",
+                    "its `Written` impl writes `type FromObject = TakesObject`, not `node_type_value!`")
+                )
+            }
+            ::core::option::Option::Some(__artic::TypeKind::Node) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(String),
+                    "` is a node type (`TypeKind::Node`), whose objects stay in the tree: ",
+                    "its `Written` impl writes `type FromObject = RefusesObject`, as `artic::core::node_type_value!` does")
+                )
+            }
+            ::core::option::Option::None => {}
+        };
         __artic::assert_property_group::<Layout>();
         <<usize as __artic::Written>::As as __artic::Route<usize>>::value_ops();
         <<usize as __artic::Written>::As as __artic::Route<usize>>::value_ops();

@@ -77,19 +77,20 @@ pub fn properties_static(owner: &Ident, members: &Members) -> TokenStream {
 }
 
 /// The `__checks` function, never called, whose body fails to compile when a property's value
-/// type can't be written in a UI language, its object route can't take it from an object, or a
-/// flattened field isn't a group, followed by the derive's `extra_checks`.
+/// type can't be written in a UI language, its object route can't take it from an object or
+/// doesn't fit its kind, or a flattened field isn't a group, followed by the derive's `extra_checks`.
 pub fn checks(members: &Members, extra_checks: impl IntoIterator<Item = TokenStream>) -> TokenStream {
   let values = members
     .properties
     .iter()
-    .flat_map(|field| [value_check(field.value), object_check(field.value)])
-    .chain(
-      members
-        .values
-        .iter()
-        .flat_map(|field| [plain_value_check(field.value), object_check(field.value)]),
-    );
+    .flat_map(|field| [value_check(field.value), object_check(field.value), kind_check(field.value)])
+    .chain(members.values.iter().flat_map(|field| {
+      [
+        plain_value_check(field.value),
+        object_check(field.value),
+        kind_check(field.value),
+      ]
+    }));
   let groups = members.groups.iter().map(|group| {
     let ty = group.ty;
     quote_spanned!(ty.span()=> __artic::assert_property_group::<#ty>();)
@@ -372,6 +373,26 @@ fn plain_value_check(value: &Type) -> TokenStream {
 fn object_check(value: &Type) -> TokenStream {
   let ops = object_ops(value);
   quote_spanned!(value.span()=> #ops;)
+}
+
+/// The check that an object's kind fits its object route, pointing at the type: a value type
+/// (`TypeKind::Value`) takes its staged object and a node type refuses it, so a hand-written
+/// `Written` impl that says otherwise fails to compile here instead of refusing every staged value
+/// at run time. Text and child elements have no kind to check.
+fn kind_check(value: &Type) -> TokenStream {
+  quote_spanned!(value.span()=>
+    const _: () = match <<#value as __artic::Written>::As as __artic::KindCheck<#value>>::MISMATCH {
+      ::core::option::Option::Some(__artic::TypeKind::Value) => ::core::panic!("{}", ::core::concat!(
+        "`", ::core::stringify!(#value), "` is a value type (`TypeKind::Value`), so a property takes its staged object: ",
+        "its `Written` impl writes `type FromObject = TakesObject`, not `node_type_value!`"
+      )),
+      ::core::option::Option::Some(__artic::TypeKind::Node) => ::core::panic!("{}", ::core::concat!(
+        "`", ::core::stringify!(#value), "` is a node type (`TypeKind::Node`), whose objects stay in the tree: ",
+        "its `Written` impl writes `type FromObject = RefusesObject`, as `artic::core::node_type_value!` does"
+      )),
+      ::core::option::Option::None => {}
+    };
+  )
 }
 
 /// The `ObjectOps` the loader's `set_object` thunk converts with, pointing at the type: the object

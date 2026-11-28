@@ -140,10 +140,48 @@ const _: () = {
         <<f32 as __artic::Written>::FromObject as __artic::ObjectRoute<
             f32,
         >>::object_ops();
+        const _: () = match <<f32 as __artic::Written>::As as __artic::KindCheck<
+            f32,
+        >>::MISMATCH {
+            ::core::option::Option::Some(__artic::TypeKind::Value) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(f32),
+                    "` is a value type (`TypeKind::Value`), so a property takes its staged object: ",
+                    "its `Written` impl writes `type FromObject = TakesObject`, not `node_type_value!`")
+                )
+            }
+            ::core::option::Option::Some(__artic::TypeKind::Node) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(f32),
+                    "` is a node type (`TypeKind::Node`), whose objects stay in the tree: ",
+                    "its `Written` impl writes `type FromObject = RefusesObject`, as `artic::core::node_type_value!` does")
+                )
+            }
+            ::core::option::Option::None => {}
+        };
         <<Thickness as __artic::Written>::As as __artic::Route<Thickness>>::value_ops();
         <<Thickness as __artic::Written>::FromObject as __artic::ObjectRoute<
             Thickness,
         >>::object_ops();
+        const _: () = match <<Thickness as __artic::Written>::As as __artic::KindCheck<
+            Thickness,
+        >>::MISMATCH {
+            ::core::option::Option::Some(__artic::TypeKind::Value) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(Thickness),
+                    "` is a value type (`TypeKind::Value`), so a property takes its staged object: ",
+                    "its `Written` impl writes `type FromObject = TakesObject`, not `node_type_value!`")
+                )
+            }
+            ::core::option::Option::Some(__artic::TypeKind::Node) => {
+                ::core::panic!(
+                    "{}", ::core::concat!("`", ::core::stringify!(Thickness),
+                    "` is a node type (`TypeKind::Node`), whose objects stay in the tree: ",
+                    "its `Written` impl writes `type FromObject = RefusesObject`, as `artic::core::node_type_value!` does")
+                )
+            }
+            ::core::option::Option::None => {}
+        };
     }
 };
 ///The builder methods of the `Layout` group, on every type that flattens it.

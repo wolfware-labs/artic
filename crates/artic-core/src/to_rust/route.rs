@@ -82,6 +82,11 @@ macro_rules! text_value {
 /// written as an object, and never taken from one, since its objects stay in the tree. A value type
 /// that implements `UiType` by hand writes the impl out instead, with [`AsObject`] and
 /// [`TakesObject`], so the loader moves its staged object into the property.
+///
+/// Each property `#[derive(UiType)]` or `#[derive(UiProperties)]` declares with an object type
+/// checks, at compile time, that the type's `TypeInfo::kind` fits the impl: `TypeKind::Value` with
+/// `TakesObject`, `TypeKind::Node` with `RefusesObject`. The check fires at that property, not here,
+/// so a type no derived property holds isn't checked.
 #[macro_export]
 macro_rules! node_type_value {
   ($($ty:ty),+ $(,)?) => {$(
