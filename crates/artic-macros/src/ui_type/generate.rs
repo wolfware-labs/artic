@@ -1,7 +1,7 @@
 use crate::crate_root::{REGISTRY, crate_root};
 use crate::members::emit::{
-  Access, access_tokens, affects_tokens, checks, default_impl, inheritance_tokens, key_path, key_static, kind_check,
-  object_check, properties_static, value_check, visits,
+  Access, access_tokens, affects_tokens, checks, default_impl, inheritance_tokens, key_path, key_static, properties_static,
+  property_checks, visits,
 };
 use crate::members::{Content, GroupField, Members, PropertyField, generic_argument, is_optional, value_type};
 use crate::ui_type::analysis::TypeAnalysis;
@@ -41,10 +41,7 @@ pub fn generate(analysis: &TypeAnalysis) -> syn::Result<TokenStream> {
   let type_info = type_info(analysis);
   let checks = checks(
     members,
-    attached.iter().flat_map(|attached| {
-      let value = value_type(&attached.ty);
-      [value_check(value), object_check(value), kind_check(value)]
-    }),
+    attached.iter().flat_map(|attached| property_checks(value_type(&attached.ty))),
   );
   Ok(quote! {
     const _: () = {

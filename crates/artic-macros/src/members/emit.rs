@@ -83,7 +83,7 @@ pub fn checks(members: &Members, extra_checks: impl IntoIterator<Item = TokenStr
   let values = members
     .properties
     .iter()
-    .flat_map(|field| [value_check(field.value), object_check(field.value), kind_check(field.value)])
+    .flat_map(|field| property_checks(field.value))
     .chain(members.values.iter().flat_map(|field| {
       [
         plain_value_check(field.value),
@@ -352,8 +352,14 @@ fn is_number(ty: &Type) -> bool {
     && NUMBERS.contains(&name.as_str())
 }
 
+/// The checks a property's value type gets, an own property's or an attached one's: it can be
+/// written in a UI language, taken from an object, and its object route fits its kind.
+pub fn property_checks(value: &Type) -> [TokenStream; 3] {
+  [value_check(value), object_check(value), kind_check(value)]
+}
+
 /// The check that a property's value type can be written in a UI language, pointing at the type.
-pub fn value_check(value: &Type) -> TokenStream {
+fn value_check(value: &Type) -> TokenStream {
   let ops = value_ops(value);
   quote_spanned!(value.span()=> #ops;)
 }
@@ -370,7 +376,7 @@ fn plain_value_check(value: &Type) -> TokenStream {
 /// The check that a property's value type can be taken from an object the way its `Written` impl
 /// says, pointing at the type: the thunks the `access` feature keeps convert through this route,
 /// so the check keeps a crate that builds without the feature from breaking once one turns it on.
-pub fn object_check(value: &Type) -> TokenStream {
+fn object_check(value: &Type) -> TokenStream {
   let ops = object_ops(value);
   quote_spanned!(value.span()=> #ops;)
 }
@@ -379,7 +385,7 @@ pub fn object_check(value: &Type) -> TokenStream {
 /// (`TypeKind::Value`) takes its staged object and a node type refuses it, so a hand-written
 /// `Written` impl that says otherwise fails to compile here instead of refusing every staged value
 /// at run time. Text and child elements have no kind to check.
-pub fn kind_check(value: &Type) -> TokenStream {
+fn kind_check(value: &Type) -> TokenStream {
   quote_spanned!(value.span()=>
     const _: () = match <<#value as __artic::Written>::As as __artic::KindCheck<#value>>::MISMATCH {
       ::core::option::Option::Some(__artic::TypeKind::Value) => ::core::panic!("{}", ::core::concat!(
