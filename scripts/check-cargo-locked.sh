@@ -6,8 +6,9 @@
 # `codspeed run`, version, help, `--version`, `-V` or `--help` alone, and machete with nothing
 # before a lone `--` but plain paths and its switches that read no metadata: `--skip-target-dir`,
 # `--fix`, `--no-ignore`, `--version`, `--help`, where a path holds only letters, digits and
-# `_ . / : -`; any other option or word may expand to `--with-metadata`, which runs cargo metadata
-# and has no `--locked`, so it's flagged), and mutants takes it as `--cargo-arg=--locked`. A flag
+# `_ . / : -`, and a backtick, parenthesis or brace is a word of its own; any other option or word
+# may expand to `--with-metadata`, which runs cargo metadata and has no `--locked`, so it's
+# flagged), and mutants takes it as `--cargo-arg=--locked`. A flag
 # after a lone `--` goes to the program cargo runs, and one before the subcommand reaches only
 # cargo's built-in commands, so neither counts. Reads every YAML file under .github, or the files
 # given, with yq (mikefarah), aliases expanded.
@@ -148,7 +149,7 @@ while IFS=$'\t' read -r file line encoded; do
   [ -n "$file" ] || continue
   text=$(printf '%s' "$encoded" | base64 -d)
   text=$(printf '%s\n' "$text" | strip_comments | sed -e ':a' -e '/\\$/{N;s/\\\n/ /;ba' -e '}')
-  commands=$(printf '%s\n' "$text" | sed -e 's/&&/\n/g' -e 's/||/\n/g' -e 's/[;|&]/\n/g' -e 's/[(){}`]/ /g')
+  commands=$(printf '%s\n' "$text" | sed -e 's/&&/\n/g' -e 's/||/\n/g' -e 's/[;|&]/\n/g' -e 's/[(){}`]/ & /g')
   while IFS= read -r command; do
     read -r -a words <<<"$command"
     i=0

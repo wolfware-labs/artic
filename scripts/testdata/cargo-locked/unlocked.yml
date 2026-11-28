@@ -85,6 +85,10 @@ jobs:
       - run: cargo machete %MACHETE_ARGS% # flagged
       - run: cargo machete ^--with-metadata # flagged
       - run: cargo machete * # flagged
+      - run: cargo machete `cat margs` # flagged
+      - run: cargo machete (Get-Content margs) # flagged
+      - run: cargo machete {margs} # flagged
+      - run: echo `cargo build` # flagged
       - uses: CodSpeedHQ/action@0000000000000000000000000000000000000000
         with:
           run: cargo build # flagged
