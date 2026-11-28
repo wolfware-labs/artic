@@ -7,37 +7,38 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # Locked commands.
       - run: cargo build --locked --workspace
       - run: cargo +nightly test --locked
       - run: cargo -q clippy --frozen --all-targets
       - run: RUSTFLAGS=-Dwarnings cargo doc --locked --no-deps
       - run: cargo test --locked -- --nocapture
-      - run: echo start && cargo run --locked -p app
       - run: cargo llvm-cov --locked --workspace --lcov
       - run: cargo tree --locked -i linkme --depth 0
       - run: cargo deny --locked check
       - run: cargo codspeed build --locked -m simulation
-      - run: cargo codspeed run
+      - run: cargo +$TC build --locked
+      - run: cargo --config net.retry=3 build --locked
+      # mutants with the flag for the cargo it runs.
       - run: cargo mutants --workspace --cargo-arg=--locked
       - run: cargo mutants --workspace --cargo-arg --locked
       - run: cargo mutants --workspace -C --locked
       - run: cargo mutants --workspace -C--locked
       - run: cargo mutants --workspace --cargo-arg=--frozen
-      - run: |
-          echo "step #1"; cargo test --locked
-      - run: |
-          echo 'a\' # cargo build
-      - run: |
-          echo \" # cargo build
-      - run: |
-          echo "a" # cargo build
+      - run: cargo mutants --workspace --cargo-arg --frozen
+      # Commands that never resolve.
+      - run: cargo codspeed run
       - run: cargo --version
       - run: cargo -V
       - run: cargo +nightly --version
       - run: cargo --help
+      - run: cargo -h
       - run: cargo +nightly fmt --check
       - run: cargo --color always -C crates/x --config net.retry=3 fmt
-      - run: cargo +$TC build --locked
+      - run: cargo -Z unstable-options fmt --check
+      - run: which cargo
+      - run: cargo fmt --all --check
+      # machete with paths and its switches that read no metadata.
       - run: cargo machete
       - run: cargo machete --skip-target-dir -- --with-metadata
       - run: cargo machete --skip-target-dir
@@ -46,23 +47,26 @@ jobs:
       - run: cargo machete --version
       - run: cargo machete --help
       - run: cargo machete crates/a_b-c.d C:/work/app
-      - run: which cargo
-      - run: cargo -C crates/x fmt --check
-      - run: cargo --color always fmt --check
-      - run: cargo --config net.retry=3 fmt --check
-      - run: cargo -Z unstable-options fmt --check
+      # Prefixes, separators, comments and quotes.
+      - run: echo start && cargo run --locked -p app
       - run: if cargo test --locked; then echo ok; fi
       - run: timeout 600 cargo test --locked
       - run: out=$(cargo build --locked)
-      - run: cargo --config net.retry=3 build --locked
-      - run: cargo fmt --all --check
-      - run: echo "cargo build is not run here"
-      - run: |
-          # cargo build would resolve, but this is a comment
-          cargo build \
-            --locked
       - run: if true; then cargo build --locked; fi
       - run: |
           for crate in a b; do
             cargo check --locked -p "$crate" || failed=1
           done
+      - run: |
+          # cargo build would resolve, but this is a comment
+          cargo build \
+            --locked
+      - run: echo "cargo build is not run here"
+      - run: |
+          echo "step #1"; cargo test --locked
+      - run: |
+          echo 'a\' # cargo build
+      - run: |
+          echo \" # cargo build
+      - run: |
+          echo "a" # cargo build

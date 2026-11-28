@@ -9,20 +9,36 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # Commands that resolve, with no flag.
       - run: cargo build --workspace # flagged
       - run: cargo +nightly test # flagged
       - run: cargo -q clippy --all-targets # flagged
       - run: RUSTFLAGS=-Dwarnings cargo doc --no-deps # flagged
-      - run: cargo test -- --locked # flagged
-      - run: echo start && cargo run -p app # flagged
-      - run: cargo check; cargo build --locked # flagged
-      - run: cargo fmt --check | cargo check # flagged
       - run: cargo llvm-cov --workspace --lcov # flagged
       - run: cargo tree -i linkme --depth 0 # flagged
       - run: cargo deny check # flagged
       - run: cargo codspeed build -m simulation # flagged
       - run: cargo mutants --workspace # flagged
+      - run: cargo bench # flagged
+      - run: cargo fetch # flagged
+      - run: cargo nextest run # flagged
+      - run: cargo install cargo-machete # flagged
+      - run: cargo metadata --format-version 1 # flagged
+      - run: cargo b # flagged
+      # The flag where cargo doesn't read it: after a lone `--`, or before the subcommand.
+      - run: cargo test -- --locked # flagged
       - run: cargo mutants --workspace -- --locked # flagged
+      - run: cargo --locked build # flagged
+      # Global options that take a value, which isn't the subcommand.
+      - run: cargo --config net.retry=3 test # flagged
+      - run: cargo -Z unstable-options build # flagged
+      - run: cargo -C crates/x build # flagged
+      - run: cargo --color always build # flagged
+      - run: cargo --config build # flagged
+      # Separators and joined lines.
+      - run: echo start && cargo run -p app # flagged
+      - run: cargo check; cargo build --locked # flagged
+      - run: cargo fmt --check | cargo check # flagged
       - run: | # flagged
           cargo build \
             --workspace
@@ -33,6 +49,12 @@ jobs:
       - run: if true; then cargo build; fi # flagged
       - run: | # flagged
           cargo build # --locked comes later
+      - run: | # flagged
+          # note \
+          cargo build
+      - run: cargo build & echo --locked # flagged
+      - run: cargo build &# --locked # flagged
+      # Prefixes and grouping before cargo.
       - run: if cargo test; then echo ok; fi # flagged
       - run: while ! cargo check; do sleep 1; done # flagged
       - run: timeout 600 cargo test # flagged
@@ -40,23 +62,8 @@ jobs:
       - run: (cargo build) # flagged
       - run: out=$(cargo build) # flagged
       - run: "{ cargo build; }" # flagged
-      - run: cargo --config net.retry=3 test # flagged
-      - run: cargo -Z unstable-options build # flagged
-      - run: cargo --locked build # flagged
-      - run: cargo bench # flagged
-      - run: cargo fetch # flagged
-      - run: cargo nextest run # flagged
-      - run: cargo install cargo-machete # flagged
-      - run: cargo metadata --format-version 1 # flagged
-      - run: cargo b # flagged
-      - run: *c # flagged
-      - run: | # flagged
-          # note \
-          cargo build
-      - run: cargo build & echo --locked # flagged
-      - run: cargo build &# --locked # flagged
-      - run: cargo -C crates/x build # flagged
-      - run: cargo --color always build # flagged
+      - run: echo `cargo build` # flagged
+      # Comments and quotes.
       - run: | # flagged
           echo "step #1"; cargo test
       - run: | # flagged
@@ -67,15 +74,29 @@ jobs:
           echo "first
           # still quoted"; cargo test
       - run: echo a#b; cargo test # flagged
+      # cargo by path, with `.exe`, in any letter case.
       - run: /usr/bin/cargo build # flagged
       - run: ~/.cargo/bin/cargo test # flagged
       - run: cargo.exe build # flagged
-      - run: cargo machete --skip-target-dir --with-metadata # flagged
-      - run: cargo machete --with-metadata=true # flagged
       - run: C:\Users\runneradmin\.cargo\bin\cargo.exe build # flagged
       - run: .\tools\cargo build # flagged
       - run: CARGO.EXE build # flagged
       - run: Cargo build # flagged
+      # A YAML alias.
+      - run: *c # flagged
+      # Option and toolchain words that expand, in front of an exempt subcommand or none.
+      - run: cargo +$TC # flagged
+      - run: cargo +nightly$EXTRA # flagged
+      - run: cargo +"a;b" build # flagged
+      - run: cargo +$TC fmt # flagged
+      - run: cargo --color $X fmt # flagged
+      - run: cargo -Z$X version # flagged
+      - run: cargo --config $X help # flagged
+      - run: cargo +$TC codspeed run # flagged
+      - run: cargo +$TC machete # flagged
+      # machete arguments that may be `--with-metadata`.
+      - run: cargo machete --skip-target-dir --with-metadata # flagged
+      - run: cargo machete --with-metadata=true # flagged
       - run: cargo machete "--with-metadata" # flagged
       - run: cargo machete '--with-metadata' # flagged
       - run: cargo machete $MACHETE_ARGS # flagged
@@ -88,21 +109,12 @@ jobs:
       - run: cargo machete `cat margs` # flagged
       - run: cargo machete (Get-Content margs) # flagged
       - run: cargo machete {margs} # flagged
-      - run: echo `cargo build` # flagged
+      # Documented false alarms: separators read before quotes, and a substitution's closing `)`.
       - run: echo "see cargo build; cargo test" # flagged
       - run: cargo --config "a;b" build # flagged
       - run: cargo -Z "a&b" build # flagged
-      - run: cargo --config build # flagged
-      - run: cargo +$TC # flagged
-      - run: cargo +nightly$EXTRA # flagged
-      - run: cargo +"a;b" build # flagged
       - run: v=$(cargo -V) # flagged
-      - run: cargo +$TC fmt # flagged
-      - run: cargo --color $X fmt # flagged
-      - run: cargo -Z$X version # flagged
-      - run: cargo --config $X help # flagged
-      - run: cargo +$TC codspeed run # flagged
-      - run: cargo +$TC machete # flagged
+      # An action input named `run`.
       - uses: CodSpeedHQ/action@0000000000000000000000000000000000000000
         with:
           run: cargo build # flagged

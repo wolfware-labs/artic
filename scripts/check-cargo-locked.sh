@@ -102,29 +102,35 @@ strip_comments() {
   '
 }
 
+# Characters a word may hold to be read as written, with nothing the shell expands, quotes or
+# escapes; `-` stays last so it isn't read as a range.
+toolchain_chars='A-Za-z0-9_.-'
+path_chars='A-Za-z0-9_./:-'
+option_chars='A-Za-z0-9_.=+/:-'
+
 # Whether the cargo command in `words`, from the word after `cargo`, may resolve without the
-# lockfile.
+# lockfile: 0 (a hit) when it may, 1 when it can't.
 unlocked() {
   local -a words=("$@")
-  local i=0 sub flag skip unsafe=0
+  local i=0 sub word skip unsafe=0
   while [ "$i" -lt "${#words[@]}" ]; do
     case "${words[i]}" in
       -Z | -C | --config | --color) skip=2 ;;
       [+-]*) skip=1 ;;
       *) break ;;
     esac
-    for flag in "${words[@]:i:skip}"; do
-      case "$flag" in
-        *[!A-Za-z0-9_.=+/:-]*) unsafe=1 ;;
+    for word in "${words[@]:i:skip}"; do
+      case "$word" in
+        *[!$option_chars]*) unsafe=1 ;;
       esac
     done
     i=$((i + skip))
   done
   sub=${words[i]:-}
   if [ -z "$sub" ]; then
-    for flag in "${words[@]}"; do
-      case "$flag" in
-        +*[!A-Za-z0-9_.-]*) return 0 ;;
+    for word in "${words[@]}"; do
+      case "$word" in
+        +*[!$toolchain_chars]*) return 0 ;;
         +* | --version | -V | --help | -h) ;;
         *) return 0 ;;
       esac
@@ -134,23 +140,23 @@ unlocked() {
   i=$((i + 1))
   case "$sub" in
     fmt | version | help)
-      [ "$unsafe" = 1 ]
-      return
+      [ "$unsafe" = 0 ] || return 0
+      return 1
       ;;
     codspeed)
       if [ "${words[i]:-}" = run ]; then
-        [ "$unsafe" = 1 ]
-        return
+        [ "$unsafe" = 0 ] || return 0
+        return 1
       fi
       ;;
     machete)
       [ "$unsafe" = 0 ] || return 0
-      while [ "$i" -lt "${#words[@]}" ] && [ "${words[i]}" != -- ]; do
-        case "${words[i]}" in
+      for word in "${words[@]:i}"; do
+        [ "$word" != -- ] || break
+        case "$word" in
           --skip-target-dir | --fix | --no-ignore | --version | --help) ;;
-          -* | *[!A-Za-z0-9_./:-]*) return 0 ;;
+          -* | *[!$path_chars]*) return 0 ;;
         esac
-        i=$((i + 1))
       done
       return 1
       ;;
@@ -159,8 +165,9 @@ unlocked() {
         case "${words[i]}" in
           --cargo-arg=--locked | --cargo-arg=--frozen | -C--locked | -C--frozen) return 1 ;;
           --cargo-arg | -C)
-            flag=${words[i + 1]:-}
-            [ "$flag" = --locked ] || [ "$flag" = --frozen ] && return 1
+            case "${words[i + 1]:-}" in
+              --locked | --frozen) return 1 ;;
+            esac
             ;;
         esac
         i=$((i + 1))
@@ -168,11 +175,11 @@ unlocked() {
       return 0
       ;;
   esac
-  while [ "$i" -lt "${#words[@]}" ] && [ "${words[i]}" != -- ]; do
-    case "${words[i]}" in
+  for word in "${words[@]:i}"; do
+    [ "$word" != -- ] || break
+    case "$word" in
       --locked | --frozen) return 1 ;;
     esac
-    i=$((i + 1))
   done
   return 0
 }
