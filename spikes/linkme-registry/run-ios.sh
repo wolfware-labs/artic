@@ -21,7 +21,7 @@ xcrun simctl bootstatus "$udid" -b >/dev/null
 
 mkdir -p out
 for profile in dev release fat thin cgu1; do
-  cargo build -q -p spike-ffi --target "$target" --profile "$profile"
+  cargo build -q --locked -p spike-ffi --target "$target" --profile "$profile"
   dir="$profile"; [ "$profile" = dev ] && dir=debug
   lib="target/$target/$dir/libspike_ffi.a"
   for strip in none dead_strip force_load force_load+dead_strip; do

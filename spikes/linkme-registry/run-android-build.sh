@@ -15,7 +15,7 @@ for target in aarch64-linux-android x86_64-linux-android; do
   env_target="$(tr 'a-z-' 'A-Z_' <<<"$target")"
   export "CARGO_TARGET_${env_target}_LINKER=$bin/${target}${api}-clang"
   for profile in dev release fat thin cgu1; do
-    cargo build -q -p spike-ffi --target "$target" --profile "$profile"
+    cargo build -q --locked -p spike-ffi --target "$target" --profile "$profile"
     dir="$profile"; [ "$profile" = dev ] && dir=debug
     so="target/$target/$dir/libspike_ffi.so"
     cp "$so" "out/$target-$profile.so"

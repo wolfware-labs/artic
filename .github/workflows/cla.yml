@@ -6,12 +6,7 @@ on:
   pull_request_target:
     types: [opened, closed, synchronize]
 
-permissions:
-  actions: write
-  contents: write
-  issues: write
-  pull-requests: write
-  statuses: write
+permissions: {}
 
 # One group per pull request; the merged-close run has its own group so a
 # comment run cannot replace it.
@@ -22,6 +17,12 @@ concurrency:
 jobs:
   cla:
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+      issues: write
+      pull-requests: write
+      statuses: write
     timeout-minutes: 30
     # Comments only count on pull requests. The sentence must match
     # custom-pr-sign-comment below (expression comparison ignores case).

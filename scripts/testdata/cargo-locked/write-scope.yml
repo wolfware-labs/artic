@@ -1,0 +1,11 @@
+# A workflow whose top-level token can write one scope; the job should widen it instead.
+name: write-scope
+on: push
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: cargo build --locked

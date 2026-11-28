@@ -1,0 +1,9 @@
+# A workflow whose top-level token can write everything.
+name: write-all
+on: push
+permissions: write-all
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: cargo build --locked

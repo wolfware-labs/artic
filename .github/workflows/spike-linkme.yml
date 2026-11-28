@@ -41,7 +41,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: rustup toolchain install && rustc --version && cargo tree -p spike-registry --manifest-path spikes/linkme-registry/Cargo.toml -i linkme --depth 0
+      - run: rustup toolchain install && rustc --version && cargo tree --locked -p spike-registry --manifest-path spikes/linkme-registry/Cargo.toml -i linkme --depth 0
       - run: bash spikes/linkme-registry/run-desktop.sh | tee -a "$GITHUB_STEP_SUMMARY"
 
   ios:
