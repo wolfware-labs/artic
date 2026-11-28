@@ -123,6 +123,10 @@ jobs:
       - run: cargo r -q a --locked # flagged
       - run: cargo llvm-cov run a --locked # flagged
       - run: cargo llvm-cov run -p x a --locked # flagged
+      - run: cargo llvm-cov --lcov run a --locked # flagged
+      - run: cargo llvm-cov -p x run a --locked # flagged
+      - run: cargo miri run a --locked # flagged
+      - run: cargo hack run a --locked # flagged
       - run: cargo rustc a --locked # flagged
       - run: cargo rustdoc a --frozen # flagged
       - run: cargo run -p x --example smoke input.txt --locked # flagged

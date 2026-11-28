@@ -15,7 +15,7 @@
 # `cargo +${{ matrix.rust }} build --locked` is flagged for that reason), and after the subcommand
 # any word with a character outside that set (a variable, quote, glob, splat or redirection) hides
 # every flag after it (`cargo test --locked -p "$crate"` passes, `cargo build $ARGS --locked`
-# doesn't). run (and its alias r), rustc, rustdoc and `llvm-cov run` pass the program every word
+# doesn't). run (and its alias r), rustc, rustdoc and a wrapper's `run` pass the program every word
 # from their first argument that isn't an option or an option's value, so there the flag must come
 # before it
 # (`cargo run --locked -p app --example smoke`, not `cargo run -q a --locked`). mutants takes the
@@ -188,18 +188,14 @@ unlocked() {
       return 0
       ;;
   esac
-  # run (and its alias r), rustc, rustdoc and `llvm-cov run` hand the program every word from the
-  # first one that is neither an option nor an option's value; the value-taking options are those
-  # `cargo <sub> --help` lists (1.99.1).
+  # run (and its alias r), rustc and rustdoc, and a wrapper's `run` (`cargo llvm-cov --lcov run`,
+  # `cargo miri run`) wherever it stands, hand the program every word from the first one that is
+  # neither an option nor an option's value; the value-taking options are those
+  # `cargo <sub> --help` lists (1.99.1). A `run` word anywhere turns the rule on, which fails
+  # closed when it is only a test filter or an option's value.
   local program_args=0 value_next=0
   case "$sub" in
     run | r | rustc | rustdoc) program_args=1 ;;
-    llvm-cov)
-      if [ "${words[i]:-}" = run ]; then
-        program_args=1
-        i=$((i + 1))
-      fi
-      ;;
   esac
   for word in "${words[@]:i}"; do
     [ "$word" != -- ] || break
@@ -207,6 +203,10 @@ unlocked() {
     case "$word" in
       --locked | --frozen) return 1 ;;
     esac
+    if [ "$program_args" = 0 ] && [ "$word" = run ]; then
+      program_args=1
+      continue
+    fi
     [ "$program_args" = 1 ] || continue
     if [ "$value_next" = 1 ]; then
       value_next=0

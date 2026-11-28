@@ -57,6 +57,8 @@ jobs:
       - run: cargo run -p x --locked
       - run: cargo r --locked a
       - run: cargo llvm-cov run --locked a
+      - run: cargo llvm-cov --lcov run --locked a
+      - run: cargo hack run --locked a
       - run: cargo llvm-cov --locked --workspace --lcov
       - run: cargo run -q --bin x --locked input.txt
       - run: |
