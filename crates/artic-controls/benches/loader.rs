@@ -11,6 +11,10 @@
 // Besides text, a property's access takes a node as the value (`set_node`) and a staged object
 // (`set_object`), which a property not taken from objects takes out of the tree and refuses.
 //
+// An attached property's access writes the node's attached value of the owner's key, as
+// `TextElement.FontSize` on a `Border`; the `typed` side calls the owner's setter, or clears the
+// attached value's level directly.
+//
 // Compare against main as the core benches do:
 //
 //   cargo bench -p artic-controls --bench loader -- --save-baseline main
@@ -18,7 +22,7 @@
 //
 // Each bench checks once, before it's timed, that both ways write the value they say they do.
 
-use artic_controls::{Border, TextBlock};
+use artic_controls::{Border, TextBlock, TextElement};
 use artic_core::property::{Precedence, Property};
 use artic_core::tree::{NodeId, UiTree};
 use artic_layout::HorizontalAlignment;
@@ -34,6 +38,7 @@ const PADDINGS: [&str; 2] = ["4,8", "8,4"];
 const ALIGNMENTS: [&str; 2] = ["Left", "Right"];
 const COLORS: [&str; 2] = ["#3B82F6", "SteelBlue"];
 const OPACITIES: [&str; 2] = ["0.5", "0.25"];
+const FONT_SIZES: [&str; 2] = ["12", "16"];
 /// Which of two child nodes each write sets, named as text so they go through `compare`.
 const CHILDREN: [&str; 2] = ["first", "second"];
 
@@ -103,6 +108,12 @@ fn compare(
 /// The loader's access to `property` of `type_info`, an own property or a group's.
 fn access(type_info: &'static TypeInfo, property: &str) -> &'static PropertyAccess {
   let info = type_info.property(property).expect("the property is registered").info;
+  info.access.expect("the access feature is on")
+}
+
+/// The loader's access to the attached property `name` that `owner` declares.
+fn attached_access(owner: &'static TypeInfo, name: &str) -> &'static PropertyAccess {
+  let info = owner.attached_property(name).expect("the attached property is registered");
   info.access.expect("the access feature is on")
 }
 
@@ -367,6 +378,50 @@ fn refused_object(c: &mut Criterion) {
   compare(c, "loader/refused_object", &mut tree, PADDINGS, loaded, typed);
 }
 
+/// `TextElement.FontSize` on a `Border`, which holds it as an attached value: the access against
+/// the owner's typed setter, once the value exists.
+fn attached_property(c: &mut Criterion) {
+  let (mut tree, node) = one(Border::TYPE_INFO);
+  let font_size = attached_access(TextElement::TYPE_INFO, "FontSize");
+  let typed = |tree: &mut UiTree, text: &str| {
+    let value: f32 = text.parse().expect("a number");
+    TextElement::set_font_size(tree, node, value);
+  };
+  (font_size.set_text)(&mut tree, node, FONT_SIZES[0], Precedence::Local).expect("a number");
+  assert_eq!(TextElement::font_size(&tree, node), 12.0);
+  typed(&mut tree, FONT_SIZES[1]);
+  assert_eq!(TextElement::font_size(&tree, node), 16.0);
+
+  let loaded = |tree: &mut UiTree, text: &str| {
+    (font_size.set_text)(tree, node, text, Precedence::Local).expect("a number");
+  };
+  compare(c, "loader/attached_property", &mut tree, FONT_SIZES, loaded, typed);
+}
+
+/// `TextElement.FontSize` set from text and cleared again on a `Border` that holds it: the
+/// access's clear finds the attached value by its key, against clearing the typed property.
+fn attached_property_clear(c: &mut Criterion) {
+  let (mut tree, node) = one(Border::TYPE_INFO);
+  let font_size = attached_access(TextElement::TYPE_INFO, "FontSize");
+  let loaded = |tree: &mut UiTree, text: &str| {
+    (font_size.set_text)(tree, node, text, Precedence::Local).expect("a number");
+    (font_size.clear)(tree, node, Precedence::Local).expect("a live node");
+  };
+  let typed = |tree: &mut UiTree, text: &str| {
+    let property = tree.attached_property(node, TextElement::FONT_SIZE);
+    property.set_at(Precedence::Local, text.parse().expect("a number"));
+    property.clear(Precedence::Local);
+  };
+  (font_size.set_text)(&mut tree, node, FONT_SIZES[0], Precedence::Local).expect("a number");
+  assert_eq!(TextElement::font_size(&tree, node), 12.0);
+  loaded(&mut tree, FONT_SIZES[1]);
+  assert_eq!(TextElement::font_size(&tree, node), 14.0);
+  typed(&mut tree, FONT_SIZES[0]);
+  assert_eq!(TextElement::font_size(&tree, node), 14.0);
+
+  compare(c, "loader/attached_property_clear", &mut tree, FONT_SIZES, loaded, typed);
+}
+
 criterion_group!(
   benches,
   own_property,
@@ -376,6 +431,8 @@ criterion_group!(
   value_collection,
   value_field_clear,
   node_property,
-  refused_object
+  refused_object,
+  attached_property,
+  attached_property_clear
 );
 criterion_main!(benches);
