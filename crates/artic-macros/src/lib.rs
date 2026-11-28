@@ -48,7 +48,8 @@ use syn::{DeriveInput, parse_macro_input};
 /// - `Property<T>` is a property. `T`, or `X` in `Option<X>`, must implement `Written`: be text,
 ///   implementing `FromStr` (with a `Display` error) and `ToRust` beside `artic::core::text_value!`
 ///   (`artic_core::text_value!` without the `artic` crate), or a `UiType`, which a derived type
-///   is and a type implementing `UiType` by hand becomes with `artic::core::object_value!`, or a
+///   is, a node type implementing `UiType` by hand becomes with `artic::core::node_type_value!`,
+///   and a hand-written value type becomes by writing its `Written` impl with `TakesObject`, or a
 ///   `NodeId`, a property that names a node, such as a data context. Its settings: `default = expr`
 ///   for the `Default` level (otherwise `T::default()`), `affects = layout | render` and
 ///   `inherits` for its generated key, `key = KEY` to share a key with other types instead

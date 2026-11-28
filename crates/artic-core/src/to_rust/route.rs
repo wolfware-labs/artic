@@ -30,13 +30,14 @@ use crate::tree::NodeId;
 /// artic_core::text_value!(Percent);
 /// ```
 ///
-/// `#[derive(UiEnum)]` and `#[derive(UiType)]` implement it for the types they derive. A type that
-/// implements `UiType` by hand implements it with [`object_value!`](crate::object_value), or, for a
-/// value that also implements `FromUiObject`, writes the impl out with [`TakesObject`].
+/// `#[derive(UiEnum)]` and `#[derive(UiType)]` implement it for the types they derive. A node type
+/// that implements `UiType` by hand implements it with [`node_type_value!`](crate::node_type_value);
+/// a value type that implements `UiType` by hand, taken from a staged object through
+/// `FromUiObject`, writes the impl out with [`AsObject`] and [`TakesObject`].
 #[diagnostic::on_unimplemented(
   message = "`{Self}` can't be written in a UI language",
   label = "neither text, an object nor a child element",
-  note = "derive `UiType` or `UiEnum`; a `UiType` implemented by hand adds `artic::core::object_value!({Self})`, and a type set from text implements `FromStr` and `ToRust` and adds `artic::core::text_value!({Self})` (`artic_core::` without the `artic` crate)"
+  note = "derive `UiType` or `UiEnum`; a node type implementing `UiType` by hand adds `artic::core::node_type_value!({Self})`, a hand-written value type writes the impl with `TakesObject`, and a type set from text implements `FromStr` and `ToRust` and adds `artic::core::text_value!({Self})` (`artic_core::` without the `artic` crate)"
 )]
 pub trait Written {
   /// How the value is written: [`AsText`], [`AsObject`] or [`AsChild`].
@@ -77,11 +78,12 @@ macro_rules! text_value {
   )+};
 }
 
-/// Implements [`Written`] for each type given as a UI type written as an object and not taken from
-/// one: a type that implements `UiType` by hand. A value that implements `FromUiObject` writes the
-/// impl out instead, with [`AsObject`] and [`TakesObject`].
+/// Implements [`Written`] for each type given as a node type that implements `UiType` by hand:
+/// written as an object, and never taken from one, since its objects stay in the tree. A value type
+/// that implements `UiType` by hand writes the impl out instead, with [`AsObject`] and
+/// [`TakesObject`], so the loader moves its staged object into the property.
 #[macro_export]
-macro_rules! object_value {
+macro_rules! node_type_value {
   ($($ty:ty),+ $(,)?) => {$(
     impl $crate::Written for $ty {
       type As = $crate::AsObject;

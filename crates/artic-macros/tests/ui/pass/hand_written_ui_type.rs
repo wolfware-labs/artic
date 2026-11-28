@@ -1,6 +1,6 @@
 // A `UiType` implemented by hand is a property value once it says how it is written: one line of
-// `object_value!` for a type not taken from objects, which the loader then refuses, and the
-// written-out impl with `TakesObject` for a hand-written value, which the loader moves in.
+// `node_type_value!` for a node type, whose staged object the loader then refuses, and the
+// written-out impl with `TakesObject` for a hand-written value type, which the loader moves in.
 
 use artic_core::Object;
 use artic_core::property::{Precedence, Property, PropertyVisitor};
@@ -22,7 +22,7 @@ impl Object for Telemetry {
   fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
 }
 
-artic_core::object_value!(Telemetry);
+artic_core::node_type_value!(Telemetry);
 
 #[derive(Debug, Default, Clone, PartialEq)]
 struct Reading(u8);

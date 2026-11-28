@@ -575,7 +575,7 @@ mod tests {
     fn visit_properties(&self, _visitor: &mut PropertyVisitor<'_>) {}
   }
 
-  artic_core::object_value!(Gauge);
+  artic_core::node_type_value!(Gauge);
 
   /// A tree holding two gauges: an owner, and a detached one to stage or set as a node.
   fn two_gauges() -> (UiTree, NodeId, NodeId) {

@@ -55,10 +55,11 @@ pub enum Whitespace {
 ///
 /// `#[derive(UiType)]` implements it. A type that implements it can also be the value of a
 /// property, written as an object rather than as text, once it implements
-/// [`Written`](crate::Written): the derive writes that impl, and a type that implements `UiType` by
-/// hand adds it with `artic::core::object_value!(T)` (`artic_core::object_value!` without the
-/// `artic` crate), or, for a value that implements [`FromUiObject`](crate::FromUiObject), writes it
-/// out with `type As = AsObject` and `type FromObject = TakesObject`.
+/// [`Written`](crate::Written): the derive writes that impl. A node type that implements `UiType` by
+/// hand adds it with `artic::core::node_type_value!(T)` (`artic_core::node_type_value!` without the
+/// `artic` crate); a value type that implements it by hand, taken from a staged object through
+/// [`FromUiObject`](crate::FromUiObject), writes it out with `type As = AsObject` and
+/// `type FromObject = TakesObject`.
 pub trait UiType {
   /// The type's registry descriptor.
   const TYPE_INFO: &'static TypeInfo;
